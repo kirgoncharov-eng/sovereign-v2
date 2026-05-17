@@ -352,7 +352,10 @@ function Setup({ onStart }) {
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"36px 16px" }}>
       <div style={{ maxWidth:580, width:"100%" }}>
         <div style={{ textAlign:"center", marginBottom:36 }}>
-          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".26em", color:G.tx3, marginBottom:16 }}>// СУВЕРЕН · ПОЛИТИЧЕСКАЯ СИМУЛЯЦИЯ //</div>
+          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: ".26em", color: G.tx3, marginBottom: 16 }}>
+  // СУВЕРЕН · ПОЛИТИЧЕСКАЯ СИМУЛЯЦИЯ //
+  <span style={{ marginLeft: 12, padding: "2px 8px", borderRadius: 3, border: `1px solid ${G.bdr2}`, fontSize: 10, color: G.bdr2 }}>v2.0</span>
+</div>
           <h1 style={{ fontFamily:serif, fontSize:42, fontWeight:600, color:G.gold }}>Конфигурация</h1>
           <div style={{ fontFamily:serif, fontSize:17, color:G.tx2, fontStyle:"italic", marginTop:10, marginBottom:20 }}>Ваши решения определят судьбу страны</div>
           <Divider/>
