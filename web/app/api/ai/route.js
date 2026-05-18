@@ -1,7 +1,8 @@
-// Модели вынесены в переменные окружения — при деприкейте меняешь в Vercel, код не трогаешь
+// Vercel: разрешаем функции работать до 60 секунд (по умолчанию 10)
+export const maxDuration = 60;
 
-const MODEL_FAST = process.env.MODEL_FAST    || 'gemini-3-flash';        // события, последствия
-const MODEL_DEEP = process.env.MODEL_DEEP    || 'gemini-3-flash';        // финал
+const MODEL_FAST = process.env.MODEL_FAST    || 'gemini-3.1-flash-lite';
+const MODEL_DEEP = process.env.MODEL_DEEP    || 'gemini-3.1-flash-lite';
 const MODEL_FALLBACK = process.env.MODEL_FALLBACK || 'claude-haiku-4-5-20251001';
 
 const GEMINI_URL = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -22,7 +23,9 @@ async function callGemini(prompt, model, maxTokens, system) {
       generationConfig: {
         temperature: 0.9,
         maxOutputTokens: maxTokens,
-        responseMimeType: 'application/json'
+        responseMimeType: 'application/json',
+        // КРИТИЧНО: отключаем thinking mode — иначе модель тратит время на размышления и таймаутится
+        thinkingConfig: { thinkingBudget: 0 }
       }
     })
   });
@@ -55,7 +58,6 @@ async function callClaude(prompt, model, maxTokens, system) {
   return d.content?.find(b => b.type === 'text')?.text || '{}';
 }
 
-// Универсальный вызов: пробует основную модель, при сбое — fallback
 async function callModel(prompt, model, maxTokens, system) {
   const isGemini = model.startsWith('gemini');
   try {
@@ -64,7 +66,6 @@ async function callModel(prompt, model, maxTokens, system) {
       : await callClaude(prompt, model, maxTokens, system);
   } catch (err) {
     console.warn(`Primary model ${model} failed, using fallback ${MODEL_FALLBACK}:`, err.message);
-    // Fallback всегда через Claude (надёжная резервная цепь)
     return await callClaude(prompt, MODEL_FALLBACK, maxTokens, system);
   }
 }
@@ -82,7 +83,6 @@ export async function POST(req) {
       text = await callModel(prompt, MODEL_FAST, 1200, SYS_BASE);
     }
 
-    // Очистка от возможных markdown-обёрток
     text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
     return Response.json({ text });
 
