@@ -3,9 +3,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 // ── СТРАНЫ ────────────────────────────────────────────────────────────────────
 const COUNTRIES = {
-  "Беларусь": { flag:"🇧🇾", context:"Постлукашенковская Беларусь. Санкции Запада, жёсткая зависимость от России, силовики привыкли к авторитаризму, оппозиция в эмиграции и подполье, общество разорвано.", startYear:2025 },
-  "Украина":  { flag:"🇺🇦", context:"Украина в послевоенной реконструкции. Кандидат ЕС. Западные союзники устают, олигархи ослаблены, общество истощено и требует победы.", startYear:2025 },
-  "Грузия":   { flag:"🇬🇪", context:"Малое государство. Абхазия и Ю.Осетия оккупированы Россией. Один олигарх контролирует правящую партию. Заявка на ЕС под угрозой. Улица против власти.", startYear:2025 }
+  "Беларусь": { flag:"🇧🇾", context:"Постлукашенковская Беларусь. Санкции Запада, жёсткая зависимость от России, силовики привыкли к авторитаризму, оппозиция в эмиграции и подполье, общество разорвано.", startYear:2025, capital:"Минск" },
+  "Украина":  { flag:"🇺🇦", context:"Украина в послевоенной реконструкции. Кандидат ЕС. Западные союзники устают, олигархи ослаблены, общество истощено и требует победы.", startYear:2025, capital:"Киев" },
+  "Грузия":   { flag:"🇬🇪", context:"Малое государство. Абхазия и Ю.Осетия оккупированы Россией. Один олигарх контролирует правящую партию. Заявка на ЕС под угрозой. Улица против власти.", startYear:2025, capital:"Тбилиси" }
 };
 
 const DIFFICULTIES = {
@@ -38,11 +38,10 @@ const START_RES = {
   ruins:     { politicalCapital:18, economy:20, military:32, externalReputation:22, internalLegitimacy:15, personalResource:40 }
 };
 
-// ── ФРАКЦИИ (фиксированные, реалистичные) ─────────────────────────────────────
 const FACTIONS_DATA = {
   "Беларусь": [
     { id:"siloviki",   name:"Силовые структуры", desc:"КГБ, МВД, ОМОН",             emoji:"🛡️", baseApproval:32 },
-    { id:"gossektor",  name:"Гос. предприятия",  desc:"Директорат заводов",          emoji:"🏭", baseApproval:38 },
+    { id:"gossektor",  name:"Гос. предприятия",   desc:"Директорат заводов",          emoji:"🏭", baseApproval:38 },
     { id:"church",     name:"Православная церковь",desc:"Патриархат и приходы",      emoji:"⛪", baseApproval:52 },
     { id:"opposition", name:"Демоппозиция",       desc:"Подполье и эмиграция",       emoji:"✊", baseApproval:58 },
     { id:"youth",      name:"Молодёжь",           desc:"Активисты и студенты",       emoji:"🔥", baseApproval:65 },
@@ -72,7 +71,6 @@ const FACTIONS_DATA = {
   ],
 };
 
-// Стартовые отношения фракций к игроку по идеологии
 const IDEOLOGY_REL = {
   liberal:     { siloviki:-45,gossektor:-25,church:-15,opposition:+55,youth:+45,west:+65,russia:-70,media:+40, military:+10,oligarchs:-15,nationalists:-35,civil:+55,regions:+10, gdream:-55,business:+20,diaspora:+60 },
   nationalist: { siloviki:+20,gossektor:-5, church:+50,opposition:-40,youth:+15,west:-50,russia:-20,media:+10, military:+60,oligarchs:-25,nationalists:+65,civil:-20,regions:+20, gdream:-20,business:-10,diaspora:+30 },
@@ -81,7 +79,6 @@ const IDEOLOGY_REL = {
 };
 const DIFF_REL_MOD = { debut:+15, coalition:0, crisis:-20, ruins:-35 };
 
-// Роли ключевых игроков (фиксированы, имена генерит AI)
 const FIGURE_ROLES = {
   "Беларусь": [
     { id:"interior",   role:"Министр внутренних дел", faction:"siloviki",   baseMood:"враг"    },
@@ -115,7 +112,6 @@ const FIGURE_ROLES = {
   ],
 };
 
-// ── ИНИЦИАЛИЗАЦИЯ ─────────────────────────────────────────────────────────────
 function initFactions(country, ideo, diff) {
   const base = FACTIONS_DATA[country] || [];
   const ideoRel = IDEOLOGY_REL[ideo] || {};
@@ -126,7 +122,6 @@ function initFactions(country, ideo, diff) {
     relation: Math.max(-100, Math.min(100, (ideoRel[f.id] || 0) + mod)),
   }));
 }
-
 function initFigures(country, ideo, diff, aiPlayers) {
   const roles = FIGURE_ROLES[country] || [];
   const ideoRel = IDEOLOGY_REL[ideo] || {};
@@ -135,22 +130,18 @@ function initFigures(country, ideo, diff, aiPlayers) {
     const aiPlayer = aiPlayers?.[i];
     const baseRel = (ideoRel[r.faction] || 0) + mod + (Math.random() * 20 - 10);
     return {
-      id: r.id,
-      role: r.role,
-      faction: r.faction,
+      id: r.id, role: r.role, faction: r.faction,
       name: aiPlayer?.name || r.role,
       loyalty: r.baseMood,
       relation: Math.max(-100, Math.min(100, Math.round(baseRel))),
     };
   });
 }
-
 function computePublicApproval(factions) {
   if (!factions?.length) return 50;
   return Math.round(factions.reduce((s, f) => s + f.approval, 0) / factions.length);
 }
 
-// ── API ───────────────────────────────────────────────────────────────────────
 async function ai(prompt, task = "event") {
   const r = await fetch("/api/ai", {
     method: "POST",
@@ -160,10 +151,9 @@ async function ai(prompt, task = "event") {
   if (!r.ok) throw new Error(`API ${r.status}`);
   const { text } = await r.json();
   try { return JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim()); }
-  catch { return {}; }
+  catch (e) { console.error("JSON parse error:", e, text); return {}; }
 }
 
-// ── УТИЛИТЫ ───────────────────────────────────────────────────────────────────
 const clamp = v => Math.max(0, Math.min(100, Math.round(v)));
 const clampRel = v => Math.max(-100, Math.min(100, Math.round(v)));
 const barColor = v => v >= 60 ? "#5cb87a" : v >= 35 ? "#c9a04a" : "#b85252";
@@ -175,30 +165,20 @@ function applyDeltas(res, d) {
   Object.entries(d || {}).forEach(([k, v]) => { if (n[k] !== undefined) n[k] = clamp(n[k] + (v || 0)); });
   return n;
 }
-function applyFactionChanges(factions, changes) {
+// ПЛОСКАЯ структура: factionRelChanges и factionApprChanges — отдельные объекты
+function applyFactionChanges(factions, relChanges, apprChanges) {
   return factions.map(f => ({
     ...f,
-    approval: clamp(f.approval + (changes?.approval?.[f.id] || 0)),
-    relation: clampRel(f.relation + (changes?.relation?.[f.id] || 0)),
+    approval: clamp(f.approval + (apprChanges?.[f.id] || 0)),
+    relation: clampRel(f.relation + (relChanges?.[f.id] || 0)),
   }));
 }
 function applyFigureChanges(figures, changes) {
   return figures.map(fig => {
-    const delta = (changes || []).find(c => c.id === fig.id);
-    const newRel = clampRel(fig.relation + (delta?.delta || 0));
+    const delta = (changes || {})[fig.id] || 0;
+    const newRel = clampRel(fig.relation + delta);
     return { ...fig, relation: newRel, loyalty: loyaltyLabel(newRel) };
   });
-}
-
-function formatFactions(factions) {
-  return factions.map(f => `${f.emoji}${f.name}: нар.${f.approval}%|к_вам${f.relation > 0 ? '+' : ''}${f.relation}`).join("  ");
-}
-function formatFigures(figures) {
-  return figures.map(f => `${f.name}(${f.role}):${f.relation > 0 ? '+' : ''}${f.relation}`).join("  ");
-}
-function formatCrises(crises) {
-  if (!crises?.length) return "нет";
-  return crises.map(c => `⚠️${c.title}[${c.severity},${c.turnsActive}хода]`).join(" | ");
 }
 
 function warningLevel(gs) {
@@ -210,7 +190,6 @@ function warningLevel(gs) {
   return "none";
 }
 
-// ── СТИЛИ ────────────────────────────────────────────────────────────────────
 const G = {
   bg:"#07090e", bg2:"#0c1120", bg3:"#111b2e",
   bdr:"#1a2438", bdr2:"#243452",
@@ -230,7 +209,6 @@ const hovChoice = () => ({
   onMouseOut:  e => { e.currentTarget.style.background="rgba(255,255,255,0.02)";e.currentTarget.style.borderColor=G.bdr;e.currentTarget.style.color=G.txt; }
 });
 
-// ── UI КОМПОНЕНТЫ ─────────────────────────────────────────────────────────────
 function Fonts() {
   return <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Share+Tech+Mono&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:${G.bg};font-family:${serif};color:${G.txt}}button{cursor:pointer;transition:all .15s;font-family:${mono}}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:${G.bdr2}}`}</style>;
 }
@@ -267,7 +245,7 @@ function ResBar({ label, val, prev }) {
   );
 }
 
-function RelBar({ label, val, prevVal, showApproval, approval }) {
+function RelBar({ label, val, prevVal }) {
   const c = relColor(val);
   const delta = prevVal !== undefined ? val - prevVal : 0;
   const pct = ((val + 100) / 200) * 100;
@@ -278,7 +256,6 @@ function RelBar({ label, val, prevVal, showApproval, approval }) {
         <span style={{ fontFamily:mono, fontSize:10, color:c }}>
           {val > 0 ? `+${val}` : val}
           {delta !== 0 && <span style={{ color:delta>0?G.grn:G.red, fontSize:9, marginLeft:2 }}>{delta>0?`+${delta}`:delta}</span>}
-          {showApproval && <span style={{ color:G.tx3, marginLeft:4 }}>{approval}%</span>}
         </span>
       </div>
       <div style={{ height:2, background:G.bdr, borderRadius:2, position:"relative" }}>
@@ -329,12 +306,9 @@ function Setup({ onStart }) {
       onStart({
         country, diff, ideo,
         leader: data,
-        resources: { ...START_RES[diff] },
-        prevResources: null,
-        factions,
-        prevFactions: null,
-        keyFigures: figures,
-        prevFigures: null,
+        resources: { ...START_RES[diff] }, prevResources: null,
+        factions, prevFactions: null,
+        keyFigures: figures, prevFigures: null,
         activeCrises: [],
         year: COUNTRIES[country].startYear,
         turn: 0, history: [], ended: false, endType: null,
@@ -352,10 +326,10 @@ function Setup({ onStart }) {
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"36px 16px" }}>
       <div style={{ maxWidth:580, width:"100%" }}>
         <div style={{ textAlign:"center", marginBottom:36 }}>
-          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: ".26em", color: G.tx3, marginBottom: 16 }}>
-  // СУВЕРЕН · ПОЛИТИЧЕСКАЯ СИМУЛЯЦИЯ //
-  <span style={{ marginLeft: 12, padding: "2px 8px", borderRadius: 3, border: `1px solid ${G.bdr2}`, fontSize: 10, color: G.bdr2 }}>v2.0</span>
-</div>
+          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".26em", color:G.tx3, marginBottom:16 }}>
+            // СУВЕРЕН · ПОЛИТИЧЕСКАЯ СИМУЛЯЦИЯ //
+            <span style={{ marginLeft:12, padding:"2px 8px", borderRadius:3, border:`1px solid ${G.bdr2}`, fontSize:10, color:G.bdr2 }}>v2.1</span>
+          </div>
           <h1 style={{ fontFamily:serif, fontSize:42, fontWeight:600, color:G.gold }}>Конфигурация</h1>
           <div style={{ fontFamily:serif, fontSize:17, color:G.tx2, fontStyle:"italic", marginTop:10, marginBottom:20 }}>Ваши решения определят судьбу страны</div>
           <Divider/>
@@ -472,23 +446,52 @@ function Game({ gs, setGs, onEnd }) {
   const gsRef = useRef(gs);
   useEffect(() => { gsRef.current = gs; }, [gs]);
 
+  // БОГАТЫЙ контекст для AI — имена, истории, конкретика
   const buildContext = (state) => {
     const ci = IDEOLOGIES.find(i => i.id === state.ideo);
-    const last = state.history.slice(-3).map(h=>`[${h.year}]${h.title}→«${h.choice}»→«${h.headline}»`).join(" | ");
-    return `Страна:${state.country} | Год ${state.year} | Ход ${state.turn+1}/20 | Лидер:${state.leader.leader.name}(${ci.label})
-Ресурсы: ПолитКап:${state.resources.politicalCapital} Эконом:${state.resources.economy} Сил:${state.resources.military} Реп:${state.resources.externalReputation} Лег:${state.resources.internalLegitimacy} Личн:${state.resources.personalResource}
-Рейтинг народа: ${computePublicApproval(state.factions)}%
-ФРАКЦИИ: ${formatFactions(state.factions)}
-ИГРОКИ: ${formatFigures(state.keyFigures)}
-КРИЗИСЫ: ${formatCrises(state.activeCrises)}
-${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
+    const last = state.history.slice(-5).map(h => `[${h.year}] "${h.title}" → выбор: «${h.choice}» → итог: «${h.headline}»`).join("\n");
+    const factionLines = state.factions.map(f =>
+      `${f.emoji} ${f.name}: одобрение народом ${f.approval}%, отношение к ${state.leader.leader.name} ${f.relation>0?'+':''}${f.relation}`
+    ).join("\n");
+    const figureLines = state.keyFigures.map(f =>
+      `${f.name} (${f.role}, ${f.loyalty}): отношение ${f.relation>0?'+':''}${f.relation}`
+    ).join("\n");
+    const crisisLines = state.activeCrises?.length
+      ? state.activeCrises.map(c => `КРИЗИС "${c.title}" (${c.severity}, ${c.turnsActive} ход) — ${c.description}`).join("\n")
+      : "Нет активных кризисов";
+
+    return `СТРАНА: ${state.country} (столица — ${COUNTRIES[state.country].capital})
+КОНТЕКСТ СТРАНЫ: ${COUNTRIES[state.country].context}
+ЛИДЕР: ${state.leader.leader.name} (${ci.label}), партия "${state.leader.leader.party}"
+ГОД: ${state.year}, ход ${state.turn+1} из 20
+РЕЙТИНГ НАРОДА: ${computePublicApproval(state.factions)}%
+
+РЕСУРСЫ (0-100):
+- Политический капитал: ${state.resources.politicalCapital}
+- Экономика: ${state.resources.economy}
+- Силовики: ${state.resources.military}
+- Внешняя репутация: ${state.resources.externalReputation}
+- Внутренняя легитимность: ${state.resources.internalLegitimacy}
+- Личный ресурс лидера: ${state.resources.personalResource}
+
+ФРАКЦИИ (с ID для возврата изменений):
+${factionLines}
+
+КЛЮЧЕВЫЕ ИГРОКИ (используй имена в нарративе):
+${figureLines}
+
+АКТИВНЫЕ КРИЗИСЫ:
+${crisisLines}
+
+ИСТОРИЯ ПРАВЛЕНИЯ (последние 5 ходов):
+${last || `Стартовая ситуация: ${state.leader.situation}`}`;
   };
 
   const fetchEvent = useCallback(async () => {
     const state = gsRef.current;
     setLoading(true); setPhase("loading"); setConsequence(null); setRandomEvent(null);
 
-    // Применяем drain от активных кризисов
+    // Drain от активных кризисов
     if (state.activeCrises?.length > 0) {
       const drainRes = { ...state.resources };
       state.activeCrises.forEach(c => {
@@ -504,12 +507,13 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
 
     const wl = warningLevel(gsRef.current);
     const isNearEnd = wl === "critical";
+    const factionIds = gsRef.current.factions.map(f => f.id).join("|");
 
     try {
       const ctx = buildContext(gsRef.current);
       const randomTrigger = gsRef.current.turn > 0 && Math.random() < 0.28;
       const data = await ai(
-        `ПОЛИТИЧЕСКАЯ СИМУЛЯЦИЯ\n${ctx}\nКонтекст страны: ${COUNTRIES[gsRef.current.country].context}\n\n${isNearEnd ? "⚠️ КРИТИЧЕСКИЙ МОМЕНТ: Власть лидера под серьёзной угрозой. Событие должно отражать нарастающую нестабильность.\n\n" : ""}Сгенерируй политическое событие (реалистично для ${gsRef.current.country}). Если ресурс ниже 20 — создай кризис связанный с ним. 3-4 варианта ответа.${randomTrigger ? "\n\nТАКЖЕ сгенерируй случайное событие (randomEvent) которое уже произошло без выбора — скандал, утечка, стихия, внешнее давление — с небольшим автоматическим эффектом." : ""}\n\nJSON:\n{"title":"...","source":"МИД|Разведка|Кабинет|Улица|Кремль|Брюссель|Пресса|Олигарх|Армия|Оппозиция","description":"4-5 предложений","isCritical":${isNearEnd},"affectedFactions":["id1"],"choices":[{"id":"a","text":"...","hint":"..."},{"id":"b","text":"...","hint":"..."},{"id":"c","text":"...","hint":"..."}],"randomEvent":${randomTrigger?'{"title":"...","description":"2 предложения","resourceEffect":{"politicalCapital":0},"factionEffect":{"relation":{"id":0}}}':'null'}}`,
+        `${ctx}\n\n${isNearEnd ? "⚠️ КРИТИЧЕСКИЙ МОМЕНТ: Власть лидера под угрозой. Создай событие отражающее нарастающую нестабильность.\n\n" : ""}Создай напряжённое политическое событие реалистичное для ${gsRef.current.country}. Используй имена реальных персонажей из списка игроков где возможно. Если есть активные кризисы — событие связано с ними или их последствиями. Если ресурс ниже 20 — создай кризис связанный с ним. 3-4 варианта решения.${randomTrigger ? "\n\nТакже сгенерируй случайное событие которое уже произошло без выбора (скандал/утечка/стихия/протест)." : ""}\n\nID фракций для affectedFactions: ${factionIds}\n\nJSON:\n{"title":"яркий заголовок события","source":"МИД|Разведка|Кабинет|Улица|Кремль|Брюссель|Пресса|Олигарх|Армия|Оппозиция","description":"4-5 предложений с конкретикой: имена, время, место","isCritical":${isNearEnd},"affectedFactions":["id1","id2"],"choices":[{"id":"a","text":"конкретное действие","hint":"риск/выигрыш"},{"id":"b","text":"...","hint":"..."},{"id":"c","text":"...","hint":"..."}]${randomTrigger ? ',"randomEvent":{"title":"...","description":"2 предложения","resourceEffect":{"politicalCapital":0}}' : ''}}`,
         "event"
       );
       if (data.randomEvent) setRandomEvent(data.randomEvent);
@@ -520,38 +524,72 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
 
   useEffect(() => { fetchEvent(); }, []); // eslint-disable-line
 
+  // ГЛАВНОЕ обновление: handleChoice теперь использует Sonnet через task='consequence',
+  // ПЛОСКИЙ JSON и литературные инструкции
   const handleChoice = async (choice) => {
     const state = gsRef.current;
     setLoading(true);
     try {
-      const ci  = IDEOLOGIES.find(i => i.id === state.ideo);
       const ctx = buildContext(state);
       const minRes = Math.min(...Object.values(state.resources));
       const pa    = computePublicApproval(state.factions);
       const willEnd = minRes <= 4 || pa <= 5;
+      const factionIds = state.factions.map(f => f.id).join("|");
+      const figureIds = state.keyFigures.map(f => `${f.id}(${f.name})`).join(", ");
 
       const data = await ai(
-        `СИМУЛЯЦИЯ — ПОСЛЕДСТВИЯ\n${ctx}\n\nСобытие: "${event.title}"\n${event.description}\nВыбор: "${choice.text}"\nИдеология лидера: ${ci.label}\n\n${willEnd ? "⚠️ ЭТО РЕШЕНИЕ ПРИВОДИТ К ПОТЕРЕ ВЛАСТИ. Опиши в narrative и powerLoss как именно произошла потеря власти — переворот, восстание, импичмент, бегство. Это должна быть драматическая история, не просто 'ресурсы закончились'.\n\n" : ""}Опиши последствия реалистично. Изменения ресурсов −25..+15. Включи изменения фракций (отдельно approval и relation) и ключевых игроков.\n\nJSON:\n{"headline":"газетный заголовок","narrative":"4-5 предложений","resourceChanges":{"politicalCapital":0,"economy":0,"military":0,"externalReputation":0,"internalLegitimacy":0,"personalResource":0},"factionChanges":{"approval":{},"relation":{}},"figureChanges":[{"id":"...","delta":0}],"reactions":["...","..."],"historianNote":"одна фраза","newCrisis":null,"crisisResolved":null,"powerLoss":${willEnd?'"опиши тип и детали потери власти одним предложением"':'null'}}`,
-        "consequence"
+        `${ctx}
+
+СОБЫТИЕ: "${event.title}"
+${event.description}
+
+РЕШЕНИЕ ЛИДЕРА: "${choice.text}"
+(подсказка к решению: ${choice.hint})
+
+${willEnd ? "⚠️ ЭТО РЕШЕНИЕ ПРИВОДИТ К ПАДЕНИЮ ВЛАСТИ. Опиши в narrative И в powerLoss КАК ИМЕННО произошла потеря: переворот силовиков? Народная революция? Импичмент в парламенте? Бегство в эмиграцию? Конкретные сцены — кто, где, когда. Это драматическая развязка, не «ресурсы закончились».\n\n" : ""}ТРЕБОВАНИЯ К ПОВЕСТВОВАНИЮ:
+1. Стиль политического триллера — конкретика, не абстракции
+2. ОБЯЗАТЕЛЬНО упомяни 2-3 ключевых игроков ПО ИМЕНАМ из списка (${figureIds})
+3. Конкретные сцены: время суток, место, жесты, реакции
+4. Цифры где уместно: проценты, суммы, число протестующих, курс валюты
+5. Прямая речь хотя бы один раз
+6. Реакции должны быть от конкретных персонажей с именами
+7. narrative — 6-8 насыщенных предложений (это главный момент игры)
+
+ID фракций: ${factionIds}
+ID игроков для figureRelChanges: ${state.keyFigures.map(f=>f.id).join("|")}
+
+Верни JSON со ВСЕМИ полями. Структура плоская:
+{
+  "headline": "газетный заголовок (5-8 слов)",
+  "narrative": "6-8 предложений политического триллера с именами и сценами",
+  "resourceChanges": {"politicalCapital":0,"economy":0,"military":0,"externalReputation":0,"internalLegitimacy":0,"personalResource":0},
+  "factionRelChanges": {"siloviki":0,"opposition":0},
+  "factionApprChanges": {"siloviki":0,"opposition":0},
+  "figureRelChanges": {"id1":0,"id2":0},
+  "reactions": ["Реакция конкретного персонажа с именем", "Реакция от другого персонажа"],
+  "historianNote": "одна меткая фраза будущего историка",
+  "newCrisis": null или {"title":"...","description":"...","severity":"low|medium|high|critical","resourceDrain":{"economy":-2}},
+  "crisisResolved": null или "точное название разрешённого кризиса",
+  "powerLoss": ${willEnd ? '"3-4 предложения о том как произошёл финал — конкретно, кинематографично"' : 'null'}
+}`,
+        "consequence" // → SONNET (главный нарративный момент)
       );
 
       const prevRes  = { ...state.resources };
       const prevFac  = state.factions.map(f => ({...f}));
       const prevFig  = state.keyFigures.map(f => ({...f}));
 
-      // Применяем случайное событие если было
       let newRes = applyDeltas(state.resources, data.resourceChanges);
       if (randomEvent?.resourceEffect) newRes = applyDeltas(newRes, randomEvent.resourceEffect);
 
-      let newFactions = applyFactionChanges(state.factions, data.factionChanges);
-      if (randomEvent?.factionEffect) newFactions = applyFactionChanges(newFactions, randomEvent.factionEffect);
+      // ПЛОСКАЯ структура изменений
+      let newFactions = applyFactionChanges(state.factions, data.factionRelChanges, data.factionApprChanges);
+      const newFigures = applyFigureChanges(state.keyFigures, data.figureRelChanges);
 
-      const newFigures  = applyFigureChanges(state.keyFigures, data.figureChanges);
       const newTurn     = state.turn + 1;
       const newYear     = state.year + (newTurn % 4 === 0 ? 1 : 0);
       const newHistory  = [...state.history, { year:state.year, title:event.title, choice:choice.text, headline:data.headline, historianNote:data.historianNote }];
 
-      // Обновляем кризисы
       let newCrises = state.activeCrises || [];
       if (data.crisisResolved) newCrises = newCrises.filter(c => c.title !== data.crisisResolved);
       if (data.newCrisis) newCrises = [...newCrises, { ...data.newCrisis, turnsActive:0, id: Date.now() }];
@@ -566,15 +604,13 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
         factions: newFactions, prevFactions: prevFac,
         keyFigures: newFigures, prevFigures: prevFig,
         activeCrises: newCrises,
-        turn: newTurn, year: newYear,
-        history: newHistory,
-        ended: isOver, endType,
-        powerLoss: data.powerLoss,
+        turn: newTurn, year: newYear, history: newHistory,
+        ended: isOver, endType, powerLoss: data.powerLoss,
       };
       gsRef.current = newGs;
       setGs(newGs);
       setConsequence(data); setPhase("consequence");
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Choice error:", e); }
     setLoading(false);
   };
 
@@ -584,17 +620,16 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
   const warnLevel = warningLevel(gs);
 
   const tabs = [
-    { id:"res",   label:"📊" },
-    { id:"fac",   label:"🏛️" },
-    { id:"fig",   label:"👥" },
-    { id:"log",   label:"📜" },
+    { id:"res", label:"📊" },
+    { id:"fac", label:"🏛️" },
+    { id:"fig", label:"👥" },
+    { id:"log", label:"📜" },
   ];
 
   return (
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"14px" }}>
       <div style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px 1fr", gap:14 }}>
 
-        {/* SIDEBAR */}
         <div>
           <Card style={{ marginBottom:10 }}>
             <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".13em", color:G.bl2, marginBottom:6 }}>{COUNTRIES[country].flag} {country.toUpperCase()}</div>
@@ -605,7 +640,6 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
 
           <PublicApprovalWidget value={publicApproval}/>
 
-          {/* Tabs */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:4, margin:"10px 0 6px" }}>
             {tabs.map(t => (
               <button key={t.id} onClick={()=>setSideTab(t.id)}
@@ -630,7 +664,7 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
                   return (
                     <div key={f.id} style={{ marginBottom:10 }}>
                       <div style={{ fontFamily:mono, fontSize:10, color:G.tx2, marginBottom:3 }}>{f.emoji} {f.name}</div>
-                      <RelBar label="нар." val={f.approval} prevVal={prev?.approval} showApproval={false}/>
+                      <RelBar label="нар." val={f.approval} prevVal={prev?.approval}/>
                       <RelBar label="к вам" val={f.relation} prevVal={prev?.relation}/>
                     </div>
                   );
@@ -677,9 +711,7 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
           </Card>
         </div>
 
-        {/* MAIN */}
         <div>
-          {/* Предупреждение */}
           {warnLevel !== "none" && !loading && (
             <div style={{ marginBottom:10, padding:"10px 16px", borderRadius:4, background:warnLevel==="critical"?"rgba(184,82,82,0.15)":"rgba(201,160,74,0.12)", border:`1px solid ${warnLevel==="critical"?G.red:G.amb}` }}>
               <span style={{ fontFamily:mono, fontSize:11, color:warnLevel==="critical"?G.red:G.amb, letterSpacing:".1em" }}>
@@ -688,7 +720,6 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
             </div>
           )}
 
-          {/* Активные кризисы */}
           {activeCrises?.length > 0 && !loading && (
             <div style={{ marginBottom:10 }}>
               {activeCrises.map(c => (
@@ -703,7 +734,6 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
             </div>
           )}
 
-          {/* Случайное событие */}
           {randomEvent && !loading && (
             <div style={{ marginBottom:10, padding:"10px 14px", borderRadius:4, background:"rgba(74,122,170,0.1)", border:`1px solid ${G.blue}` }}>
               <div style={{ fontFamily:mono, fontSize:10, color:G.bl2, letterSpacing:".1em", marginBottom:4 }}>⚡ СЛУЧАЙНОЕ СОБЫТИЕ</div>
@@ -757,9 +787,8 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
               <Card accent={G.amb} style={{ marginBottom:12 }}>
                 <Label>// ПОСЛЕДСТВИЯ</Label>
                 <div style={{ fontFamily:serif, fontSize:24, fontWeight:600, color:G.gld2, marginBottom:14, lineHeight:1.25 }}>«{consequence.headline}»</div>
-                <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.8, color:G.txt, marginBottom:14 }}>{consequence.narrative}</div>
+                <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{consequence.narrative}</div>
 
-                {/* Изменения ресурсов */}
                 <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
                   {Object.entries(consequence.resourceChanges||{}).filter(([,v])=>v!==0).map(([k,v])=>{
                     const cfg=RES_CONFIG.find(r=>r.key===k);
@@ -767,12 +796,11 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
                   })}
                 </div>
 
-                {/* Изменения фракций */}
-                {consequence.factionChanges && Object.keys({...consequence.factionChanges.relation,...consequence.factionChanges.approval}).length > 0 && (
+                {consequence.factionRelChanges && Object.keys(consequence.factionRelChanges).length > 0 && (
                   <div style={{ marginBottom:12 }}>
-                    <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:5 }}>ФРАКЦИИ:</div>
+                    <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:5 }}>ФРАКЦИИ (отношение):</div>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                      {Object.entries(consequence.factionChanges.relation||{}).filter(([,v])=>v!==0).map(([fid,v])=>{
+                      {Object.entries(consequence.factionRelChanges).filter(([,v])=>v!==0).map(([fid,v])=>{
                         const f=factions.find(x=>x.id===fid);
                         return f?<span key={fid} style={{ fontFamily:mono, fontSize:10, padding:"2px 7px", borderRadius:3, background:v>0?"rgba(92,184,122,0.1)":"rgba(184,82,82,0.1)", color:v>0?G.grn:G.red, border:`1px solid ${v>0?"rgba(92,184,122,0.25)":"rgba(184,82,82,0.25)"}` }}>{f.emoji}{f.name} {v>0?`+${v}`:v}</span>:null;
                       })}
@@ -788,7 +816,6 @@ ${last ? `ИСТОРИЯ: ${last}` : `СТАРТ: ${state.leader.situation}`}`;
                 )}
               </Card>
 
-              {/* Новый кризис */}
               {consequence.newCrisis && (
                 <div style={{ marginBottom:12, padding:"10px 14px", borderRadius:4, background:"rgba(184,82,82,0.1)", border:`1px solid ${G.red}` }}>
                   <div style={{ fontFamily:mono, fontSize:11, color:G.red, marginBottom:4 }}>🔥 НОВЫЙ КРИЗИС: {consequence.newCrisis.title?.toUpperCase()}</div>
@@ -818,13 +845,13 @@ function Ending({ gs, onRestart }) {
     const gen = async () => {
       try {
         const ci       = IDEOLOGIES.find(i => i.id === gs.ideo);
-        const hist     = gs.history.map(h=>`${h.year}: ${h.title}→«${h.choice}»→«${h.headline}»`).join("\n");
+        const hist     = gs.history.map(h=>`${h.year}: "${h.title}" → выбор: «${h.choice}» → результат: «${h.headline}»`).join("\n");
         const pa       = computePublicApproval(gs.factions);
         const endTypes = { mandate:"Завершение мандата (20 ходов)", revolution:"Народная революция", collapse:"Коллапс государства" };
         const endDesc  = endTypes[gs.endType] || "Потеря власти";
 
         const data = await ai(
-          `ЗАВЕРШЕНИЕ СИМУЛЯЦИИ\n\nСтрана: ${gs.country}\nЛидер: ${gs.leader.leader.name} (${ci.label}), ${gs.leader.leader.party}\nПериод: ${COUNTRIES[gs.country].startYear}–${gs.year}\nПричина завершения: ${endDesc}\nРейтинг народа в конце: ${pa}%\nРесурсы: ${JSON.stringify(gs.resources)}\nФракции (отношение к лидеру): ${gs.factions.map(f=>`${f.name}:${f.relation}`).join(", ")}\n${gs.powerLoss ? `Как произошла потеря власти: ${gs.powerLoss}` : ""}\n\nХроника решений:\n${hist}\n\nНапиши историческую оценку. ${gs.endType !== "mandate" ? "Начни с драматического описания как именно закончилось правление." : ""}\n\nJSON:\n{"verdict":"4-5 предложений","title":"исторический титул лидера","epitaph":"одна фраза для учебников истории","rating":"Провал|Слабое правление|Противоречивое наследие|Стабильность|Успех|Историческое достижение","fallNarrative":"${gs.endType!=="mandate"?"3-4 предложения о том как именно произошла потеря власти":"null"}"}`,
+          `ИТОГОВАЯ ОЦЕНКА ПРАВЛЕНИЯ\n\nСтрана: ${gs.country}\nЛидер: ${gs.leader.leader.name} (${ci.label}), партия "${gs.leader.leader.party}"\nПериод правления: ${COUNTRIES[gs.country].startYear}–${gs.year}\nКоличество ходов: ${gs.history.length} из 20\nПричина завершения: ${endDesc}\nРейтинг народа в конце: ${pa}%\nФинальные ресурсы: ${JSON.stringify(gs.resources)}\nФинальные отношения фракций: ${gs.factions.map(f=>`${f.name}:${f.relation}`).join(", ")}\nКлючевые игроки в конце: ${gs.keyFigures.map(f=>`${f.name}(${f.role}):${f.relation}`).join(", ")}\n${gs.powerLoss ? `\nПодробности потери власти: ${gs.powerLoss}` : ""}\n\nХроника решений:\n${hist}\n\nНапиши историческую оценку через 20 лет после событий. Стиль: серьёзный политический анализ. ${gs.endType !== "mandate" ? "Обязательно начни fallNarrative с конкретной сцены — кто, где, когда — как именно закончилось правление." : ""}\n\nJSON (плоская структура):\n{"verdict":"4-5 предложений общей оценки","title":"исторический титул лидера (например: «Реформатор-неудачник», «Тиран-прагматик»)","epitaph":"одна меткая фраза для учебников","rating":"Провал|Слабое правление|Противоречивое наследие|Стабильность|Успех|Историческое достижение","fallNarrative":${gs.endType !== "mandate" ? '"3-4 предложения конкретной сцены конца правления"' : 'null'}}`,
           "ending"
         );
         setVerdict(data);
@@ -856,17 +883,16 @@ function Ending({ gs, onRestart }) {
 
         {!loading && verdict && (
           <div>
-            {/* Драматическое падение */}
             {isLoss && verdict.fallNarrative && verdict.fallNarrative !== "null" && (
               <Card accent={G.red} style={{ marginBottom:12 }}>
                 <Label>// КАК ЭТО ПРОИЗОШЛО</Label>
-                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt }}>{verdict.fallNarrative}</div>
+                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt }}>{verdict.fallNarrative}</div>
               </Card>
             )}
 
             <Card accent={G.amb} style={{ marginBottom:12 }}>
               <Label>// ВЕРДИКТ ИСТОРИИ</Label>
-              <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:14 }}>{verdict.verdict}</div>
+              <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{verdict.verdict}</div>
               <div style={{ fontFamily:serif, fontSize:15, fontStyle:"italic", color:G.tx2, padding:"12px 0", borderTop:`1px solid ${G.bdr}`, borderBottom:`1px solid ${G.bdr}` }}>«{verdict.epitaph}»</div>
               {verdict.rating && <div style={{ marginTop:12, fontFamily:mono, fontSize:12, color:G.amb, letterSpacing:".1em" }}>ОЦЕНКА: {verdict.rating?.toUpperCase()}</div>}
             </Card>
@@ -929,10 +955,10 @@ export default function App() {
   return (
     <>
       <Fonts/>
-      {screen==="setup"   && <Setup   onStart={d=>{setGs(d);setScreen("intro");}}/>}
-      {screen==="intro"   && <Intro   gs={gs} onGo={()=>setScreen("game")}/>}
-      {screen==="game"    && <Game    gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")}/>}
-      {screen==="ending"  && <Ending  gs={gs} onRestart={()=>setScreen("setup")}/>}
+      {screen==="setup"  && <Setup  onStart={d=>{setGs(d);setScreen("intro");}}/>}
+      {screen==="intro"  && <Intro  gs={gs} onGo={()=>setScreen("game")}/>}
+      {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")}/>}
+      {screen==="ending" && <Ending gs={gs} onRestart={()=>setScreen("setup")}/>}
     </>
   );
 }
