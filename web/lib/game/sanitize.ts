@@ -285,6 +285,7 @@ function sanitizePending(v: unknown, turn: number): Pending[] {
     label: str(p.label, TEXT.short, "Последствия"),
     res: deltaMap(p.res, RESOURCE_KEYS, 8),
     source: str(p.source, TEXT.choice),
+    ...(typeof p.event === "string" ? { event: str(p.event, TEXT.choice) } : {}),
   }));
 }
 

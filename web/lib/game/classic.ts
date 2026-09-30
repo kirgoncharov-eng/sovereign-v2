@@ -1,19 +1,19 @@
 // Режим «Сценарии»: та же игра без обращения к модели. Событие выбирается из библиотеки
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
 import { ARCS } from "../content/arcs.ts";
-import { EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../content/events.ts";
+import { CRISIS_ESCALATE, EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../content/events.ts";
 import { SCENES } from "../content/scenes.ts";
 import { EVENT_EXT } from "../content/events-ext.ts";
 import { BEAT_EXT } from "../content/beats-ext.ts";
 import { INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, PRESS_BY_TAG, PRESS_GENERAL, TIMES, WEATHER, WEEKDAYS } from "../content/frame.ts";
 import {
-  COUNCIL_TEXT, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
-  FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, SPEECHES, TAG_LINES, TITLES,
+  COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
+  FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, REACT_FAILED, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
-import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, ELECTIONS, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
-import { computePolls, dueBeat, hashSeed, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
+import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, DELAYED, WEAK_ADVISOR_DELAYED, ELECTIONS, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
+import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { sanitizeProposals } from "./sanitize.ts";
-import type { Bloc, Choice, DifficultyId, GameEvent, GameState, IdeologyId, Intro, Narration, Verdict } from "./types.ts";
+import type { ActionTag, Bloc, Choice, DifficultyId, GameEvent, GameState, IdeologyId, Intro, Narration, Verdict } from "./types.ts";
 
 type Rand = () => number;
 const pick = <T,>(r: Rand, list: T[]): T => list[Math.floor(r() * list.length)];
@@ -27,7 +27,9 @@ function cycle<T>(list: T[], seed: number, salt: string, idx: number): T {
 const factionOf = (state: GameState, bloc: string) => state.factions.find(f => f.bloc === bloc);
 function figureOf(state: GameState, bloc: string) {
   const ids = state.factions.filter(f => f.bloc === bloc).map(f => f.id);
-  return state.keyFigures.find(f => ids.includes(f.faction));
+  const inBloc = state.keyFigures.filter(f => ids.includes(f.faction));
+  // Тексты событий написаны в мужском роде — берём мужчину, если он есть в этой группе.
+  return inBloc.find(f => !isFemaleName(f.name)) ?? inBloc[0];
 }
 const quoted = (name: string) => (name.includes("«") ? name : `«${name}»`);
 
@@ -126,8 +128,12 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
   const beat = beatEvent(state);
   if (beat) return beat;
   const r = seededRandom(hashSeed(state.seed, "event", state.turn));
-  const card = pickCard(state, r);
+  let card = pickCard(state, r);
   const crisisId = state.activeCrises[0]?.id ?? null;
+  // Обострение кризиса: описание и ходы под конкретный тип кризиса.
+  const crisisKey = Object.keys(state.activeCrises[0]?.resourceDrain ?? {})[0] as keyof typeof CRISIS_ESCALATE | undefined;
+  const escalated = card.id === "crisis_escalates" && !!crisisKey && !!CRISIS_ESCALATE[crisisKey];
+  if (escalated) card = { ...card, ...CRISIS_ESCALATE[crisisKey!] };
   const blocs = new Set(card.choices.flatMap(c => c.tags.flatMap(t => Object.keys(ACTIONS[t].rel))));
   const random = state.turn > 0 && r() < 0.28 ? pick(r, RANDOM_EVENTS) : null;
   return {
@@ -140,12 +146,24 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
     choices: card.choices.map((c, i) => ({
       id: ["a", "b", "c", "d"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags,
       resolvesCrisis: c.resolves ? crisisId : null,
-      ...(SCENES[card.id]?.[i] ? { scene: fill(SCENES[card.id][i], state) } : {}),
+      ...(SCENES[card.id]?.[i] && !escalated ? { scene: fill(SCENES[card.id][i], state) } : {}),
     })),
     council: null,
     randomEvent: random ? { title: random.title, description: random.description, resourceEffect: random.effect } : null,
   };
 }
+
+// В ход выборов главная новость — выборы.
+function electionHeadline(e: NonNullable<ReturnType<typeof planTurn>["election"]>) {
+  const pres = e.kind === "president";
+  if (e.outcome === "won") return pres ? `Президент переизбран: ${e.leader}% против ${e.top.share}%` : `Партия власти удержала парламент: ${e.leader}%`;
+  if (e.outcome === "impeached") return `Разгром на выборах: «${e.top.name}» берёт парламент и готовит импичмент`;
+  return pres ? `Власть уходит: «${e.top.name}» побеждает на выборах` : `«${e.top.name}» выигрывает парламентские выборы`;
+}
+
+// Эхо прошлого решения — авторская фраза из таблицы отложенных последствий.
+const maturedStory = (label: string) =>
+  [...Object.values(DELAYED), WEAK_ADVISOR_DELAYED].find(d => d?.label === label)?.story ?? `Аукнулось прошлое решение: ${label.toLowerCase()}.`;
 
 // ── Итог хода ────────────────────────────────────────────────────────────────
 function buildNarration(state: GameState, choiceId: string): Narration {
@@ -158,21 +176,27 @@ function buildNarration(state: GameState, choiceId: string): Narration {
 
   // Глава хода: сцена → последствия → «тем временем» → крючок интриги.
   const arc = plan.choice.arc;
-  const failLine = () => pick(r, TAG_LINES[plan.choice.tags[0]].fail);
+  // У эпизодов интриги провал описан нейтрально: общие тексты по тегам написаны под другие ситуации.
+  const failLine = () => pick(r, COUNCIL_OUTCOME[plan.choice.tags[0]].fail);
   let scene: string;
   if (arc) scene = plan.success ? arc.ok : arc.fail ?? failLine();
   else if (plan.choice.scene) {
-    const fails = [...new Set(plan.choice.tags.flatMap(t => TAG_LINES[t].fail))];
-    scene = plan.success ? plan.choice.scene : fails.sort(() => r() - 0.5).slice(0, 2).join(" ");
+    const fails = [...new Set(plan.choice.tags.map(t => pick(r, COUNCIL_OUTCOME[t].fail)))];
+    scene = plan.success ? plan.choice.scene : fails.join(" ");
   }
-  else scene = plan.choice.tags.map(tag => pick(r, TAG_LINES[tag][plan.success ? "ok" : "fail"])).join(" ");
+  else {
+    // У предложений совета нет авторских сцен — берём итоги, которые подходят к любому делу.
+    const lines = plan.choice.advisor ? COUNCIL_OUTCOME : TAG_LINES;
+    scene = plan.choice.tags.map(tag => pick(r, lines[tag][plan.success ? "ok" : "fail"])).join(" ");
+  }
 
   const after: string[] = [];
+  let electionLine: string | null = null;
   if (plan.resolvedCrisis && !arc) after.push(`Кризис «${plan.resolvedCrisis}» наконец отступает. В ситуационном центре впервые за много дней кто-то шутит.`);
-  for (const m of plan.matured) after.push(`А тем временем даёт о себе знать прошлое: «${m.label}». Вы помните, с чего это началось, — с решения «${m.source}».`);
+  for (const m of plan.matured) after.push(maturedStory(m.label));
   if (plan.election) {
     const e = plan.election;
-    after.push(e.outcome === "won"
+    electionLine = (e.outcome === "won"
       ? `${ELECTION_LABEL[e.kind]}. В штабе открывают шампанское в 23:40, когда приходят данные из последнего региона: ${e.leader}% против ${e.top.share}% у «${e.top.name}». Вы выходите к сторонникам и впервые за месяц улыбаетесь не для камер.`
       : `${ELECTION_LABEL[e.kind]}. К полуночи всё ясно: «${e.top.name}» — ${e.top.share}%, у вас ${e.leader}%. В штабе молча выключают телевизоры. Кто-то уже собирает вещи.`);
   }
@@ -181,7 +205,9 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     : "Утренние опросы ложатся на стол молча. Социолог не поднимает глаз. Цифры говорят сами.");
 
   // «Тем временем»: персонаж, чьё отношение изменилось сильнее всего.
-  const moved = [...state.keyFigures]
+  // Антагонист интриги не комментирует собственные эпизоды — он в них участник.
+  const cast = state.keyFigures.filter(f => !(arc && f.name === state.arc?.target));
+  const moved = [...cast]
     .map(f => ({ f, d: plan.effects.factionRel[f.faction] ?? 0 }))
     .filter(x => x.d !== 0)
     .sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
@@ -192,13 +218,14 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const arcDef = ARCS.find(a => a.id === state.arc?.id);
   const hook = arcDef && !arc && !plan.endType
     ? fill(arcDef.hooks[(state.turn * 3 + (state.seed % 5)) % arcDef.hooks.length], state) : null;
-  const parts = [scene, after.join(" "), intercut, hook];
+  const parts = [scene, after.join(" "), electionLine, intercut, hook];
 
-  const react = (sign: number, pool: string[]) => state.keyFigures
+  const react = (sign: number, pool: string[]) => cast
     .filter(f => f !== moved?.f && Math.sign(plan.effects.factionRel[f.faction] ?? 0) === sign)
     .slice(0, 2)
     .map((f, i) => fill(cycle(pool, state.seed, `re${sign}`, state.turn * 2 + i), state, { name: f.name, role: f.role.charAt(0).toLowerCase() + f.role.slice(1) }));
-  const reactions = [...react(1, REACT_APPROVE), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
+  // При провале сторонники идеи недовольны исполнением, а не хвалят «решимость».
+  const reactions = [...react(1, plan.success ? REACT_APPROVE : REACT_FAILED), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
 
   // Документ хода: между эпизодами интриги — перехват, в остальных ходах — утренние газеты.
   const document = arcDef && !arc && state.turn % 2 === 1
@@ -211,7 +238,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
 
   const key = plan.newCrisisKey;
   return {
-    headline: fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state),
+    headline: plan.election ? electionHeadline(plan.election) : fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state),
     narrative: chapter(...parts),
     document,
     reactions,
@@ -227,15 +254,23 @@ const CRISIS_FIXERS = ["social", "investment", "anticorruption", "dialogue", "re
 
 function buildCouncil(state: GameState): Choice[] {
   const r = seededRandom(hashSeed(state.seed, "council", state.turn));
-  const used = new Set(state.currentEvent?.choices.flatMap(c => c.tags) ?? []);
+  const eventTags = state.currentEvent?.choices.flatMap(c => c.tags) ?? [];
+  const used = new Set(eventTags);
+  // Уместны только подходы, родственные вариантам самого события.
+  const relevant = new Set(eventTags.flatMap(t => RELATED_TAGS[t]));
   const crisisId = state.activeCrises[0]?.id ?? null;
-  const raw = ADVISOR_ROLES.map(role => {
-    const options = role.domain.filter(t => t !== "delay" && !used.has(t));
-    const tag = pick(r, options.length ? options : role.domain);
-    return {
-      advisor: role.id, text: pick(r, COUNCIL_TEXT[tag]), hint: ACTIONS[tag].desc, tags: [tag],
+  const taken = new Set<ActionTag>();
+  const raw = ADVISOR_ROLES.flatMap(role => {
+    const fits = role.domain.filter(t => t !== "delay" && relevant.has(t) && !taken.has(t));
+    const fresh = fits.filter(t => !used.has(t));
+    const options = fresh.length ? fresh : fits;
+    if (!options.length) return []; // советнику нечего предложить по этому делу
+    const tag = pick(r, options);
+    taken.add(tag);
+    return [{
+      advisor: role.id, text: pick(r, COUNCIL_TEXT[tag]), hint: COUNCIL_HINT[tag], tags: [tag],
       resolvesCrisis: crisisId && CRISIS_FIXERS.includes(tag) && r() < 0.5 ? crisisId : null,
-    };
+    }];
   });
   return sanitizeProposals(raw, state.advisors, state.activeCrises.map(c => c.id));
 }
@@ -251,13 +286,19 @@ const BIOS = [
 
 function personName(country: string, r: Rand, male = false, used?: Set<string>): string {
   const n = NAMES[country] ?? NAMES["Беларусь"];
-  const i = Math.floor(r() * (male ? 8 : n.first.length));
+  // имя тоже не повторяем, пока есть свободные
+  const pool = [...Array(male ? 8 : n.first.length).keys()].filter(k => !used?.has(`first:${n.first[k]}`));
+  const i = pool.length ? pool[Math.floor(r() * pool.length)] : Math.floor(r() * (male ? 8 : n.first.length));
+  used?.add(`first:${n.first[i]}`);
   const free = used ? n.last.filter(l => !used.has(l)) : [];
   let last = pick(r, free.length ? free : n.last);
   used?.add(last);
   if (i >= 8) last = last.replace(/(ов|ев|ин)$/, "$1а").replace(/ский$/, "ская");
   return `${n.first[i]} ${last}`;
 }
+
+// Роли, которые в этих странах занимают только мужчины: иначе тексты событий звучат нелепо.
+const MALE_ROLES = new Set(["patriarch", "catholicos", "mufti", "general", "kgb", "knb", "interior", "sbu", "security", "shadow", "clan"]);
 
 function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?: number): Intro {
   const r = seed === undefined ? Math.random : seededRandom(hashSeed(seed, "intro"));
@@ -269,7 +310,7 @@ function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?
     leader: { name: leader, party: pick(r, IDEOLOGY_PARTIES[ideo]), bio: pick(r, BIOS) },
     speech: SPEECHES[ideo][0].replaceAll("{country}", country),
     situation: `${COUNTRIES[country].context} ${DIFFICULTY_SITUATION[diff]}`,
-    players: FIGURE_ROLES[country].map(f => FOREIGN_NAMES[f.id] ? foreign(FOREIGN_NAMES[f.id]) : unique()),
+    players: FIGURE_ROLES[country].map(f => FOREIGN_NAMES[f.id] ? foreign(FOREIGN_NAMES[f.id]) : unique(MALE_ROLES.has(f.id))),
     advisors: ADVISOR_ROLES.map(() => unique()),
   };
 }

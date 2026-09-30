@@ -151,3 +151,16 @@ test("дело дня одинаково у всех: страна, вступл
   assert.equal(a.ev.description, b.ev.description);
   assert.notEqual(dailyCase(new Date(2026, 9, 1)).seed, a.d.seed);
 });
+
+test("совет предлагает только уместное событию и не дублирует друг друга", async () => {
+  const { RELATED_TAGS } = await import("../content/narration.ts");
+  for (const card of EVENT_CARDS.filter(c => !c.when?.crisis).slice(0, 25)) {
+    let s = await newGame();
+    s = startEvent(s, { title: card.title, source: "", description: "", isCritical: false, affectedFactions: [], council: null, randomEvent: null,
+      choices: card.choices.map((c, i) => ({ id: "abc"[i], text: c.text, hint: c.hint, tags: c.tags, resolvesCrisis: null })) });
+    const list = await classicApi.council(s);
+    const allowed = new Set(card.choices.flatMap(c => c.tags).flatMap(t => RELATED_TAGS[t]));
+    for (const p of list) assert.ok(allowed.has(p.tags[0]), `${card.id}: ${p.tags[0]}`);
+    assert.equal(new Set(list.map(p => p.tags[0])).size, list.length, card.id);
+  }
+});

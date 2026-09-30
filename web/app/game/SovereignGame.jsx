@@ -258,7 +258,7 @@ function ChoicePreview({ gs, c }) {
           })}
         </div>
       )}
-      {crisis && <div style={{ fontFamily:narrow, fontSize:15, color:G.grn, marginTop:6 }}>Закроет кризис «{crisis.title}»</div>}
+      {crisis && <div style={{ fontFamily:narrow, fontSize:15, color:G.grn, marginTop:6 }}>Закроет кризис «{crisis.title}», если исполнят</div>}
     </>
   );
 }
@@ -277,6 +277,14 @@ function CouncilPanel({ gs, onConvened, optProps, stamping }) {
   const [err, setErr]   = useState(null);
   const proposals = gs.currentEvent?.council;
   const charges = gs.councilCharges ?? 0;
+  const silent = proposals?.length ? (gs.advisors ?? []).filter(a => !proposals.some(p => p.advisor?.id === a.id)) : [];
+  if (gs.currentEvent?.beat) {
+    return (
+      <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>
+        Дело засекречено: совет в него не посвящён. Решать вам одному.
+      </div>
+    );
+  }
 
   const convene = async () => {
     if (busy || charges <= 0) return;
@@ -292,6 +300,16 @@ function CouncilPanel({ gs, onConvened, optProps, stamping }) {
         <span style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>Совет</span>
         <span style={{ fontFamily:narrow, fontSize:15, color:charges?G.gold:G.tx3 }}>{charges ? `можно собрать ещё ${plural(charges, "раз", "раза", "раз")}` : "больше не соберётся"}</span>
       </div>
+      {Array.isArray(proposals) && !proposals.length && (
+        <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, marginBottom:4 }}>
+          Советники выслушали и развели руками: по этому делу им нечего добавить. Сбор не засчитан.
+        </div>
+      )}
+      {silent.length > 0 && (
+        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:8 }}>
+          Без предложений по этому делу: {silent.map(a => a.name).join(", ")}
+        </div>
+      )}
       {proposals?.length ? proposals.map((c, i) => (
         <button key={c.id} {...optProps(c, i)}
           style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 16px", marginBottom:6, borderRadius:2, background:"transparent", border:`1px dashed ${G.bdr2}`, color:G.txt, position:"relative" }}>
@@ -312,8 +330,8 @@ function CouncilPanel({ gs, onConvened, optProps, stamping }) {
           <div style={{ fontFamily:serif, fontSize:14, color:G.tx3, fontStyle:"italic", marginBottom:10 }}>
             Каждый советник предложит своё решение из своей области. Сильный советник предлагает ходы дешевле и выгоднее.
           </div>
-          <button onClick={convene} disabled={busy || charges <= 0}
-            style={{ background:"transparent", border:`1.5px solid ${charges?G.gold:G.bdr}`, color:charges?G.gold:G.tx3, padding:"8px 18px", borderRadius:2, fontSize:15, fontWeight:700, opacity:charges?1:.5 }}>
+          <button onClick={convene} disabled={busy || charges <= 0 || Array.isArray(proposals)}
+            style={{ background:"transparent", border:`1.5px solid ${charges?G.gold:G.bdr}`, color:charges?G.gold:G.tx3, padding:"8px 18px", borderRadius:2, fontSize:15, fontWeight:700, opacity:charges && !Array.isArray(proposals)?1:.5 }}>
             {busy ? "Советники собираются…" : charges ? "Собрать совет" : "Совет исчерпан"}
           </button>
           {err && <div style={{ fontFamily:narrow, fontSize:15, color:G.amb, marginTop:8 }}>✖ {err}</div>}
@@ -1216,8 +1234,9 @@ function Game({ gs, setGs, onEnd, onMenu }) {
               <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
 
               {lastTurn.matured?.map(p => (
-                <div key={p.id} style={{ marginBottom:8, padding:"10px 14px", borderRadius:2, background:G.bg2, border:`1px solid ${G.bdr2}` }}>
-                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginBottom:6 }}>АУКНУЛОСЬ · {p.label.toUpperCase()} <span style={{ color:G.tx3 }}>· из-за «{p.source}»</span></div>
+                <div key={p.id} className="sv-paper" style={{ marginBottom:8, padding:"12px 16px", borderRadius:2 }}>
+                  <div style={{ fontFamily:serif, fontSize:16, fontWeight:700, marginBottom:2 }}>{p.label}</div>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:6 }}>эхо решения {p.event ? `по делу «${p.event}»` : `«${p.source}»`}</div>
                   <ResourceChips delta={p.res}/>
                 </div>
               ))}

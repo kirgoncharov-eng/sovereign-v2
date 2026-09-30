@@ -163,6 +163,7 @@ export interface Pending {
   label: string;
   res: ResourceDelta;
   source: string;       // решение, которое его вызвало
+  event?: string;       // дело, по которому принималось решение
 }
 
 export interface HistoryEntry {

@@ -60,7 +60,7 @@ export const START_RES: Record<DifficultyId, Resources> = {
   debut:     { politicalCapital:72, economy:65, military:62, externalReputation:58, internalLegitimacy:70, personalResource:82 },
   coalition: { politicalCapital:50, economy:44, military:56, externalReputation:50, internalLegitimacy:46, personalResource:65 },
   crisis:    { politicalCapital:33, economy:36, military:50, externalReputation:38, internalLegitimacy:28, personalResource:55 },
-  ruins:     { politicalCapital:18, economy:20, military:32, externalReputation:22, internalLegitimacy:15, personalResource:40 }
+  ruins:     { politicalCapital:21, economy:22, military:32, externalReputation:22, internalLegitimacy:17, personalResource:42 }
 };
 
 export interface FactionInfo {
@@ -175,7 +175,7 @@ export const FIGURE_ROLES: Record<string, FigureRole[]> = {
   "Грузия": [
     { id:"shadow",     role:"Теневой хозяин «Мечты»", faction:"gdream",     baseMood:"враг"    },
     { id:"opp_leader", role:"Лидер оппозиции",          faction:"opposition", baseMood:"нейтрал" },
-    { id:"patriarch",  role:"Католикос-Патриарх",       faction:"church",     baseMood:"нейтрал" },
+    { id:"patriarch",  role:"Католикос-патриарх",       faction:"church",     baseMood:"нейтрал" },
     { id:"amb_usa",    role:"Посол США",                 faction:"west",       baseMood:"союзник" },
     { id:"amb_russia", role:"Посол России",              faction:"russia",     baseMood:"нейтрал" },
     { id:"oligarch",   role:"Крупнейший бизнесмен",      faction:"business",   baseMood:"нейтрал" },
@@ -362,24 +362,38 @@ export const IDEOLOGY_PENALTY: ResourceDelta = { personalResource:-4, politicalC
 
 // ── Отложенные последствия ───────────────────────────────────────────────────
 // Эхо решения через несколько ходов. Видно игроку заранее — это часть цены решения.
-export interface DelayedInfo { turns: number; label: string; res: ResourceDelta }
+// story — как это звучит в тексте хода, когда эхо решения срабатывает.
+export interface DelayedInfo { turns: number; label: string; res: ResourceDelta; story: string }
 
 export const DELAYED: Partial<Record<ActionTag, DelayedInfo>> = {
-  social:         { turns:3, label:"Инфляция от раздачи денег",   res:{ economy:-4 } },
-  austerity:      { turns:3, label:"Бюджет оздоровлён",           res:{ economy:3, externalReputation:2 } },
-  investment:     { turns:4, label:"Инвестиции заработали",       res:{ economy:5 } },
-  reform:         { turns:4, label:"Реформы дали плоды",          res:{ internalLegitimacy:3, externalReputation:2, economy:2 } },
-  anticorruption: { turns:3, label:"Возврат украденных активов",  res:{ economy:4 } },
-  pro_west:       { turns:3, label:"Транш западных партнёров",    res:{ economy:4 } },
-  pro_russia:     { turns:3, label:"Москва требует ответных шагов", res:{ personalResource:-3, externalReputation:-2 } },
-  repress:        { turns:2, label:"Эхо репрессий: радикализация", res:{ internalLegitimacy:-3, externalReputation:-2 } },
-  elite_deal:     { turns:3, label:"Элиты требуют свою долю",     res:{ politicalCapital:-3, economy:-2 } },
-  propaganda:     { turns:2, label:"Разоблачение пропаганды",     res:{ internalLegitimacy:-3 } },
-  dialogue:       { turns:2, label:"Доверие оппозиции",           res:{ internalLegitimacy:2, politicalCapital:1 } },
-  delay:          { turns:2, label:"Проблема вернулась",          res:{ politicalCapital:-2, internalLegitimacy:-2 } },
+  social:         { turns:3, label:"Раздача денег разогнала цены", res:{ economy:-4 },
+    story:"Цены в магазинах поползли вверх: деньги, розданные недавно, разогнали инфляцию. Минфин просит больше не обещать выплат." },
+  austerity:      { turns:3, label:"Экономия оздоровила бюджет", res:{ economy:3, externalReputation:2 },
+    story:"Минфин докладывает: экономия начала работать — дефицит сократился впервые за год, и кредиторы стали сговорчивее." },
+  investment:     { turns:4, label:"Инвестиции заработали", res:{ economy:5 },
+    story:"Деньги инвестора наконец дошли до дела: открылись первые рабочие места, и регион впервые за годы хвалит столицу." },
+  reform:         { turns:4, label:"Реформа дала плоды", res:{ internalLegitimacy:3, externalReputation:2, economy:2 },
+    story:"Перемены, о которых все спорили, начали работать: жалоб меньше, а в западной прессе появилось слово «прорыв»." },
+  anticorruption: { turns:3, label:"Суд вернул выведенные деньги", res:{ economy:4 },
+    story:"Суд вернул в бюджет первые деньги, изъятые у чиновников. Сумма скромная, но об этом говорят все." },
+  pro_west:       { turns:3, label:"Пришёл транш западных партнёров", res:{ economy:4 },
+    story:"Пришёл транш от западных партнёров — ровно в срок, как и обещали. К нему прилагается список новых условий." },
+  pro_russia:     { turns:3, label:"Москва выставила счёт", res:{ personalResource:-3, externalReputation:-2 },
+    story:"Москва напомнила о договорённостях: в посольстве ждут ответных шагов, и тон уже не дружеский." },
+  repress:        { turns:2, label:"Эхо жёсткости: радикализация", res:{ internalLegitimacy:-3, externalReputation:-2 },
+    story:"Жёсткость не прошла бесследно: в сети множатся радикальные каналы, а западные посольства задают неудобные вопросы." },
+  elite_deal:     { turns:3, label:"Элиты пришли за своей долей", res:{ politicalCapital:-3, economy:-2 },
+    story:"Люди, с которыми вы договаривались, пришли за своей долей. Отказать им теперь дороже, чем было согласиться." },
+  propaganda:     { turns:2, label:"Пропаганду раскусили", res:{ internalLegitimacy:-3 },
+    story:"Журналисты разобрали недавнюю кампанию по кадрам. Больше всего смеются над тем, что задумывалось самым убедительным." },
+  dialogue:       { turns:2, label:"Открытость окупилась", res:{ internalLegitimacy:2, politicalCapital:1 },
+    story:"Те, кого вы недавно выслушали, этого не забыли: в парламенте за вас голосуют люди, которые раньше воздерживались." },
+  delay:          { turns:2, label:"Отложенная проблема вернулась", res:{ politicalCapital:-2, internalLegitimacy:-2 },
+    story:"Вопрос, который вы отложили, вернулся — и стал острее. Отложить его второй раз уже не получится." },
 };
 
-export const WEAK_ADVISOR_DELAYED: DelayedInfo = { turns:2, label:"Недоработка советника", res:{ politicalCapital:-2, personalResource:-1 } };
+export const WEAK_ADVISOR_DELAYED: DelayedInfo = { turns:2, label:"Советник недоглядел", res:{ politicalCapital:-2, personalResource:-1 },
+  story:"План советника, который вы приняли, дал течь: исправлять приходится за счёт вашего авторитета." };
 export const MAX_PENDING = 8;
 
 // ── Совет ────────────────────────────────────────────────────────────────────

@@ -205,21 +205,21 @@ test("отложенные последствия: встают в очеред�
   let s = resolveTurn(startEvent(newGame(), event()), "a", narration); // social → инфляция через 3 хода
   assert.equal(s.pending.length, 1);
   assert.equal(s.pending[0].due, 4);
-  assert.equal(s.lastTurn?.scheduled[0].label, "Инфляция от раздачи денег");
+  assert.equal(s.lastTurn?.scheduled[0].label, "Раздача денег разогнала цены");
   s = resolveTurn(startEvent(s, delayOnly), "a", narration);
   s = resolveTurn(startEvent(s, delayOnly), "a", narration);
-  assert.equal(s.pending.filter(p => p.label.startsWith("Инфляция")).length, 1);
+  assert.equal(s.pending.filter(p => p.label.startsWith("Раздача денег")).length, 1);
   const before = s.resources.economy;
   s = resolveTurn(startEvent(s, delayOnly), "a", narration);
-  assert.equal(s.lastTurn?.matured[0].label, "Инфляция от раздачи денег");
+  assert.equal(s.lastTurn?.matured[0].label, "Раздача денег разогнала цены");
   assert.ok(s.resources.economy < before);
-  assert.ok(!s.pending.some(p => p.label.startsWith("Инфляция")));
+  assert.ok(!s.pending.some(p => p.label.startsWith("Раздача денег")));
 });
 
 test("слабый советник оставляет недоработку", () => {
   const weak: Choice = { ...choice("x1", ["security"]), advisor: { id: "security", name: "П", role: "С", skill: 1 } };
   const strong: Choice = { ...weak, advisor: { ...weak.advisor!, skill: 3 } };
-  assert.ok(delayedEffects(weak).some(d => d.label === "Недоработка советника"));
+  assert.ok(delayedEffects(weak).some(d => d.label === "Советник недоглядел"));
   assert.equal(delayedEffects(strong).length, 0);
 });
 

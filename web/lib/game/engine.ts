@@ -218,10 +218,11 @@ export function startEvent(state: GameState, event: GameEvent & { cardId?: strin
 // Совет собран: предложения советников добавляются к вариантам, тратится один сбор.
 export function conveneCouncil(state: GameState, proposals: Choice[]): GameState {
   if (!state.currentEvent || state.councilCharges <= 0) return state;
+  const spent = proposals.length ? 1 : 0; // если советникам нечего сказать, сбор не засчитывается
   return {
     ...state,
-    councilCharges: state.councilCharges - 1,
-    stats: { ...state.stats, councils: (state.stats?.councils ?? 0) + 1 },
+    councilCharges: state.councilCharges - spent,
+    stats: { ...state.stats, councils: (state.stats?.councils ?? 0) + spent },
     currentEvent: { ...state.currentEvent, council: proposals },
   };
 }
@@ -300,6 +301,7 @@ export function successChance(state: Pick<GameState, "factions" | "resources">, 
   if (choice.tags.every(t => t === "delay")) return 1;
   let p = 0.8;
   if (choice.advisor) p += (choice.advisor.skill - 2) * 0.12;
+  if (choice.resolvesCrisis) p += 0.1; // на борьбу с кризисом брошены все силы
   // исполнителями выступают группы, которым решение выгодно: чем лучше они к вам относятся, тем надёжнее
   const rels: number[] = [];
   for (const tag of choice.tags) {
@@ -386,8 +388,11 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   const pendingAll = state.pending ?? [];
   const matured = pendingAll.filter(p => p.due <= nextTurn);
   for (const p of matured) resources = applyDeltas(resources, p.res);
-  const scheduled: Pending[] = delayedEffects(choice).map((d, i) => ({
+  // Провал отменяет отложенную пользу, но не отложенный вред.
+  const net = (d: { res: ResourceDelta }) => Object.values(d.res).reduce((x, y) => x + (y ?? 0), 0);
+  const scheduled: Pending[] = delayedEffects(choice).filter(d => success || net(d) < 0).map((d, i) => ({
     id: `p${nextTurn}_${i}`, due: nextTurn + d.turns, label: d.label, res: d.res, source: choice.text,
+    ...(state.currentEvent?.title ? { event: state.currentEvent.title } : {}),
   }));
   const pending = [...pendingAll.filter(p => p.due > nextTurn), ...scheduled].slice(-MAX_PENDING);
   if (event.randomEvent) resources = applyDeltas(resources, event.randomEvent.resourceEffect);
@@ -402,7 +407,8 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 
   let crises = state.activeCrises;
   let resolvedCrisis: string | null = null;
-  const hit = choice.resolvesCrisis ? crises.find(c => c.id === choice.resolvesCrisis) : null;
+  // Кризис закрывается, только если решение исполнили.
+  const hit = success && choice.resolvesCrisis ? crises.find(c => c.id === choice.resolvesCrisis) : null;
   if (hit) {
     resolvedCrisis = hit.title;
     crises = crises.filter(c => c.id !== hit.id);
