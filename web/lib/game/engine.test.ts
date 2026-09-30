@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ACTIONS, CRISIS_DRAIN, LIMITS, MAX_TURNS, START_RES } from "./data.ts";
 import {
-  applyDeltas, choiceEffects, computePolls, createInitialState, detectEnd, planTurn, resolveTurn, setCustomChoice, startEvent, tickCrises,
+  applyDeltas, choiceEffects, computePolls, createInitialState, detectEnd, planTurn, resolveTurn, conveneCouncil, startEvent, tickCrises,
 } from "./engine.ts";
 import type { Choice, GameEvent, GameState, Narration } from "./types.ts";
 
@@ -178,9 +178,24 @@ test("враждебные и сильные силовики устраиваю
   assert.equal(resolveTurn(s, "a", narration).endType, "coup");
 });
 
-test("своё решение игрока считается движком как обычный вариант", () => {
-  const s = setCustomChoice(startEvent(newGame(), event()), { ...choice("x", ["repress"]), text: "Своё" });
-  const next = resolveTurn(s, "x", narration);
-  assert.equal(next.history[0].choice, "Своё");
-  assert.deepEqual(next.lastTurn?.resourceChanges, choiceEffects(s, s.currentEvent!.custom!).resources);
+test("совет: тратит сбор, предложения считаются движком с учётом качества советника", () => {
+  const s = startEvent(newGame(), event());
+  const charges = s.councilCharges;
+  const adv = (skill: 1 | 2 | 3) => ({ id: "security", name: "Павел", role: "Советник", skill });
+  const proposal = (skill: 1 | 2 | 3): Choice => ({ ...choice("x1", ["repress"]), advisor: adv(skill) });
+  const withCouncil = conveneCouncil(s, [proposal(3)]);
+  assert.equal(withCouncil.councilCharges, charges - 1);
+  const next = resolveTurn(withCouncil, "x1", narration);
+  assert.equal(next.history[0].choice, "Вариант x1");
+  const strong = choiceEffects(s, proposal(3)).resources;
+  const weak = choiceEffects(s, proposal(1)).resources;
+  assert.ok((strong.internalLegitimacy ?? 0) > (weak.internalLegitimacy ?? 0)); // потери у сильного меньше
+  assert.ok((strong.military ?? 0) >= (weak.military ?? 0));                   // выгода больше
+  assert.equal(conveneCouncil({ ...s, councilCharges: 0 }, [proposal(2)]).currentEvent?.council, undefined);
+});
+
+test("советники: четыре роли, качество 1–3", () => {
+  const s = newGame();
+  assert.equal(s.advisors.length, 4);
+  assert.ok(s.advisors.every(a => a.skill >= 1 && a.skill <= 3));
 });

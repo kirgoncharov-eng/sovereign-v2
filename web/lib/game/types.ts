@@ -56,6 +56,15 @@ export interface Choice {
   hint: string;
   tags: ActionTag[];
   resolvesCrisis: string | null; // id кризиса, который закрывает это решение
+  advisor?: { id: string; name: string; role: string; skill: 1 | 2 | 3 } | null; // автор предложения
+}
+
+export interface Advisor {
+  id: string;
+  role: string;
+  emoji: string;
+  name: string;
+  skill: 1 | 2 | 3;
 }
 
 export interface RandomEvent {
@@ -71,7 +80,7 @@ export interface GameEvent {
   isCritical: boolean;
   affectedFactions: string[];
   choices: Choice[];
-  custom?: Choice | null; // решение игрока своими словами, оценённое советником
+  council?: Choice[] | null; // предложения советников, если совет собирали
   randomEvent: RandomEvent | null;
 }
 
@@ -105,14 +114,6 @@ export interface TurnReport extends Narration {
   election: Election | null;
 }
 
-// Оценка решения игрока, введённого своими словами.
-export interface Assessment {
-  feasible: boolean;
-  reason: string;       // почему невозможно (если feasible = false)
-  choice: Choice | null;
-  advisor: string;      // реплика советника о рисках
-}
-
 export interface PartyShare { id: string; name: string; share: number }
 export interface Polls { leader: number; parties: PartyShare[]; undecided: number }
 
@@ -143,6 +144,7 @@ export interface Intro {
   speech: string;
   situation: string;
   players: string[]; // имена ключевых игроков в порядке FIGURE_ROLES
+  advisors?: string[]; // имена советников в порядке ADVISOR_ROLES
 }
 
 export interface Verdict {
@@ -172,6 +174,8 @@ export interface GameState {
   turn: number;
   history: HistoryEntry[];
   elections: Election[];
+  advisors: Advisor[];
+  councilCharges: number;
   currentEvent: GameEvent | null;
   lastTurn: TurnReport | null;
   ended: boolean;

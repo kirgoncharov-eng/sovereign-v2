@@ -1,8 +1,8 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "2.7";
-export const SAVE_VERSION = 3; // 3: партии, выборы, новые концовки
+export const APP_VERSION = "2.8";
+export const SAVE_VERSION = 4; // 4: совет советников
 export const MAX_TURNS = 20;
 
 export interface CountryInfo {
@@ -272,8 +272,27 @@ export const IDEOLOGY_ACTIONS: Record<IdeologyId, { aligned: ActionTag[]; oppose
 export const IDEOLOGY_BONUS: ResourceDelta = { personalResource:2, internalLegitimacy:1 };
 export const IDEOLOGY_PENALTY: ResourceDelta = { personalResource:-4, politicalCapital:-2 };
 
-export const CUSTOM_CHOICE_ID = "x";
-export const CUSTOM_MAX_LENGTH = 300;
+// ── Совет ────────────────────────────────────────────────────────────────────
+// Советники предлагают решения только из своей области. Качество (1–3★) меняет цену:
+// сильный советник смягчает потери и усиливает выгоду, слабый — наоборот.
+export interface AdvisorRole { id: string; role: string; emoji: string; domain: ActionTag[] }
+
+export const ADVISOR_ROLES: AdvisorRole[] = [
+  { id:"strategist", role:"Политтехнолог",          emoji:"🎭", domain:["propaganda","elite_deal","dialogue","patriotism","delay"] },
+  { id:"economist",  role:"Экономический советник", emoji:"📈", domain:["social","austerity","investment","anticorruption"] },
+  { id:"security",   role:"Советник по безопасности", emoji:"🛡️", domain:["repress","security","patriotism"] },
+  { id:"diplomat",   role:"Советник по внешней политике", emoji:"🌐", domain:["pro_west","pro_russia","reform","dialogue"] },
+];
+
+export const ADVISOR_SKILL = {
+  1: { cost: 1.2, gain: 0.8, label: "слабый" },
+  2: { cost: 1.0, gain: 1.0, label: "толковый" },
+  3: { cost: 0.7, gain: 1.15, label: "блестящий" },
+} as const;
+
+// Сколько раз за мандат можно собрать совет; победа на парламентских выборах даёт ещё раз.
+export const COUNCIL_CHARGES: Record<DifficultyId, number> = { debut:5, coalition:4, crisis:3, ruins:3 };
+export const COUNCIL_ELECTION_BONUS = 1;
 
 // Порог, ниже которого проседание ресурса порождает кризис, и пассивное восстановление.
 export const CRISIS_THRESHOLD = 20;

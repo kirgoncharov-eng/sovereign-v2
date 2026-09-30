@@ -1,9 +1,9 @@
 // Демо-адаптер: та же игра, но модель вызывается прямо со страницы артефакта claude.ai
 // через возможность `sample` (на аккаунте зрителя). Интерфейс совпадает с lib/client/api.ts.
-import { CUSTOM_MAX_LENGTH, FIGURE_ROLES } from "../lib/game/data.ts";
+import { FIGURE_ROLES } from "../lib/game/data.ts";
 import { planTurn, warningLevel } from "../lib/game/engine.ts";
-import { assessPrompt, consequencePrompt, endingPrompt, eventPrompt, setupPrompt, SYS_BASE, SYS_CONSEQUENCE, SYS_ENDING } from "../lib/game/prompts.ts";
-import { sanitizeAssessment, sanitizeNarration, str, sanitizeEvent, sanitizeIntro, sanitizeVerdict } from "../lib/game/sanitize.ts";
+import { consequencePrompt, councilPrompt, endingPrompt, eventPrompt, setupPrompt, SYS_BASE, SYS_CONSEQUENCE, SYS_ENDING } from "../lib/game/prompts.ts";
+import { isObj, sanitizeNarration, sanitizeProposals, sanitizeEvent, sanitizeIntro, sanitizeVerdict } from "../lib/game/sanitize.ts";
 import type { DifficultyId, GameState, IdeologyId } from "../lib/game/types.ts";
 
 export class ApiError extends Error {
@@ -77,11 +77,13 @@ export const api = {
     return generate(SYS_CONSEQUENCE, prompt, "quick", sanitizeNarration);
   },
 
-  assess: (state: GameState, raw: string) => {
-    const text = str(raw, CUSTOM_MAX_LENGTH);
-    if (text.length < 5) return Promise.reject(new ApiError("Опишите решение подробнее"));
+  council: (state: GameState) => {
+    if (!state.currentEvent || state.councilCharges <= 0) return Promise.reject(new ApiError("Совет сейчас собрать нельзя"));
     const crisisIds = state.activeCrises.map(c => c.id);
-    return generate(SYS_BASE, assessPrompt(state, text), "quick", r => sanitizeAssessment(r, text, crisisIds));
+    return generate(SYS_BASE, councilPrompt(state), "quick", r => {
+      const list = isObj(r) ? sanitizeProposals(r.council, state.advisors, crisisIds) : [];
+      return list.length >= 2 ? list : null;
+    });
   },
 
   ending: (state: GameState) => generate(SYS_ENDING, endingPrompt(state), "default", sanitizeVerdict),

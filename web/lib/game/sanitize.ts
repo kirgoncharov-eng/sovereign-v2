@@ -1,12 +1,12 @@
 // Проверка и нормализация данных, пришедших извне: ответов модели и состояния от клиента.
 // Всё, что не проходит проверку, либо отбрасывается, либо приводится к безопасному значению.
 import {
-  ACTION_TAGS, COUNTRIES, CUSTOM_CHOICE_ID, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
+  ACTION_TAGS, ADVISOR_ROLES, COUNTRIES, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGIES, LIMITS, MAX_TURNS, RATINGS, RESOURCE_KEYS, SAVE_VERSION, START_RES, TEXT,
 } from "./data.ts";
 import { loyaltyLabel } from "./engine.ts";
 import type {
-  ActionTag, Assessment, Choice, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
+  ActionTag, Advisor, Choice, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
   HistoryEntry, IdeologyId, Intro, NewCrisis, RandomEvent, ResourceDelta, Resources, Severity, Verdict,
 } from "./types.ts";
 
@@ -53,7 +53,11 @@ export function sanitizeIntro(raw: unknown, playerCount: number): Intro | null {
   const players = Array.isArray(raw.players)
     ? raw.players.slice(0, playerCount).map(p => str(isObj(p) ? p.name : p, TEXT.name))
     : [];
+  const advisors = Array.isArray(raw.advisors)
+    ? raw.advisors.slice(0, ADVISOR_ROLES.length).map(p => str(isObj(p) ? p.name : p, TEXT.name))
+    : [];
   return {
+    advisors,
     leader: {
       name,
       party: str(raw.leader.party, TEXT.name, "Беспартийный"),
@@ -82,16 +86,20 @@ function sanitizeChoice(c: Obj, id: string, crisisIds: string[]): Choice | null 
   };
 }
 
-// Ответ советника на решение игрока. Текст решения — всегда слова самого игрока.
-export function sanitizeAssessment(raw: unknown, playerText: string, crisisIds: string[]): Assessment | null {
-  if (!isObj(raw)) return null;
-  const advisor = str(raw.advisor, TEXT.hint);
-  if (raw.feasible === false) {
-    return { feasible: false, reason: str(raw.reason, TEXT.hint, "Это не решение, которое лидер может принять."), choice: null, advisor };
+// Предложения совета: по одному от советника, только из его области.
+// Приходят от модели (advisor — id роли) или из сохранённого состояния (advisor — объект).
+export function sanitizeProposals(v: unknown, advisors: Advisor[], crisisIds: string[]): Choice[] {
+  if (!Array.isArray(v)) return [];
+  const out: Choice[] = [];
+  for (const adv of advisors) {
+    const raw = v.find(p => isObj(p) && (isObj(p.advisor) ? p.advisor.id : p.advisor) === adv.id);
+    if (!isObj(raw)) continue;
+    const domain = ADVISOR_ROLES.find(r => r.id === adv.id)?.domain ?? [];
+    const tags = Array.isArray(raw.tags) ? raw.tags.filter(t => domain.includes(t as ActionTag)) : [];
+    const choice = sanitizeChoice({ ...raw, tags }, `x${out.length + 1}`, crisisIds);
+    if (choice) out.push({ ...choice, advisor: { id: adv.id, name: adv.name, role: adv.role, skill: adv.skill } });
   }
-  const choice = sanitizeChoice({ ...raw, text: playerText }, CUSTOM_CHOICE_ID, crisisIds);
-  if (!choice) return null;
-  return { feasible: true, reason: "", choice, advisor };
+  return out;
 }
 
 function sanitizeChoices(v: unknown, crisisIds: string[]): Choice[] {
@@ -119,7 +127,7 @@ function sanitizeRandomEvent(v: unknown): RandomEvent | null {
 }
 
 export function sanitizeEvent(
-  raw: unknown, factionIds: string[], opts: { isCritical: boolean; allowRandom: boolean; crisisIds: string[]; allowCustom?: boolean },
+  raw: unknown, factionIds: string[], opts: { isCritical: boolean; allowRandom: boolean; crisisIds: string[]; advisors?: Advisor[] },
 ): GameEvent | null {
   if (!isObj(raw)) return null;
   const title = str(raw.title, TEXT.title);
@@ -137,7 +145,7 @@ export function sanitizeEvent(
     affectedFactions: affected,
     choices,
     randomEvent: opts.allowRandom ? sanitizeRandomEvent(raw.randomEvent) : null,
-    custom: opts.allowCustom && isObj(raw.custom) ? sanitizeChoice(raw.custom, CUSTOM_CHOICE_ID, opts.crisisIds) : null,
+    council: opts.advisors ? sanitizeProposals(raw.council, opts.advisors, opts.crisisIds) : null,
   };
 }
 
@@ -250,6 +258,14 @@ function sanitizeCrises(v: unknown): Crisis[] {
   return out;
 }
 
+function sanitizeAdvisors(v: unknown): Advisor[] {
+  const src = Array.isArray(v) ? v.filter(isObj) : [];
+  return ADVISOR_ROLES.map(r => {
+    const a = src.find(x => x.id === r.id) ?? {};
+    return { id: r.id, role: r.role, emoji: r.emoji, name: str(a.name, TEXT.name, r.role), skill: num(a.skill, 1, 3, 2) as 1 | 2 | 3 };
+  });
+}
+
 function sanitizeElections(v: unknown): Election[] {
   if (!Array.isArray(v)) return [];
   return v.filter(isObj).slice(0, 2).map(e => ({
@@ -283,6 +299,7 @@ export function sanitizeState(raw: unknown): GameState | null {
   const factions = sanitizeFactions(raw.factions, country);
   const factionIds = factions.map(f => f.id);
   const activeCrises = sanitizeCrises(raw.activeCrises);
+  const advisors = sanitizeAdvisors(raw.advisors);
   const turn = num(raw.turn, 0, MAX_TURNS, 0);
   const endType = END_TYPE_IDS.includes(raw.endType as EndType) ? (raw.endType as EndType) : null;
   const startYear = COUNTRIES[country].startYear;
@@ -304,8 +321,10 @@ export function sanitizeState(raw: unknown): GameState | null {
     turn,
     history: sanitizeHistory(raw.history),
     elections: sanitizeElections(raw.elections),
+    advisors,
+    councilCharges: num(raw.councilCharges, 0, 10, 0),
     currentEvent: isObj(raw.currentEvent)
-      ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, allowCustom: true, crisisIds: activeCrises.map(c => c.id) })
+      ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, advisors, crisisIds: activeCrises.map(c => c.id) })
       : null,
     lastTurn: null,
     ended: raw.ended === true,

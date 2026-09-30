@@ -1,13 +1,13 @@
 // Игровой движок: чистые функции без сети и без React.
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
 import {
-  ACTIONS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, CRISIS_DRAIN, DIFF_PRESSURE, ELECTIONS,
+  ACTIONS, ADVISOR_ROLES, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, CRISIS_DRAIN, DIFF_PRESSURE, ELECTIONS,
   ELECTION_LOSS_PENALTY, ELECTION_WIN_BONUS, HOSTILE_DRAIN, HOSTILE_RELATION, IMPEACH_RATING, NON_VOTING_BLOCS, PARTIES, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, MAX_TURNS, RECOVERY_BELOW, RECOVERY_RATE,
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES,
 } from "./data.ts";
 import type {
-  Choice, Crisis, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
+  Advisor, Choice, Crisis, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
   Narration, NewCrisis, ResourceDelta, ResourceKey, Resources, Verdict,
 } from "./types.ts";
 
@@ -140,6 +140,8 @@ export function createInitialState(
     turn: 0,
     history: [],
     elections: [],
+    advisors: initAdvisors(diff, intro.advisors ?? [], rand),
+    councilCharges: COUNCIL_CHARGES[diff],
     currentEvent: null,
     lastTurn: null,
     ended: false, endType: null, powerLoss: null,
@@ -151,11 +153,28 @@ export function startEvent(state: GameState, event: GameEvent): GameState {
   return { ...state, currentEvent: event, lastTurn: null };
 }
 
-// Оценённое решение игрока становится ещё одним вариантом текущего события.
-export function setCustomChoice(state: GameState, choice: Choice | null): GameState {
-  if (!state.currentEvent) return state;
-  return { ...state, currentEvent: { ...state.currentEvent, custom: choice } };
+// Совет собран: предложения советников добавляются к вариантам, тратится один сбор.
+export function conveneCouncil(state: GameState, proposals: Choice[]): GameState {
+  if (!state.currentEvent || state.councilCharges <= 0) return state;
+  return {
+    ...state,
+    councilCharges: state.councilCharges - 1,
+    currentEvent: { ...state.currentEvent, council: proposals },
+  };
 }
+
+export function initAdvisors(diff: DifficultyId, names: string[], rand: () => number = Math.random): Advisor[] {
+  // на лёгкой сложности команда сильнее
+  const bias = { debut: 0.4, coalition: 0.2, crisis: 0, ruins: -0.2 }[diff] ?? 0;
+  return ADVISOR_ROLES.map((r, i) => ({
+    id: r.id, role: r.role, emoji: r.emoji,
+    name: names[i] || r.role,
+    skill: Math.max(1, Math.min(3, Math.floor(rand() * 3 + bias) + 1)) as 1 | 2 | 3,
+  }));
+}
+
+export const findChoice = (event: GameEvent, id: string): Choice | undefined =>
+  event.choices.find(c => c.id === id) ?? event.council?.find(c => c.id === id);
 
 export function setVerdict(state: GameState, verdict: Verdict): GameState {
   return { ...state, verdict };
@@ -205,6 +224,9 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions">, choic
       addDelta(appr, { [f.id]: a.appr?.[f.bloc] });
     }
   }
+  // Качество советника: потери умножаются на cost, выгода — на gain.
+  const skill = choice.advisor ? ADVISOR_SKILL[choice.advisor.skill] : null;
+  if (skill) for (const k of Object.keys(res)) res[k] *= res[k] < 0 ? skill.cost : skill.gain;
   return {
     resources: limitDelta(res, LIMITS.resourceDelta) as ResourceDelta,
     factionRel: limitDelta(rel, LIMITS.factionRelDelta),
@@ -231,7 +253,7 @@ export interface TurnPlan {
 export function planTurn(state: GameState, choiceId: string): TurnPlan {
   const event = state.currentEvent;
   if (!event) throw new Error("Нет активного события");
-  const choice = event.choices.find(c => c.id === choiceId) ?? (event.custom?.id === choiceId ? event.custom : undefined);
+  const choice = findChoice(event, choiceId);
   if (!choice) throw new Error("Неизвестный вариант решения");
 
   const effects = choiceEffects(state, choice);
@@ -331,6 +353,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     turn,
     year: state.year + (turn % 4 === 0 ? 1 : 0),
     elections: plan.election ? [...(state.elections ?? []), plan.election] : (state.elections ?? []),
+    councilCharges: state.councilCharges + (plan.election?.kind === "parliament" && plan.election.outcome === "won" ? COUNCIL_ELECTION_BONUS : 0),
     history: [...state.history, {
       year: state.year, title: event.title, choice: plan.choice.text,
       headline: narration.headline, historianNote: narration.historianNote,
