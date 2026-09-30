@@ -5,7 +5,7 @@ import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, c
 import { api as aiApi } from "@/lib/client/api.ts";
 import { classicApi } from "@/lib/game/classic.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
-import { ACHIEVEMENTS, ALL_ENDINGS, dailyCase, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
+import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
 // Кто пишет текст: библиотека сценариев (мгновенно) или ИИ-рассказчик.
 // В экспресс-режиме ответ готов мгновенно — даём сцене короткую театральную паузу.
@@ -18,7 +18,9 @@ const expressApi = {
   ending: theatrical(classicApi.ending, 1500),
 };
 const apiFor = mode => (mode === "classic" ? expressApi : aiApi);
-import { initTelegram, telegramShare } from "@/lib/client/telegram.ts";
+import { cloudGet, cloudSet, initTelegram, telegramShare } from "@/lib/client/telegram.ts";
+import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
+import { resultCard } from "@/lib/client/card.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
@@ -547,6 +549,13 @@ function DailyCard({ meta, disabled, onPlay }) {
   const d = useMemo(() => dailyCase(), []);
   const done = meta.runs.find(r => r.daily === d.date);
   const [, mm, dd] = d.date.split("-");
+  const [place, setPlace] = useState(null);
+  useEffect(() => {
+    if (!done) return;
+    let live = true;
+    fetchBoard(d.date).then(b => { if (live && b?.me) setPlace(b); });
+    return () => { live = false; };
+  }, [done, d.date]);
   return (
     <Card accent={done ? undefined : G.gold} style={{ marginBottom:22, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
       <div>
@@ -555,7 +564,7 @@ function DailyCard({ meta, disabled, onPlay }) {
           {COUNTRIES[d.country].flag} {d.country} · {DIFFICULTIES[d.diff].label.toLowerCase()} · {IDEOLOGIES.find(i => i.id === d.ideo)?.label.toLowerCase()}
         </div>
         <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginTop:3 }}>
-          {done ? `ваш итог: «${done.title}» · ${END_TYPES[done.endType]}` : "одна партия на всех — сравните итог с друзьями"}
+          {done ? `ваш итог: «${done.title}» · ${END_TYPES[done.endType]}${place ? ` · ${place.me.rank}-е место из ${place.total}` : ""}` : "одна партия на всех — сравните итог с друзьями"}
         </div>
       </div>
       {done
@@ -1303,7 +1312,20 @@ const shareUrl = () => process.env.NEXT_PUBLIC_SHARE_URL || (/^https?:/.test(loc
 function ShareButton({ gs }) {
   const [state, setState] = useState(null); // "ok" | "manual"
   const text = shareText(gs);
+  const saveCard = async () => {
+    const blob = await resultCard(gs).catch(() => null);
+    if (!blob) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `suveren-${gs.leader.name.replace(/\s+/g, "-")}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
   const copy = async () => {
+    const blob = matchMedia("(pointer:coarse)").matches ? await resultCard(gs).catch(() => null) : null;
+    const file = blob && new File([blob], "suveren.png", { type:"image/png" });
+    if (file && navigator.canShare?.({ files:[file] })) {
+      try { await navigator.share({ files:[file], text }); return; } catch (e) { if (e?.name === "AbortError") return; }
+    }
     if (telegramShare(text.replace(shareUrl(), "").trim(), shareUrl())) return;
     if (navigator.share && matchMedia("(pointer:coarse)").matches) {
       try { await navigator.share({ text }); return; } catch (e) { if (e?.name === "AbortError") return; }
@@ -1314,11 +1336,58 @@ function ShareButton({ gs }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
       <PrimaryBtn onClick={copy}>{state === "ok" ? "✓ СКОПИРОВАНО" : "ПОДЕЛИТЬСЯ ИТОГОМ"}</PrimaryBtn>
+      {window.self === window.top && <button onClick={saveCard} style={{ background:"transparent", border:"none", color:G.tx2, fontSize:15, textDecoration:"underline", textUnderlineOffset:3 }}>Сохранить карточку итога</button>}
       {state === "manual" && (
         <textarea readOnly value={text} rows={5} onFocus={e => e.target.select()} aria-label="Итог правления"
           style={{ width:280, background:G.bg, color:G.txt, border:`1px solid ${G.bdr2}`, borderRadius:2, padding:8, fontFamily:narrow, fontSize:15 }}/>
       )}
     </div>
+  );
+}
+
+// Таблица «Дела дня»: место среди всех и среди друзей, приглашение друга.
+function DailyBoard({ gs }) {
+  const [board, setBoard] = useState(null);
+  const [tab, setTab] = useState("all");
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    let live = true;
+    submitDaily(gs).then(b => { if (live) setBoard(b); });
+    return () => { live = false; };
+  }, [gs]);
+  if (!board) return null;
+  const friends = board.friends.length > 1;
+  const rows = tab === "friends" && friends ? board.friends : board.top;
+  const invite = async () => {
+    const url = inviteUrl(board.uid, shareUrl());
+    const msg = "Сыграй сегодняшнее дело в «Суверене» — посмотрим, кто продержится дольше.";
+    if (telegramShare(msg, url)) return;
+    if (navigator.share && matchMedia("(pointer:coarse)").matches) { try { await navigator.share({ text:msg, url }); return; } catch { /* отменено */ } }
+    try { await navigator.clipboard.writeText(`${msg} ${url}`); setCopied(true); } catch { /* нет доступа */ }
+  };
+  const tabBtn = (id, label) => (
+    <button onClick={() => setTab(id)} aria-pressed={tab === id}
+      style={{ background:"transparent", border:"none", borderBottom:`2px solid ${tab === id ? G.gold : "transparent"}`, color:tab === id ? G.txt : G.tx3, fontSize:15, padding:"2px 0" }}>{label}</button>
+  );
+  return (
+    <Card style={{ marginBottom:12, order:6 }}>
+      <Label>{"Дело дня · таблица"}</Label>
+      {board.me && (
+        <div style={{ fontFamily:serif, fontSize:20, marginBottom:12 }}>
+          Вы <b>{board.me.rank}-й</b> из {board.total} · {plural(board.me.score, "очко", "очка", "очков")}
+        </div>
+      )}
+      {friends && <div style={{ display:"flex", gap:16, marginBottom:8 }}>{tabBtn("all", "Все")}{tabBtn("friends", "Друзья")}</div>}
+      {rows.map((row, i) => (
+        <div key={i} style={{ display:"flex", justifyContent:"space-between", gap:10, padding:"6px 0", borderTop:`1px solid ${G.bdr}`, fontFamily:narrow, fontSize:16, color:row.me ? G.gold : G.txt, fontWeight:row.me ? 700 : 400 }}>
+          <span style={{ minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{i + 1}. {row.name}{row.title && <span style={{ color:G.tx3, fontWeight:400 }}> · {row.title}</span>}</span>
+          <span style={{ fontVariantNumeric:"tabular-nums" }}>{row.score}</span>
+        </div>
+      ))}
+      <button onClick={invite} style={{ marginTop:12, background:"transparent", border:`1.5px solid ${G.gold}`, color:G.gold, padding:"8px 16px", borderRadius:2, fontSize:15, fontWeight:700 }}>
+        {copied ? "Ссылка скопирована" : "Позвать друга в таблицу"}
+      </button>
+    </Card>
   );
 }
 
@@ -1342,7 +1411,9 @@ function Ending({ gs, setGs, onRestart }) {
         const next = setVerdict(gsRef.current, v);
         gsRef.current = next;
         setGs(next);
-        setNewAch(recordRun(next).unlocked);
+        const run = recordRun(next);
+        setNewAch(run.unlocked);
+        cloudSet("meta", compactMeta(run.meta));
         setError(null);
         setLoading(false);
       },
@@ -1461,6 +1532,7 @@ function Ending({ gs, setGs, onRestart }) {
           );
         })()}
         {verdict && <Collection/>}
+        {verdict && gs.daily && <DailyBoard gs={gs}/>}
         {newAch.length > 0 && (
           <Card accent={G.gold} style={{ marginBottom:16, order:6 }}>
             <Label>{"НОВЫЕ ДОСТИЖЕНИЯ"}</Label>
@@ -1487,7 +1559,7 @@ export default function App() {
   const [gs, setGs]         = useState(null);
   const savedRaw = useSyncExternalStore(subscribeSave, readSaveRaw, () => null);
   const saved = useMemo(() => parseSave(savedRaw), [savedRaw]);
-  useEffect(() => initTelegram(G.bg), []);
+  useEffect(() => { rememberRef(); initTelegram(G.bg, () => cloudGet("meta").then(importMeta)); }, []);
 
   // Автосохранение: после каждого изменения партии, пока игрок не в меню.
   useEffect(() => {

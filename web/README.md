@@ -23,9 +23,20 @@ npm run dev                  # http://localhost:3000
 `GOOGLE_AI_KEY` / `ANTHROPIC_API_KEY` сайт работает только в режиме «Триллер», а переключатель режимов скрыт
 (`GET /api/ai` сообщает клиенту, доступен ли ИИ).
 
-Telegram Mini App: укажите адрес сайта как Web App у бота в BotFather. Внутри Telegram игра
-разворачивается на весь экран и делится итогом через родное окно «Переслать»; ссылку в тексте
-задаёт `NEXT_PUBLIC_SHARE_URL`.
+Telegram Mini App и бот — пошагово:
+
+1. В BotFather создайте бота (`/newbot`) и мини-приложение (`/newapp`) с адресом сайта.
+   `NEXT_PUBLIC_SHARE_URL` — ссылка вида `https://t.me/<бот>/<приложение>`: по ней друзья
+   попадают в таблицу друзей (параметр `startapp=ref_…`).
+2. Заведите Redis (Upstash или Vercel KV) и пропишите переменные из `.env.example`.
+3. Подключите вебхук:
+   `curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook?url=$APP_URL/api/telegram&secret_token=$TELEGRAM_WEBHOOK_SECRET"`
+4. Утренняя рассылка «Дела дня» (`/api/cron/daily`) запускается Vercel Cron из `vercel.json`
+   в 05:00 UTC (08:00 МСК); задайте `CRON_SECRET`.
+
+Команды бота: `/start` — подписка и кнопка игры, `/daily` — дело дня, `/stop` — отписка.
+Внутри Telegram игра разворачивается на весь экран, делится итогом через окно «Переслать»,
+а прогресс (достижения, концовки, интриги) хранит в облаке Telegram.
 
 Пополнить библиотеку сценариев с помощью модели (офлайн, пакетно, с проверкой каждой карточки):
 

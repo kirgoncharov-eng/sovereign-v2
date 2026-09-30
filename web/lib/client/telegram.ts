@@ -7,6 +7,12 @@ interface TgWebApp {
   setBackgroundColor?(color: string): void;
   openTelegramLink?(url: string): void;
   disableVerticalSwipes?(): void;
+  initData?: string;
+  initDataUnsafe?: { start_param?: string };
+  CloudStorage?: {
+    getItem(key: string, cb: (err: unknown, value?: string) => void): void;
+    setItem(key: string, value: string, cb?: (err: unknown, ok?: boolean) => void): void;
+  };
   HapticFeedback?: {
     impactOccurred(style: "light" | "medium" | "heavy"): void;
     notificationOccurred(type: "success" | "error" | "warning"): void;
@@ -20,7 +26,8 @@ let app: TgWebApp | null = null;
 export const inTelegram = () =>
   typeof window !== "undefined" && /tgWebApp(Data|Platform|Version)=/.test(window.location.hash + window.location.search);
 
-export function initTelegram(bg: string) {
+// onReady вызывается, когда SDK загружен и приложение готово (только внутри Telegram).
+export function initTelegram(bg: string, onReady?: () => void) {
   if (!inTelegram() || document.querySelector(`script[src="${SDK}"]`)) return;
   const s = document.createElement("script");
   s.src = SDK;
@@ -32,6 +39,7 @@ export function initTelegram(bg: string) {
     app.setHeaderColor?.(bg);
     app.setBackgroundColor?.(bg);
     app.disableVerticalSwipes?.(); // свайп вниз не закрывает игру посреди хода
+    onReady?.();
   };
   document.head.appendChild(s);
 }
@@ -52,4 +60,18 @@ export function haptic(kind: "light" | "heavy" | "success" | "error") {
     return;
   }
   if (kind === "heavy" && typeof navigator !== "undefined" && "vibrate" in navigator && matchMedia("(pointer:coarse)").matches) navigator.vibrate(18);
+}
+
+// Подписанные данные пользователя — сервер проверяет их токеном бота.
+export const tgInitData = () => app?.initData || "";
+export const tgStartParam = () => app?.initDataUnsafe?.start_param || "";
+
+// Облачное хранилище Telegram: прогресс переживает смену телефона (до 4 КБ на ключ).
+export function cloudGet(key: string): Promise<string | null> {
+  const cs = app?.CloudStorage;
+  if (!cs) return Promise.resolve(null);
+  return new Promise(res => cs.getItem(key, (err, v) => res(err ? null : v || null)));
+}
+export function cloudSet(key: string, value: string) {
+  if (value.length <= 4096) app?.CloudStorage?.setItem(key, value);
 }

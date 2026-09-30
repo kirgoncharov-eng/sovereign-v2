@@ -1,9 +1,9 @@
 // Мета-прогрессия между партиями: архив правлений, коллекция концовок, достижения, открытие стран.
-import { COUNTRIES, IDEOLOGIES } from "../game/data.ts";
+import { COUNTRIES } from "../game/data.ts";
 import { ARCS } from "../content/arcs.ts";
-import { hashSeed, isSurvival, seededRandom } from "../game/engine.ts";
+import { isSurvival } from "../game/engine.ts";
 import { isObj } from "../game/sanitize.ts";
-import type { DifficultyId, EndType, GameState, IdeologyId } from "../game/types.ts";
+import type { EndType, GameState } from "../game/types.ts";
 
 const KEY = "sovereign.meta";
 export const ALL_ENDINGS: EndType[] = ["reelected", "mandate", "revolution", "collapse", "coup", "impeachment"];
@@ -67,20 +67,7 @@ export function parseMeta(raw: string | null): Meta {
   }
 }
 
-// «Дело дня»: одна и та же партия у всех игроков в течение суток — можно сравнить итог с друзьями.
-export function dailyCase(now = new Date()) {
-  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const seed = hashSeed("daily", date);
-  const r = seededRandom(seed);
-  const countries = Object.keys(COUNTRIES);
-  const diffs: DifficultyId[] = ["coalition", "coalition", "crisis"];
-  return {
-    date, seed,
-    country: countries[Math.floor(r() * countries.length)],
-    diff: diffs[Math.floor(r() * diffs.length)],
-    ideo: IDEOLOGIES[Math.floor(r() * IDEOLOGIES.length)].id as IdeologyId,
-  };
-}
+export { dailyCase } from "../game/daily.ts";
 
 export const unlockedCountries = (meta: Meta) =>
   meta.runs.length ? Object.keys(COUNTRIES) : BASE_COUNTRIES;
@@ -102,4 +89,23 @@ export function recordRun(gs: GameState): { meta: Meta; unlocked: Achievement[] 
   try { localStorage.setItem(KEY, JSON.stringify(meta)); } catch { /* недоступно */ }
   listeners.forEach(l => l());
   return { meta, unlocked };
+}
+
+// ── Синхронизация через облако Telegram (до 4 КБ) ──────────────────────────
+export const compactMeta = (meta: Meta) => JSON.stringify({ ...meta, runs: meta.runs.slice(0, 12) });
+
+// Объединяет облачную копию с локальной: достижения, концовки и интриги — объединением, партии — по seed.
+export function importMeta(raw: string | null) {
+  if (!raw) return;
+  const cloud = parseMeta(raw), local = parseMeta(readMetaRaw());
+  const merged: Meta = {
+    runs: [...local.runs, ...cloud.runs.filter(c => !local.runs.some(l => l.seed === c.seed))].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 50),
+    endings: Object.fromEntries([...new Set([...Object.keys(local.endings), ...Object.keys(cloud.endings)])]
+      .map(c => [c, [...new Set([...(local.endings[c] ?? []), ...(cloud.endings[c] ?? [])])]])),
+    achievements: [...new Set([...local.achievements, ...cloud.achievements])],
+    arcs: [...new Set([...(local.arcs ?? []), ...(cloud.arcs ?? [])])],
+  };
+  if (JSON.stringify(merged) === JSON.stringify(local)) return;
+  try { localStorage.setItem(KEY, JSON.stringify(merged)); } catch { /* недоступно */ }
+  listeners.forEach(l => l());
 }
