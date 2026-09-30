@@ -440,7 +440,7 @@ function HowToPlay({ onClose }) {
   }, [onClose]);
   const desktop = typeof matchMedia === "function" && matchMedia("(pointer:fine)").matches;
   const items = [
-    ["Каждый ход — одно решение", "Под каждым вариантом — его цена и то, что аукнется позже. Выбранный вариант сразу показывает итог на панели сверху."],
+    ["Каждый ход — одно решение", `Под каждым вариантом — его цена и то, что аукнется позже. ${desktop ? "Наведите на вариант — панель сверху покажет итог." : "Первое касание покажет итог на панели сверху, второе — подпишет решение."}`],
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
     ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
     ["У вас есть тайна", "В каждой партии развивается главная интрига. Эпизоды помечены «Главная интрига» — ваши решения в них определят развязку."],
@@ -755,6 +755,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
   const [error, setError]     = useState(null); // { message, choice? }
   const [sideTab, setSideTab] = useState("res");
   const [preview, setPreview] = useState(null); // вариант под курсором/фокусом
+  const [armed, setArmed]     = useState(null); // тач: первое касание выбирает, второе — подписывает
   const [help, setHelp]       = useState(() => !tutorialSeen());
   const gsRef = useRef(gs);
   const inFlight = useRef(false);
@@ -815,7 +816,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
   };
 
   const nextTurn = () => {
-    setBusy("event"); setError(null); setPreview(null);
+    setBusy("event"); setError(null); setPreview(null); setArmed(null);
     commit({ ...gsRef.current, lastTurn: null });
   };
 
@@ -837,9 +838,13 @@ function Game({ gs, setGs, onEnd, onMenu }) {
   const optProps = (c, n) => ({
     id: `opt-${n}`,
     className: "sv-opt",
-    onClick: () => choose(c),
+    "data-armed": armed === c.id || undefined,
+    onClick: () => {
+      if (armed !== c.id && matchMedia("(pointer:coarse)").matches) { setArmed(c.id); setPreview(c); return; }
+      setArmed(null); choose(c);
+    },
     onMouseEnter: () => setPreview(c), onMouseLeave: () => setPreview(null),
-    onFocus: () => setPreview(c), onBlur: () => setPreview(null),
+    onFocus: () => setPreview(c), onBlur: () => { setPreview(null); setArmed(null); },
   });
 
   const { resources, prevResources, factions, prevFactions, keyFigures, prevFigures, turn, history, activeCrises, currentEvent: event, lastTurn } = gs;
