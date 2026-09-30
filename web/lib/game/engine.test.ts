@@ -222,3 +222,16 @@ test("слабый советник оставляет недоработку", 
   assert.ok(delayedEffects(weak).some(d => d.label === "Недоработка советника"));
   assert.equal(delayedEffects(strong).length, 0);
 });
+
+test("антагонист интриги — мужчина, если есть выбор", async () => {
+  const { pickArc, isFemaleName } = await import("./engine.ts");
+  assert.equal(isFemaleName("Анна Лис"), true);
+  assert.equal(isFemaleName("Нино Беридзе"), true);
+  assert.equal(isFemaleName("Никита Жук"), false);
+  const s = newGame();
+  const advisors = s.advisors.map((a, i) => ({ ...a, name: i === 0 ? "Павел Гром" : "Анна Лис" }));
+  for (let i = 0; i < 20; i++) {
+    const arc = pickArc({ ...s, advisors }, () => (i % 3) / 3);
+    if (arc.id === "mole") assert.equal(arc.target, "Павел Гром");
+  }
+});

@@ -7,6 +7,7 @@ import {
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES,
 } from "./data.ts";
 import { ARCS } from "../content/arcs.ts";
+import { NAMES } from "../content/narration.ts";
 import type {
   Advisor, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
   Narration, NewCrisis, ResourceDelta, ResourceKey, Resources, Verdict,
@@ -125,13 +126,21 @@ export function detectEnd(resources: Resources, factions: Faction[], turn: numbe
 }
 
 // ── Интрига ──────────────────────────────────────────────────────────────────
+// Авторские тексты интриг написаны в мужском роде — антагонистом выбираем мужчину, если он есть.
+const FEMALE_NAMES = new Set(Object.values(NAMES).flatMap(n => n.first.slice(8)));
+const MALE_A = new Set(["Никита", "Илья", "Кузьма", "Фома", "Лука"]);
+export function isFemaleName(name: string): boolean {
+  const first = name.trim().split(/\s+/)[0] ?? "";
+  return FEMALE_NAMES.has(first) || (/[ая]$/.test(first) && !MALE_A.has(first));
+}
 export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "factions">, rand: () => number): ArcState {
   const arc = ARCS[Math.floor(rand() * ARCS.length)];
   const blocOf = (fig: Figure) => state.factions.find(f => f.id === fig.faction)?.bloc;
   let who: { name: string; role: string } | undefined;
-  if (arc.target === "advisor") who = state.advisors[Math.floor(rand() * state.advisors.length)];
-  if (arc.target === "security") who = state.keyFigures.find(f => blocOf(f) === "security");
-  if (arc.target === "rival") who = state.keyFigures.find(f => blocOf(f) === "liberal" || blocOf(f) === "nationalist");
+  const men = <T extends { name: string }>(list: T[]) => (list.filter(x => !isFemaleName(x.name)).length ? list.filter(x => !isFemaleName(x.name)) : list);
+  if (arc.target === "advisor") { const pool = men(state.advisors); who = pool[Math.floor(rand() * pool.length)]; }
+  if (arc.target === "security") who = men(state.keyFigures.filter(f => blocOf(f) === "security"))[0];
+  if (arc.target === "rival") who = men(state.keyFigures.filter(f => blocOf(f) === "liberal" || blocOf(f) === "nationalist"))[0];
   who ??= [...state.keyFigures].sort((a, b) => a.relation - b.relation)[0];
   return { id: arc.id, target: who?.name ?? "неизвестный", targetRole: who?.role ?? "", flags: [], done: [], epilogue: null };
 }

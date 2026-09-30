@@ -185,7 +185,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const parts = [scene, after.join(" "), intercut, hook];
 
   const react = (sign: number, pool: string[]) => state.keyFigures
-    .filter(f => Math.sign(plan.effects.factionRel[f.faction] ?? 0) === sign)
+    .filter(f => f !== moved?.f && Math.sign(plan.effects.factionRel[f.faction] ?? 0) === sign)
     .slice(0, 2)
     .map(f => fill(pick(r, pool), state, { name: f.name, role: f.role.charAt(0).toLowerCase() + f.role.slice(1) }));
   const reactions = [...react(1, REACT_APPROVE), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
