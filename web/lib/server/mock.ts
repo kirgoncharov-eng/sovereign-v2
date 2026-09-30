@@ -21,9 +21,9 @@ export function mockResponse(task: Task): string {
         description: "Описание тестового события с именами и местами.",
         affectedFactions: ["siloviki", "west", "church"],
         choices: [
-          { id: "a", text: "Жёсткий вариант", hint: "силовики довольны, Запад нет" },
-          { id: "b", text: "Мягкий вариант", hint: "дорого для бюджета" },
-          { id: "c", text: "Затянуть время", hint: "риск кризиса" },
+          { text: "Жёсткий вариант", hint: "силовики довольны, Запад нет", tags: ["repress"] },
+          { text: "Мягкий вариант", hint: "дорого для бюджета", tags: ["dialogue", "social"] },
+          { text: "Затянуть время", hint: "риск кризиса", tags: ["delay"] },
         ],
         randomEvent: { title: "Утечка переписки", description: "Скандал в прессе.", resourceEffect: { politicalCapital: -3 } },
       });
@@ -31,15 +31,11 @@ export function mockResponse(task: Task): string {
       return JSON.stringify({
         headline: `Решение №${n} расколол элиты`,
         narrative: "Кинематографичное описание последствий. «Мы не отступим», — сказал министр.",
-        resourceChanges: { economy: -6, politicalCapital: 4, military: -40 },
-        factionRelChanges: { siloviki: 12, west: -8 },
-        factionApprChanges: { church: 3 },
-        figureRelChanges: { interior: -10 },
         reactions: ["Игрок 1: «Это ошибка»", "Игрок 4: «Поддерживаем»"],
         historianNote: "Историки назовут это началом конца.",
-        newCrisis: n % 3 === 0 ? { title: `Кризис ${n}`, description: "Кризис из-за решения.", severity: "medium", resourceDrain: { economy: -2 } } : null,
-        crisisResolved: null,
-        powerLoss: null,
+        crisisTitle: "Тестовый кризис",
+        crisisDescription: "Описание кризиса.",
+        powerLoss: "Ночью к резиденции подъехали бронемашины.",
       });
     case "ending":
       return JSON.stringify({

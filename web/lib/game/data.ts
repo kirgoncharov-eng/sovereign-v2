@@ -1,8 +1,8 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
-import type { DifficultyId, IdeologyId, Loyalty, ResourceKey, Resources } from "./types.ts";
+import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "2.4";
-export const SAVE_VERSION = 1;
+export const APP_VERSION = "2.5";
+export const SAVE_VERSION = 2; // 2: варианты с тегами, движок считает последствия
 export const MAX_TURNS = 20;
 
 export interface CountryInfo {
@@ -56,38 +56,39 @@ export interface FactionInfo {
   desc: string;
   emoji: string;
   baseApproval: number;
+  bloc: Bloc;
 }
 
 export const FACTIONS_DATA: Record<string, FactionInfo[]> = {
   "Беларусь": [
-    { id:"siloviki",   name:"Силовые структуры", desc:"КГБ, МВД, ОМОН",             emoji:"🛡️", baseApproval:32 },
-    { id:"gossektor",  name:"Гос. предприятия",   desc:"Директорат заводов",          emoji:"🏭", baseApproval:38 },
-    { id:"church",     name:"Православная церковь",desc:"Патриархат и приходы",      emoji:"⛪", baseApproval:52 },
-    { id:"opposition", name:"Демоппозиция",       desc:"Подполье и эмиграция",       emoji:"✊", baseApproval:58 },
-    { id:"youth",      name:"Молодёжь",           desc:"Активисты и студенты",       emoji:"🔥", baseApproval:65 },
-    { id:"west",       name:"Запад",               desc:"ЕС, США, НАТО",             emoji:"🌍", baseApproval:50 },
-    { id:"russia",     name:"Кремль",              desc:"Москва и пророссийские",     emoji:"🦅", baseApproval:22 },
-    { id:"media",      name:"Независимые СМИ",    desc:"Журналисты и блогеры",       emoji:"📰", baseApproval:60 },
+    { id:"siloviki",   name:"Силовые структуры", desc:"КГБ, МВД, ОМОН",             emoji:"🛡️", baseApproval:32, bloc:"security" },
+    { id:"gossektor",  name:"Гос. предприятия",   desc:"Директорат заводов",          emoji:"🏭", baseApproval:38, bloc:"business" },
+    { id:"church",     name:"Православная церковь",desc:"Патриархат и приходы",      emoji:"⛪", baseApproval:52, bloc:"church" },
+    { id:"opposition", name:"Демоппозиция",       desc:"Подполье и эмиграция",       emoji:"✊", baseApproval:58, bloc:"liberal" },
+    { id:"youth",      name:"Молодёжь",           desc:"Активисты и студенты",       emoji:"🔥", baseApproval:65, bloc:"liberal" },
+    { id:"west",       name:"Запад",               desc:"ЕС, США, НАТО",             emoji:"🌍", baseApproval:50, bloc:"west" },
+    { id:"russia",     name:"Кремль",              desc:"Москва и пророссийские",     emoji:"🦅", baseApproval:22, bloc:"russia" },
+    { id:"media",      name:"Независимые СМИ",    desc:"Журналисты и блогеры",       emoji:"📰", baseApproval:60, bloc:"liberal" },
   ],
   "Украина": [
-    { id:"military",     name:"ЗСУ",               desc:"Вооружённые силы",           emoji:"⚔️", baseApproval:75 },
-    { id:"oligarchs",    name:"Олигархат",          desc:"Крупный капитал",            emoji:"💼", baseApproval:18 },
-    { id:"nationalists", name:"Националисты",      desc:"Радикальные движения",       emoji:"🔱", baseApproval:55 },
-    { id:"west",         name:"Западные союзники", desc:"США, ЕС, НАТО",              emoji:"🌍", baseApproval:68 },
-    { id:"civil",        name:"Гражданское общество",desc:"Волонтёры и НКО",         emoji:"🤝", baseApproval:70 },
-    { id:"regions",      name:"Местные элиты",     desc:"Мэры и губернаторы",         emoji:"🏛️", baseApproval:40 },
-    { id:"church",       name:"Церковь (ПЦУ)",     desc:"Православная церковь Украины",emoji:"⛪", baseApproval:60 },
-    { id:"media",        name:"Медиа",             desc:"Телеканалы и пресса",         emoji:"📰", baseApproval:55 },
+    { id:"military",     name:"ЗСУ",               desc:"Вооружённые силы",           emoji:"⚔️", baseApproval:75, bloc:"security" },
+    { id:"oligarchs",    name:"Олигархат",          desc:"Крупный капитал",            emoji:"💼", baseApproval:18, bloc:"business" },
+    { id:"nationalists", name:"Националисты",      desc:"Радикальные движения",       emoji:"🔱", baseApproval:55, bloc:"nationalist" },
+    { id:"west",         name:"Западные союзники", desc:"США, ЕС, НАТО",              emoji:"🌍", baseApproval:68, bloc:"west" },
+    { id:"civil",        name:"Гражданское общество",desc:"Волонтёры и НКО",         emoji:"🤝", baseApproval:70, bloc:"liberal" },
+    { id:"regions",      name:"Местные элиты",     desc:"Мэры и губернаторы",         emoji:"🏛️", baseApproval:40, bloc:"regional" },
+    { id:"church",       name:"Церковь (ПЦУ)",     desc:"Православная церковь Украины",emoji:"⛪", baseApproval:60, bloc:"church" },
+    { id:"media",        name:"Медиа",             desc:"Телеканалы и пресса",         emoji:"📰", baseApproval:55, bloc:"liberal" },
   ],
   "Грузия": [
-    { id:"gdream",     name:"Грузинская мечта",    desc:"Партия Иванишвили",          emoji:"👑", baseApproval:35 },
-    { id:"opposition", name:"Проевропейская оппозиция",desc:"Нацдвижение и др.",     emoji:"🌍", baseApproval:48 },
-    { id:"church",     name:"Православная церковь",desc:"Патриарх и духовенство",    emoji:"⛪", baseApproval:72 },
-    { id:"business",   name:"Бизнес-элиты",       desc:"Предприниматели и банки",    emoji:"💼", baseApproval:44 },
-    { id:"civil",      name:"Гражданское общество",desc:"НКО и активисты",           emoji:"✊", baseApproval:62 },
-    { id:"russia",     name:"Кремль",              desc:"Москва и пророссийские",     emoji:"🦅", baseApproval:20 },
-    { id:"west",       name:"Западные партнёры",  desc:"ЕС, США, НАТО",              emoji:"🌍", baseApproval:58 },
-    { id:"diaspora",   name:"Диаспора",            desc:"Эмигранты и зарубежная Грузия",emoji:"✈️", baseApproval:55 },
+    { id:"gdream",     name:"Грузинская мечта",    desc:"Партия Иванишвили",          emoji:"👑", baseApproval:35, bloc:"ruling" },
+    { id:"opposition", name:"Проевропейская оппозиция",desc:"Нацдвижение и др.",     emoji:"🌍", baseApproval:48, bloc:"liberal" },
+    { id:"church",     name:"Православная церковь",desc:"Патриарх и духовенство",    emoji:"⛪", baseApproval:72, bloc:"church" },
+    { id:"business",   name:"Бизнес-элиты",       desc:"Предприниматели и банки",    emoji:"💼", baseApproval:44, bloc:"business" },
+    { id:"civil",      name:"Гражданское общество",desc:"НКО и активисты",           emoji:"✊", baseApproval:62, bloc:"liberal" },
+    { id:"russia",     name:"Кремль",              desc:"Москва и пророссийские",     emoji:"🦅", baseApproval:20, bloc:"russia" },
+    { id:"west",       name:"Западные партнёры",  desc:"ЕС, США, НАТО",              emoji:"🌍", baseApproval:58, bloc:"west" },
+    { id:"diaspora",   name:"Диаспора",            desc:"Эмигранты и зарубежная Грузия",emoji:"✈️", baseApproval:55, bloc:"liberal" },
   ],
 };
 
@@ -164,6 +165,98 @@ export const LIMITS = {
   endResource: 4,         // ресурс ≤ этого → коллапс
   endApproval: 5,         // рейтинг ≤ этого → революция
 } as const;
+
+// ── Действия ──────────────────────────────────────────────────────────────────
+// Модель помечает каждый вариант решения 1–2 тегами, а цену решения считает движок
+// по этой таблице. Так последствия предсказуемы и одинаковы для одинаковых решений.
+export interface ActionInfo {
+  label: string;
+  desc: string; // подсказка модели, когда уместен тег
+  res: ResourceDelta;
+  rel: Partial<Record<Bloc, number>>; // отношение фракций блока к лидеру
+  appr?: Partial<Record<Bloc, number>>; // одобрение фракций блока в обществе
+}
+
+export const ACTIONS: Record<ActionTag, ActionInfo> = {
+  repress:       { label:"Силовой ответ",     desc:"разгон, аресты, запреты, чрезвычайное положение",
+                   res:{ military:5, politicalCapital:3, internalLegitimacy:-6, externalReputation:-6 },
+                   rel:{ security:12, russia:6, nationalist:4, liberal:-15, west:-10 }, appr:{ liberal:4, security:-3 } },
+  security:      { label:"Усиление силовиков", desc:"деньги и полномочия армии, спецслужб, полиции",
+                   res:{ military:7, economy:-5, externalReputation:-2 },
+                   rel:{ security:10, nationalist:4, liberal:-4 } },
+  reform:        { label:"Реформы",            desc:"судебная, институциональная, политическая либерализация",
+                   res:{ externalReputation:6, economy:2, politicalCapital:-5, personalResource:-2 },
+                   rel:{ west:12, liberal:10, business:-6, security:-6, ruling:-8 }, appr:{ liberal:3 } },
+  pro_west:      { label:"Курс на Запад",      desc:"сближение с ЕС/США/НАТО, выполнение их условий",
+                   res:{ externalReputation:8, economy:2, politicalCapital:-3, internalLegitimacy:-2 },
+                   rel:{ west:15, liberal:6, russia:-15, nationalist:-6 } },
+  pro_russia:    { label:"Уступка Москве",     desc:"договорённости с Кремлём, скидки, кредиты, лояльность",
+                   res:{ economy:5, military:3, externalReputation:-8, internalLegitimacy:-3 },
+                   rel:{ russia:15, west:-12, liberal:-10, nationalist:-8 } },
+  social:        { label:"Социальные траты",   desc:"выплаты, субсидии, повышение зарплат и пенсий",
+                   res:{ economy:-7, internalLegitimacy:6, politicalCapital:2 },
+                   rel:{ regional:6, liberal:3, church:3, business:-5 }, appr:{ regional:2 } },
+  austerity:     { label:"Жёсткая экономия",   desc:"сокращение расходов, повышение налогов и тарифов",
+                   res:{ economy:7, internalLegitimacy:-5, politicalCapital:-3 },
+                   rel:{ business:8, west:4, regional:-8, liberal:-4 } },
+  investment:    { label:"Инвесторы",          desc:"приватизация, иностранный капитал, льготы бизнесу",
+                   res:{ economy:6, externalReputation:3, internalLegitimacy:-4, personalResource:-2 },
+                   rel:{ business:8, west:6, regional:-4, liberal:-2 } },
+  anticorruption:{ label:"Антикоррупция",      desc:"расследования, аресты чиновников и олигархов",
+                   res:{ internalLegitimacy:6, politicalCapital:2, personalResource:-4, economy:-2 },
+                   rel:{ liberal:10, west:4, business:-12, ruling:-12, security:-4 } },
+  elite_deal:    { label:"Сделка с элитами",   desc:"кулуарные договорённости, раздача постов и активов",
+                   res:{ politicalCapital:6, personalResource:3, internalLegitimacy:-5, externalReputation:-2 },
+                   rel:{ business:12, ruling:10, regional:6, liberal:-10 } },
+  dialogue:      { label:"Диалог",             desc:"переговоры с оппозицией, улицей, гражданским обществом",
+                   res:{ internalLegitimacy:5, politicalCapital:-3, military:-2 },
+                   rel:{ liberal:12, security:-6, nationalist:-5 } },
+  patriotism:    { label:"Патриотизм",         desc:"мобилизация вокруг флага, традиций, церкви",
+                   res:{ internalLegitimacy:4, military:3, externalReputation:-4, economy:-2 },
+                   rel:{ nationalist:12, church:8, security:4, liberal:-6, west:-3 } },
+  propaganda:    { label:"Пропаганда",         desc:"медийная кампания, контроль повестки, давление на СМИ",
+                   res:{ politicalCapital:4, internalLegitimacy:2, personalResource:-3, externalReputation:-2 },
+                   rel:{ ruling:4, liberal:-6 } },
+  delay:         { label:"Выжидание",          desc:"затянуть время, создать комиссию, ничего не решать",
+                   res:{ politicalCapital:-3, personalResource:-2 },
+                   rel:{} },
+};
+
+export const ACTION_TAGS = Object.keys(ACTIONS) as ActionTag[];
+
+// Решения в духе своей идеологии укрепляют лидера, против неё — подтачивают.
+export const IDEOLOGY_ACTIONS: Record<IdeologyId, { aligned: ActionTag[]; opposed: ActionTag[] }> = {
+  liberal:     { aligned:["reform","pro_west","dialogue","anticorruption"], opposed:["repress","pro_russia","propaganda"] },
+  nationalist: { aligned:["patriotism","security","repress"],               opposed:["pro_russia","pro_west"] },
+  pragmatist:  { aligned:["elite_deal","investment","austerity"],           opposed:[] },
+  leftist:     { aligned:["social","anticorruption","dialogue"],            opposed:["austerity","investment","elite_deal"] },
+};
+
+export const IDEOLOGY_BONUS: ResourceDelta = { personalResource:2, internalLegitimacy:1 };
+export const IDEOLOGY_PENALTY: ResourceDelta = { personalResource:-4, politicalCapital:-2 };
+
+// Порог, ниже которого проседание ресурса порождает кризис, и пассивное восстановление.
+export const CRISIS_THRESHOLD = 20;
+export const CRISIS_DRAIN = 2;
+export const RECOVERY_BELOW = 30;
+export const RECOVERY_RATE = 1;
+
+// Давление обстоятельств: сколько очков ресурсов страна теряет каждый ход сама по себе.
+export const DIFF_PRESSURE: Record<DifficultyId, number> = { debut:0, coalition:1, crisis:2, ruins:3 };
+
+// Враждебные фракции (отношение ниже порога) вредят каждый ход.
+export const HOSTILE_RELATION = -60;
+export const HOSTILE_DRAIN: Partial<Record<Bloc, ResourceDelta>> = {
+  security:    { military:-2, internalLegitimacy:-1 },
+  business:    { economy:-2 },
+  west:        { externalReputation:-2, economy:-1 },
+  russia:      { economy:-1, military:-1 },
+  liberal:     { internalLegitimacy:-2 },
+  nationalist: { internalLegitimacy:-1, military:-1 },
+  church:      { internalLegitimacy:-1 },
+  regional:    { politicalCapital:-2 },
+  ruling:      { politicalCapital:-2, personalResource:-1 },
+};
 
 // Через сколько ходов кризис затухает сам, если его не разрешили.
 export const CRISIS_LIFETIME: Record<string, number> = { low:3, medium:4, high:5, critical:6 };

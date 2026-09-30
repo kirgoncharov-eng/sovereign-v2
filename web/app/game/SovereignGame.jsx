@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
-import { APP_VERSION, COUNTRIES, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
-import { computePublicApproval, createInitialState, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { ACTIONS, APP_VERSION, COUNTRIES, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
+import { choiceEffects, computePublicApproval, createInitialState, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api } from "@/lib/client/api.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
@@ -514,13 +514,22 @@ function Game({ gs, setGs, onEnd, onMenu }) {
               </Card>
               <Card>
                 <Label>{"// ВАШЕ РЕШЕНИЕ"}</Label>
-                {event.choices.map(c => (
-                  <button key={c.id} onClick={()=>choose(c)} {...hovChoice()}
-                    style={{ display:"block", width:"100%", textAlign:"left", padding:"13px 16px", marginBottom:8, borderRadius:4, background:"rgba(255,255,255,0.02)", border:`1px solid ${G.bdr}`, color:G.txt }}>
-                    <div style={{ fontFamily:serif, fontSize:16, fontWeight:500, marginBottom:4 }}>{c.text}</div>
-                    <div style={{ fontFamily:mono, fontSize:11, color:G.tx3 }}>{c.hint}</div>
-                  </button>
-                ))}
+                {event.choices.map(c => {
+                  const fx = choiceEffects(gs, c);
+                  const crisis = c.resolvesCrisis && activeCrises.find(x => x.id === c.resolvesCrisis);
+                  return (
+                    <button key={c.id} onClick={()=>choose(c)} {...hovChoice()}
+                      style={{ display:"block", width:"100%", textAlign:"left", padding:"13px 16px", marginBottom:8, borderRadius:4, background:"rgba(255,255,255,0.02)", border:`1px solid ${G.bdr}`, color:G.txt }}>
+                      <div style={{ fontFamily:mono, fontSize:9, color:G.bl2, letterSpacing:".12em", marginBottom:5 }}>
+                        {c.tags.map(t => ACTIONS[t].label.toUpperCase()).join(" · ")}
+                      </div>
+                      <div style={{ fontFamily:serif, fontSize:16, fontWeight:500, marginBottom:4 }}>{c.text}</div>
+                      <div style={{ fontFamily:mono, fontSize:11, color:G.tx3, marginBottom:8 }}>{c.hint}</div>
+                      <ResourceChips delta={fx.resources}/>
+                      {crisis && <div style={{ fontFamily:mono, fontSize:10, color:G.grn, marginTop:6 }}>✔ закроет кризис «{crisis.title}»</div>}
+                    </button>
+                  );
+                })}
               </Card>
             </div>
           )}
@@ -529,13 +538,13 @@ function Game({ gs, setGs, onEnd, onMenu }) {
             <div>
               <Card accent={G.amb} style={{ marginBottom:12 }}>
                 <Label>{"// ПОСЛЕДСТВИЯ"}</Label>
-                <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:8 }}>Решение: {lastTurn.choiceText}</div>
+                <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:8 }}>Решение: {lastTurn.choiceText}{lastTurn.tags?.length ? ` · ${lastTurn.tags.map(t => ACTIONS[t].label).join(", ")}` : ""}</div>
                 <div style={{ fontFamily:serif, fontSize:24, fontWeight:600, color:G.gld2, marginBottom:14, lineHeight:1.25 }}>«{lastTurn.headline}»</div>
                 <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{lastTurn.narrative}</div>
 
                 {turnDelta && Object.values(turnDelta).some(v => v !== 0) && (
                   <div style={{ marginBottom:12 }}>
-                    <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:5 }}>ИТОГ ХОДА (с учётом кризисов и случайных событий):</div>
+                    <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:5 }}>ИТОГ ХОДА (решение + кризисы, случайности, давление обстоятельств):</div>
                     <ResourceChips delta={turnDelta}/>
                   </div>
                 )}
@@ -570,7 +579,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                   <span style={{ fontFamily:mono, fontSize:11, color:G.tx2 }}>◌ КРИЗИС ЗАТИХ: {t.toUpperCase()}</span>
                 </div>
               ))}
-              {lastTurn.addedCrisis && lastTurn.newCrisis && (
+              {lastTurn.newCrisis && (
                 <div style={{ marginBottom:12, padding:"10px 14px", borderRadius:4, background:"rgba(184,82,82,0.1)", border:`1px solid ${G.red}` }}>
                   <div style={{ fontFamily:mono, fontSize:11, color:G.red, marginBottom:4 }}>🔥 НОВЫЙ КРИЗИС: {lastTurn.newCrisis.title.toUpperCase()}</div>
                   <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>{lastTurn.newCrisis.description}</div>

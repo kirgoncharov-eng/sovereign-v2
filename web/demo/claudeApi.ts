@@ -1,9 +1,9 @@
 // Демо-адаптер: та же игра, но модель вызывается прямо со страницы артефакта claude.ai
 // через возможность `sample` (на аккаунте зрителя). Интерфейс совпадает с lib/client/api.ts.
 import { FIGURE_ROLES } from "../lib/game/data.ts";
-import { warningLevel } from "../lib/game/engine.ts";
+import { planTurn, warningLevel } from "../lib/game/engine.ts";
 import { consequencePrompt, endingPrompt, eventPrompt, setupPrompt, SYS_BASE, SYS_CONSEQUENCE, SYS_ENDING } from "../lib/game/prompts.ts";
-import { sanitizeConsequence, sanitizeEvent, sanitizeIntro, sanitizeVerdict } from "../lib/game/sanitize.ts";
+import { sanitizeNarration, sanitizeEvent, sanitizeIntro, sanitizeVerdict } from "../lib/game/sanitize.ts";
 import type { DifficultyId, GameState, IdeologyId } from "../lib/game/types.ts";
 
 export class ApiError extends Error {
@@ -67,20 +67,14 @@ export const api = {
     const withRandom = state.turn > 0 && Math.random() < RANDOM_EVENT_CHANCE;
     const factionIds = state.factions.map(f => f.id);
     return generate(SYS_BASE, eventPrompt(state, { isCritical, withRandom }), "quick",
-      r => sanitizeEvent(r, factionIds, { isCritical, allowRandom: withRandom }));
+      r => sanitizeEvent(r, factionIds, { isCritical, allowRandom: withRandom, crisisIds: state.activeCrises.map(c => c.id) }));
   },
 
   consequence: (state: GameState, choiceId: string) => {
-    const event = state.currentEvent;
-    const choice = event?.choices.find(c => c.id === choiceId);
-    if (!event || !choice) return Promise.reject(new ApiError("Нет активного события"));
-    const ctx = {
-      factionIds: state.factions.map(f => f.id),
-      figureIds: state.keyFigures.map(f => f.id),
-      crises: state.activeCrises,
-    };
-    return generate(SYS_CONSEQUENCE, consequencePrompt(state, event, choice, { isCritical: warningLevel(state) === "critical" }), "quick",
-      r => sanitizeConsequence(r, ctx));
+    let prompt: string;
+    try { prompt = consequencePrompt(state, planTurn(state, choiceId)); }
+    catch (e) { return Promise.reject(new ApiError((e as Error).message)); }
+    return generate(SYS_CONSEQUENCE, prompt, "quick", sanitizeNarration);
   },
 
   ending: (state: GameState) => generate(SYS_ENDING, endingPrompt(state), "default", sanitizeVerdict),

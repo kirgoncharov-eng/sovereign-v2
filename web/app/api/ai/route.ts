@@ -1,10 +1,10 @@
 // Единая точка обращения к модели. Клиент присылает только игровое состояние и выбор —
 // промпты собираются здесь, поэтому эндпоинт нельзя использовать как прокси к API.
 import { MAX_TURNS, FIGURE_ROLES } from "@/lib/game/data.ts";
-import { warningLevel } from "@/lib/game/engine.ts";
+import { planTurn, warningLevel } from "@/lib/game/engine.ts";
 import { consequencePrompt, endingPrompt, eventPrompt, setupPrompt, SYS_BASE, SYS_CONSEQUENCE, SYS_ENDING } from "@/lib/game/prompts.ts";
 import {
-  isObj, sanitizeConsequence, sanitizeEvent, sanitizeIntro, sanitizeState, sanitizeVerdict,
+  isObj, sanitizeNarration, sanitizeEvent, sanitizeIntro, sanitizeState, sanitizeVerdict,
   validCountry, validDiff, validIdeo,
 } from "@/lib/game/sanitize.ts";
 import { generate, GenerationError } from "@/lib/server/llm.ts";
@@ -67,28 +67,22 @@ export async function POST(req: Request) {
           task: "event",
           prompt: eventPrompt(state, { isCritical, withRandom }),
           system: SYS_BASE, tier: "fast", maxTokens: 1200,
-          validate: r => sanitizeEvent(r, factionIds, { isCritical, allowRandom: withRandom }),
+          validate: r => sanitizeEvent(r, factionIds, { isCritical, allowRandom: withRandom, crisisIds: state.activeCrises.map(c => c.id) }),
         });
         return Response.json({ event });
       }
 
       case "consequence": {
         const state = sanitizeState(body.state);
-        const event = state?.currentEvent;
-        const choice = event?.choices.find(c => c.id === body.choiceId);
-        if (!state || state.ended || !event || !choice) return fail(400, "Некорректное состояние игры");
-        const ctx = {
-          factionIds: state.factions.map(f => f.id),
-          figureIds: state.keyFigures.map(f => f.id),
-          crises: state.activeCrises,
-        };
-        const consequence = await generate({
+        const choice = state?.currentEvent?.choices.find(c => c.id === body.choiceId);
+        if (!state || state.ended || !choice) return fail(400, "Некорректное состояние игры");
+        const narration = await generate({
           task: "consequence",
-          prompt: consequencePrompt(state, event, choice, { isCritical: warningLevel(state) === "critical" }),
-          system: SYS_CONSEQUENCE, tier: "fast", maxTokens: 1800,
-          validate: r => sanitizeConsequence(r, ctx),
+          prompt: consequencePrompt(state, planTurn(state, choice.id)),
+          system: SYS_CONSEQUENCE, tier: "fast", maxTokens: 1500,
+          validate: sanitizeNarration,
         });
-        return Response.json({ consequence });
+        return Response.json({ narration });
       }
 
       case "ending": {

@@ -1,12 +1,12 @@
 // Проверка и нормализация данных, пришедших извне: ответов модели и состояния от клиента.
 // Всё, что не проходит проверку, либо отбрасывается, либо приводится к безопасному значению.
 import {
-  COUNTRIES, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
+  ACTION_TAGS, COUNTRIES, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGIES, LIMITS, MAX_TURNS, RATINGS, RESOURCE_KEYS, SAVE_VERSION, START_RES, TEXT,
 } from "./data.ts";
 import { loyaltyLabel } from "./engine.ts";
 import type {
-  Choice, Consequence, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
+  ActionTag, Choice, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
   HistoryEntry, IdeologyId, Intro, NewCrisis, RandomEvent, ResourceDelta, Resources, Severity, Verdict,
 } from "./types.ts";
 
@@ -65,15 +65,27 @@ export function sanitizeIntro(raw: unknown, playerCount: number): Intro | null {
   };
 }
 
-function sanitizeChoices(v: unknown): Choice[] {
+function sanitizeTags(v: unknown): ActionTag[] {
+  if (!Array.isArray(v)) return [];
+  return [...new Set(v.filter((t): t is ActionTag => typeof t === "string" && (ACTION_TAGS as string[]).includes(t)))].slice(0, 2);
+}
+
+function sanitizeChoices(v: unknown, crisisIds: string[]): Choice[] {
   if (!Array.isArray(v)) return [];
   const out: Choice[] = [];
   for (const c of v) {
     if (out.length >= CHOICE_IDS.length) break;
-    const text = str(isObj(c) ? c.text : c, TEXT.choice);
-    if (!text) continue;
+    if (!isObj(c)) continue;
+    const text = str(c.text, TEXT.choice);
+    const tags = sanitizeTags(c.tags);
+    // без тега движок не знает цену решения — такой вариант отбрасываем
+    if (!text || !tags.length) continue;
+    const resolves = str(c.resolvesCrisis, 20);
     // id выдаём сами: модели не доверяем уникальность
-    out.push({ id: CHOICE_IDS[out.length], text, hint: str(isObj(c) ? c.hint : "", TEXT.hint) });
+    out.push({
+      id: CHOICE_IDS[out.length], text, hint: str(c.hint, TEXT.hint), tags,
+      resolvesCrisis: crisisIds.includes(resolves) ? resolves : null,
+    });
   }
   return out;
 }
@@ -90,11 +102,11 @@ function sanitizeRandomEvent(v: unknown): RandomEvent | null {
 }
 
 export function sanitizeEvent(
-  raw: unknown, factionIds: string[], opts: { isCritical: boolean; allowRandom: boolean },
+  raw: unknown, factionIds: string[], opts: { isCritical: boolean; allowRandom: boolean; crisisIds: string[] },
 ): GameEvent | null {
   if (!isObj(raw)) return null;
   const title = str(raw.title, TEXT.title);
-  const choices = sanitizeChoices(raw.choices);
+  const choices = sanitizeChoices(raw.choices, opts.crisisIds);
   if (!title || choices.length < 2) return null;
   const source = str(raw.source, 40);
   const affected = Array.isArray(raw.affectedFactions)
@@ -135,35 +147,18 @@ function sanitizeNewCrisis(v: unknown): NewCrisis | null {
   };
 }
 
-export interface ConsequenceContext {
-  factionIds: string[];
-  figureIds: string[];
-  crises: Pick<Crisis, "id" | "title">[];
-}
-
-export function sanitizeConsequence(raw: unknown, ctx: ConsequenceContext): Consequence | null {
+export function sanitizeNarration(raw: unknown): Narration | null {
   if (!isObj(raw)) return null;
   const headline = str(raw.headline, TEXT.title);
   const narrative = str(raw.narrative, TEXT.narrative);
   if (!headline || !narrative) return null;
-
-  // Разрешённый кризис принимаем по id, а если модель вернула название — ищем по нему.
-  const resolvedRaw = str(raw.crisisResolved, TEXT.short);
-  const resolved = resolvedRaw
-    ? ctx.crises.find(c => c.id === resolvedRaw || c.title.toLowerCase() === resolvedRaw.toLowerCase())?.id ?? null
-    : null;
-
   return {
     headline,
     narrative,
-    resourceChanges: deltaMap(raw.resourceChanges, RESOURCE_KEYS, LIMITS.resourceDelta),
-    factionRelChanges: deltaMap(raw.factionRelChanges, ctx.factionIds, LIMITS.factionRelDelta),
-    factionApprChanges: deltaMap(raw.factionApprChanges, ctx.factionIds, LIMITS.factionApprDelta),
-    figureRelChanges: deltaMap(raw.figureRelChanges, ctx.figureIds, LIMITS.figureRelDelta),
     reactions: strList(raw.reactions, 4, TEXT.medium),
     historianNote: str(raw.historianNote, TEXT.title),
-    newCrisis: sanitizeNewCrisis(raw.newCrisis),
-    crisisResolved: resolved,
+    crisisTitle: str(raw.crisisTitle, TEXT.short) || null,
+    crisisDescription: str(raw.crisisDescription, TEXT.medium) || null,
     powerLoss: str(raw.powerLoss, TEXT.long) || null,
   };
 }
@@ -258,6 +253,7 @@ export function sanitizeState(raw: unknown): GameState | null {
 
   const factions = sanitizeFactions(raw.factions, country);
   const factionIds = factions.map(f => f.id);
+  const activeCrises = sanitizeCrises(raw.activeCrises);
   const turn = num(raw.turn, 0, MAX_TURNS, 0);
   const endType = END_TYPE_IDS.includes(raw.endType as EndType) ? (raw.endType as EndType) : null;
   const startYear = COUNTRIES[country].startYear;
@@ -274,12 +270,12 @@ export function sanitizeState(raw: unknown): GameState | null {
     prevFactions: null,
     keyFigures: sanitizeFigures(raw.keyFigures, country),
     prevFigures: null,
-    activeCrises: sanitizeCrises(raw.activeCrises),
+    activeCrises,
     year: num(raw.year, startYear, startYear + MAX_TURNS, startYear),
     turn,
     history: sanitizeHistory(raw.history),
     currentEvent: isObj(raw.currentEvent)
-      ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true })
+      ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, crisisIds: activeCrises.map(c => c.id) })
       : null,
     lastTurn: null,
     ended: raw.ended === true,

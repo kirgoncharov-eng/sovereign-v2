@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LIMITS, MAX_TURNS, START_RES } from "./data.ts";
+import { ACTIONS, CRISIS_DRAIN, LIMITS, MAX_TURNS, START_RES } from "./data.ts";
 import {
-  applyDeltas, computePublicApproval, createInitialState, detectEnd, resolveTurn, startEvent, tickCrises,
+  applyDeltas, choiceEffects, computePublicApproval, createInitialState, detectEnd, planTurn, resolveTurn, startEvent, tickCrises,
 } from "./engine.ts";
-import type { Consequence, GameEvent, GameState } from "./types.ts";
+import type { Choice, GameEvent, GameState, Narration } from "./types.ts";
 
 const intro = {
   leader: { name: "Андрей Ковальчук", party: "Новая Беларусь", bio: "Бывший дипломат." },
@@ -13,117 +13,113 @@ const intro = {
   players: ["Иван Петров", "Сергей Орлов"],
 };
 
-const newGame = (): GameState => createInitialState("Беларусь", "coalition", "liberal", intro, () => 0.5);
+// «Дебют» без давления обстоятельств — эффекты решений видны в чистом виде.
+const newGame = (): GameState => createInitialState("Беларусь", "debut", "pragmatist", intro, () => 0.5);
 
-const event: GameEvent = {
-  title: "Забастовка на МАЗе",
-  source: "Улица",
-  description: "Рабочие перекрыли проспект.",
-  isCritical: false,
-  affectedFactions: ["gossektor"],
-  choices: [
-    { id: "a", text: "Выйти к рабочим", hint: "риск" },
-    { id: "b", text: "Ввести ОМОН", hint: "цена" },
-  ],
-  randomEvent: null,
+const choice = (id: string, tags: Choice["tags"], resolvesCrisis: string | null = null): Choice =>
+  ({ id, text: `Вариант ${id}`, hint: "", tags, resolvesCrisis });
+
+const event = (choices: Choice[] = [choice("a", ["social"]), choice("b", ["repress"])]): GameEvent => ({
+  title: "Забастовка на МАЗе", source: "Улица", description: "", isCritical: false,
+  affectedFactions: [], choices, randomEvent: null,
+});
+
+const narration: Narration = {
+  headline: "Заголовок", narrative: "Текст", reactions: [], historianNote: "Историк.",
+  crisisTitle: null, crisisDescription: null, powerLoss: null,
 };
 
-const consequence = (over: Partial<Consequence> = {}): Consequence => ({
-  headline: "Президент вышел к рабочим",
-  narrative: "Длинный текст.",
-  resourceChanges: { economy: -5, internalLegitimacy: 8 },
-  factionRelChanges: { gossektor: 10 },
-  factionApprChanges: { youth: -3 },
-  figureRelChanges: { interior: -20 },
-  reactions: [],
-  historianNote: "Историк.",
-  newCrisis: null,
-  crisisResolved: null,
-  powerLoss: null,
-  ...over,
-});
-
-test("createInitialState: стартовые ресурсы, фракции и имена фигур", () => {
+test("createInitialState: стартовые ресурсы, фракции с блоками, имена фигур", () => {
   const s = newGame();
-  assert.deepEqual(s.resources, START_RES.coalition);
+  assert.deepEqual(s.resources, START_RES.debut);
   assert.equal(s.factions.length, 8);
+  assert.equal(s.factions.find(f => f.id === "siloviki")?.bloc, "security");
   assert.equal(s.keyFigures[0].name, "Иван Петров");
-  assert.equal(s.keyFigures[2].name, "Посол России"); // имени нет — остаётся роль
-  assert.equal(s.turn, 0);
-  assert.equal(s.ended, false);
+  assert.equal(s.keyFigures[2].name, "Посол России");
 });
 
-test("applyDeltas держит ресурсы в 0..100 и игнорирует лишние ключи", () => {
+test("applyDeltas держит ресурсы в 0..100", () => {
   const r = applyDeltas({ ...START_RES.debut, economy: 98 }, { economy: 10, military: -100 });
   assert.equal(r.economy, 100);
   assert.equal(r.military, 0);
 });
 
-test("resolveTurn применяет изменения, пишет историю и отчёт", () => {
-  const s = startEvent(newGame(), event);
-  const next = resolveTurn(s, "a", consequence());
+test("choiceEffects: цена решения берётся из каталога действий и блоков фракций", () => {
+  const s = newGame();
+  const fx = choiceEffects(s, choice("a", ["repress"]));
+  assert.deepEqual(fx.resources, ACTIONS.repress.res);
+  assert.equal(fx.factionRel.siloviki, ACTIONS.repress.rel.security);
+  assert.equal(fx.factionRel.opposition, ACTIONS.repress.rel.liberal);
+  assert.equal(fx.factionRel.church, undefined);
+});
+
+test("choiceEffects: идеология усиливает свои решения и наказывает чужие", () => {
+  const liberal = { ...newGame(), ideo: "liberal" as const };
+  const own = choiceEffects(liberal, choice("a", ["reform"])).resources.personalResource ?? 0;
+  const alien = choiceEffects(liberal, choice("a", ["repress"])).resources.personalResource ?? 0;
+  assert.ok(own > (ACTIONS.reform.res.personalResource ?? 0));
+  assert.ok(alien < 0);
+});
+
+test("choiceEffects: два тега суммируются, но не выходят за лимит", () => {
+  const fx = choiceEffects(newGame(), choice("a", ["security", "repress"]));
+  assert.equal(fx.resources.military, Math.min(LIMITS.resourceDelta, 12));
+});
+
+test("resolveTurn применяет посчитанный движком итог и пишет отчёт", () => {
+  const s = startEvent(newGame(), event());
+  const next = resolveTurn(s, "a", narration);
   assert.equal(next.turn, 1);
-  assert.equal(next.resources.economy, START_RES.coalition.economy - 5);
-  assert.equal(next.resources.internalLegitimacy, START_RES.coalition.internalLegitimacy + 8);
-  assert.equal(next.history.length, 1);
-  assert.equal(next.history[0].choice, "Выйти к рабочим");
+  assert.equal(next.resources.economy, START_RES.debut.economy + (ACTIONS.social.res.economy ?? 0));
+  assert.equal(next.history[0].choice, "Вариант a");
   assert.equal(next.currentEvent, null);
-  assert.equal(next.lastTurn?.choiceText, "Выйти к рабочим");
-  assert.deepEqual(next.prevResources, START_RES.coalition);
-  const interior = next.keyFigures.find(f => f.id === "interior")!;
-  const before = s.keyFigures.find(f => f.id === "interior")!;
-  assert.equal(interior.relation, before.relation - 20);
+  assert.deepEqual(next.lastTurn?.tags, ["social"]);
+  assert.deepEqual(next.prevResources, START_RES.debut);
 });
 
-test("resolveTurn отвергает неизвестный выбор и отсутствие события", () => {
-  assert.throws(() => resolveTurn(newGame(), "a", consequence()));
-  assert.throws(() => resolveTurn(startEvent(newGame(), event), "z", consequence()));
+test("planTurn и resolveTurn детерминированы: сервер и клиент считают одно и то же", () => {
+  const s = startEvent(createInitialState("Украина", "ruins", "leftist", intro, () => 0.3), event());
+  assert.deepEqual(planTurn(s, "b").resources, planTurn(s, "b").resources);
+  assert.deepEqual(resolveTurn(s, "b", narration).resources, planTurn(s, "b").resources);
 });
 
-test("случайное событие применяется в том же ходе", () => {
-  const s = startEvent(newGame(), { ...event, randomEvent: { title: "Утечка", description: "", resourceEffect: { politicalCapital: -4 } } });
-  const next = resolveTurn(s, "a", consequence({ resourceChanges: {} }));
-  assert.equal(next.resources.politicalCapital, START_RES.coalition.politicalCapital - 4);
+test("фигуры следуют за своей фракцией", () => {
+  const s = startEvent(newGame(), event());
+  const next = resolveTurn(s, "b", narration); // repress: силовики теплеют
+  const kgb = (st: GameState) => st.keyFigures.find(f => f.id === "kgb")!.relation;
+  assert.ok(kgb(next) > kgb(s));
 });
 
-test("кризисы: новый не тратит ресурсы в ход появления, потом тратит каждый ход", () => {
-  let s = startEvent(newGame(), event);
-  s = resolveTurn(s, "a", consequence({
-    resourceChanges: {},
-    newCrisis: { title: "Блэкаут", description: "", severity: "high", resourceDrain: { economy: -3 } },
-  }));
-  assert.equal(s.activeCrises.length, 1);
-  assert.equal(s.activeCrises[0].id, "c1");
-  assert.equal(s.resources.economy, START_RES.coalition.economy);
-  assert.equal(s.lastTurn?.addedCrisis, true);
-
-  s = resolveTurn(startEvent(s, event), "a", consequence({ resourceChanges: {} }));
-  assert.equal(s.resources.economy, START_RES.coalition.economy - 3);
-  assert.equal(s.activeCrises[0].turnsActive, 1);
+test("отказ при неизвестном выборе или без события", () => {
+  assert.throws(() => resolveTurn(newGame(), "a", narration));
+  assert.throws(() => resolveTurn(startEvent(newGame(), event()), "z", narration));
 });
 
-test("кризис разрешается по id и не тратит ресурсы в ход разрешения", () => {
-  let s = startEvent(newGame(), event);
-  s = resolveTurn(s, "a", consequence({
-    resourceChanges: {},
-    newCrisis: { title: "Блэкаут", description: "", severity: "high", resourceDrain: { economy: -3 } },
-  }));
-  s = resolveTurn(startEvent(s, event), "a", consequence({ resourceChanges: {}, crisisResolved: "c1" }));
-  assert.equal(s.activeCrises.length, 0);
-  assert.equal(s.lastTurn?.resolvedCrisis, "Блэкаут");
-  assert.equal(s.resources.economy, START_RES.coalition.economy);
+test("провал ресурса ниже порога порождает кризис с названием от модели", () => {
+  const base = { ...newGame(), resources: { ...START_RES.debut, economy: 22 } };
+  const next = resolveTurn(startEvent(base, event()), "a", { ...narration, crisisTitle: "Дефолт" }); // social: экономика -7
+  assert.equal(next.activeCrises.length, 1);
+  assert.equal(next.activeCrises[0].title, "Дефолт");
+  assert.deepEqual(next.activeCrises[0].resourceDrain, { economy: -CRISIS_DRAIN });
+  assert.equal(next.lastTurn?.newCrisis?.title, "Дефолт");
 });
 
-test("число активных кризисов ограничено", () => {
-  let s = newGame();
-  for (let i = 0; i < LIMITS.maxActiveCrises + 2; i++) {
-    s = resolveTurn(startEvent(s, event), "a", consequence({
-      resourceChanges: {},
-      newCrisis: { title: `Кризис ${i}`, description: "", severity: "critical", resourceDrain: {} },
-    }));
-  }
-  assert.equal(s.activeCrises.length, LIMITS.maxActiveCrises);
-  assert.equal(s.lastTurn?.addedCrisis, false);
+test("решение с resolvesCrisis закрывает кризис", () => {
+  const crisis = { id: "c1", title: "Блэкаут", description: "", severity: "high" as const, resourceDrain: { economy: -2 }, turnsActive: 0 };
+  const s = startEvent({ ...newGame(), activeCrises: [crisis] }, event([choice("a", ["social"], "c1"), choice("b", ["delay"])]));
+  const next = resolveTurn(s, "a", narration);
+  assert.equal(next.activeCrises.length, 0);
+  assert.equal(next.lastTurn?.resolvedCrisis, "Блэкаут");
+  const kept = resolveTurn(s, "b", narration);
+  assert.equal(kept.activeCrises.length, 1);
+});
+
+test("враждебная фракция вредит каждый ход", () => {
+  const base = newGame();
+  const hostile = { ...base, factions: base.factions.map(f => f.id === "gossektor" ? { ...f, relation: -90 } : f) };
+  const calm = resolveTurn(startEvent(base, event([choice("a", ["delay"]), choice("b", ["delay"])])), "a", narration);
+  const hurt = resolveTurn(startEvent(hostile, event([choice("a", ["delay"]), choice("b", ["delay"])])), "a", narration);
+  assert.ok(hurt.resources.economy < calm.resources.economy);
 });
 
 test("tickCrises: кризис затухает по истечении срока", () => {
@@ -131,23 +127,22 @@ test("tickCrises: кризис затухает по истечении срок
   const r = tickCrises([crisis], START_RES.debut);
   assert.equal(r.crises.length, 0);
   assert.deepEqual(r.expired, ["Слухи"]);
-  assert.equal(r.resources.economy, START_RES.debut.economy - 1);
 });
 
-test("detectEnd: поражение важнее конца мандата", () => {
+test("detectEnd: поражение важнее конца мандата, легитимность → революция", () => {
   const s = newGame();
   assert.equal(detectEnd(s.resources, s.factions, 3), null);
   assert.equal(detectEnd(s.resources, s.factions, MAX_TURNS), "mandate");
   assert.equal(detectEnd({ ...s.resources, economy: LIMITS.endResource }, s.factions, MAX_TURNS), "collapse");
+  assert.equal(detectEnd({ ...s.resources, internalLegitimacy: 0 }, s.factions, 5), "revolution");
   const angry = s.factions.map(f => ({ ...f, approval: 0 }));
   assert.equal(computePublicApproval(angry), 0);
   assert.equal(detectEnd(s.resources, angry, 5), "revolution");
 });
 
-test("конец игры сохраняет powerLoss только при поражении", () => {
-  const s = startEvent({ ...newGame(), resources: { ...START_RES.coalition, economy: 6 } }, event);
-  const next = resolveTurn(s, "b", consequence({ resourceChanges: { economy: -5 }, powerLoss: "Переворот." }));
-  assert.equal(next.ended, true);
+test("powerLoss сохраняется только при поражении", () => {
+  const s = startEvent({ ...newGame(), resources: { ...START_RES.debut, economy: 8 } }, event());
+  const next = resolveTurn(s, "a", { ...narration, powerLoss: "Переворот." });
   assert.equal(next.endType, "collapse");
   assert.equal(next.powerLoss, "Переворот.");
 });

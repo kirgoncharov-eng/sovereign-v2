@@ -16,6 +16,10 @@ export type IdeologyId = "liberal" | "nationalist" | "pragmatist" | "leftist";
 export type Loyalty = "союзник" | "нейтрал" | "враг";
 export type Severity = "low" | "medium" | "high" | "critical";
 export type EndType = "mandate" | "revolution" | "collapse";
+export type Bloc = "security" | "business" | "church" | "liberal" | "west" | "russia" | "nationalist" | "regional" | "ruling";
+export type ActionTag =
+  | "repress" | "security" | "reform" | "pro_west" | "pro_russia" | "social" | "austerity"
+  | "investment" | "anticorruption" | "elite_deal" | "dialogue" | "patriotism" | "propaganda" | "delay";
 
 export interface Faction {
   id: string;
@@ -23,6 +27,7 @@ export interface Faction {
   desc: string;
   emoji: string;
   baseApproval: number;
+  bloc: Bloc;
   approval: number; // одобрение фракции в обществе, 0..100
   relation: number; // отношение фракции к лидеру, -100..100
 }
@@ -49,6 +54,8 @@ export interface Choice {
   id: string;
   text: string;
   hint: string;
+  tags: ActionTag[];
+  resolvesCrisis: string | null; // id кризиса, который закрывает это решение
 }
 
 export interface RandomEvent {
@@ -74,26 +81,26 @@ export interface NewCrisis {
   resourceDrain: ResourceDelta;
 }
 
-export interface Consequence {
+// Текст, который модель пишет по уже посчитанному движком итогу хода.
+export interface Narration {
   headline: string;
   narrative: string;
-  resourceChanges: ResourceDelta;
-  factionRelChanges: Record<string, number>;
-  factionApprChanges: Record<string, number>;
-  figureRelChanges: Record<string, number>;
   reactions: string[];
   historianNote: string;
-  newCrisis: NewCrisis | null;
-  crisisResolved: string | null; // id кризиса
+  crisisTitle: string | null; // название нового кризиса, если движок его создал
+  crisisDescription: string | null;
   powerLoss: string | null;
 }
 
-// То, что показывается игроку после хода: ответ модели + то, что посчитал движок.
-export interface TurnReport extends Consequence {
+// То, что показывается игроку после хода: текст модели + то, что посчитал движок.
+export interface TurnReport extends Narration {
   choiceText: string;
+  tags: ActionTag[];
+  resourceChanges: ResourceDelta;
+  factionRelChanges: Record<string, number>;
   resolvedCrisis: string | null; // название
   expiredCrises: string[]; // названия
-  addedCrisis: boolean;
+  newCrisis: NewCrisis | null;
 }
 
 export interface HistoryEntry {

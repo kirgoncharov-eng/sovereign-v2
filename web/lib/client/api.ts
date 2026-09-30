@@ -1,5 +1,5 @@
 // Клиент к /api/ai. Отправляет только то, что нужно серверу для промпта.
-import type { Consequence, GameEvent, GameState, Intro, Verdict } from "../game/types.ts";
+import type { Narration, GameEvent, GameState, Intro, Verdict } from "../game/types.ts";
 
 export class ApiError extends Error {
   status: number;
@@ -44,7 +44,7 @@ export const api = {
   event: (state: GameState) =>
     call<{ event: GameEvent }>({ task: "event", state: slim(state) }).then(d => d.event),
   consequence: (state: GameState, choiceId: string) =>
-    call<{ consequence: Consequence }>({ task: "consequence", state: slim(state), choiceId }).then(d => d.consequence),
+    call<{ narration: Narration }>({ task: "consequence", state: slim(state), choiceId }).then(d => d.narration),
   ending: (state: GameState) =>
     call<{ verdict: Verdict }>({ task: "ending", state: slim(state) }).then(d => d.verdict),
 };
