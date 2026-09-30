@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Суверен — политическая симуляция
 
-## Getting Started
+Нарративная политическая симуляция на Next.js. Игрок выбирает страну (Беларусь, Украина, Грузия),
+сложность и идеологию и 20 ходов управляет государством: ресурсы, фракции, ключевые фигуры, кризисы.
+Сюжет пишет языковая модель, а числа считает и ограничивает игровой движок.
 
-First, run the development server:
+## Запуск
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # вписать ключи
+npm install
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Без ключей: `AI_MOCK=1 npm run dev` — модель заменяется заглушками, можно проходить партию целиком.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Проверки
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run check      # lint + typecheck + unit-тесты
+npm test           # только тесты движка и валидации (node --test)
+npm run build
+```
 
-## Learn More
+## Архитектура
 
-To learn more about Next.js, take a look at the following resources:
+```
+app/
+  page.tsx                 страница игры
+  game/SovereignGame.jsx   UI: экраны настройки, вступления, хода, финала
+  api/ai/route.ts          единственный эндпоинт к модели
+lib/
+  game/
+    types.ts               типы состояния
+    data.ts                страны, фракции, фигуры, балансные лимиты
+    engine.ts              чистые функции: старт партии, ход, кризисы, концовки
+    sanitize.ts            проверка ответов модели и состояния от клиента
+    prompts.ts             промпты (собираются только на сервере)
+  server/
+    llm.ts                 вызовы Gemini/Claude, fallback, повтор при негодном JSON
+    rateLimit.ts           лимит запросов по IP
+    mock.ts                заглушка модели (AI_MOCK=1)
+  client/
+    api.ts                 клиент к /api/ai
+    save.ts                автосохранение в localStorage
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Как устроен ход:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Клиент отправляет на `/api/ai` задачу (`setup` | `event` | `consequence` | `ending`) и состояние партии.
+   Произвольный промпт отправить нельзя.
+2. Сервер пересобирает состояние из справочников (`sanitizeState`), строит промпт и вызывает модель.
+3. Ответ модели проверяется (`sanitize*`): неизвестные ключи отбрасываются, изменения ограничиваются
+   лимитами из `data.ts` (`LIMITS`), при негодном ответе делается один повторный запрос.
+4. Клиент применяет результат через движок (`resolveTurn`) и сохраняет партию.
 
-## Deploy on Vercel
+## Дорожная карта
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [x] Этап 0 — стабилизация: закрытый эндпоинт, rate limit, валидация ответов, обработка ошибок,
+      автосохранение, мобильная вёрстка, тесты движка.
+- [ ] Этап 1 — движок решает, модель рассказывает: варианты выбора с тегами эффектов,
+      числа из детерминированных правил; стриминг текста; UI на TypeScript.
+- [ ] Этап 2 — глубина: пороговые триггеры (переворот, Майдан), отложенные последствия,
+      выборы, цели у фигур, свободный ввод решения, больше концовок.
+- [ ] Этап 3 — охват: новые страны, вымышленные страны, английская версия, карточка итога для шеринга.
+- [ ] Этап 4 — метрики и экономика: стоимость партии, воронка по ходам, общий rate limit (Upstash/KV).

@@ -1,12 +1,16 @@
 {
   "name": "web",
-  "version": "0.1.0",
+  "version": "2.4.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"lib/**/*.test.ts\"",
+    "check": "npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
     "next": "16.2.6",
