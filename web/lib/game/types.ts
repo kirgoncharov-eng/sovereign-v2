@@ -61,6 +61,8 @@ export interface Choice {
   arc?: ArcChoice | null; // сюжетный вариант эпизода интриги
   scene?: string;         // авторская сцена-последствие (режим без ИИ)
   sceneFail?: string;     // авторская сцена на случай провала исполнения
+  headline?: string;      // заголовок газеты, если решение исполнят
+  headlineFail?: string;  // заголовок газеты при провале
 }
 
 export interface ArcChoice {

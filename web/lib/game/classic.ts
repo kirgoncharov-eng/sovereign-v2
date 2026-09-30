@@ -2,6 +2,9 @@
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
 import { ARCS } from "../content/arcs.ts";
 import { COUNCIL_A } from "../content/council-a.ts";
+import { CARD_HEADLINES, CRISIS_HEADLINES, type HeadlinePair } from "../content/headlines-cards.ts";
+import { COUNCIL_HEADLINES } from "../content/headlines-council.ts";
+import { BEAT_HEADLINES } from "../content/headlines-beats.ts";
 import { COUNCIL_B } from "../content/council-b.ts";
 import { CRISIS_ESCALATE, EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../content/events.ts";
 import { SCENES } from "../content/scenes.ts";
@@ -119,6 +122,7 @@ export function beatEvent(state: GameState): GameEvent | null {
     choices: variant.choices.map((c, i) => ({
       id: ["a", "b", "c"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags, resolvesCrisis: null,
       arc: { flag: c.flag, ok: fill(c.ok, state), ...(c.fail ? { fail: fill(c.fail, state) } : {}), effect: c.effect ?? {}, ...(c.epilogue ? { epilogue: fill(c.epilogue, state) } : {}) },
+      ...headlines(BEAT_HEADLINES[c.text], state),
     })),
     council: null,
     beat: { arcId: arc.id, arcTitle: arc.title, turn: beat.turn, episode, total },
@@ -149,6 +153,7 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
       id: ["a", "b", "c", "d"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags,
       resolvesCrisis: c.resolves ? crisisId : null,
       ...(SCENES[card.id]?.[i] && !escalated ? { scene: fill(SCENES[card.id][i], state) } : {}),
+      ...headlines(escalated ? CRISIS_HEADLINES[crisisKey!]?.[i] : CARD_HEADLINES[card.id]?.[i], state),
     })),
     council: null,
     randomEvent: random ? { title: random.title, description: random.description, resourceEffect: random.effect } : null,
@@ -162,6 +167,10 @@ function electionHeadline(e: NonNullable<ReturnType<typeof planTurn>["election"]
   if (e.outcome === "impeached") return `Разгром на выборах: «${e.top.name}» берёт парламент и готовит импичмент`;
   return pres ? `Власть уходит: «${e.top.name}» побеждает на выборах` : `«${e.top.name}» выигрывает парламентские выборы`;
 }
+
+// Заголовок газеты к решению: при успехе и при провале.
+const headlines = (pair: HeadlinePair | undefined, state: GameState) =>
+  pair ? { headline: fill(pair[0], state), headlineFail: fill(pair[1], state) } : {};
 
 // Эхо прошлого решения — авторская фраза из таблицы отложенных последствий.
 const maturedStory = (label: string) =>
@@ -240,7 +249,8 @@ function buildNarration(state: GameState, choiceId: string): Narration {
 
   const key = plan.newCrisisKey;
   return {
-    headline: plan.election ? electionHeadline(plan.election) : fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state),
+    headline: plan.election ? electionHeadline(plan.election)
+      : (plan.success ? plan.choice.headline : plan.choice.headlineFail) ?? fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state),
     narrative: chapter(...parts),
     document,
     reactions,
@@ -268,6 +278,7 @@ function buildCouncil(state: GameState): Choice[] {
       const [tag, text, hint, ok, fail] = p;
       return [{
         advisor: role.id, text: fill(text, state), hint, tags: [tag], scene: fill(ok, state), sceneFail: fill(fail, state),
+        ...headlines(COUNCIL_HEADLINES[state.currentEvent!.card!]?.[role.id as keyof (typeof COUNCIL_HEADLINES)[string]], state),
         resolvesCrisis: crisisId && CRISIS_FIXERS.includes(tag) && r() < 0.5 ? crisisId : null,
       }];
     });

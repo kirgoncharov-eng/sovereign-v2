@@ -189,3 +189,20 @@ test("у каждого события свой совет: не меньше т
   assert.equal(list.length, 4);
   assert.ok(list.every(p => p.scene && p.sceneFail && !/\{\w+/.test(p.text + p.scene)));
 });
+
+test("у каждого решения есть свой заголовок газеты — на успех и на провал", async () => {
+  const { CARD_HEADLINES, CRISIS_HEADLINES } = await import("../content/headlines-cards.ts");
+  const { COUNCIL_HEADLINES } = await import("../content/headlines-council.ts");
+  const { BEAT_HEADLINES } = await import("../content/headlines-beats.ts");
+  const { COUNCIL_A } = await import("../content/council-a.ts");
+  const { COUNCIL_B } = await import("../content/council-b.ts");
+  const { CRISIS_ESCALATE } = await import("../content/events.ts");
+  const { ARCS } = await import("../content/arcs.ts");
+  const ok = (p: [string, string] | undefined, where: string) => {
+    assert.ok(p && p[0] && p[1] && p[0].length <= 80 && p[1].length <= 80, where);
+  };
+  for (const card of EVENT_CARDS.filter(c => c.id !== "crisis_escalates")) card.choices.forEach((_, i) => ok(CARD_HEADLINES[card.id]?.[i], `${card.id}#${i}`));
+  for (const [key, v] of Object.entries(CRISIS_ESCALATE)) v.choices.forEach((_, i) => ok(CRISIS_HEADLINES[key]?.[i], `crisis ${key}#${i}`));
+  for (const [card, roles] of Object.entries({ ...COUNCIL_A, ...COUNCIL_B })) for (const role of Object.keys(roles)) ok(COUNCIL_HEADLINES[card]?.[role as "strategist"], `${card}/${role}`);
+  for (const a of ARCS) for (const b of a.beats) for (const v of b.variants) for (const c of v.choices) ok(BEAT_HEADLINES[c.text], `${a.id}: ${c.text}`);
+});
