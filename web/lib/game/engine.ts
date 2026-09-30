@@ -1,13 +1,13 @@
 // Игровой движок: чистые функции без сети и без React.
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
 import {
-  ACTIONS, ADVISOR_ROLES, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, CRISIS_DRAIN, DIFF_PRESSURE, ELECTIONS,
+  ACTIONS, ADVISOR_ROLES, DELAYED, MAX_PENDING, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, CRISIS_DRAIN, DIFF_PRESSURE, ELECTIONS,
   ELECTION_LOSS_PENALTY, ELECTION_WIN_BONUS, HOSTILE_DRAIN, HOSTILE_RELATION, IMPEACH_RATING, NON_VOTING_BLOCS, PARTIES, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, MAX_TURNS, RECOVERY_BELOW, RECOVERY_RATE,
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES,
 } from "./data.ts";
 import type {
-  Advisor, Choice, Crisis, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
+  Advisor, Choice, Crisis, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
   Narration, NewCrisis, ResourceDelta, ResourceKey, Resources, Verdict,
 } from "./types.ts";
 
@@ -142,6 +142,7 @@ export function createInitialState(
     elections: [],
     advisors: initAdvisors(diff, intro.advisors ?? [], rand),
     councilCharges: COUNCIL_CHARGES[diff],
+    pending: [],
     currentEvent: null,
     lastTurn: null,
     ended: false, endType: null, powerLoss: null,
@@ -171,6 +172,13 @@ export function initAdvisors(diff: DifficultyId, names: string[], rand: () => nu
     name: names[i] || r.role,
     skill: Math.max(1, Math.min(3, Math.floor(rand() * 3 + bias) + 1)) as 1 | 2 | 3,
   }));
+}
+
+// Отложенные последствия решения: по тегам и за слабого советника.
+export function delayedEffects(choice: Choice): DelayedInfo[] {
+  const list = choice.tags.map(t => DELAYED[t]).filter((d): d is DelayedInfo => !!d);
+  if (choice.advisor?.skill === 1) list.push(WEAK_ADVISOR_DELAYED);
+  return list;
 }
 
 export const findChoice = (event: GameEvent, id: string): Choice | undefined =>
@@ -245,6 +253,9 @@ export interface TurnPlan {
   expiredCrises: string[];
   hostileFactions: string[];
   election: Election | null;
+  matured: Pending[];
+  scheduled: Pending[];
+  pending: Pending[];
   newCrisisKey: ResourceKey | null; // ресурс, провал которого породил новый кризис
   endType: EndType | null;
 }
@@ -258,6 +269,16 @@ export function planTurn(state: GameState, choiceId: string): TurnPlan {
 
   const effects = choiceEffects(state, choice);
   let resources = applyDeltas(state.resources, effects.resources);
+  const nextTurn = state.turn + 1;
+
+  // Срабатывают отложенные последствия прошлых решений; новые встают в очередь.
+  const pendingAll = state.pending ?? [];
+  const matured = pendingAll.filter(p => p.due <= nextTurn);
+  for (const p of matured) resources = applyDeltas(resources, p.res);
+  const scheduled: Pending[] = delayedEffects(choice).map((d, i) => ({
+    id: `p${nextTurn}_${i}`, due: nextTurn + d.turns, label: d.label, res: d.res, source: choice.text,
+  }));
+  const pending = [...pendingAll.filter(p => p.due > nextTurn), ...scheduled].slice(-MAX_PENDING);
   if (event.randomEvent) resources = applyDeltas(resources, event.randomEvent.resourceEffect);
 
   const factions = applyFactionChanges(state.factions, effects.factionRel, effects.factionAppr);
@@ -320,7 +341,7 @@ export function planTurn(state: GameState, choiceId: string): TurnPlan {
   if (endType === "mandate" && election?.outcome === "won") endType = "reelected";
 
   return {
-    choice, effects, resources, factions, keyFigures, crises, election,
+    choice, effects, resources, factions, keyFigures, crises, election, matured, scheduled, pending,
     resolvedCrisis, expiredCrises: tick.expired, hostileFactions: hostile.map(f => f.name), newCrisisKey,
     endType: endType as EndType | null,
   };
@@ -369,7 +390,10 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       expiredCrises: plan.expiredCrises,
       newCrisis,
       election: plan.election,
+      matured: plan.matured,
+      scheduled: plan.scheduled,
     },
+    pending: plan.pending,
     ended: plan.endType !== null,
     endType: plan.endType,
     powerLoss: plan.endType && !isSurvival(plan.endType) ? narration.powerLoss : null,

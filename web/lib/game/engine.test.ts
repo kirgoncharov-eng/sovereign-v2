@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ACTIONS, CRISIS_DRAIN, LIMITS, MAX_TURNS, START_RES } from "./data.ts";
 import {
-  applyDeltas, choiceEffects, computePolls, createInitialState, detectEnd, planTurn, resolveTurn, conveneCouncil, startEvent, tickCrises,
+  applyDeltas, choiceEffects, computePolls, createInitialState, delayedEffects, detectEnd, planTurn, resolveTurn, conveneCouncil, startEvent, tickCrises,
 } from "./engine.ts";
 import type { Choice, GameEvent, GameState, Narration } from "./types.ts";
 
@@ -198,4 +198,27 @@ test("советники: четыре роли, качество 1–3", () => 
   const s = newGame();
   assert.equal(s.advisors.length, 4);
   assert.ok(s.advisors.every(a => a.skill >= 1 && a.skill <= 3));
+});
+
+test("отложенные последствия: встают в очередь и срабатывают через заданное число ходов", () => {
+  const delayOnly = event([choice("a", ["delay"]), choice("b", ["delay"])]);
+  let s = resolveTurn(startEvent(newGame(), event()), "a", narration); // social → инфляция через 3 хода
+  assert.equal(s.pending.length, 1);
+  assert.equal(s.pending[0].due, 4);
+  assert.equal(s.lastTurn?.scheduled[0].label, "Инфляция от раздачи денег");
+  s = resolveTurn(startEvent(s, delayOnly), "a", narration);
+  s = resolveTurn(startEvent(s, delayOnly), "a", narration);
+  assert.equal(s.pending.filter(p => p.label.startsWith("Инфляция")).length, 1);
+  const before = s.resources.economy;
+  s = resolveTurn(startEvent(s, delayOnly), "a", narration);
+  assert.equal(s.lastTurn?.matured[0].label, "Инфляция от раздачи денег");
+  assert.ok(s.resources.economy < before);
+  assert.ok(!s.pending.some(p => p.label.startsWith("Инфляция")));
+});
+
+test("слабый советник оставляет недоработку", () => {
+  const weak: Choice = { ...choice("x1", ["security"]), advisor: { id: "security", name: "П", role: "С", skill: 1 } };
+  const strong: Choice = { ...weak, advisor: { ...weak.advisor!, skill: 3 } };
+  assert.ok(delayedEffects(weak).some(d => d.label === "Недоработка советника"));
+  assert.equal(delayedEffects(strong).length, 0);
 });

@@ -61,6 +61,16 @@ ${crisisLines}
 ${last || `Стартовая ситуация: ${state.situation}`}`;
 }
 
+// Ключевые фигуры действуют сами: враги интригуют, союзники поддерживают.
+function figureAgenda(state: GameState): string {
+  const enemies = state.keyFigures.filter(f => f.relation <= -40).map(f => `${f.name} (${f.role})`);
+  const allies = state.keyFigures.filter(f => f.relation >= 40).map(f => `${f.name} (${f.role})`);
+  const parts: string[] = [];
+  if (enemies.length) parts.push(`Враждебные лидеру фигуры действуют сами — событие часто исходит от них (интрига, ультиматум, утечка компромата, саботаж): ${enemies.join(", ")}.`);
+  if (allies.length) parts.push(`Союзники лидера могут предлагать помощь или просить ответной услуги: ${allies.join(", ")}.`);
+  return parts.join(" ");
+}
+
 export function setupPrompt(country: string, diff: DifficultyId, ideo: IdeologyId): string {
   const ci = ideology(ideo);
   const d = DIFFICULTIES[diff];
@@ -94,7 +104,7 @@ export function eventPrompt(state: GameState, opts: { isCritical: boolean; withR
   const crisisIds = state.activeCrises.map(c => c.id).join("|");
   return `${buildContext(state)}
 
-${critical}Создай напряжённое политическое событие, реалистичное для ${state.country}. Используй имена персонажей из списка ключевых игроков, где возможно. Если есть активные кризисы — событие связано с ними или их последствиями. Если какой-то ресурс ниже 20 — создай кризис, связанный с ним. 3 варианта решения, каждый — конкретное действие. Варианты должны быть РАЗНЫМИ по типу действия.
+${critical}Создай напряжённое политическое событие, реалистичное для ${state.country}. Используй имена персонажей из списка ключевых игроков, где возможно. ${figureAgenda(state)} Если есть активные кризисы — событие связано с ними или их последствиями. Если какой-то ресурс ниже 20 — создай кризис, связанный с ним. 3 варианта решения, каждый — конкретное действие. Варианты должны быть РАЗНЫМИ по типу действия.
 
 Каждому варианту поставь 1-2 тега из каталога — тег определяет реальные последствия решения, поэтому он должен точно соответствовать тексту варианта:
 ${catalog}
@@ -166,6 +176,14 @@ function describeOutcome(state: GameState, plan: TurnPlan): string {
   if (plan.resolvedCrisis) lines.push(`Кризис «${plan.resolvedCrisis}» УСТРАНЁН этим решением.`);
   if (plan.expiredCrises.length) lines.push(`Сами собой затихли кризисы: ${plan.expiredCrises.join(", ")}.`);
   if (plan.hostileFactions.length) lines.push(`Враждебные лидеру силы вредят: ${plan.hostileFactions.join(", ")}.`);
+  const resLabel = (d: Record<string, number | undefined>) =>
+    RES_CONFIG.filter(r => d[r.key]).map(r => `${r.prompt} ${signed(d[r.key]!)}`).join(", ");
+  if (plan.matured.length) {
+    lines.push(`СРАБОТАЛИ ОТЛОЖЕННЫЕ ПОСЛЕДСТВИЯ прошлых решений (упомяни в тексте): ${plan.matured.map(p => `«${p.label}» (${resLabel(p.res)}; из-за решения «${p.source}»)`).join("; ")}.`);
+  }
+  if (plan.scheduled.length) {
+    lines.push(`Это решение аукнется позже — намекни на это в тексте: ${plan.scheduled.map(p => p.label).join(", ")}.`);
+  }
   if (plan.newCrisisKey) {
     const label = RES_CONFIG.find(r => r.key === plan.newCrisisKey)!.prompt;
     lines.push(`НОВЫЙ КРИЗИС: ресурс «${label}» провалился ниже критического уровня.`);

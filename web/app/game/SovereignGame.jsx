@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
 import { ACTIONS, APP_VERSION, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
-import { choiceEffects, computePolls, createInitialState, isSurvival, conveneCouncil, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { choiceEffects, computePolls, delayedEffects, createInitialState, isSurvival, conveneCouncil, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api } from "@/lib/client/api.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
@@ -180,6 +180,12 @@ function ChoicePreview({ gs, c }) {
       <div style={{ fontFamily:serif, fontSize:16, fontWeight:500, marginBottom:4 }}>{c.text}</div>
       <div style={{ fontFamily:mono, fontSize:11, color:G.tx3, marginBottom:8 }}>{c.hint}</div>
       <ResourceChips delta={fx.resources}/>
+      {delayedEffects(c).map((d, i) => (
+        <div key={i} style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:5, marginTop:6 }}>
+          <span style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>⏳ через {d.turns} хода: {d.label}</span>
+          <ResourceChips delta={d.res}/>
+        </div>
+      ))}
       {crisis && <div style={{ fontFamily:mono, fontSize:10, color:G.grn, marginTop:6 }}>✔ закроет кризис «{crisis.title}»</div>}
     </>
   );
@@ -522,6 +528,17 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                 <div style={{ fontFamily:mono, fontSize:9, color:G.tx3, marginTop:10, lineHeight:1.6 }}>
                   ниже 20 — кризис · ≤ {LIMITS.endResource} — падение власти<br/>ниже 30 — понемногу восстанавливается
                 </div>
+                {gs.pending?.length > 0 && (
+                  <div style={{ marginTop:14, paddingTop:10, borderTop:`1px solid ${G.bdr}` }}>
+                    <Label>{"// ОЖИДАЕТСЯ"}</Label>
+                    {[...gs.pending].sort((a, b) => a.due - b.due).map(p => (
+                      <div key={p.id} style={{ marginBottom:8 }}>
+                        <div style={{ fontFamily:mono, fontSize:10, color:G.tx2, marginBottom:3 }}>⏳ {p.due - turn} ход. · {p.label}</div>
+                        <ResourceChips delta={p.res}/>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
             {sideTab === "fac" && (
@@ -698,6 +715,12 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                 )}
               </Card>
 
+              {lastTurn.matured?.map(p => (
+                <div key={p.id} style={{ marginBottom:8, padding:"10px 14px", borderRadius:4, background:G.bg2, border:`1px solid ${G.bdr2}` }}>
+                  <div style={{ fontFamily:mono, fontSize:11, color:G.tx2, marginBottom:6 }}>⏳ СРАБОТАЛО: {p.label.toUpperCase()} <span style={{ color:G.tx3 }}>· из-за «{p.source}»</span></div>
+                  <ResourceChips delta={p.res}/>
+                </div>
+              ))}
               {lastTurn.election && (
                 <div style={{ marginBottom:8, padding:"12px 14px", borderRadius:4, background:G.bg2, border:`1px solid ${lastTurn.election.outcome==="won"?G.grn:G.red}` }}>
                   <div style={{ fontFamily:mono, fontSize:11, color:lastTurn.election.outcome==="won"?G.grn:G.red, letterSpacing:".08em", marginBottom:4 }}>

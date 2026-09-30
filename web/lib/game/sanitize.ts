@@ -1,12 +1,12 @@
 // Проверка и нормализация данных, пришедших извне: ответов модели и состояния от клиента.
 // Всё, что не проходит проверку, либо отбрасывается, либо приводится к безопасному значению.
 import {
-  ACTION_TAGS, ADVISOR_ROLES, COUNTRIES, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
+  ACTION_TAGS, ADVISOR_ROLES, MAX_PENDING, COUNTRIES, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGIES, LIMITS, MAX_TURNS, RATINGS, RESOURCE_KEYS, SAVE_VERSION, START_RES, TEXT,
 } from "./data.ts";
 import { loyaltyLabel } from "./engine.ts";
 import type {
-  ActionTag, Advisor, Choice, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
+  ActionTag, Advisor, Choice, Pending, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
   HistoryEntry, IdeologyId, Intro, NewCrisis, RandomEvent, ResourceDelta, Resources, Severity, Verdict,
 } from "./types.ts";
 
@@ -258,6 +258,17 @@ function sanitizeCrises(v: unknown): Crisis[] {
   return out;
 }
 
+function sanitizePending(v: unknown, turn: number): Pending[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter(isObj).slice(-MAX_PENDING).map((p, i) => ({
+    id: str(p.id, 20, `p${i}`),
+    due: num(p.due, turn + 1, turn + 6, turn + 1),
+    label: str(p.label, TEXT.short, "Последствия"),
+    res: deltaMap(p.res, RESOURCE_KEYS, 8),
+    source: str(p.source, TEXT.choice),
+  }));
+}
+
 function sanitizeAdvisors(v: unknown): Advisor[] {
   const src = Array.isArray(v) ? v.filter(isObj) : [];
   return ADVISOR_ROLES.map(r => {
@@ -323,6 +334,7 @@ export function sanitizeState(raw: unknown): GameState | null {
     elections: sanitizeElections(raw.elections),
     advisors,
     councilCharges: num(raw.councilCharges, 0, 10, 0),
+    pending: sanitizePending(raw.pending, turn),
     currentEvent: isObj(raw.currentEvent)
       ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, advisors, crisisIds: activeCrises.map(c => c.id) })
       : null,

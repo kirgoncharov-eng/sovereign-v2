@@ -112,6 +112,8 @@ export interface TurnReport extends Narration {
   expiredCrises: string[]; // названия
   newCrisis: NewCrisis | null;
   election: Election | null;
+  matured: Pending[];   // сработавшие в этом ходу отложенные последствия
+  scheduled: Pending[]; // отложенные последствия этого решения
 }
 
 export interface PartyShare { id: string; name: string; share: number }
@@ -123,6 +125,14 @@ export interface Election {
   leader: number;          // % партии лидера
   top: PartyShare;         // сильнейший конкурент
   outcome: "won" | "lost" | "impeached";
+}
+
+export interface Pending {
+  id: string;
+  due: number;          // ход, в конце которого сработает
+  label: string;
+  res: ResourceDelta;
+  source: string;       // решение, которое его вызвало
 }
 
 export interface HistoryEntry {
@@ -176,6 +186,7 @@ export interface GameState {
   elections: Election[];
   advisors: Advisor[];
   councilCharges: number;
+  pending: Pending[];
   currentEvent: GameEvent | null;
   lastTurn: TurnReport | null;
   ended: boolean;

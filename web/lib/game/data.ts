@@ -1,8 +1,8 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "2.8";
-export const SAVE_VERSION = 4; // 4: совет советников
+export const APP_VERSION = "2.9";
+export const SAVE_VERSION = 5; // 5: отложенные последствия
 export const MAX_TURNS = 20;
 
 export interface CountryInfo {
@@ -271,6 +271,28 @@ export const IDEOLOGY_ACTIONS: Record<IdeologyId, { aligned: ActionTag[]; oppose
 
 export const IDEOLOGY_BONUS: ResourceDelta = { personalResource:2, internalLegitimacy:1 };
 export const IDEOLOGY_PENALTY: ResourceDelta = { personalResource:-4, politicalCapital:-2 };
+
+// ── Отложенные последствия ───────────────────────────────────────────────────
+// Эхо решения через несколько ходов. Видно игроку заранее — это часть цены решения.
+export interface DelayedInfo { turns: number; label: string; res: ResourceDelta }
+
+export const DELAYED: Partial<Record<ActionTag, DelayedInfo>> = {
+  social:         { turns:3, label:"Инфляция от раздачи денег",   res:{ economy:-4 } },
+  austerity:      { turns:3, label:"Бюджет оздоровлён",           res:{ economy:3, externalReputation:2 } },
+  investment:     { turns:4, label:"Инвестиции заработали",       res:{ economy:5 } },
+  reform:         { turns:4, label:"Реформы дали плоды",          res:{ internalLegitimacy:3, externalReputation:2, economy:2 } },
+  anticorruption: { turns:3, label:"Возврат украденных активов",  res:{ economy:4 } },
+  pro_west:       { turns:3, label:"Транш западных партнёров",    res:{ economy:4 } },
+  pro_russia:     { turns:3, label:"Москва требует ответных шагов", res:{ personalResource:-3, externalReputation:-2 } },
+  repress:        { turns:2, label:"Эхо репрессий: радикализация", res:{ internalLegitimacy:-3, externalReputation:-2 } },
+  elite_deal:     { turns:3, label:"Элиты требуют свою долю",     res:{ politicalCapital:-3, economy:-2 } },
+  propaganda:     { turns:2, label:"Разоблачение пропаганды",     res:{ internalLegitimacy:-3 } },
+  dialogue:       { turns:2, label:"Доверие оппозиции",           res:{ internalLegitimacy:2, politicalCapital:1 } },
+  delay:          { turns:2, label:"Проблема вернулась",          res:{ politicalCapital:-2, internalLegitimacy:-2 } },
+};
+
+export const WEAK_ADVISOR_DELAYED: DelayedInfo = { turns:2, label:"Недоработка советника", res:{ politicalCapital:-2, personalResource:-1 } };
+export const MAX_PENDING = 8;
 
 // ── Совет ────────────────────────────────────────────────────────────────────
 // Советники предлагают решения только из своей области. Качество (1–3★) меняет цену:
