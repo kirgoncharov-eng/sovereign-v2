@@ -22,9 +22,14 @@ const ptMono = PT_Mono({
   weight: "400",
 });
 
+const DESCRIPTION = "Двадцать решений. Одна страна. Политический триллер, где каждый ход — глава детектива: заговоры, выборы, предатели в собственном совете.";
+
 export const metadata: Metadata = {
-  title: "Суверен — политическая симуляция",
-  description: "Нарративная политическая симуляция: 20 ходов, фракции, кризисы и решения, которые определят судьбу страны.",
+  title: "Суверен — политический триллер",
+  description: DESCRIPTION,
+  openGraph: { title: "Суверен", description: DESCRIPTION, type: "website", locale: "ru_RU" },
+  twitter: { card: "summary", title: "Суверен", description: DESCRIPTION },
+  appleWebApp: { capable: true, title: "Суверен", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
