@@ -1,0 +1,26 @@
+/* Одна тёмная палитра игры — сознательно без светлой темы */
+:root {
+  color-scheme: dark;
+  --font-serif: "Cormorant Garamond";
+  --font-tech: "Share Tech Mono";
+  --font-ptmono: "PT Mono";
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #07090e; }
+body { color: #ccc8be; font-family: var(--font-serif), Georgia, serif; min-height: 100vh; }
+button { cursor: pointer; transition: all .15s; font-family: var(--font-tech), var(--font-ptmono), "Courier New", monospace; }
+button:disabled { cursor: default; }
+button:focus-visible { outline: 1px solid #c8a86c; outline-offset: 2px; }
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-thumb { background: #243452; }
+@media (max-width: 760px) {
+  .sv-game-grid { grid-template-columns: 1fr !important; }
+  .sv-sidebar { order: 2; }
+  .sv-main { order: 1; }
+}
+@media (max-width: 520px) {
+  .sv-two-col { grid-template-columns: 1fr !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
