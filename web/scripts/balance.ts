@@ -16,7 +16,7 @@ function play(diff: DifficultyId, strategy: "random"|"smart") {
     if (strategy === "random") c = pick(choices).id;
     else {
       let best = -1e9;
-      for (const ch of choices) { const p = planTurn(s, ch.id); const sc = Math.min(...RESOURCE_KEYS.map(k=>p.resources[k])) + leaderRating(p.factions, p.resources)*0.5; if (sc > best) { best = sc; c = ch.id; } }
+      for (const ch of choices) { const p = planTurn(s, ch.id, { assumeSuccess: true }); const sc = Math.min(...RESOURCE_KEYS.map(k=>p.resources[k])) + leaderRating(p.factions, p.resources)*0.5; if (sc > best) { best = sc; c = ch.id; } }
     }
     s = resolveTurn(s, c, narr);
     if (process.env.TRACE && s.turn === 1) console.log(s.country, s.diff, s.ideo, "rating", leaderRating(s.factions, s.resources));

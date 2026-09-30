@@ -334,6 +334,14 @@ export function sanitizeState(raw: unknown): GameState | null {
     elections: sanitizeElections(raw.elections),
     advisors,
     councilCharges: num(raw.councilCharges, 0, 10, 0),
+    mode: raw.mode === "ai" ? "ai" : "classic",
+    seed: num(raw.seed, 0, 4294967295, 0),
+    usedEvents: [],
+    stats: {
+      crisesResolved: num(isObj(raw.stats) ? raw.stats.crisesResolved : 0, 0, 99, 0),
+      councils: num(isObj(raw.stats) ? raw.stats.councils : 0, 0, 99, 0),
+      failures: num(isObj(raw.stats) ? raw.stats.failures : 0, 0, 99, 0),
+    },
     pending: sanitizePending(raw.pending, turn),
     currentEvent: isObj(raw.currentEvent)
       ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, advisors, crisisIds: activeCrises.map(c => c.id) })

@@ -7,7 +7,7 @@ import {
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES,
 } from "./data.ts";
 import type {
-  Advisor, Choice, Crisis, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
+  Advisor, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
   Narration, NewCrisis, ResourceDelta, ResourceKey, Resources, Verdict,
 } from "./types.ts";
 
@@ -125,9 +125,14 @@ export function detectEnd(resources: Resources, factions: Faction[], turn: numbe
 
 export function createInitialState(
   country: string, diff: DifficultyId, ideo: IdeologyId, intro: Intro, rand: () => number = Math.random,
+  mode: GameMode = "classic",
 ): GameState {
   return {
     version: SAVE_VERSION,
+    mode,
+    seed: Math.floor(rand() * 4294967296),
+    usedEvents: [],
+    stats: { crisesResolved: 0, councils: 0, failures: 0 },
     country, diff, ideo,
     leader: intro.leader,
     speech: intro.speech,
@@ -150,8 +155,10 @@ export function createInitialState(
   };
 }
 
-export function startEvent(state: GameState, event: GameEvent): GameState {
-  return { ...state, currentEvent: event, lastTurn: null };
+export function startEvent(state: GameState, event: GameEvent & { cardId?: string }): GameState {
+  const { cardId, ...ev } = event;
+  const usedEvents = cardId ? [...(state.usedEvents ?? []), cardId].slice(-40) : (state.usedEvents ?? []);
+  return { ...state, currentEvent: ev, lastTurn: null, usedEvents };
 }
 
 // Совет собран: предложения советников добавляются к вариантам, тратится один сбор.
@@ -160,6 +167,7 @@ export function conveneCouncil(state: GameState, proposals: Choice[]): GameState
   return {
     ...state,
     councilCharges: state.councilCharges - 1,
+    stats: { ...state.stats, councils: (state.stats?.councils ?? 0) + 1 },
     currentEvent: { ...state.currentEvent, council: proposals },
   };
 }
@@ -216,7 +224,46 @@ const limitDelta = (d: Record<string, number>, limit: number) => {
 
 // Цена решения: сумма эффектов его тегов + поправка за (не)соответствие идеологии.
 // Детерминирована — сервер и клиент считают одно и то же, игрок видит её до выбора.
-export function choiceEffects(state: Pick<GameState, "ideo" | "factions">, choice: Choice) {
+// ── Случайность с зерном: одинаковый результат у сервера и клиента, перезагрузка не перебросит кубик.
+export function hashSeed(...parts: (string | number)[]): number {
+  let h = 2166136261;
+  for (const ch of parts.join("|")) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+export function seededRandom(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Шанс, что решение исполнят как задумано. Выжидание не проваливается.
+export function successChance(state: Pick<GameState, "factions" | "resources">, choice: Choice): number {
+  if (choice.tags.every(t => t === "delay")) return 1;
+  let p = 0.8;
+  if (choice.advisor) p += (choice.advisor.skill - 2) * 0.12;
+  // исполнителями выступают группы, которым решение выгодно: чем лучше они к вам относятся, тем надёжнее
+  const rels: number[] = [];
+  for (const tag of choice.tags) {
+    for (const [bloc, v] of Object.entries(ACTIONS[tag]?.rel ?? {})) {
+      if ((v ?? 0) > 0) for (const f of state.factions) if (f.bloc === bloc) rels.push(f.relation);
+    }
+  }
+  if (rels.length) p += rels.reduce((s, r) => s + r, 0) / rels.length / 400;
+  if (state.resources.politicalCapital < 25) p -= 0.1;
+  if (state.resources.personalResource < 25) p -= 0.05;
+  return Math.round(Math.max(0.3, Math.min(0.95, p)) * 100) / 100;
+}
+
+export function rollSuccess(state: Pick<GameState, "seed" | "turn" | "factions" | "resources">, choice: Choice): boolean {
+  return seededRandom(hashSeed(state.seed ?? 0, state.turn, choice.id, choice.text))() < successChance(state, choice);
+}
+
+export function choiceEffects(state: Pick<GameState, "ideo" | "factions">, choice: Choice, failed = false) {
   const res: Record<string, number> = {};
   const rel: Record<string, number> = {};
   const appr: Record<string, number> = {};
@@ -235,6 +282,11 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions">, choic
   // Качество советника: потери умножаются на cost, выгода — на gain.
   const skill = choice.advisor ? ADVISOR_SKILL[choice.advisor.skill] : null;
   if (skill) for (const k of Object.keys(res)) res[k] *= res[k] < 0 ? skill.cost : skill.gain;
+  // Провал: выгода почти не наступает, а цена растёт.
+  if (failed) {
+    for (const k of Object.keys(res)) res[k] *= res[k] < 0 ? 1.15 : 0.5;
+    for (const k of Object.keys(rel)) if (rel[k] > 0) rel[k] *= 0.5;
+  }
   return {
     resources: limitDelta(res, LIMITS.resourceDelta) as ResourceDelta,
     factionRel: limitDelta(rel, LIMITS.factionRelDelta),
@@ -244,6 +296,8 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions">, choic
 
 export interface TurnPlan {
   choice: Choice;
+  success: boolean;
+  chance: number;
   effects: ReturnType<typeof choiceEffects>;
   resources: Resources;
   factions: Faction[];
@@ -261,13 +315,15 @@ export interface TurnPlan {
 }
 
 // Весь расчёт хода без текста. Модель потом описывает именно этот итог.
-export function planTurn(state: GameState, choiceId: string): TurnPlan {
+export function planTurn(state: GameState, choiceId: string, opts: { assumeSuccess?: boolean } = {}): TurnPlan {
   const event = state.currentEvent;
   if (!event) throw new Error("Нет активного события");
   const choice = findChoice(event, choiceId);
   if (!choice) throw new Error("Неизвестный вариант решения");
 
-  const effects = choiceEffects(state, choice);
+  const chance = successChance(state, choice);
+  const success = opts.assumeSuccess ? true : rollSuccess(state, choice);
+  const effects = choiceEffects(state, choice, !success);
   let resources = applyDeltas(state.resources, effects.resources);
   const nextTurn = state.turn + 1;
 
@@ -341,7 +397,7 @@ export function planTurn(state: GameState, choiceId: string): TurnPlan {
   if (endType === "mandate" && election?.outcome === "won") endType = "reelected";
 
   return {
-    choice, effects, resources, factions, keyFigures, crises, election, matured, scheduled, pending,
+    choice, effects, success, chance, resources, factions, keyFigures, crises, election, matured, scheduled, pending,
     resolvedCrisis, expiredCrises: tick.expired, hostileFactions: hostile.map(f => f.name), newCrisisKey,
     endType: endType as EndType | null,
   };
@@ -378,6 +434,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     history: [...state.history, {
       year: state.year, title: event.title, choice: plan.choice.text,
       headline: narration.headline, historianNote: narration.historianNote,
+      tags: plan.choice.tags, success: plan.success,
     }],
     currentEvent: null,
     lastTurn: {
@@ -390,10 +447,17 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       expiredCrises: plan.expiredCrises,
       newCrisis,
       election: plan.election,
+      success: plan.success,
+      chance: plan.chance,
       matured: plan.matured,
       scheduled: plan.scheduled,
     },
     pending: plan.pending,
+    stats: {
+      crisesResolved: (state.stats?.crisesResolved ?? 0) + (plan.resolvedCrisis ? 1 : 0),
+      councils: state.stats?.councils ?? 0,
+      failures: (state.stats?.failures ?? 0) + (plan.success ? 0 : 1),
+    },
     ended: plan.endType !== null,
     endType: plan.endType,
     powerLoss: plan.endType && !isSurvival(plan.endType) ? narration.powerLoss : null,

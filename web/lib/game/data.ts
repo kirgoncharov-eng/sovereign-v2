@@ -1,8 +1,8 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "3.0";
-export const SAVE_VERSION = 5; // 5: отложенные последствия
+export const APP_VERSION = "3.1";
+export const SAVE_VERSION = 6; // 6: режимы, шанс успеха, мета
 export const MAX_TURNS = 20;
 
 export interface CountryInfo {
@@ -401,7 +401,7 @@ export const RECOVERY_BELOW = 30;
 export const RECOVERY_RATE = 1;
 
 // Давление обстоятельств: сколько очков ресурсов страна теряет каждый ход сама по себе.
-export const DIFF_PRESSURE: Record<DifficultyId, number> = { debut:0, coalition:1, crisis:2, ruins:3 };
+export const DIFF_PRESSURE: Record<DifficultyId, number> = { debut:0, coalition:1, crisis:2, ruins:2 };
 
 // Враждебные фракции (отношение ниже порога) вредят каждый ход.
 export const HOSTILE_RELATION = -60;

@@ -15,6 +15,7 @@ export type DifficultyId = "debut" | "coalition" | "crisis" | "ruins";
 export type IdeologyId = "liberal" | "nationalist" | "pragmatist" | "leftist";
 export type Loyalty = "союзник" | "нейтрал" | "враг";
 export type Severity = "low" | "medium" | "high" | "critical";
+export type GameMode = "classic" | "ai"; // classic — сценарии без ИИ, ai — живой рассказчик
 export type EndType = "reelected" | "mandate" | "revolution" | "collapse" | "coup" | "impeachment";
 export type Bloc = "security" | "business" | "church" | "liberal" | "west" | "russia" | "nationalist" | "regional" | "ruling";
 export type ActionTag =
@@ -112,6 +113,8 @@ export interface TurnReport extends Narration {
   expiredCrises: string[]; // названия
   newCrisis: NewCrisis | null;
   election: Election | null;
+  success: boolean;     // решение исполнено или провалено
+  chance: number;       // шанс успеха, который видел игрок
   matured: Pending[];   // сработавшие в этом ходу отложенные последствия
   scheduled: Pending[]; // отложенные последствия этого решения
 }
@@ -141,6 +144,14 @@ export interface HistoryEntry {
   choice: string;
   headline: string;
   historianNote: string;
+  tags?: ActionTag[];
+  success?: boolean;
+}
+
+export interface GameStats {
+  crisesResolved: number;
+  councils: number;
+  failures: number;
 }
 
 export interface Leader {
@@ -184,6 +195,10 @@ export interface GameState {
   turn: number;
   history: HistoryEntry[];
   elections: Election[];
+  mode: GameMode;
+  seed: number;
+  usedEvents: string[]; // карточки сценариев, уже показанные в этой партии
+  stats: GameStats;
   advisors: Advisor[];
   councilCharges: number;
   pending: Pending[];

@@ -1,8 +1,13 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
 import { ACTIONS, APP_VERSION, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
-import { choiceEffects, computePolls, delayedEffects, planTurn, createInitialState, isSurvival, conveneCouncil, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
-import { api } from "@/lib/client/api.ts";
+import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, conveneCouncil, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { api as aiApi } from "@/lib/client/api.ts";
+import { classicApi } from "@/lib/game/classic.ts";
+import { ACHIEVEMENTS, ALL_ENDINGS, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
+
+// Кто пишет текст: библиотека сценариев (мгновенно) или ИИ-рассказчик.
+const apiFor = mode => (mode === "ai" ? aiApi : classicApi);
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
 const barColor = v => v >= 60 ? "#5cb87a" : v >= 35 ? "#c9a04a" : "#b85252";
@@ -170,8 +175,9 @@ function ChoicePreview({ gs, c }) {
           {c.advisor.name} · {c.advisor.role.toLowerCase()} {stars(c.advisor.skill)}
         </div>
       )}
-      <div style={{ fontFamily:mono, fontSize:10, color:G.bl2, letterSpacing:".12em", marginBottom:5 }}>
+      <div style={{ fontFamily:mono, fontSize:10, color:G.bl2, letterSpacing:".12em", marginBottom:5, paddingRight:30 }}>
         {c.tags.map(t => ACTIONS[t].label.toUpperCase()).join(" · ")}
+        <ChanceBadge p={successChance(gs, c)}/>
       </div>
       <div style={{ fontFamily:serif, fontSize:16, fontWeight:500, marginBottom:4 }}>{c.text}</div>
       <div style={{ fontFamily:mono, fontSize:11, color:G.tx3, marginBottom:8 }}>{c.hint}</div>
@@ -187,6 +193,12 @@ function ChoicePreview({ gs, c }) {
   );
 }
 
+function ChanceBadge({ p }) {
+  const pct = Math.round(p * 100);
+  const c = pct >= 75 ? G.grn : pct >= 55 ? G.amb : G.red;
+  return <span title="Шанс, что решение исполнят как задумано. Зависит от советника, отношения исполнителей и ресурсов." style={{ marginLeft:10, color:c, letterSpacing:".04em" }}>◎ {pct}%</span>;
+}
+
 const stars = n => "★".repeat(n) + "☆".repeat(3 - n);
 
 // Совет: ограниченное число раз за мандат советники предлагают свои решения.
@@ -199,7 +211,7 @@ function CouncilPanel({ gs, onConvened, optProps }) {
   const convene = async () => {
     if (busy || charges <= 0) return;
     setBusy(true); setErr(null);
-    try { onConvened(await api.council(gs)); }
+    try { onConvened(await apiFor(gs.mode).council(gs)); }
     catch (e) { setErr(e.message); }
     finally { setBusy(false); }
   };
@@ -247,7 +259,7 @@ const SHORT = { politicalCapital:"ПОЛИТКАП.", economy:"ЭКОНОМИК�
 function Hud({ gs, preview, onMenu, onHelp }) {
   const ci = IDEOLOGIES.find(i => i.id === gs.ideo);
   let plan = null;
-  if (preview && gs.currentEvent) { try { plan = planTurn(gs, preview.id); } catch { plan = null; } }
+  if (preview && gs.currentEvent) { try { plan = planTurn(gs, preview.id, { assumeSuccess: true }); } catch { plan = null; } }
   const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
   const nextRating = plan ? computePolls(gs.country, plan.factions, plan.resources).leader : null;
   const next = nextElection(gs.turn);
@@ -368,26 +380,73 @@ function HowToPlay({ onClose }) {
   );
 }
 
+function Archive({ meta }) {
+  const [openList, setOpenList] = useState(false);
+  const endings = new Set(Object.values(meta.endings).flat()).size;
+  return (
+    <Card style={{ marginBottom:22 }}>
+      <button onClick={() => setOpenList(v => !v)} aria-expanded={openList}
+        style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", background:"transparent", border:"none", color:G.txt, padding:0, textAlign:"left" }}>
+        <span style={{ fontFamily:mono, fontSize:11, letterSpacing:".15em", color:G.tx2 }}>АРХИВ ПРАВИТЕЛЕЙ</span>
+        <span style={{ fontFamily:mono, fontSize:10, color:G.gold }}>
+          партий {meta.runs.length} · концовок {endings}/{ALL_ENDINGS.length} · достижений {meta.achievements.length}/{ACHIEVEMENTS.length} {openList ? "▴" : "▾"}
+        </span>
+      </button>
+      {openList && (
+        <div className="sv-fade" style={{ marginTop:14 }}>
+          {ACHIEVEMENTS.map(a => {
+            const got = meta.achievements.includes(a.id);
+            return (
+              <div key={a.id} style={{ display:"flex", gap:10, marginBottom:6, opacity:got ? 1 : .5 }}>
+                <span style={{ fontFamily:mono, fontSize:11, color:got ? G.gold : G.tx3, minWidth:14 }}>{got ? "🏅" : "·"}</span>
+                <span style={{ fontFamily:mono, fontSize:11, color:got ? G.gld2 : G.tx2 }}>{a.title}</span>
+                <span style={{ fontFamily:serif, fontSize:13, color:G.tx2 }}>{a.desc}</span>
+              </div>
+            );
+          })}
+          <div style={{ borderTop:`1px solid ${G.bdr}`, marginTop:10, paddingTop:10 }}>
+            {meta.runs.slice(0, 6).map(r => (
+              <div key={r.seed} style={{ display:"flex", justifyContent:"space-between", gap:8, fontFamily:mono, fontSize:10, color:G.tx2, marginBottom:4 }}>
+                <span>{COUNTRIES[r.country]?.flag} {r.leader} — «{r.title}»</span>
+                <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>{END_TYPES[r.endType]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ── SETUP ─────────────────────────────────────────────────────────────────────
 function Setup({ onStart, saved, onResume }) {
   const [country, setCountry] = useState(null);
   const [diff, setDiff]       = useState(null);
   const [ideo, setIdeo]       = useState(null);
+  const [mode, setMode]       = useState("classic");
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState(null);
+  const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
+  const meta = useMemo(() => parseMeta(metaRaw), [metaRaw]);
+  const open = unlockedCountries(meta);
   const ready = country && diff && ideo;
 
-  const go = async () => {
-    if (!ready || loading) return;
+  const go = async (c = country, d = diff, i = ideo) => {
+    if (!(c && d && i) || loading) return;
     setLoading(true); setErr(null);
     try {
-      const intro = await api.setup(country, diff, ideo);
-      onStart(createInitialState(country, diff, ideo, intro));
+      const intro = await apiFor(mode).setup(c, d, i);
+      onStart(createInitialState(c, d, i, intro, Math.random, mode));
     } catch (e) {
       console.error(e);
       setErr(e.message || "Ошибка API. Попробуйте снова.");
       setLoading(false);
     }
+  };
+
+  const quick = () => {
+    const pickOne = list => list[Math.floor(Math.random() * list.length)];
+    go(pickOne(open), "coalition", pickOne(IDEOLOGIES).id);
   };
 
   const btnS = (active) => ({
@@ -423,16 +482,40 @@ function Setup({ onStart, saved, onResume }) {
           </Card>
         )}
 
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:22 }} className="sv-two-col">
+          {[
+            { id:"classic", title:"⚡ СЦЕНАРИИ", desc:"Мгновенные ходы, без ИИ" },
+            { id:"ai",      title:"✦ ИИ-РАССКАЗЧИК", desc:"Живой текст, 5–20 с на ход" },
+          ].map(m => (
+            <button key={m.id} onClick={() => setMode(m.id)} {...hov(mode === m.id)} aria-pressed={mode === m.id}
+              style={{ textAlign:"left", padding:"12px 14px", borderRadius:4, background:mode===m.id?G.bg3:G.bg2, border:`1px solid ${mode===m.id?G.gold:G.bdr}`, color:mode===m.id?G.gld2:G.txt }}>
+              <div style={{ fontFamily:mono, fontSize:12, letterSpacing:".08em", marginBottom:4 }}>{m.title}</div>
+              <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>{m.desc}</div>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ textAlign:"center", marginBottom:26 }}>
+          <PrimaryBtn onClick={quick} disabled={loading}>⚡ БЫСТРАЯ ПАРТИЯ</PrimaryBtn>
+          <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:8 }}>случайная страна и идеология · сложность «Коалиция»</div>
+        </div>
+
+        {meta.runs.length > 0 && <Archive meta={meta}/>}
+
         <div style={{ marginBottom:22 }}>
           <Label>СТРАНА</Label>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:country?10:0 }}>
             {Object.entries(COUNTRIES).map(([name, c]) => {
               const active = country === name;
+              const locked = !open.includes(name);
+              const endings = meta.endings[name]?.length ?? 0;
               return (
-                <button key={name} onClick={()=>setCountry(name)} {...hov(active)}
-                  style={{ padding:"14px 6px", borderRadius:4, textAlign:"center", background:active?G.bg3:G.bg2, border:`1px solid ${active?G.gold:G.bdr}`, color:active?G.gld2:G.txt }}>
-                  <div style={{ fontSize:26, marginBottom:6 }}>{c.flag}</div>
+                <button key={name} onClick={()=>!locked && setCountry(name)} disabled={locked} {...hov(active)}
+                  title={locked ? "Откроется после первой завершённой партии" : `Открыто концовок: ${endings}/${ALL_ENDINGS.length}`}
+                  style={{ padding:"14px 6px", borderRadius:4, textAlign:"center", background:active?G.bg3:G.bg2, border:`1px solid ${active?G.gold:G.bdr}`, color:active?G.gld2:G.txt, opacity:locked ? .45 : 1 }}>
+                  <div style={{ fontSize:26, marginBottom:6 }}>{locked ? "🔒" : c.flag}</div>
                   <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".1em" }}>{name.toUpperCase()}</div>
+                  {!locked && endings > 0 && <div style={{ fontFamily:mono, fontSize:10, color:G.gold, marginTop:4 }}>{"◆".repeat(endings)}{"◇".repeat(ALL_ENDINGS.length - endings)}</div>}
                 </button>
               );
             })}
@@ -471,7 +554,7 @@ function Setup({ onStart, saved, onResume }) {
 
         {err && <div style={{ fontFamily:mono, color:G.red, fontSize:12, textAlign:"center", marginBottom:12 }}>{err}</div>}
         <div style={{ textAlign:"center" }}>
-          <PrimaryBtn onClick={go} disabled={!ready||loading}>{loading?"СОЗДАНИЕ МИРА...":saved?"▶  НОВАЯ ПАРТИЯ":"▶  НАЧАТЬ"}</PrimaryBtn>
+          <PrimaryBtn onClick={() => go()} disabled={!ready||loading}>{loading?"СОЗДАНИЕ МИРА...":saved?"▶  НОВАЯ ПАРТИЯ":"▶  НАЧАТЬ"}</PrimaryBtn>
           {saved && <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:10 }}>Новая партия заменит сохранённую</div>}
         </div>
       </div>
@@ -564,7 +647,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
   useEffect(() => {
     if (!needsEvent) return;
     let cancelled = false;
-    api.event(gsRef.current).then(
+    apiFor(gsRef.current.mode).event(gsRef.current).then(
       event => {
         if (cancelled) return;
         commit(startEvent(gsRef.current, event));
@@ -588,7 +671,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
     inFlight.current = true;
     setBusy("choice"); setError(null);
     try {
-      const consequence = await api.consequence(gsRef.current, choice.id);
+      const consequence = await apiFor(gsRef.current.mode).consequence(gsRef.current, choice.id);
       commit(resolveTurn(gsRef.current, choice.id, consequence));
     } catch (e) {
       console.error(e);
@@ -819,6 +902,9 @@ function Game({ gs, setGs, onEnd, onMenu }) {
               <Card accent={G.amb} style={{ marginBottom:12 }}>
                 <div className="sv-reveal">
                 <Label>{"// ПОСЛЕДСТВИЯ"}</Label>
+                {lastTurn.success === false
+                  ? <div style={{ fontFamily:mono, fontSize:11, color:G.red, letterSpacing:".08em", marginBottom:8 }}>✖ ПРОВАЛ ИСПОЛНЕНИЯ · шанс был {Math.round(lastTurn.chance * 100)}%</div>
+                  : lastTurn.chance < 1 && <div style={{ fontFamily:mono, fontSize:11, color:G.grn, letterSpacing:".08em", marginBottom:8 }}>✔ ИСПОЛНЕНО · шанс был {Math.round(lastTurn.chance * 100)}%</div>}
                 <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:8 }}>Решение: {lastTurn.choiceText}{lastTurn.tags?.length ? ` · ${lastTurn.tags.map(t => ACTIONS[t].label).join(", ")}` : ""}</div>
                 <div style={{ fontFamily:serif, fontSize:24, fontWeight:600, color:G.gld2, marginBottom:14, lineHeight:1.25 }}>«{lastTurn.headline}»</div>
                 <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{lastTurn.narrative}</div>
@@ -937,6 +1023,7 @@ function ShareButton({ gs }) {
 // ── ENDING ────────────────────────────────────────────────────────────────────
 function Ending({ gs, setGs, onRestart }) {
   const verdict = gs.verdict;
+  const [newAch, setNewAch] = useState([]);
   const [loading, setLoading] = useState(!verdict);
   const [error, setError]     = useState(null);
   const gsRef = useRef(gs);
@@ -947,12 +1034,13 @@ function Ending({ gs, setGs, onRestart }) {
   useEffect(() => {
     if (!needsVerdict) return;
     let cancelled = false;
-    api.ending(gsRef.current).then(
+    apiFor(gsRef.current.mode).ending(gsRef.current).then(
       v => {
         if (cancelled) return;
         const next = setVerdict(gsRef.current, v);
         gsRef.current = next;
         setGs(next);
+        setNewAch(recordRun(next).unlocked);
         setError(null);
         setLoading(false);
       },
@@ -1053,6 +1141,17 @@ function Ending({ gs, setGs, onRestart }) {
           </div>
         )}
 
+        {newAch.length > 0 && (
+          <Card accent={G.gold} style={{ marginBottom:16 }}>
+            <Label>{"// НОВЫЕ ДОСТИЖЕНИЯ"}</Label>
+            {newAch.map(a => (
+              <div key={a.id} className="sv-fade" style={{ marginBottom:8 }}>
+                <span style={{ fontFamily:mono, fontSize:12, color:G.gld2 }}>🏅 {a.title.toUpperCase()}</span>
+                <span style={{ fontFamily:serif, fontSize:14, color:G.tx2, marginLeft:10 }}>{a.desc}</span>
+              </div>
+            ))}
+          </Card>
+        )}
         <div style={{ display:"flex", justifyContent:"center", gap:10, flexWrap:"wrap" }}>
           {verdict && <ShareButton gs={gs}/>}
           <PrimaryBtn onClick={onRestart}>↺ НОВАЯ ПАРТИЯ</PrimaryBtn>

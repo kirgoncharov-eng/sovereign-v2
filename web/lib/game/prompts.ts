@@ -160,6 +160,9 @@ function describeOutcome(state: GameState, plan: TurnPlan): string {
     .filter(x => x.d !== 0)
     .map(x => `${x.f.name} ${x.d > 0 ? "теплеет" : "охладевает"} (${signed(x.d)})`);
   const lines = [
+    plan.success
+      ? `ИСПОЛНЕНИЕ: решение выполнено как задумано (шанс был ${Math.round(plan.chance * 100)}%).`
+      : `ИСПОЛНЕНИЕ: ПРОВАЛ (шанс был ${Math.round(plan.chance * 100)}%) — исполнители не справились или саботировали. Покажи, кто и как сорвал решение.`,
     `ОБЩАЯ ОЦЕНКА ХОДА: ${tone}.`,
     best.d > 0 ? `Главный выигрыш: ${best.r.prompt} (${signed(best.d)}).` : "Выигрыша по ресурсам нет.",
     worst.d < 0 ? `Главная цена: ${worst.r.prompt} (${signed(worst.d)}).` : "Потерь по ресурсам нет.",
