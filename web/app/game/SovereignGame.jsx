@@ -19,6 +19,7 @@ const expressApi = {
 };
 const apiFor = mode => (mode === "classic" ? expressApi : aiApi);
 import { initTelegram, telegramShare } from "@/lib/client/telegram.ts";
+import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
 const barColor = v => v >= 60 ? "var(--grn)" : v >= 35 ? "var(--amb)" : "var(--red)";
@@ -123,6 +124,11 @@ function nextElection(turn) {
   const t = Object.keys(ELECTIONS).map(Number).find(x => x > turn);
   return t ? { label: ELECTION_LABEL[ELECTIONS[t]], in: t - turn } : null;
 }
+// Партия делится на четыре главы по пять ходов: у каждой своё название.
+const CHAPTERS = ["Первые сто дней", "Накануне выборов", "Второе дыхание", "Развязка"];
+const chapterOf = turn => Math.min(3, Math.floor((turn - 1) / 5));
+const ROMAN = ["I", "II", "III", "IV"];
+
 // Подпись под резолюцией: «А. Шевчик».
 const signature = name => { const [f, ...rest] = String(name).split(" "); return rest.length ? `${f[0]}. ${rest.join(" ")}` : name; };
 // Входящий номер документа: стабилен для хода партии, выглядит как настоящий.
@@ -363,11 +369,11 @@ function Hud({ gs, preview, onMenu, onHelp }) {
                 const t = i + 1;
                 const done = t <= gs.turn, now = t === gs.turn + 1, vote = !!ELECTIONS[t];
                 return <div key={t} title={vote ? `${t} ход — ${ELECTION_LABEL[ELECTIONS[t]].toLowerCase()}` : `${t} ход`}
-                  style={{ flex:1, height:vote ? 8 : 5, alignSelf:"flex-end", borderRadius:1, background: done ? G.gold : now ? G.gld2 : vote ? G.bdr2 : G.bdr, opacity: done ? .75 : 1, outline: now ? `1px solid ${G.gld2}` : "none" }}/>;
+                  style={{ flex:1, marginLeft:t > 1 && (t - 1) % 5 === 0 ? 5 : 0, height:vote ? 8 : 5, alignSelf:"flex-end", borderRadius:1, background: done ? G.gold : now ? G.gld2 : vote ? G.bdr2 : G.bdr, opacity: done ? .75 : 1, outline: now ? `1px solid ${G.gld2}` : "none" }}/>;
               })}
             </div>
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>
-              {gs.year} · ход {Math.min(gs.turn + 1, MAX_TURNS)}/{MAX_TURNS}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
+              {gs.year} · глава {ROMAN[chapterOf(Math.min(gs.turn + 1, MAX_TURNS))]} · ход {Math.min(gs.turn + 1, MAX_TURNS)}/{MAX_TURNS}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
             </div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:14 }}>
@@ -434,6 +440,16 @@ function Loading({ kind }) {
 const TUTORIAL_KEY = "sovereign.tutorial.seen";
 const tutorialSeen = () => { try { return localStorage.getItem(TUTORIAL_KEY) === "1"; } catch { return true; } };
 
+function SoundToggle() {
+  const [on, setOn] = useState(soundOn);
+  return (
+    <button onClick={() => { setSound(!on); setOn(!on); }} aria-pressed={on}
+      style={{ background:"transparent", border:`1px solid ${G.bdr2}`, color:G.tx2, padding:"8px 14px", borderRadius:2, fontSize:15 }}>
+      Звук: {on ? "включён" : "выключен"}
+    </button>
+  );
+}
+
 function HowToPlay({ onClose }) {
   const close = () => { try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch { /* недоступно */ } onClose(); };
   useEffect(() => {
@@ -451,15 +467,18 @@ function HowToPlay({ onClose }) {
   ];
   return (
     <div className="sv-modal" role="dialog" aria-modal="true" aria-labelledby="howto-title" onClick={close}>
-      <div onClick={e => e.stopPropagation()} className="sv-fade" style={{ maxWidth:560, width:"100%", maxHeight:"90vh", overflowY:"auto", background:G.bg2, border:`1px solid ${G.bdr2}`, borderRadius:2, padding:"24px 24px 20px" }}>
-        <div id="howto-title" style={{ fontFamily:serif, fontSize:28, fontWeight:600, color:G.gold, marginBottom:16 }}>Как править</div>
+      <div onClick={e => e.stopPropagation()} className="sv-fade sv-paper" style={{ maxWidth:560, width:"100%", maxHeight:"90vh", overflowY:"auto", borderRadius:2, padding:"24px 24px 20px" }}>
+        <div id="howto-title" style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, marginBottom:16 }}>Как править</div>
         {items.map(([h, t]) => (
           <div key={h} style={{ marginBottom:14 }}>
-            <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.gld2, marginBottom:3 }}>{h.toUpperCase()}</div>
+            <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, letterSpacing:".05em", color:G.gld2, marginBottom:3 }}>{h.toUpperCase()}</div>
             <div style={{ fontFamily:serif, fontSize:15, color:G.txt, lineHeight:1.55 }}>{t}</div>
           </div>
         ))}
-        <div style={{ textAlign:"right", marginTop:8 }}><PrimaryBtn onClick={close}>ПОНЯТНО</PrimaryBtn></div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginTop:8, flexWrap:"wrap" }}>
+          <SoundToggle/>
+          <PrimaryBtn onClick={close}>ПОНЯТНО</PrimaryBtn>
+        </div>
       </div>
     </div>
   );
@@ -804,6 +823,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
     if (busy || inFlight.current) return;
     inFlight.current = true;
     setStamping(choice.id);
+    stampFx();
     if (!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) await new Promise(r => setTimeout(r, 480));
     setStamping(null);
     setBusy("choice"); setError(null);
@@ -811,6 +831,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
       const consequence = await apiFor(gsRef.current.mode).consequence(gsRef.current, choice.id);
       const next = resolveTurn(gsRef.current, choice.id, consequence);
       commit(next);
+      if (next.lastTurn && next.lastTurn.chance < 1) outcomeFx(next.lastTurn.success !== false);
       if (!next.ended) {
         const promise = apiFor(next.mode).event(next);
         promise.catch(() => {}); // ошибку покажет обычная загрузка события
@@ -827,6 +848,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
 
   const nextTurn = () => {
     setBusy("event"); setError(null); setPreview(null); setArmed(null);
+    pageFx();
     commit({ ...gsRef.current, lastTurn: null });
   };
 
@@ -1025,6 +1047,12 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                   </div>
                   {(event.beat || event.isCritical) && <span className="sv-stamp is-red" style={{ fontSize:14, flexShrink:0 }}>{event.beat ? "Совершенно секретно" : "Срочно"}</span>}
                 </div>
+                {(turn + 1) % 5 === 1 && (
+                  <div style={{ margin:"4px 0 18px", paddingBottom:14, borderBottom:`1px solid ${G.bdr}` }}>
+                    <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>Глава {ROMAN[chapterOf(turn + 1)]}</div>
+                    <div style={{ fontFamily:serif, fontSize:22, fontStyle:"italic", color:G.tx2 }}>{CHAPTERS[chapterOf(turn + 1)]}</div>
+                  </div>
+                )}
                 {event.beat && (
                   <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, color:G.red, marginBottom:4 }}>
                     Главная интрига «{event.beat.arcTitle}» · эпизод {event.beat.episode} из {event.beat.total}
@@ -1065,7 +1093,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                     <div className="sv-hand" style={{ fontSize:21, lineHeight:1.25 }}>{lastTurn.choiceText}. — {signature(gs.leader.name)}</div>
                   </div>
                   {lastTurn.chance < 1 && (
-                    <span className={`sv-stamp${lastTurn.success === false ? " is-red" : ""}`} style={{ fontSize:15, flexShrink:0 }}>
+                    <span className={`sv-stamp sv-in${lastTurn.success === false ? " is-red" : ""}`} style={{ fontSize:15, flexShrink:0 }}>
                       {lastTurn.success === false ? "Не исполнено" : "Исполнено"}
                       <span style={{ display:"block", fontSize:11, fontWeight:400, letterSpacing:0, textTransform:"none" }}>шанс был {Math.round(lastTurn.chance * 100)}%</span>
                     </span>

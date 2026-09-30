@@ -7,6 +7,10 @@ interface TgWebApp {
   setBackgroundColor?(color: string): void;
   openTelegramLink?(url: string): void;
   disableVerticalSwipes?(): void;
+  HapticFeedback?: {
+    impactOccurred(style: "light" | "medium" | "heavy"): void;
+    notificationOccurred(type: "success" | "error" | "warning"): void;
+  };
 }
 declare global { interface Window { Telegram?: { WebApp?: TgWebApp } } }
 
@@ -37,4 +41,15 @@ export function telegramShare(text: string, url: string): boolean {
   if (!app?.openTelegramLink) return false;
   app.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
   return true;
+}
+
+// Тактильный отклик: в Telegram — родной, на Android-браузере — короткая вибрация.
+export function haptic(kind: "light" | "heavy" | "success" | "error") {
+  const h = app?.HapticFeedback;
+  if (h) {
+    if (kind === "success" || kind === "error") h.notificationOccurred(kind);
+    else h.impactOccurred(kind);
+    return;
+  }
+  if (kind === "heavy" && typeof navigator !== "undefined" && "vibrate" in navigator && matchMedia("(pointer:coarse)").matches) navigator.vibrate(18);
 }

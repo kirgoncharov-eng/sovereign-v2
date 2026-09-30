@@ -179,6 +179,12 @@ button:focus-visible {
   to   { opacity: 0.85; transform: translateY(-50%) rotate(-7deg) scale(1); }
 }
 
+.sv-stamp.sv-in { animation: sv-stamp-in 0.36s 0.35s cubic-bezier(.2, .9, .3, 1.25) both; }
+@keyframes sv-stamp-in {
+  from { opacity: 0; transform: rotate(-14deg) scale(1.9); }
+  to   { opacity: 0.85; transform: rotate(-7deg) scale(1); }
+}
+
 /* Рукописная резолюция */
 .sv-hand {
   font-family: var(--font-hand), "Marck Script", cursive;
@@ -232,7 +238,7 @@ button:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sv-reveal, .sv-fade, .sv-progress::after, .sv-stamp-hit { animation: none !important; }
+  .sv-reveal, .sv-fade, .sv-progress::after, .sv-stamp-hit, .sv-stamp.sv-in { animation: none !important; }
 }
 
 /* Курсор печатающегося текста */
