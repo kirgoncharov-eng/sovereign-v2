@@ -4,9 +4,10 @@ import {
   ACTION_TAGS, ADVISOR_ROLES, MAX_PENDING, COUNTRIES, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGIES, LIMITS, MAX_TURNS, RATINGS, RESOURCE_KEYS, SAVE_VERSION, START_RES, TEXT,
 } from "./data.ts";
+import { ARCS } from "../content/arcs.ts";
 import { loyaltyLabel } from "./engine.ts";
 import type {
-  ActionTag, Advisor, Choice, Pending, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
+  ActionTag, Advisor, ArcChoice, ArcState, Choice, Pending, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
   HistoryEntry, IdeologyId, Intro, NewCrisis, RandomEvent, ResourceDelta, Resources, Severity, Verdict,
 } from "./types.ts";
 
@@ -74,7 +75,19 @@ function sanitizeTags(v: unknown): ActionTag[] {
   return [...new Set(v.filter((t): t is ActionTag => typeof t === "string" && (ACTION_TAGS as string[]).includes(t)))].slice(0, 2);
 }
 
-function sanitizeChoice(c: Obj, id: string, crisisIds: string[]): Choice | null {
+function sanitizeArcChoice(v: unknown): ArcChoice | null {
+  if (!isObj(v)) return null;
+  const flag = str(v.flag, 20), ok = str(v.ok, TEXT.long);
+  if (!flag || !ok) return null;
+  return {
+    flag, ok,
+    ...(str(v.fail, TEXT.long) ? { fail: str(v.fail, TEXT.long) } : {}),
+    effect: deltaMap(v.effect, RESOURCE_KEYS, 10),
+    ...(str(v.epilogue, TEXT.medium) ? { epilogue: str(v.epilogue, TEXT.medium) } : {}),
+  };
+}
+
+function sanitizeChoice(c: Obj, id: string, crisisIds: string[], allowArc = false): Choice | null {
   const text = str(c.text, TEXT.choice);
   const tags = sanitizeTags(c.tags);
   // без тега движок не знает цену решения — такой вариант отбрасываем
@@ -83,6 +96,7 @@ function sanitizeChoice(c: Obj, id: string, crisisIds: string[]): Choice | null 
   return {
     id, text, hint: str(c.hint, TEXT.hint), tags,
     resolvesCrisis: crisisIds.includes(resolves) ? resolves : null,
+    ...(allowArc && isObj(c.arc) ? { arc: sanitizeArcChoice(c.arc) } : {}),
   };
 }
 
@@ -102,14 +116,14 @@ export function sanitizeProposals(v: unknown, advisors: Advisor[], crisisIds: st
   return out;
 }
 
-function sanitizeChoices(v: unknown, crisisIds: string[]): Choice[] {
+function sanitizeChoices(v: unknown, crisisIds: string[], allowArc = false): Choice[] {
   if (!Array.isArray(v)) return [];
   const out: Choice[] = [];
   for (const c of v) {
     if (out.length >= CHOICE_IDS.length) break;
     if (!isObj(c)) continue;
     // id выдаём сами: модели не доверяем уникальность
-    const choice = sanitizeChoice(c, CHOICE_IDS[out.length], crisisIds);
+    const choice = sanitizeChoice(c, CHOICE_IDS[out.length], crisisIds, allowArc);
     if (choice) out.push(choice);
   }
   return out;
@@ -127,11 +141,11 @@ function sanitizeRandomEvent(v: unknown): RandomEvent | null {
 }
 
 export function sanitizeEvent(
-  raw: unknown, factionIds: string[], opts: { isCritical: boolean; allowRandom: boolean; crisisIds: string[]; advisors?: Advisor[] },
+  raw: unknown, factionIds: string[], opts: { isCritical: boolean; allowRandom: boolean; crisisIds: string[]; advisors?: Advisor[]; allowArc?: boolean },
 ): GameEvent | null {
   if (!isObj(raw)) return null;
   const title = str(raw.title, TEXT.title);
-  const choices = sanitizeChoices(raw.choices, opts.crisisIds);
+  const choices = sanitizeChoices(raw.choices, opts.crisisIds, opts.allowArc);
   if (!title || choices.length < 2) return null;
   const source = str(raw.source, 40);
   const affected = Array.isArray(raw.affectedFactions)
@@ -146,6 +160,10 @@ export function sanitizeEvent(
     choices,
     randomEvent: opts.allowRandom ? sanitizeRandomEvent(raw.randomEvent) : null,
     council: opts.advisors ? sanitizeProposals(raw.council, opts.advisors, opts.crisisIds) : null,
+    beat: opts.allowArc && isObj(raw.beat) ? {
+      arcId: str(raw.beat.arcId, 20), arcTitle: str(raw.beat.arcTitle, TEXT.name),
+      turn: num(raw.beat.turn, 1, MAX_TURNS, 1), episode: num(raw.beat.episode, 1, 9, 1), total: num(raw.beat.total, 1, 9, 4),
+    } : null,
   };
 }
 
@@ -269,6 +287,18 @@ function sanitizePending(v: unknown, turn: number): Pending[] {
   }));
 }
 
+function sanitizeArc(v: unknown): ArcState | null {
+  if (!isObj(v) || !ARCS.some(a => a.id === v.id)) return null;
+  return {
+    id: v.id as string,
+    target: str(v.target, TEXT.name, "неизвестный"),
+    targetRole: str(v.targetRole, TEXT.name),
+    flags: strList(v.flags, 10, 20),
+    done: Array.isArray(v.done) ? v.done.map(t => num(t, 1, MAX_TURNS, 1)).slice(0, 10) : [],
+    epilogue: str(v.epilogue, TEXT.medium) || null,
+  };
+}
+
 function sanitizeAdvisors(v: unknown): Advisor[] {
   const src = Array.isArray(v) ? v.filter(isObj) : [];
   return ADVISOR_ROLES.map(r => {
@@ -343,8 +373,9 @@ export function sanitizeState(raw: unknown): GameState | null {
       failures: num(isObj(raw.stats) ? raw.stats.failures : 0, 0, 99, 0),
     },
     pending: sanitizePending(raw.pending, turn),
+    arc: sanitizeArc(raw.arc),
     currentEvent: isObj(raw.currentEvent)
-      ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, advisors, crisisIds: activeCrises.map(c => c.id) })
+      ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, advisors, allowArc: true, crisisIds: activeCrises.map(c => c.id) })
       : null,
     lastTurn: null,
     ended: raw.ended === true,

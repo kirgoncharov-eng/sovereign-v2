@@ -65,3 +65,30 @@ test("шанс успеха: сильный советник надёжнее с
   assert.ok((fail.internalLegitimacy ?? 0) < (ok.internalLegitimacy ?? 0));
   assert.ok((fail.economy ?? 0) <= (ok.economy ?? 0));
 });
+
+test("интрига: эпизоды приходят на своих ходах, флаги меняют развязку", async () => {
+  let s = await newGame();
+  assert.ok(s.arc);
+  const seen: { turn: number; flagsBefore: string[] }[] = [];
+  while (!s.ended) {
+    s = startEvent(s, await classicApi.event(s));
+    if (s.currentEvent!.beat) {
+      seen.push({ turn: s.turn + 1, flagsBefore: [...s.arc!.flags] });
+      assert.ok(s.currentEvent!.choices.every(c => c.arc?.flag && c.arc.ok && !/\{target\}/.test(c.arc.ok)));
+    }
+    const n = await classicApi.consequence(s, "a");
+    s = resolveTurn(s, "a", n);
+  }
+  const reached = seen.map(x => x.turn);
+  assert.deepEqual(reached, [3, 7, 12, 16].filter(t => t <= s.turn));
+  if (reached.length === 4) assert.ok(s.arc!.epilogue);
+});
+
+test("финальный эпизод зависит от сделанных ранее выборов", async () => {
+  const { dueBeat } = await import("./engine.ts");
+  const base = await newGame();
+  const mole = { ...base, turn: 15, arc: { id: "mole", target: "Анна Лис", targetRole: "Экономист", flags: ["watch", "trap"], done: [3, 7, 12], epilogue: null } };
+  assert.equal(dueBeat(mole)!.variant.title, "Разоблачение");
+  const blind = { ...mole, arc: { ...mole.arc, flags: ["ignore", "purge", "deal"] } };
+  assert.equal(dueBeat(blind)!.variant.title, "Крот наносит удар");
+});

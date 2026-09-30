@@ -6,7 +6,7 @@ import {
   IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
 import { ACTIONS, ADVISOR_ROLES, COUNTRIES, ELECTIONS, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
-import { computePolls, hashSeed, isSurvival, planTurn, seededRandom, warningLevel } from "./engine.ts";
+import { computePolls, dueBeat, hashSeed, isSurvival, planTurn, seededRandom, warningLevel } from "./engine.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import type { Bloc, Choice, DifficultyId, GameEvent, GameState, IdeologyId, Intro, Narration, Verdict } from "./types.ts";
 
@@ -35,6 +35,7 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
       case "leader": return state.leader.name;
       case "rival": return rivalName(state);
       case "crisis": return state.activeCrises[0]?.title ?? "кризис";
+      case "target": return state.arc?.target ?? "неизвестный";
       case "fig": return figureOf(state, arg!)?.name ?? factionOf(state, arg!)?.name ?? "оппоненты";
       case "fac": return factionOf(state, arg!)?.name ?? "оппоненты";
       default: return extra[key] ?? m;
@@ -77,7 +78,30 @@ export function pickCard(state: GameState, r: Rand): EventCard {
   return pool[pool.length - 1];
 }
 
-function buildEvent(state: GameState): GameEvent & { cardId: string } {
+// Эпизод сквозной интриги: авторский текст, одинаковый в обоих режимах.
+export function beatEvent(state: GameState): GameEvent | null {
+  const due = dueBeat(state);
+  if (!due) return null;
+  const { arc, beat, variant, episode, total } = due;
+  return {
+    title: fill(variant.title, state),
+    source: "Секретно",
+    description: fill(variant.description, state),
+    isCritical: episode === total,
+    affectedFactions: [],
+    choices: variant.choices.map((c, i) => ({
+      id: ["a", "b", "c"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags, resolvesCrisis: null,
+      arc: { flag: c.flag, ok: fill(c.ok, state), ...(c.fail ? { fail: fill(c.fail, state) } : {}), effect: c.effect ?? {}, ...(c.epilogue ? { epilogue: fill(c.epilogue, state) } : {}) },
+    })),
+    council: null,
+    beat: { arcId: arc.id, arcTitle: arc.title, turn: beat.turn, episode, total },
+    randomEvent: null,
+  };
+}
+
+function buildEvent(state: GameState): GameEvent & { cardId?: string } {
+  const beat = beatEvent(state);
+  if (beat) return beat;
   const r = seededRandom(hashSeed(state.seed, "event", state.turn));
   const card = pickCard(state, r);
   const crisisId = state.activeCrises[0]?.id ?? null;
@@ -109,7 +133,9 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const pollsAfter = computePolls(state.country, plan.factions, plan.resources).leader;
 
   const parts: string[] = [`Решение принято: ${plan.choice.text.charAt(0).toLowerCase()}${plan.choice.text.slice(1)}.`];
-  for (const tag of plan.choice.tags) parts.push(pick(r, TAG_LINES[tag][plan.success ? "ok" : "fail"]));
+  const arc = plan.choice.arc;
+  if (arc) parts.push(plan.success ? arc.ok : arc.fail ?? pick(r, TAG_LINES[plan.choice.tags[0]].fail));
+  else for (const tag of plan.choice.tags) parts.push(pick(r, TAG_LINES[tag][plan.success ? "ok" : "fail"]));
   if (plan.resolvedCrisis) parts.push(`Кризис «${plan.resolvedCrisis}» удалось закрыть.`);
   for (const m of plan.matured) parts.push(`Тем временем аукнулось прошлое решение: «${m.label}».`);
   if (plan.election) {
@@ -207,6 +233,7 @@ function buildVerdict(state: GameState): Verdict {
     topCount ? `Его главным инструментом был «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему он прибегал ${topCount} раз.` : "",
     elections ? `Выборы: ${elections}.` : "",
     state.stats?.crisesResolved ? `Кризисов преодолено: ${state.stats.crisesResolved}.` : "",
+    state.arc?.epilogue ?? "",
     `К концу правления партия власти имела ${rating}% поддержки.`,
   ].filter(Boolean).join(" ");
 

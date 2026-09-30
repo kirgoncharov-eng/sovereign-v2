@@ -6,8 +6,9 @@ import {
   IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, MAX_TURNS, RECOVERY_BELOW, RECOVERY_RATE,
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES,
 } from "./data.ts";
+import { ARCS } from "../content/arcs.ts";
 import type {
-  Advisor, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
+  Advisor, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
   Narration, NewCrisis, ResourceDelta, ResourceKey, Resources, Verdict,
 } from "./types.ts";
 
@@ -123,11 +124,34 @@ export function detectEnd(resources: Resources, factions: Faction[], turn: numbe
   return null;
 }
 
+// ── Интрига ──────────────────────────────────────────────────────────────────
+export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "factions">, rand: () => number): ArcState {
+  const arc = ARCS[Math.floor(rand() * ARCS.length)];
+  const blocOf = (fig: Figure) => state.factions.find(f => f.id === fig.faction)?.bloc;
+  let who: { name: string; role: string } | undefined;
+  if (arc.target === "advisor") who = state.advisors[Math.floor(rand() * state.advisors.length)];
+  if (arc.target === "security") who = state.keyFigures.find(f => blocOf(f) === "security");
+  if (arc.target === "rival") who = state.keyFigures.find(f => blocOf(f) === "liberal" || blocOf(f) === "nationalist");
+  who ??= [...state.keyFigures].sort((a, b) => a.relation - b.relation)[0];
+  return { id: arc.id, target: who?.name ?? "неизвестный", targetRole: who?.role ?? "", flags: [], done: [], epilogue: null };
+}
+
+// Эпизод интриги, который должен случиться на следующем ходу (если есть).
+export function dueBeat(state: Pick<GameState, "arc" | "turn">) {
+  const arc = ARCS.find(a => a.id === state.arc?.id);
+  if (!arc || !state.arc) return null;
+  const idx = arc.beats.findIndex(b => b.turn === state.turn + 1 && !state.arc!.done.includes(b.turn));
+  if (idx < 0) return null;
+  const beat = arc.beats[idx];
+  const variant = beat.variants.find(v => !v.requires || v.requires.some(f => state.arc!.flags.includes(f))) ?? beat.variants[beat.variants.length - 1];
+  return { arc, beat, variant, episode: idx + 1, total: arc.beats.length };
+}
+
 export function createInitialState(
   country: string, diff: DifficultyId, ideo: IdeologyId, intro: Intro, rand: () => number = Math.random,
   mode: GameMode = "classic",
 ): GameState {
-  return {
+  const state: GameState = {
     version: SAVE_VERSION,
     mode,
     seed: Math.floor(rand() * 4294967296),
@@ -148,11 +172,13 @@ export function createInitialState(
     advisors: initAdvisors(diff, intro.advisors ?? [], rand),
     councilCharges: COUNCIL_CHARGES[diff],
     pending: [],
+    arc: null,
     currentEvent: null,
     lastTurn: null,
     ended: false, endType: null, powerLoss: null,
     verdict: null,
   };
+  return { ...state, arc: pickArc(state, rand) };
 }
 
 export function startEvent(state: GameState, event: GameEvent & { cardId?: string }): GameState {
@@ -268,6 +294,7 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions">, choic
   const rel: Record<string, number> = {};
   const appr: Record<string, number> = {};
   const ideo = IDEOLOGY_ACTIONS[state.ideo];
+  addDelta(res, choice.arc?.effect);
   for (const tag of choice.tags) {
     const a = ACTIONS[tag];
     if (!a) continue;
@@ -453,6 +480,12 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       scheduled: plan.scheduled,
     },
     pending: plan.pending,
+    arc: state.arc ? {
+      ...state.arc,
+      flags: plan.choice.arc?.flag ? [...state.arc.flags, plan.choice.arc.flag] : state.arc.flags,
+      done: event.beat ? [...state.arc.done, event.beat.turn] : state.arc.done,
+      epilogue: plan.choice.arc?.epilogue ?? state.arc.epilogue,
+    } : null,
     stats: {
       crisesResolved: (state.stats?.crisesResolved ?? 0) + (plan.resolvedCrisis ? 1 : 0),
       councils: state.stats?.councils ?? 0,

@@ -58,6 +58,24 @@ export interface Choice {
   tags: ActionTag[];
   resolvesCrisis: string | null; // id кризиса, который закрывает это решение
   advisor?: { id: string; name: string; role: string; skill: 1 | 2 | 3 } | null; // автор предложения
+  arc?: ArcChoice | null; // сюжетный вариант эпизода интриги
+}
+
+export interface ArcChoice {
+  flag: string;
+  ok: string;
+  fail?: string;
+  effect?: ResourceDelta;
+  epilogue?: string;
+}
+
+export interface ArcState {
+  id: string;
+  target: string;      // имя антагониста линии
+  targetRole: string;
+  flags: string[];
+  done: number[];      // ходы уже сыгранных эпизодов
+  epilogue: string | null;
 }
 
 export interface Advisor {
@@ -82,6 +100,7 @@ export interface GameEvent {
   affectedFactions: string[];
   choices: Choice[];
   council?: Choice[] | null; // предложения советников, если совет собирали
+  beat?: { arcId: string; arcTitle: string; turn: number; episode: number; total: number } | null; // эпизод интриги
   randomEvent: RandomEvent | null;
 }
 
@@ -202,6 +221,7 @@ export interface GameState {
   advisors: Advisor[];
   councilCharges: number;
   pending: Pending[];
+  arc: ArcState | null;
   currentEvent: GameEvent | null;
   lastTurn: TurnReport | null;
   ended: boolean;

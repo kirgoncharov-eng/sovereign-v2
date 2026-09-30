@@ -141,3 +141,7 @@ button:disabled {
 @media (prefers-reduced-motion: reduce) {
   .sv-reveal, .sv-fade, .sv-progress::after { animation: none !important; }
 }
+
+/* Курсор печатающегося текста */
+.sv-caret { color: #c8a86c; animation: sv-blink 0.9s steps(2) infinite; }
+@keyframes sv-blink { 50% { opacity: 0; } }

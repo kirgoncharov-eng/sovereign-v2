@@ -1,6 +1,7 @@
 // Демо-адаптер: та же игра, но модель вызывается прямо со страницы артефакта claude.ai
 // через возможность `sample` (на аккаунте зрителя). Интерфейс совпадает с lib/client/api.ts.
 import { FIGURE_ROLES } from "../lib/game/data.ts";
+import { beatEvent } from "../lib/game/classic.ts";
 import { planTurn, warningLevel } from "../lib/game/engine.ts";
 import { consequencePrompt, councilPrompt, endingPrompt, eventPrompt, setupPrompt, SYS_BASE, SYS_CONSEQUENCE, SYS_ENDING } from "../lib/game/prompts.ts";
 import { isObj, sanitizeNarration, sanitizeProposals, sanitizeEvent, sanitizeIntro, sanitizeVerdict } from "../lib/game/sanitize.ts";
@@ -63,6 +64,8 @@ export const api = {
       r => sanitizeIntro(r, FIGURE_ROLES[country].length)),
 
   event: (state: GameState) => {
+    const beat = beatEvent(state);
+    if (beat) return Promise.resolve(beat);
     const isCritical = warningLevel(state) === "critical";
     const withRandom = state.turn > 0 && Math.random() < RANDOM_EVENT_CHANCE;
     const factionIds = state.factions.map(f => f.id);

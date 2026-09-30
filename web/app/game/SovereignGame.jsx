@@ -4,10 +4,20 @@ import { ACTIONS, APP_VERSION, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LAB
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, conveneCouncil, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api as aiApi } from "@/lib/client/api.ts";
 import { classicApi } from "@/lib/game/classic.ts";
+import { ARCS } from "@/lib/content/arcs.ts";
 import { ACHIEVEMENTS, ALL_ENDINGS, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
 // Кто пишет текст: библиотека сценариев (мгновенно) или ИИ-рассказчик.
-const apiFor = mode => (mode === "ai" ? aiApi : classicApi);
+// В экспресс-режиме ответ готов мгновенно — даём сцене короткую театральную паузу.
+const theatrical = (fn, ms) => async (...args) => (await Promise.all([fn(...args), new Promise(r => setTimeout(r, ms))]))[0];
+const expressApi = {
+  setup: theatrical(classicApi.setup, 600),
+  event: theatrical(classicApi.event, 900),
+  consequence: theatrical(classicApi.consequence, 1800),
+  council: theatrical(classicApi.council, 1200),
+  ending: theatrical(classicApi.ending, 1500),
+};
+const apiFor = mode => (mode === "classic" ? expressApi : aiApi);
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
 const barColor = v => v >= 60 ? "#5cb87a" : v >= 35 ? "#c9a04a" : "#b85252";
@@ -252,6 +262,44 @@ function CouncilPanel({ gs, onConvened, optProps }) {
   );
 }
 
+// Итог хода печатается как телеграмма; клик, Enter или пробел — показать сразу.
+function Typewriter({ text, onDone }) {
+  const [n, setN] = useState(0);
+  const doneRef = useRef(false);
+  const onDoneRef = useRef(onDone);
+  useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
+  const finish = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    setN(text.length);
+    onDoneRef.current();
+  }, [text]);
+  useEffect(() => {
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const t = setInterval(() => {
+      setN(x => {
+        const next = x + 3;
+        if (next >= text.length) { clearInterval(t); setTimeout(finish, 0); }
+        return next;
+      });
+    }, reduce ? 1 : 25);
+    const onKey = e => {
+      if (doneRef.current || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      finish();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => { clearInterval(t); window.removeEventListener("keydown", onKey); };
+  }, [text, finish]);
+  const typing = n < text.length;
+  return (
+    <div onClick={finish} title={typing ? "Показать сразу" : undefined}
+      style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt, marginBottom:14, cursor:typing ? "pointer" : "default", whiteSpace:"pre-wrap" }}>
+      {text.slice(0, n)}{typing && <span className="sv-caret">▍</span>}
+    </div>
+  );
+}
+
 // ── HUD ───────────────────────────────────────────────────────────────────────
 const SHORT = { politicalCapital:"ПОЛИТКАП.", economy:"ЭКОНОМИКА", military:"СИЛОВИКИ", externalReputation:"РЕПУТАЦИЯ", internalLegitimacy:"ЛЕГИТИМН.", personalResource:"ЛИЧН. РЕС." };
 
@@ -362,7 +410,8 @@ function HowToPlay({ onClose }) {
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
     ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг растёт от отношения групп общества, легитимности и экономики."],
     ["Совет — козырь", "Несколько раз за мандат соберите советников: сильный советник (★★★) предложит ход дешевле и выгоднее."],
-    ["Клавиши", "1–9 — выбрать вариант, Enter — подтвердить или перейти к следующему ходу, Esc — закрыть это окно."],
+    ["Главная интрига", "В каждой партии тайно развивается сюжет: предатель, заговор или тёмное прошлое. Эпизоды помечены 🕵 — ваши выборы в них решают развязку."],
+    ["Клавиши", "1–9 — выбрать вариант, Enter — подтвердить, дочитать текст или перейти к следующему ходу, Esc — закрыть окно."],
   ];
   return (
     <div className="sv-modal" role="dialog" aria-modal="true" aria-labelledby="howto-title" onClick={close}>
@@ -423,7 +472,7 @@ function Setup({ onStart, saved, onResume }) {
   const [country, setCountry] = useState(null);
   const [diff, setDiff]       = useState(null);
   const [ideo, setIdeo]       = useState(null);
-  const [mode, setMode]       = useState("classic");
+  const [mode, setMode]       = useState("ai");
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState(null);
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
@@ -484,8 +533,8 @@ function Setup({ onStart, saved, onResume }) {
 
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:22 }} className="sv-two-col">
           {[
-            { id:"classic", title:"⚡ СЦЕНАРИИ", desc:"Мгновенные ходы, без ИИ" },
-            { id:"ai",      title:"✦ ИИ-РАССКАЗЧИК", desc:"Живой текст, 5–20 с на ход" },
+            { id:"ai",      title:"✦ ТРИЛЛЕР", desc:"Живой сюжет пишется под ваши решения" },
+            { id:"classic", title:"⚡ ЭКСПРЕСС", desc:"Офлайн, готовые сценарии, быстрее" },
           ].map(m => (
             <button key={m.id} onClick={() => setMode(m.id)} {...hov(mode === m.id)} aria-pressed={mode === m.id}
               style={{ textAlign:"left", padding:"12px 14px", borderRadius:4, background:mode===m.id?G.bg3:G.bg2, border:`1px solid ${mode===m.id?G.gold:G.bdr}`, color:mode===m.id?G.gld2:G.txt }}>
@@ -585,6 +634,12 @@ function Intro({ gs, onGo }) {
             <div style={{ fontFamily:serif, fontSize:16, fontStyle:"italic", lineHeight:1.8, color:G.txt }}>«{speech}»</div>
           </Card>
         )}
+        {gs.arc && (
+          <Card accent={G.red} style={{ marginBottom:12, background:"rgba(184,82,82,0.06)" }}>
+            <Label>{"// ДОСЬЕ · СЕКРЕТНО"}</Label>
+            <div style={{ fontFamily:serif, fontSize:17, fontStyle:"italic", lineHeight:1.6, color:G.txt }}>{ARCS.find(a => a.id === gs.arc.id)?.teaser}</div>
+          </Card>
+        )}
         {situation && (
           <Card accent={G.red} style={{ marginBottom:12 }}>
             <Label>{"// ОПЕРАТИВНАЯ ОБСТАНОВКА"}</Label>
@@ -641,13 +696,19 @@ function Game({ gs, setGs, onEnd, onMenu }) {
   useEffect(() => { gsRef.current = gs; }, [gs]);
 
   const [attempt, setAttempt] = useState(0);
+  const [typedTurn, setTypedTurn] = useState(null);
+  const typed = typedTurn === gs.turn;
+  const prefetch = useRef(null); // следующее событие грузится, пока игрок читает итог
   const commit = useCallback(next => { gsRef.current = next; setGs(next); }, [setGs]);
 
   // Новое событие запрашивается, когда его нет и отчёт о прошлом ходе уже закрыт.
   useEffect(() => {
     if (!needsEvent) return;
     let cancelled = false;
-    apiFor(gsRef.current.mode).event(gsRef.current).then(
+    const pf = prefetch.current;
+    prefetch.current = null;
+    const request = pf && pf.turn === gsRef.current.turn ? pf.promise : apiFor(gsRef.current.mode).event(gsRef.current);
+    request.then(
       event => {
         if (cancelled) return;
         commit(startEvent(gsRef.current, event));
@@ -672,7 +733,13 @@ function Game({ gs, setGs, onEnd, onMenu }) {
     setBusy("choice"); setError(null);
     try {
       const consequence = await apiFor(gsRef.current.mode).consequence(gsRef.current, choice.id);
-      commit(resolveTurn(gsRef.current, choice.id, consequence));
+      const next = resolveTurn(gsRef.current, choice.id, consequence);
+      commit(next);
+      if (!next.ended) {
+        const promise = apiFor(next.mode).event(next);
+        promise.catch(() => {}); // ошибку покажет обычная загрузка события
+        prefetch.current = { turn: next.turn, promise };
+      }
     } catch (e) {
       console.error(e);
       setError({ message: e.message, choice });
@@ -866,7 +933,12 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                   <ResourceChips delta={event.randomEvent.resourceEffect}/>
                 </div>
               )}
-              <Card style={{ marginBottom:12 }}>
+              <Card style={{ marginBottom:12, ...(event.beat ? { borderColor:G.red, background:"rgba(184,82,82,0.06)" } : {}) }}>
+                {event.beat && (
+                  <div style={{ fontFamily:mono, fontSize:11, color:G.red, letterSpacing:".14em", marginBottom:8 }}>
+                    🕵 ГЛАВНАЯ ИНТРИГА · «{event.beat.arcTitle.toUpperCase()}» · ЭПИЗОД {event.beat.episode}/{event.beat.total}
+                  </div>
+                )}
                 <div style={{ fontFamily:mono, fontSize:11, color:G.bl2, letterSpacing:".12em", marginBottom:12 }}>
                   📡 {event.source?.toUpperCase()}
                   {event.isCritical && <span style={{ marginLeft:12, color:G.red }}>🚨 КРИТИЧЕСКОЕ</span>}
@@ -907,7 +979,8 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                   : lastTurn.chance < 1 && <div style={{ fontFamily:mono, fontSize:11, color:G.grn, letterSpacing:".08em", marginBottom:8 }}>✔ ИСПОЛНЕНО · шанс был {Math.round(lastTurn.chance * 100)}%</div>}
                 <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:8 }}>Решение: {lastTurn.choiceText}{lastTurn.tags?.length ? ` · ${lastTurn.tags.map(t => ACTIONS[t].label).join(", ")}` : ""}</div>
                 <div style={{ fontFamily:serif, fontSize:24, fontWeight:600, color:G.gld2, marginBottom:14, lineHeight:1.25 }}>«{lastTurn.headline}»</div>
-                <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{lastTurn.narrative}</div>
+                <Typewriter key={`t${turn}`} text={lastTurn.narrative} onDone={() => setTypedTurn(turn)}/>
+                <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
 
                 {turnDelta && Object.values(turnDelta).some(v => v !== 0) && (
                   <div style={{ marginBottom:12 }}>
@@ -935,7 +1008,9 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                   <div style={{ marginTop:12, padding:"10px 14px", background:G.bg3, borderRadius:4, fontFamily:mono, fontSize:11, color:G.tx3 }}>📜 {lastTurn.historianNote}</div>
                 )}
                 </div>
+                </div>
               </Card>
+              <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
 
               {lastTurn.matured?.map(p => (
                 <div key={p.id} style={{ marginBottom:8, padding:"10px 14px", borderRadius:4, background:G.bg2, border:`1px solid ${G.bdr2}` }}>
@@ -970,11 +1045,12 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                 </div>
               )}
 
-              <div style={{ textAlign:"right" }}>
+              </div>
+              {typed && <div style={{ textAlign:"right" }}>
                 {gs.ended
                   ? <PrimaryBtn id="next-turn" onClick={onEnd} danger>ПОДВЕСТИ ИТОГИ ⏎</PrimaryBtn>
                   : <PrimaryBtn id="next-turn" onClick={nextTurn}>СЛЕДУЮЩИЙ ХОД ⏎</PrimaryBtn>}
-              </div>
+              </div>}
             </div>
           )}
 

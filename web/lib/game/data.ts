@@ -1,8 +1,8 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "3.1";
-export const SAVE_VERSION = 6; // 6: режимы, шанс успеха, мета
+export const APP_VERSION = "3.2";
+export const SAVE_VERSION = 7; // 7: сквозные интриги
 export const MAX_TURNS = 20;
 
 export interface CountryInfo {
