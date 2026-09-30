@@ -97,6 +97,7 @@ function sanitizeChoice(c: Obj, id: string, crisisIds: string[], allowArc = fals
     id, text, hint: str(c.hint, TEXT.hint), tags,
     resolvesCrisis: crisisIds.includes(resolves) ? resolves : null,
     ...(allowArc && isObj(c.arc) ? { arc: sanitizeArcChoice(c.arc) } : {}),
+    ...(allowArc && str(c.scene, TEXT.long) ? { scene: str(c.scene, TEXT.long) } : {}),
   };
 }
 

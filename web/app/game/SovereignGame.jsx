@@ -472,7 +472,7 @@ function Setup({ onStart, saved, onResume }) {
   const [country, setCountry] = useState(null);
   const [diff, setDiff]       = useState(null);
   const [ideo, setIdeo]       = useState(null);
-  const [mode, setMode]       = useState("ai");
+  const [mode, setMode]       = useState("classic");
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState(null);
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
@@ -533,8 +533,8 @@ function Setup({ onStart, saved, onResume }) {
 
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:22 }} className="sv-two-col">
           {[
-            { id:"ai",      title:"✦ ТРИЛЛЕР", desc:"Живой сюжет пишется под ваши решения" },
-            { id:"classic", title:"⚡ ЭКСПРЕСС", desc:"Офлайн, готовые сценарии, быстрее" },
+            { id:"classic", title:"🕵 ТРИЛЛЕР", desc:"Авторский сюжет · офлайн · бесплатно" },
+            { id:"ai",      title:"✦ ИИ-РЕЖИССЁР", desc:"Импровизирует сюжет · тратит лимит Claude" },
           ].map(m => (
             <button key={m.id} onClick={() => setMode(m.id)} {...hov(mode === m.id)} aria-pressed={mode === m.id}
               style={{ textAlign:"left", padding:"12px 14px", borderRadius:4, background:mode===m.id?G.bg3:G.bg2, border:`1px solid ${mode===m.id?G.gold:G.bdr}`, color:mode===m.id?G.gld2:G.txt }}>

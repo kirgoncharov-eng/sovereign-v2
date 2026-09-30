@@ -1,6 +1,8 @@
 // Режим «Сценарии»: та же игра без обращения к модели. Событие выбирается из библиотеки
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
+import { ARCS } from "../content/arcs.ts";
 import { EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../content/events.ts";
+import { SCENES } from "../content/scenes.ts";
 import {
   COUNCIL_TEXT, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
   IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, SPEECHES, TAG_LINES, TITLES,
@@ -117,6 +119,7 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
     choices: card.choices.map((c, i) => ({
       id: ["a", "b", "c", "d"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags,
       resolvesCrisis: c.resolves ? crisisId : null,
+      ...(SCENES[card.id]?.[i] ? { scene: fill(SCENES[card.id][i], state) } : {}),
     })),
     council: null,
     randomEvent: random ? { title: random.title, description: random.description, resourceEffect: random.effect } : null,
@@ -132,22 +135,30 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const pollsBefore = computePolls(state.country, state.factions, state.resources).leader;
   const pollsAfter = computePolls(state.country, plan.factions, plan.resources).leader;
 
-  const parts: string[] = [`Решение принято: ${plan.choice.text.charAt(0).toLowerCase()}${plan.choice.text.slice(1)}.`];
+  // Сцена: авторская (эпизод интриги или карточка), при провале — как сорвалось исполнение.
+  const parts: string[] = [];
   const arc = plan.choice.arc;
-  if (arc) parts.push(plan.success ? arc.ok : arc.fail ?? pick(r, TAG_LINES[plan.choice.tags[0]].fail));
+  const failLine = () => pick(r, TAG_LINES[plan.choice.tags[0]].fail);
+  if (arc) parts.push(plan.success ? arc.ok : arc.fail ?? failLine());
+  else if (plan.choice.scene) parts.push(plan.success ? plan.choice.scene : failLine());
   else for (const tag of plan.choice.tags) parts.push(pick(r, TAG_LINES[tag][plan.success ? "ok" : "fail"]));
-  if (plan.resolvedCrisis) parts.push(`Кризис «${plan.resolvedCrisis}» удалось закрыть.`);
-  for (const m of plan.matured) parts.push(`Тем временем аукнулось прошлое решение: «${m.label}».`);
+  if (plan.resolvedCrisis && !arc) parts.push(`Кризис «${plan.resolvedCrisis}» наконец отступает.`);
+  for (const m of plan.matured) parts.push(`А тем временем даёт о себе знать прошлое: «${m.label}».`);
   if (plan.election) {
     const e = plan.election;
-    parts.push(`${ELECTION_LABEL[e.kind]}: партия власти набрала ${e.leader}%, ${e.top.name} — ${e.top.share}%. ${e.outcome === "won" ? "Победа." : e.outcome === "impeached" ? "Разгром." : "Поражение."}`);
+    parts.push(e.outcome === "won"
+      ? `${ELECTION_LABEL[e.kind]}: в штабе открывают шампанское в 23:40 — ${e.leader}% против ${e.top.share}% у «${e.top.name}».`
+      : `${ELECTION_LABEL[e.kind]}: к полуночи всё ясно. «${e.top.name}» — ${e.top.share}%, у вас ${e.leader}%. В штабе выключают телевизоры.`);
   }
-  if (pollsAfter !== pollsBefore) parts.push(`Рейтинг партии власти: ${pollsBefore}% → ${pollsAfter}%.`);
+  if (Math.abs(pollsAfter - pollsBefore) >= 4) parts.push(pollsAfter > pollsBefore ? "Социологи фиксируют рост доверия — впервые за долгое время." : "Утренние опросы ложатся на стол молча. Цифры говорят сами.");
+  // Нить интриги: между эпизодами — зловещая строка-предвестие.
+  const arcDef = ARCS.find(a => a.id === state.arc?.id);
+  if (arcDef && !arc && !plan.endType) parts.push(fill(arcDef.hooks[(state.turn * 3 + (state.seed % 5)) % arcDef.hooks.length], state));
 
   const react = (sign: number, pool: string[]) => state.keyFigures
     .filter(f => Math.sign(plan.effects.factionRel[f.faction] ?? 0) === sign)
     .slice(0, 2)
-    .map(f => fill(pick(r, pool), state, { name: f.name, role: f.role.toLowerCase() }));
+    .map(f => fill(pick(r, pool), state, { name: f.name, role: f.role.charAt(0).toLowerCase() + f.role.slice(1) }));
   const reactions = [...react(1, REACT_APPROVE), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
 
   const key = plan.newCrisisKey;

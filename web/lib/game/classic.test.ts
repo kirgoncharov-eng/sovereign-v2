@@ -92,3 +92,20 @@ test("финальный эпизод зависит от сделанных р�
   const blind = { ...mole, arc: { ...mole.arc, flags: ["ignore", "purge", "deal"] } };
   assert.equal(dueBeat(blind)!.variant.title, "Крот наносит удар");
 });
+
+test("у каждой авторской карточки есть сцена на каждый вариант, у каждой интриги — нить предвестий", async () => {
+  const { SCENES } = await import("../content/scenes.ts");
+  const { ARCS } = await import("../content/arcs.ts");
+  for (const c of EVENT_CARDS) assert.equal(SCENES[c.id]?.length, c.choices.length, `сцены для ${c.id}`);
+  for (const a of ARCS) assert.ok(a.hooks.length >= 6, a.id);
+});
+
+test("в тексте итога нет роботизированных фраз, между эпизодами звучит нить интриги", async () => {
+  let s = await newGame();
+  s = startEvent(s, await classicApi.event(s));
+  const n = await classicApi.consequence(s, "a");
+  assert.ok(!n.narrative.startsWith("Решение принято"));
+  const { ARCS } = await import("../content/arcs.ts");
+  const hooks = ARCS.find(a => a.id === s.arc!.id)!.hooks.map(h => fill(h, s));
+  assert.ok(hooks.some(h => n.narrative.includes(h)));
+});

@@ -59,6 +59,7 @@ export interface Choice {
   resolvesCrisis: string | null; // id кризиса, который закрывает это решение
   advisor?: { id: string; name: string; role: string; skill: 1 | 2 | 3 } | null; // автор предложения
   arc?: ArcChoice | null; // сюжетный вариант эпизода интриги
+  scene?: string;         // авторская сцена-последствие (режим без ИИ)
 }
 
 export interface ArcChoice {
