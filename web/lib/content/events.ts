@@ -35,6 +35,7 @@ export interface EventCard {
 }
 
 import { GENERATED_CARDS } from "./generated.ts";
+import { MORE_CARDS } from "./events-more.ts";
 
 const AUTHORED_CARDS: EventCard[] = [
   // ── Экономика ──────────────────────────────────────────────────────────────
@@ -398,7 +399,7 @@ const AUTHORED_CARDS: EventCard[] = [
     ] },
 ];
 
-export const EVENT_CARDS: EventCard[] = [...AUTHORED_CARDS, ...GENERATED_CARDS];
+export const EVENT_CARDS: EventCard[] = [...AUTHORED_CARDS, ...MORE_CARDS, ...GENERATED_CARDS];
 
 export interface RandomCard { title: string; description: string; effect: ResourceDelta }
 

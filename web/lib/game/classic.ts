@@ -161,7 +161,10 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const failLine = () => pick(r, TAG_LINES[plan.choice.tags[0]].fail);
   let scene: string;
   if (arc) scene = plan.success ? arc.ok : arc.fail ?? failLine();
-  else if (plan.choice.scene) scene = plan.success ? plan.choice.scene : `${failLine()} ${pick(r, TAG_LINES[plan.choice.tags[0]].fail)}`;
+  else if (plan.choice.scene) {
+    const fails = [...new Set(plan.choice.tags.flatMap(t => TAG_LINES[t].fail))];
+    scene = plan.success ? plan.choice.scene : fails.sort(() => r() - 0.5).slice(0, 2).join(" ");
+  }
   else scene = plan.choice.tags.map(tag => pick(r, TAG_LINES[tag][plan.success ? "ok" : "fail"])).join(" ");
 
   const after: string[] = [];
