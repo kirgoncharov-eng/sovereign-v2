@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ACTIONS, CRISIS_DRAIN, LIMITS, MAX_TURNS, START_RES } from "./data.ts";
 import {
-  applyDeltas, choiceEffects, computePublicApproval, createInitialState, detectEnd, planTurn, resolveTurn, startEvent, tickCrises,
+  applyDeltas, choiceEffects, computePolls, createInitialState, detectEnd, planTurn, resolveTurn, startEvent, tickCrises,
 } from "./engine.ts";
 import type { Choice, GameEvent, GameState, Narration } from "./types.ts";
 
@@ -132,11 +132,10 @@ test("tickCrises: кризис затухает по истечении срок
 test("detectEnd: поражение важнее конца мандата, легитимность → революция", () => {
   const s = newGame();
   assert.equal(detectEnd(s.resources, s.factions, 3), null);
-  assert.equal(detectEnd(s.resources, s.factions, MAX_TURNS), "mandate");
+  assert.equal(detectEnd(s.resources, s.factions, MAX_TURNS), "mandate"); // переизбрание решают выборы в planTurn
   assert.equal(detectEnd({ ...s.resources, economy: LIMITS.endResource }, s.factions, MAX_TURNS), "collapse");
   assert.equal(detectEnd({ ...s.resources, internalLegitimacy: 0 }, s.factions, 5), "revolution");
-  const angry = s.factions.map(f => ({ ...f, approval: 0 }));
-  assert.equal(computePublicApproval(angry), 0);
+  const angry = s.factions.map(f => ({ ...f, relation: -100 }));
   assert.equal(detectEnd(s.resources, angry, 5), "revolution");
 });
 
@@ -145,4 +144,36 @@ test("powerLoss сохраняется только при поражении", 
   const next = resolveTurn(s, "a", { ...narration, powerLoss: "Переворот." });
   assert.equal(next.endType, "collapse");
   assert.equal(next.powerLoss, "Переворот.");
+});
+
+test("опрос: доли в сумме 100, Запад и Кремль не голосуют, отношение двигает рейтинг", () => {
+  const s = newGame();
+  const p = computePolls(s.country, s.factions, s.resources);
+  assert.equal(p.leader + p.undecided + p.parties.reduce((a, x) => a + x.share, 0), 100);
+  const noForeign = computePolls(s.country, s.factions.map(f => f.bloc === "west" ? { ...f, relation: -100 } : f), s.resources);
+  assert.equal(noForeign.leader, p.leader);
+  const loved = computePolls(s.country, s.factions.map(f => ({ ...f, relation: 100 })), s.resources);
+  assert.ok(loved.leader > p.leader);
+});
+
+test("парламентские выборы на 10-м ходу: победа даёт бонус, провал — импичмент", () => {
+  const at9 = (factions: GameState["factions"]) => startEvent({ ...newGame(), turn: 9, factions }, event([choice("a", ["delay"]), choice("b", ["delay"])]));
+  const won = resolveTurn(at9(newGame().factions), "a", narration);
+  assert.equal(won.lastTurn?.election?.outcome, "won");
+  assert.equal(won.elections.length, 1);
+  const hated = newGame().factions.map(f => ({ ...f, relation: f.bloc === "security" ? 0 : -85 }));
+  const lost = resolveTurn(at9(hated), "a", narration);
+  assert.equal(lost.lastTurn?.election?.outcome, "impeached");
+  assert.equal(lost.endType, "impeachment");
+});
+
+test("президентские выборы на последнем ходу решают переизбрание", () => {
+  const s = startEvent({ ...newGame(), turn: MAX_TURNS - 1 }, event([choice("a", ["delay"]), choice("b", ["delay"])]));
+  assert.equal(resolveTurn(s, "a", narration).endType, "reelected");
+});
+
+test("враждебные и сильные силовики устраивают переворот", () => {
+  const base = newGame();
+  const s = startEvent({ ...base, turn: 4, factions: base.factions.map(f => f.bloc === "security" ? { ...f, relation: -95 } : f) }, event([choice("a", ["delay"]), choice("b", ["delay"])]));
+  assert.equal(resolveTurn(s, "a", narration).endType, "coup");
 });

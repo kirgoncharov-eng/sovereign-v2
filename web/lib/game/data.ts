@@ -1,8 +1,8 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "2.5";
-export const SAVE_VERSION = 2; // 2: варианты с тегами, движок считает последствия
+export const APP_VERSION = "2.6";
+export const SAVE_VERSION = 3; // 3: партии, выборы, новые концовки
 export const MAX_TURNS = 20;
 
 export interface CountryInfo {
@@ -146,10 +146,47 @@ export const EVENT_SOURCES = ["МИД","Разведка","Кабинет","Ул
 export const RATINGS = ["Провал","Слабое правление","Противоречивое наследие","Стабильность","Успех","Историческое достижение"];
 
 export const END_TYPES = {
-  mandate:    "Завершение мандата (20 ходов)",
-  revolution: "Народная революция",
-  collapse:   "Коллапс государства",
+  reelected:   "Переизбран на второй срок",
+  mandate:     "Мандат завершён, выборы проиграны",
+  revolution:  "Народная революция",
+  collapse:    "Коллапс государства",
+  coup:        "Военный переворот",
+  impeachment: "Импичмент после провала на выборах",
 } as const;
+
+// ── Партии и выборы ──────────────────────────────────────────────────────────
+// Партии-конкуренты лидера: забирают голоса групп из своих блоков, недовольных лидером.
+export interface PartyInfo { id: string; name: string; blocs: Bloc[] }
+
+export const PARTIES: Record<string, PartyInfo[]> = {
+  "Беларусь": [
+    { id:"order",  name:"Партия порядка",          blocs:["security","business"] },
+    { id:"union",  name:"Союзное государство",     blocs:["church","nationalist"] },
+    { id:"demo",   name:"Демократический альянс",  blocs:["liberal","regional"] },
+  ],
+  "Украина": [
+    { id:"front",  name:"Национальный фронт",      blocs:["nationalist","security"] },
+    { id:"region", name:"Блок регионов",           blocs:["regional","business"] },
+    { id:"europe", name:"Европейский выбор",       blocs:["liberal","church"] },
+  ],
+  "Грузия": [
+    { id:"dream",  name:"Грузинская мечта",        blocs:["ruling","church"] },
+    { id:"unity",  name:"Проевропейская коалиция", blocs:["liberal"] },
+    { id:"growth", name:"Партия роста",            blocs:["business","regional","nationalist"] },
+  ],
+};
+
+// Внешние силы влияют на лидера, но не голосуют.
+export const NON_VOTING_BLOCS: Bloc[] = ["west", "russia"];
+
+export const ELECTIONS: Record<number, "parliament" | "president"> = { 10: "parliament", 20: "president" };
+export const ELECTION_LABEL = { parliament: "Парламентские выборы", president: "Президентские выборы" } as const;
+export const ELECTION_WIN_BONUS: ResourceDelta = { politicalCapital: 8, internalLegitimacy: 4 };
+export const ELECTION_LOSS_PENALTY: ResourceDelta = { politicalCapital: -8, personalResource: -4 };
+export const IMPEACH_RATING = 15;   // ниже на парламентских выборах — импичмент
+export const COUP_RELATION = -70;   // средн. отношение силовиков, при котором возможен переворот
+export const COUP_MILITARY = 40;    // …если у силовиков есть ресурс
+export const COUP_FROM_TURN = 3;
 
 // ── Балансные ограничения ─────────────────────────────────────────────────────
 // Модель предлагает изменения, но движок не даёт им выйти за эти рамки.
@@ -163,7 +200,7 @@ export const LIMITS = {
   crisisDrainKeys: 3,
   maxActiveCrises: 3,
   endResource: 4,         // ресурс ≤ этого → коллапс
-  endApproval: 5,         // рейтинг ≤ этого → революция
+  endRating: 8,           // рейтинг партии лидера ≤ этого → революция
 } as const;
 
 // ── Действия ──────────────────────────────────────────────────────────────────

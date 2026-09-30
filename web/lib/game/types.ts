@@ -15,7 +15,7 @@ export type DifficultyId = "debut" | "coalition" | "crisis" | "ruins";
 export type IdeologyId = "liberal" | "nationalist" | "pragmatist" | "leftist";
 export type Loyalty = "союзник" | "нейтрал" | "враг";
 export type Severity = "low" | "medium" | "high" | "critical";
-export type EndType = "mandate" | "revolution" | "collapse";
+export type EndType = "reelected" | "mandate" | "revolution" | "collapse" | "coup" | "impeachment";
 export type Bloc = "security" | "business" | "church" | "liberal" | "west" | "russia" | "nationalist" | "regional" | "ruling";
 export type ActionTag =
   | "repress" | "security" | "reform" | "pro_west" | "pro_russia" | "social" | "austerity"
@@ -101,6 +101,18 @@ export interface TurnReport extends Narration {
   resolvedCrisis: string | null; // название
   expiredCrises: string[]; // названия
   newCrisis: NewCrisis | null;
+  election: Election | null;
+}
+
+export interface PartyShare { id: string; name: string; share: number }
+export interface Polls { leader: number; parties: PartyShare[]; undecided: number }
+
+export interface Election {
+  turn: number;
+  kind: "parliament" | "president";
+  leader: number;          // % партии лидера
+  top: PartyShare;         // сильнейший конкурент
+  outcome: "won" | "lost" | "impeached";
 }
 
 export interface HistoryEntry {
@@ -150,6 +162,7 @@ export interface GameState {
   year: number;
   turn: number;
   history: HistoryEntry[];
+  elections: Election[];
   currentEvent: GameEvent | null;
   lastTurn: TurnReport | null;
   ended: boolean;

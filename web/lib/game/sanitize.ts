@@ -6,13 +6,13 @@ import {
 } from "./data.ts";
 import { loyaltyLabel } from "./engine.ts";
 import type {
-  ActionTag, Choice, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
+  ActionTag, Choice, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
   HistoryEntry, IdeologyId, Intro, NewCrisis, RandomEvent, ResourceDelta, Resources, Severity, Verdict,
 } from "./types.ts";
 
 type Obj = Record<string, unknown>;
 const SEVERITIES: Severity[] = ["low", "medium", "high", "critical"];
-const END_TYPE_IDS: EndType[] = ["mandate", "revolution", "collapse"];
+const END_TYPE_IDS: EndType[] = ["reelected", "mandate", "revolution", "collapse", "coup", "impeachment"];
 const CHOICE_IDS = ["a", "b", "c", "d"];
 
 export const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
@@ -232,6 +232,17 @@ function sanitizeCrises(v: unknown): Crisis[] {
   return out;
 }
 
+function sanitizeElections(v: unknown): Election[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter(isObj).slice(0, 2).map(e => ({
+    turn: num(e.turn, 1, MAX_TURNS, 10),
+    kind: e.kind === "president" ? "president" as const : "parliament" as const,
+    leader: num(e.leader, 0, 100, 0),
+    top: { id: str(isObj(e.top) ? e.top.id : "", 20), name: str(isObj(e.top) ? e.top.name : "", TEXT.name), share: num(isObj(e.top) ? e.top.share : 0, 0, 100, 0) },
+    outcome: e.outcome === "won" ? "won" as const : e.outcome === "impeached" ? "impeached" as const : "lost" as const,
+  }));
+}
+
 function sanitizeHistory(v: unknown): HistoryEntry[] {
   if (!Array.isArray(v)) return [];
   return v.filter(isObj).slice(-MAX_TURNS).map(h => ({
@@ -274,6 +285,7 @@ export function sanitizeState(raw: unknown): GameState | null {
     year: num(raw.year, startYear, startYear + MAX_TURNS, startYear),
     turn,
     history: sanitizeHistory(raw.history),
+    elections: sanitizeElections(raw.elections),
     currentEvent: isObj(raw.currentEvent)
       ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, crisisIds: activeCrises.map(c => c.id) })
       : null,

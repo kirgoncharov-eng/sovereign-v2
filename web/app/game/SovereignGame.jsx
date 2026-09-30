@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
-import { ACTIONS, APP_VERSION, COUNTRIES, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
-import { choiceEffects, computePublicApproval, createInitialState, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { ACTIONS, APP_VERSION, COUNTRIES, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
+import { choiceEffects, computePolls, createInitialState, isSurvival, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api } from "@/lib/client/api.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
@@ -111,18 +111,56 @@ function RelBar({ label, val, prevVal }) {
   );
 }
 
-function PublicApprovalWidget({ value }) {
-  const c = value >= 50 ? G.grn : value >= 30 ? G.amb : G.red;
-  const label = value >= 60 ? "ВЫСОКИЙ" : value >= 40 ? "СРЕДНИЙ" : value >= 25 ? "НИЗКИЙ" : "КРИТИЧЕСКИЙ";
+function nextElection(turn) {
+  const t = Object.keys(ELECTIONS).map(Number).find(x => x > turn);
+  return t ? { label: ELECTION_LABEL[ELECTIONS[t]], in: t - turn } : null;
+}
+
+function PollWidget({ gs }) {
+  const [info, setInfo] = useState(false);
+  const polls = computePolls(gs.country, gs.factions, gs.resources);
+  const prev = gs.prevFactions && gs.prevResources ? computePolls(gs.country, gs.prevFactions, gs.prevResources) : null;
+  const next = nextElection(gs.turn);
+  const top = Math.max(...polls.parties.map(p => p.share));
+  const rows = [
+    { id:"me", name:gs.leader.party || "Ваша партия", share:polls.leader, prev:prev?.leader, me:true },
+    ...polls.parties.map(p => ({ ...p, prev:prev?.parties.find(x => x.id === p.id)?.share })),
+    { id:"und", name:"Не определились", share:polls.undecided, muted:true },
+  ];
+  const leading = polls.leader > top;
   return (
-    <div style={{ textAlign:"center", padding:"12px 0" }}>
-      <div style={{ fontFamily:mono, fontSize:9, color:G.tx3, letterSpacing:".15em", marginBottom:6 }}>РЕЙТИНГ НАРОДА</div>
-      <div style={{ fontFamily:serif, fontSize:32, fontWeight:600, color:c, lineHeight:1 }}>{value}%</div>
-      <div style={{ fontFamily:mono, fontSize:9, color:c, letterSpacing:".15em", marginTop:4 }}>{label}</div>
-      <div style={{ height:3, background:G.bdr, borderRadius:2, marginTop:8 }}>
-        <div style={{ height:"100%", width:`${value}%`, background:c, borderRadius:2, transition:"all .7s ease" }}/>
+    <Card style={{ marginBottom:10 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+        <span style={{ fontFamily:mono, fontSize:10, letterSpacing:".15em", color:G.tx3 }}>ОПРОС</span>
+        <button onClick={()=>setInfo(v=>!v)} aria-expanded={info} title="Как считается рейтинг"
+          style={{ background:"transparent", border:`1px solid ${G.bdr}`, color:G.tx3, borderRadius:10, width:18, height:18, fontSize:10, lineHeight:"16px", padding:0 }}>?</button>
       </div>
-    </div>
+      {info && (
+        <div style={{ fontFamily:serif, fontSize:12, color:G.tx2, lineHeight:1.5, marginBottom:10, padding:"8px 10px", background:G.bg3, borderRadius:4 }}>
+          Голосуют группы общества — по своему весу. Группа поддерживает вас тем сильнее, чем лучше её отношение к вам и чем выше легитимность и экономика. Недовольные уходят к партии-конкуренту своего лагеря. Запад и Кремль не голосуют. Рейтинг ≤ {LIMITS.endRating}% — революция.
+        </div>
+      )}
+      {rows.map(r => {
+        const d = r.prev !== undefined ? r.share - r.prev : 0;
+        const c = r.me ? G.gold : r.muted ? G.tx3 : G.bl2;
+        return (
+          <div key={r.id} style={{ marginBottom:7 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:6, marginBottom:2 }}>
+              <span style={{ fontFamily:mono, fontSize:10, color:r.me?G.gld2:G.tx2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.me ? "★ " : ""}{r.name}</span>
+              <span style={{ fontFamily:mono, fontSize:10, color:c, whiteSpace:"nowrap" }}>
+                {r.share}%{d !== 0 && <span style={{ color:d>0?G.grn:G.red, marginLeft:3 }}>{signed(d)}</span>}
+              </span>
+            </div>
+            <div style={{ height:r.me?4:2, background:G.bdr, borderRadius:2 }}>
+              <div style={{ height:"100%", width:`${r.share}%`, background:c, borderRadius:2, transition:"all .7s ease" }}/>
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ fontFamily:mono, fontSize:9, color:leading?G.grn:G.amb, marginTop:8, letterSpacing:".06em" }}>
+        {leading ? "▲ ВЫ ЛИДИРУЕТЕ" : "▼ КОНКУРЕНТ ВПЕРЕДИ"}{next ? ` · ${next.label.toLowerCase()} через ${next.in} ход.` : ""}
+      </div>
+    </Card>
   );
 }
 
@@ -345,17 +383,16 @@ function Game({ gs, setGs, onEnd, onMenu }) {
 
   const { resources, prevResources, factions, prevFactions, keyFigures, prevFigures, leader, country, year, turn, history, ideo, activeCrises, currentEvent: event, lastTurn } = gs;
   const ci = IDEOLOGIES.find(i => i.id === ideo);
-  const publicApproval = computePublicApproval(factions);
   const warnLevel = warningLevel(gs);
   const turnDelta = lastTurn && prevResources
     ? Object.fromEntries(RES_CONFIG.map(r => [r.key, resources[r.key] - prevResources[r.key]]))
     : null;
 
   const tabs = [
-    { id:"res", label:"📊", title:"Ресурсы" },
-    { id:"fac", label:"🏛️", title:"Фракции" },
-    { id:"fig", label:"👥", title:"Ключевые игроки" },
-    { id:"log", label:"📜", title:"Хроника" },
+    { id:"res", label:"РЕСУРСЫ", title:"Ресурсы государства" },
+    { id:"fac", label:"СИЛЫ", title:"Фракции и группы общества" },
+    { id:"fig", label:"ЛЮДИ", title:"Ключевые игроки" },
+    { id:"log", label:"ХРОНИКА", title:"Хроника правления" },
   ];
 
   return (
@@ -376,12 +413,12 @@ function Game({ gs, setGs, onEnd, onMenu }) {
             <div style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>◷ {year} · ход {turn}/{MAX_TURNS}</div>
           </Card>
 
-          <PublicApprovalWidget value={publicApproval}/>
+          <PollWidget gs={gs}/>
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:4, margin:"10px 0 6px" }}>
             {tabs.map(t => (
               <button key={t.id} onClick={()=>setSideTab(t.id)} title={t.title} aria-label={t.title}
-                style={{ padding:"6px 0", borderRadius:4, border:`1px solid ${sideTab===t.id?G.gold:G.bdr}`, background:sideTab===t.id?G.bg3:G.bg2, color:sideTab===t.id?G.gold:G.tx3, fontSize:14 }}>
+                style={{ padding:"7px 0", borderRadius:4, border:`1px solid ${sideTab===t.id?G.gold:G.bdr}`, background:sideTab===t.id?G.bg3:G.bg2, color:sideTab===t.id?G.gold:G.tx3, fontSize:8.5, letterSpacing:".06em" }}>
                 {t.label}
               </button>
             ))}
@@ -392,21 +429,32 @@ function Game({ gs, setGs, onEnd, onMenu }) {
               <>
                 <Label>{"// РЕСУРСЫ"}</Label>
                 {RES_CONFIG.map(r => <ResBar key={r.key} label={r.label} val={resources[r.key]} prev={prevResources?prevResources[r.key]:undefined}/>)}
+                <div style={{ fontFamily:mono, fontSize:9, color:G.tx3, marginTop:10, lineHeight:1.6 }}>
+                  ниже 20 — кризис · ≤ {LIMITS.endResource} — падение власти<br/>ниже 30 — понемногу восстанавливается
+                </div>
               </>
             )}
             {sideTab === "fac" && (
               <>
-                <Label>{"// ФРАКЦИИ"}</Label>
-                {factions.map(f => {
-                  const prev = prevFactions?.find(p => p.id === f.id);
-                  return (
-                    <div key={f.id} style={{ marginBottom:10 }}>
-                      <div style={{ fontFamily:mono, fontSize:10, color:G.tx2, marginBottom:3 }}>{f.emoji} {f.name}</div>
-                      <RelBar label="нар." val={f.approval} prevVal={prev?.approval}/>
-                      <RelBar label="к вам" val={f.relation} prevVal={prev?.relation}/>
-                    </div>
-                  );
-                })}
+                <Label>{"// ОТНОШЕНИЕ К ВАМ"}</Label>
+                {(() => {
+                  const voters = factions.filter(f => !NON_VOTING_BLOCS.includes(f.bloc));
+                  const total = voters.reduce((s, f) => s + f.approval, 0) || 1;
+                  return factions.map(f => {
+                    const prev = prevFactions?.find(p => p.id === f.id);
+                    const foreign = NON_VOTING_BLOCS.includes(f.bloc);
+                    return (
+                      <div key={f.id} style={{ marginBottom:10 }}>
+                        <RelBar label={`${f.emoji} ${f.name}`} val={f.relation} prevVal={prev?.relation}/>
+                        <div style={{ fontFamily:mono, fontSize:9, color:G.tx3, marginTop:-4 }}>
+                          {foreign ? "внешняя сила · не голосует" : `${Math.round(f.approval / total * 100)}% избирателей`}
+                          {f.relation <= -60 && <span style={{ color:G.red }}> · враждебна, вредит</span>}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+                <div style={{ fontFamily:mono, fontSize:9, color:G.tx3, marginTop:6, lineHeight:1.6 }}>шкала −100…+100 · ≤ −60 — вредит каждый ход</div>
               </>
             )}
             {sideTab === "fig" && (
@@ -569,6 +617,16 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                 )}
               </Card>
 
+              {lastTurn.election && (
+                <div style={{ marginBottom:8, padding:"12px 14px", borderRadius:4, background:G.bg2, border:`1px solid ${lastTurn.election.outcome==="won"?G.grn:G.red}` }}>
+                  <div style={{ fontFamily:mono, fontSize:11, color:lastTurn.election.outcome==="won"?G.grn:G.red, letterSpacing:".08em", marginBottom:4 }}>
+                    🗳 {ELECTION_LABEL[lastTurn.election.kind].toUpperCase()}: {lastTurn.election.outcome==="won" ? "ПОБЕДА" : lastTurn.election.outcome==="impeached" ? "РАЗГРОМ И ИМПИЧМЕНТ" : "ПОРАЖЕНИЕ"}
+                  </div>
+                  <div style={{ fontFamily:mono, fontSize:10, color:G.tx2 }}>
+                    ваша партия {lastTurn.election.leader}% · {lastTurn.election.top.name} {lastTurn.election.top.share}%
+                  </div>
+                </div>
+              )}
               {lastTurn.resolvedCrisis && (
                 <div style={{ marginBottom:8, padding:"10px 14px", borderRadius:4, background:"rgba(92,184,122,0.08)", border:`1px solid ${G.grn}` }}>
                   <span style={{ fontFamily:mono, fontSize:11, color:G.grn }}>✔ КРИЗИС ПРЕОДОЛЁН: {lastTurn.resolvedCrisis.toUpperCase()}</span>
@@ -638,15 +696,15 @@ function Ending({ gs, setGs, onRestart }) {
   const retry = () => { setLoading(true); setError(null); setAttempt(a => a + 1); };
 
   const avgRes = Math.round(RES_CONFIG.reduce((s, r) => s + gs.resources[r.key], 0) / RES_CONFIG.length);
-  const pa = computePublicApproval(gs.factions);
-  const isLoss = gs.endType !== "mandate";
+  const pa = computePolls(gs.country, gs.factions, gs.resources).leader;
+  const isLoss = !isSurvival(gs.endType);
   const startYear = COUNTRIES[gs.country].startYear;
 
   return (
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"32px 16px" }}>
       <div style={{ maxWidth:660, width:"100%" }}>
         <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".22em", color:G.tx3, marginBottom:12 }}>{COUNTRIES[gs.country].flag} {gs.country.toUpperCase()} · {isLoss?"КОНЕЦ ПРАВЛЕНИЯ":"КОНЕЦ МАНДАТА"}</div>
+          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".22em", color:G.tx3, marginBottom:12 }}>{COUNTRIES[gs.country].flag} {gs.country.toUpperCase()} · {gs.endType ? END_TYPES[gs.endType].toUpperCase() : "КОНЕЦ ПРАВЛЕНИЯ"}</div>
           <Divider/>
         </div>
 

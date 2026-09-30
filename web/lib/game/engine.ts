@@ -1,12 +1,13 @@
 // Игровой движок: чистые функции без сети и без React.
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
 import {
-  ACTIONS, COUNTRIES, CRISIS_DRAIN, DIFF_PRESSURE, HOSTILE_DRAIN, HOSTILE_RELATION, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
+  ACTIONS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, CRISIS_DRAIN, DIFF_PRESSURE, ELECTIONS,
+  ELECTION_LOSS_PENALTY, ELECTION_WIN_BONUS, HOSTILE_DRAIN, HOSTILE_RELATION, IMPEACH_RATING, NON_VOTING_BLOCS, PARTIES, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, MAX_TURNS, RECOVERY_BELOW, RECOVERY_RATE,
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES,
 } from "./data.ts";
 import type {
-  Choice, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
+  Choice, Crisis, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
   Narration, NewCrisis, ResourceDelta, ResourceKey, Resources, Verdict,
 } from "./types.ts";
 
@@ -40,10 +41,42 @@ export function initFigures(
   });
 }
 
-export function computePublicApproval(factions: Faction[]): number {
-  if (!factions?.length) return 50;
-  return Math.round(factions.reduce((s, f) => s + f.approval, 0) / factions.length);
+// ── Опросы ───────────────────────────────────────────────────────────────────
+// Голосуют группы общества (фракции без внешних сил) пропорционально своему весу (approval).
+// Доля группы за лидера = её отношение к нему × настроение страны (легитимность и экономика).
+// Остальные уходят к партии-конкуренту своего блока или в «не определились».
+export function factionSupport(f: Faction, resources: Resources): number {
+  const mood = 0.3 + (resources.internalLegitimacy + resources.economy) / 200;
+  return Math.max(0, Math.min(1, ((f.relation + 100) / 200) * mood));
 }
+
+export function computePolls(country: string, factions: Faction[], resources: Resources): Polls {
+  const voters = factions.filter(f => !NON_VOTING_BLOCS.includes(f.bloc));
+  const total = voters.reduce((s, f) => s + f.approval, 0) || 1;
+  const rivals = PARTIES[country] ?? [];
+  const shares: Record<string, number> = Object.fromEntries(rivals.map(p => [p.id, 0]));
+  let leader = 0;
+  for (const f of voters) {
+    const w = f.approval / total;
+    const sup = factionSupport(f, resources);
+    leader += w * sup;
+    const rest = w * (1 - sup);
+    const party = rivals.find(p => p.blocs.includes(f.bloc));
+    if (party) shares[party.id] += rest * 0.75; // остальное — «не определились»
+  }
+  const pct = (v: number) => Math.round(v * 100);
+  const parties = rivals.map(p => ({ id: p.id, name: p.name, share: pct(shares[p.id]) }));
+  const lead = pct(leader);
+  return { leader: lead, parties, undecided: Math.max(0, 100 - lead - parties.reduce((s, p) => s + p.share, 0)) };
+}
+
+export const leaderRating = (factions: Faction[], resources: Resources) =>
+  computePolls("", factions, resources).leader;
+
+const securityRelation = (factions: Faction[]) => {
+  const sec = factions.filter(f => f.bloc === "security");
+  return sec.length ? sec.reduce((s, f) => s + f.relation, 0) / sec.length : 0;
+};
 
 export function applyDeltas(res: Resources, d: ResourceDelta | null | undefined): Resources {
   const n = { ...res };
@@ -72,16 +105,19 @@ export type WarningLevel = "none" | "warning" | "critical";
 
 export function warningLevel(state: Pick<GameState, "resources" | "factions">): WarningLevel {
   const minRes = Math.min(...RESOURCE_KEYS.map(k => state.resources[k]));
-  const pa = computePublicApproval(state.factions);
-  const minFacRel = Math.min(...state.factions.map(f => f.relation));
-  if (minRes <= 10 || pa <= 15 || minFacRel <= -80) return "critical";
-  if (minRes <= 22 || pa <= 25 || minFacRel <= -65) return "warning";
+  const rating = leaderRating(state.factions, state.resources);
+  const sec = securityRelation(state.factions);
+  if (minRes <= 10 || rating <= 15 || sec <= COUP_RELATION + 5) return "critical";
+  if (minRes <= 22 || rating <= 25 || sec <= COUP_RELATION + 15) return "warning";
   return "none";
 }
 
+export const isSurvival = (e: EndType | null) => e === "mandate" || e === "reelected";
+
 // Поражение важнее завершения мандата: рухнуть на последнем ходу — всё равно рухнуть.
 export function detectEnd(resources: Resources, factions: Faction[], turn: number): EndType | null {
-  if (computePublicApproval(factions) <= LIMITS.endApproval || resources.internalLegitimacy <= LIMITS.endResource) return "revolution";
+  if (leaderRating(factions, resources) <= LIMITS.endRating || resources.internalLegitimacy <= LIMITS.endResource) return "revolution";
+  if (turn >= COUP_FROM_TURN && securityRelation(factions) <= COUP_RELATION && resources.military >= COUP_MILITARY) return "coup";
   if (RESOURCE_KEYS.some(k => resources[k] <= LIMITS.endResource)) return "collapse";
   if (turn >= MAX_TURNS) return "mandate";
   return null;
@@ -103,6 +139,7 @@ export function createInitialState(
     year: COUNTRIES[country].startYear,
     turn: 0,
     history: [],
+    elections: [],
     currentEvent: null,
     lastTurn: null,
     ended: false, endType: null, powerLoss: null,
@@ -179,6 +216,7 @@ export interface TurnPlan {
   resolvedCrisis: string | null;
   expiredCrises: string[];
   hostileFactions: string[];
+  election: Election | null;
   newCrisisKey: ResourceKey | null; // ресурс, провал которого породил новый кризис
   endType: EndType | null;
 }
@@ -239,10 +277,24 @@ export function planTurn(state: GameState, choiceId: string): TurnPlan {
       !crises.some(c => c.resourceDrain[k])) ?? null;
   }
 
+  // Выборы: по итогам хода считается опрос, он же — результат голосования.
+  let election: Election | null = null;
+  const kind = ELECTIONS[turn];
+  if (kind) {
+    const polls = computePolls(state.country, factions, resources);
+    const top = [...polls.parties].sort((a, b) => b.share - a.share)[0] ?? { id: "", name: "", share: 0 };
+    const outcome = polls.leader > top.share ? "won" : kind === "parliament" && polls.leader < IMPEACH_RATING ? "impeached" : "lost";
+    election = { turn, kind, leader: polls.leader, top, outcome };
+    if (kind === "parliament") resources = applyDeltas(resources, outcome === "won" ? ELECTION_WIN_BONUS : ELECTION_LOSS_PENALTY);
+  }
+
+  let endType = election?.outcome === "impeached" ? "impeachment" : detectEnd(resources, factions, turn);
+  if (endType === "mandate" && election?.outcome === "won") endType = "reelected";
+
   return {
-    choice, effects, resources, factions, keyFigures, crises,
+    choice, effects, resources, factions, keyFigures, crises, election,
     resolvedCrisis, expiredCrises: tick.expired, hostileFactions: hostile.map(f => f.name), newCrisisKey,
-    endType: detectEnd(resources, factions, turn),
+    endType: endType as EndType | null,
   };
 }
 
@@ -272,6 +324,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     activeCrises: crises,
     turn,
     year: state.year + (turn % 4 === 0 ? 1 : 0),
+    elections: plan.election ? [...(state.elections ?? []), plan.election] : (state.elections ?? []),
     history: [...state.history, {
       year: state.year, title: event.title, choice: plan.choice.text,
       headline: narration.headline, historianNote: narration.historianNote,
@@ -286,9 +339,10 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       resolvedCrisis: plan.resolvedCrisis,
       expiredCrises: plan.expiredCrises,
       newCrisis,
+      election: plan.election,
     },
     ended: plan.endType !== null,
     endType: plan.endType,
-    powerLoss: plan.endType && plan.endType !== "mandate" ? narration.powerLoss : null,
+    powerLoss: plan.endType && !isSurvival(plan.endType) ? narration.powerLoss : null,
   };
 }
