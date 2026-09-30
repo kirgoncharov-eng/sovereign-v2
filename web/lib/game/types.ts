@@ -60,6 +60,7 @@ export interface Choice {
   advisor?: { id: string; name: string; role: string; skill: 1 | 2 | 3 } | null; // автор предложения
   arc?: ArcChoice | null; // сюжетный вариант эпизода интриги
   scene?: string;         // авторская сцена-последствие (режим без ИИ)
+  sceneFail?: string;     // авторская сцена на случай провала исполнения
 }
 
 export interface ArcChoice {
@@ -101,6 +102,7 @@ export interface GameEvent {
   affectedFactions: string[];
   choices: Choice[];
   council?: Choice[] | null; // предложения советников, если совет собирали
+  card?: string;        // авторская карточка, из которой собрано событие
   beat?: { arcId: string; arcTitle: string; turn: number; episode: number; total: number } | null; // эпизод интриги
   randomEvent: RandomEvent | null;
 }

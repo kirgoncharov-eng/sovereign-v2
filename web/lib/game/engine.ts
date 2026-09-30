@@ -212,7 +212,7 @@ export function createInitialState(
 export function startEvent(state: GameState, event: GameEvent & { cardId?: string }): GameState {
   const { cardId, ...ev } = event;
   const usedEvents = cardId ? [...(state.usedEvents ?? []), cardId].slice(-40) : (state.usedEvents ?? []);
-  return { ...state, currentEvent: ev, lastTurn: null, usedEvents };
+  return { ...state, currentEvent: cardId ? { ...ev, card: cardId } : ev, lastTurn: null, usedEvents };
 }
 
 // Совет собран: предложения советников добавляются к вариантам, тратится один сбор.

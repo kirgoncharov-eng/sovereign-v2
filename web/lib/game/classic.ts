@@ -1,6 +1,8 @@
 // Режим «Сценарии»: та же игра без обращения к модели. Событие выбирается из библиотеки
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
 import { ARCS } from "../content/arcs.ts";
+import { COUNCIL_A } from "../content/council-a.ts";
+import { COUNCIL_B } from "../content/council-b.ts";
 import { CRISIS_ESCALATE, EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../content/events.ts";
 import { SCENES } from "../content/scenes.ts";
 import { EVENT_EXT } from "../content/events-ext.ts";
@@ -182,7 +184,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   if (arc) scene = plan.success ? arc.ok : arc.fail ?? failLine();
   else if (plan.choice.scene) {
     const fails = [...new Set(plan.choice.tags.map(t => pick(r, COUNCIL_OUTCOME[t].fail)))];
-    scene = plan.success ? plan.choice.scene : fails.join(" ");
+    scene = plan.success ? plan.choice.scene : plan.choice.sceneFail ?? fails.join(" ");
   }
   else {
     // У предложений совета нет авторских сцен — берём итоги, которые подходят к любому делу.
@@ -252,8 +254,25 @@ function buildNarration(state: GameState, choiceId: string): Narration {
 // ── Совет ────────────────────────────────────────────────────────────────────
 const CRISIS_FIXERS = ["social", "investment", "anticorruption", "dialogue", "reform", "security"];
 
+const COUNCIL_CARDS = { ...COUNCIL_A, ...COUNCIL_B };
+
 function buildCouncil(state: GameState): Choice[] {
   const r = seededRandom(hashSeed(state.seed, "council", state.turn));
+  // Авторский совет для конкретного дела: у каждого советника свой ход и свои последствия.
+  const authored = state.currentEvent?.card ? COUNCIL_CARDS[state.currentEvent.card] : undefined;
+  if (authored) {
+    const crisisId = state.activeCrises[0]?.id ?? null;
+    const raw = ADVISOR_ROLES.flatMap(role => {
+      const p = authored[role.id as keyof typeof authored];
+      if (!p) return [];
+      const [tag, text, hint, ok, fail] = p;
+      return [{
+        advisor: role.id, text: fill(text, state), hint, tags: [tag], scene: fill(ok, state), sceneFail: fill(fail, state),
+        resolvesCrisis: crisisId && CRISIS_FIXERS.includes(tag) && r() < 0.5 ? crisisId : null,
+      }];
+    });
+    return sanitizeProposals(raw, state.advisors, state.activeCrises.map(c => c.id), true);
+  }
   const eventTags = state.currentEvent?.choices.flatMap(c => c.tags) ?? [];
   const used = new Set(eventTags);
   // Уместны только подходы, родственные вариантам самого события.

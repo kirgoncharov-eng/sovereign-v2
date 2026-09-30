@@ -164,3 +164,28 @@ test("совет предлагает только уместное событи
     assert.equal(new Set(list.map(p => p.tags[0])).size, list.length, card.id);
   }
 });
+
+test("у каждого события свой совет: не меньше трёх советников, теги из их области, сцены на успех и провал", async () => {
+  const { COUNCIL_A } = await import("../content/council-a.ts");
+  const { COUNCIL_B } = await import("../content/council-b.ts");
+  const { ADVISOR_ROLES } = await import("./data.ts");
+  const all = { ...COUNCIL_A, ...COUNCIL_B };
+  for (const card of EVENT_CARDS.filter(c => !c.when?.crisis)) {
+    const council = all[card.id];
+    assert.ok(council, `совет для ${card.id}`);
+    const entries = Object.entries(council);
+    assert.ok(entries.length >= 3, card.id);
+    for (const [role, [tag, text, hint, ok, fail]] of entries) {
+      assert.ok(ADVISOR_ROLES.find(r => r.id === role)?.domain.includes(tag), `${card.id}/${role}: ${tag}`);
+      assert.ok(text && hint && ok.length > 60 && fail.length > 40, `${card.id}/${role}`);
+    }
+  }
+  // совет собирается из авторских предложений и несёт сцены
+  let s = await newGame();
+  const card = EVENT_CARDS.find(c => c.id === "strike")!;
+  s = startEvent(s, { cardId: "strike", title: card.title, source: "", description: "", isCritical: false, affectedFactions: [], council: null, randomEvent: null,
+    choices: card.choices.map((c, i) => ({ id: "abc"[i], text: c.text, hint: c.hint, tags: c.tags, resolvesCrisis: null })) });
+  const list = await classicApi.council(s);
+  assert.equal(list.length, 4);
+  assert.ok(list.every(p => p.scene && p.sceneFail && !/\{\w+/.test(p.text + p.scene)));
+});

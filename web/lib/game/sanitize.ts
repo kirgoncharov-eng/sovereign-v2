@@ -98,12 +98,13 @@ function sanitizeChoice(c: Obj, id: string, crisisIds: string[], allowArc = fals
     resolvesCrisis: crisisIds.includes(resolves) ? resolves : null,
     ...(allowArc && isObj(c.arc) ? { arc: sanitizeArcChoice(c.arc) } : {}),
     ...(allowArc && str(c.scene, TEXT.long) ? { scene: str(c.scene, TEXT.long) } : {}),
+    ...(allowArc && str(c.sceneFail, TEXT.long) ? { sceneFail: str(c.sceneFail, TEXT.long) } : {}),
   };
 }
 
 // Предложения совета: по одному от советника, только из его области.
 // Приходят от модели (advisor — id роли) или из сохранённого состояния (advisor — объект).
-export function sanitizeProposals(v: unknown, advisors: Advisor[], crisisIds: string[]): Choice[] {
+export function sanitizeProposals(v: unknown, advisors: Advisor[], crisisIds: string[], allowScenes = false): Choice[] {
   if (!Array.isArray(v)) return [];
   const out: Choice[] = [];
   for (const adv of advisors) {
@@ -111,7 +112,7 @@ export function sanitizeProposals(v: unknown, advisors: Advisor[], crisisIds: st
     if (!isObj(raw)) continue;
     const domain = ADVISOR_ROLES.find(r => r.id === adv.id)?.domain ?? [];
     const tags = Array.isArray(raw.tags) ? raw.tags.filter(t => domain.includes(t as ActionTag)) : [];
-    const choice = sanitizeChoice({ ...raw, tags }, `x${out.length + 1}`, crisisIds);
+    const choice = sanitizeChoice({ ...raw, tags }, `x${out.length + 1}`, crisisIds, allowScenes);
     if (choice) out.push({ ...choice, advisor: { id: adv.id, name: adv.name, role: adv.role, skill: adv.skill } });
   }
   return out;
@@ -160,7 +161,8 @@ export function sanitizeEvent(
     affectedFactions: affected,
     choices,
     randomEvent: opts.allowRandom ? sanitizeRandomEvent(raw.randomEvent) : null,
-    council: opts.advisors ? sanitizeProposals(raw.council, opts.advisors, opts.crisisIds) : null,
+    council: opts.advisors ? sanitizeProposals(raw.council, opts.advisors, opts.crisisIds, opts.allowArc) : null,
+    ...(opts.allowArc && str(raw.card, 40) ? { card: str(raw.card, 40) } : {}),
     beat: opts.allowArc && isObj(raw.beat) ? {
       arcId: str(raw.beat.arcId, 20), arcTitle: str(raw.beat.arcTitle, TEXT.name),
       turn: num(raw.beat.turn, 1, MAX_TURNS, 1), episode: num(raw.beat.episode, 1, 9, 1), total: num(raw.beat.total, 1, 9, 4),
