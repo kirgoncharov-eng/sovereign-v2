@@ -1545,7 +1545,7 @@ function Ending({ gs, setGs, onRestart }) {
             <Card style={{ marginBottom:12, order:4 }}>
               <Label>{`ГЛАВНАЯ ИНТРИГА · «${def?.title.toUpperCase()}»`}</Label>
               <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.6, color:G.txt, fontStyle:solved ? "normal" : "italic" }}>
-                {solved ? gs.arc.epilogue : `Осталась нераскрытой. ${def?.teaser} Кем был ${gs.arc.targetRole ? gs.arc.targetRole[0].toLowerCase() + gs.arc.targetRole.slice(1) : "тот человек"} ${gs.arc.target} на самом деле, история так и не узнала.`}
+                {solved ? gs.arc.epilogue : `Осталась нераскрытой. ${def?.teaser} Правда о человеке по имени ${gs.arc.target}${gs.arc.targetRole ? ` (${gs.arc.targetRole[0].toLowerCase() + gs.arc.targetRole.slice(1)})` : ""} так и не вышла наружу.`}
               </div>
             </Card>
           );

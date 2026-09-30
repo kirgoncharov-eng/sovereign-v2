@@ -333,8 +333,8 @@ function buildVerdict(state: GameState): Verdict {
     `${ELECTION_LABEL[e.kind].toLowerCase()} ${e.outcome === "won" ? "выиграны" : "проиграны"} (${e.leader}% против ${e.top.share}%)`).join(", ");
 
   const verdict = [
-    `${state.leader.name} правил страной с ${startYear} по ${state.year} год — ${state.history.length} из ${MAX_TURNS} ключевых решений.`,
-    topCount ? `Его главным инструментом был «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему он прибегал ${plural(topCount, "раз", "раза", "раз")}.` : "",
+    `${state.leader.name} правил страной с ${startYear} по ${state.year} год и успел принять ${state.history.length} из ${MAX_TURNS} ключевых решений.`,
+    topCount ? `Главный инструмент правления — «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему лидер прибегал ${plural(topCount, "раз", "раза", "раз")}.` : "",
     elections ? `Выборы: ${elections}.` : "",
     state.stats?.crisesResolved ? `Кризисов преодолено: ${state.stats.crisesResolved}.` : "",
     `К концу правления партия власти имела ${rating}% поддержки.`,
