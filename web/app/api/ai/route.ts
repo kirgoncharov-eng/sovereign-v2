@@ -32,7 +32,7 @@ function sameOrigin(req: Request): boolean {
 
 // Клиент спрашивает, доступен ли режим «ИИ-режиссёр» на этом сервере.
 export function GET() {
-  return Response.json({ ai: Boolean(process.env.ANTHROPIC_API_KEY) || process.env.AI_MOCK === "1" });
+  return Response.json({ ai: Boolean(process.env.GOOGLE_AI_KEY || process.env.ANTHROPIC_API_KEY) || process.env.AI_MOCK === "1" });
 }
 
 export async function POST(req: Request) {

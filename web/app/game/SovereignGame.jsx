@@ -18,6 +18,7 @@ const expressApi = {
   ending: theatrical(classicApi.ending, 1500),
 };
 const apiFor = mode => (mode === "classic" ? expressApi : aiApi);
+import { initTelegram, telegramShare } from "@/lib/client/telegram.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
 const barColor = v => v >= 60 ? "#5cb87a" : v >= 35 ? "#c9a04a" : "#b85252";
@@ -1161,14 +1162,17 @@ function shareText(gs) {
     v.epitaph ? `«${v.epitaph}»` : "",
     "",
     isSurvival(gs.endType) ? "Сможешь лучше?" : `Мой президент продержался ${plural(gs.history.length, "ход", "хода", "ходов")}. А твой?`,
-    /^https?:/.test(location.href) ? location.href.split("#")[0] : "",
+    shareUrl(),
   ].filter((l, i, a) => l || (i > 0 && a[i - 1])).join("\n").trim();
 }
+
+const shareUrl = () => process.env.NEXT_PUBLIC_SHARE_URL || (/^https?:/.test(location.href) ? location.href.split("#")[0] : "");
 
 function ShareButton({ gs }) {
   const [state, setState] = useState(null); // "ok" | "manual"
   const text = shareText(gs);
   const copy = async () => {
+    if (telegramShare(text.replace(shareUrl(), "").trim(), shareUrl())) return;
     if (navigator.share && matchMedia("(pointer:coarse)").matches) {
       try { await navigator.share({ text }); return; } catch (e) { if (e?.name === "AbortError") return; }
     }
@@ -1350,6 +1354,7 @@ export default function App() {
   const [gs, setGs]         = useState(null);
   const savedRaw = useSyncExternalStore(subscribeSave, readSaveRaw, () => null);
   const saved = useMemo(() => parseSave(savedRaw), [savedRaw]);
+  useEffect(() => initTelegram(G.bg), []);
 
   // Автосохранение: после каждого изменения партии, пока игрок не в меню.
   useEffect(() => {
