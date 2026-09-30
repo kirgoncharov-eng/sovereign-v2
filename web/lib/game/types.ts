@@ -121,6 +121,13 @@ export interface Narration {
   crisisTitle: string | null; // название нового кризиса, если движок его создал
   crisisDescription: string | null;
   powerLoss: string | null;
+  document?: TurnDocument | null; // газеты или перехват — документ хода
+}
+
+export interface TurnDocument {
+  kind: "press" | "intercept";
+  title: string;
+  lines: string[];
 }
 
 // То, что показывается игроку после хода: текст модели + то, что посчитал движок.

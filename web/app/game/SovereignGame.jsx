@@ -262,6 +262,33 @@ function CouncilPanel({ gs, onConvened, optProps }) {
   );
 }
 
+const DATELINE = /^[А-Я][а-я]+, \d\d:\d\d\. /;
+
+// Текст главы: абзацы; первый абзац-шапка (день, время, место) — в стиле сводки.
+function Prose({ text }) {
+  const paras = String(text).split(/\n\n+/);
+  return (
+    <div>
+      {paras.map((p, i) => DATELINE.test(p)
+        ? <div key={i} style={{ fontFamily:mono, fontSize:11, color:G.gold, letterSpacing:".04em", lineHeight:1.7, marginBottom:14, paddingLeft:10, borderLeft:`2px solid ${G.bdr2}` }}>{p}</div>
+        : <p key={i} style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:i === 1 ? G.txt : G.tx2, marginBottom:12 }}>{p}</p>)}
+    </div>
+  );
+}
+
+// Документ хода: вырезка из газет или перехват спецслужб.
+function DocumentCard({ doc }) {
+  const secret = doc.kind === "intercept";
+  return (
+    <div style={{ margin:"14px 0", padding:"14px 16px", background:secret ? "rgba(184,82,82,0.06)" : "rgba(214,210,198,0.04)", border:`1px dashed ${secret ? G.red : G.bdr2}`, borderRadius:3 }}>
+      <div style={{ fontFamily:mono, fontSize:10, letterSpacing:".2em", color:secret ? G.red : G.tx2, marginBottom:10 }}>{secret ? "◉ " : "▤ "}{doc.title}</div>
+      {doc.lines.map((l, i) => (
+        <div key={i} style={{ fontFamily:secret ? mono : serif, fontSize:secret ? 12 : 16, fontWeight:secret ? 400 : 600, fontStyle:secret && i > 0 ? "italic" : "normal", color:secret && i > 0 ? G.tx3 : G.txt, lineHeight:1.5, padding:"4px 0", borderTop:!secret && i ? `1px solid ${G.bdr}` : "none" }}>{l}</div>
+      ))}
+    </div>
+  );
+}
+
 // Итог хода печатается как телеграмма; клик, Enter или пробел — показать сразу.
 function Typewriter({ text, onDone }) {
   const [n, setN] = useState(0);
@@ -278,7 +305,7 @@ function Typewriter({ text, onDone }) {
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     const t = setInterval(() => {
       setN(x => {
-        const next = x + 3;
+        const next = x + 6;
         if (next >= text.length) { clearInterval(t); setTimeout(finish, 0); }
         return next;
       });
@@ -944,7 +971,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                   {event.isCritical && <span style={{ marginLeft:12, color:G.red }}>🚨 КРИТИЧЕСКОЕ</span>}
                 </div>
                 <div style={{ fontFamily:serif, fontSize:26, fontWeight:600, color:G.txt, lineHeight:1.25, marginBottom:14 }}>{event.title}</div>
-                <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.8, color:G.tx2 }}>{event.description}</div>
+                <Prose text={event.description}/>
                 {event.affectedFactions?.length > 0 && (
                   <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:12 }}>
                     <span style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>Затронуто:</span>
@@ -1004,6 +1031,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                 {(lastTurn.reactions||[]).map((r,i)=>(
                   <div key={i} style={{ fontFamily:serif, fontSize:14, color:G.tx2, fontStyle:"italic", padding:"6px 0", borderTop:`1px solid ${G.bdr}` }}>▸ {r}</div>
                 ))}
+                {lastTurn.document && <DocumentCard doc={lastTurn.document}/>}
                 {lastTurn.historianNote && (
                   <div style={{ marginTop:12, padding:"10px 14px", background:G.bg3, borderRadius:4, fontFamily:mono, fontSize:11, color:G.tx3 }}>📜 {lastTurn.historianNote}</div>
                 )}

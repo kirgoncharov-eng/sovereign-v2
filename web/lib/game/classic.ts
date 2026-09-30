@@ -3,11 +3,14 @@
 import { ARCS } from "../content/arcs.ts";
 import { EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../content/events.ts";
 import { SCENES } from "../content/scenes.ts";
+import { EVENT_EXT } from "../content/events-ext.ts";
+import { BEAT_EXT } from "../content/beats-ext.ts";
+import { INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, PRESS_BY_TAG, PRESS_GENERAL, TIMES, WEATHER, WEEKDAYS } from "../content/frame.ts";
 import {
   COUNCIL_TEXT, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
   IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
-import { ACTIONS, ADVISOR_ROLES, COUNTRIES, ELECTIONS, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
+import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, ELECTIONS, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
 import { computePolls, dueBeat, hashSeed, isSurvival, planTurn, seededRandom, warningLevel } from "./engine.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import type { Bloc, Choice, DifficultyId, GameEvent, GameState, IdeologyId, Intro, Narration, Verdict } from "./types.ts";
@@ -32,7 +35,10 @@ function rivalName(state: GameState): string {
 export function fill(tpl: string, state: GameState, extra: Record<string, string> = {}): string {
   return tpl.replace(/\{(\w+)(?::(\w+))?\}/g, (m, key: string, arg?: string) => {
     switch (key) {
-      case "capital": return COUNTRIES[state.country].capital;
+      case "capital": {
+        const cap = COUNTRIES[state.country].capital;
+        return arg ? CAPITAL_CASES[cap]?.[arg as keyof (typeof CAPITAL_CASES)[string]] ?? cap : cap;
+      }
       case "country": return state.country;
       case "leader": return state.leader.name;
       case "rival": return rivalName(state);
@@ -44,6 +50,14 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
     }
   });
 }
+
+// Шапка главы: день, время, погода, место. Детерминирована ходом, чтобы не менялась при перезагрузке.
+export function dateline(state: GameState): string {
+  const r = seededRandom(hashSeed(state.seed, "dateline", state.turn));
+  return fill(`${pick(r, WEEKDAYS)}, ${pick(r, TIMES)}. ${pick(r, WEATHER)} ${pick(r, PLACES)}`, state);
+}
+
+const chapter = (...parts: (string | undefined | null)[]) => parts.filter(Boolean).join("\n\n");
 
 // ── Выбор карточки ───────────────────────────────────────────────────────────
 const neededBlocs = (card: EventCard) =>
@@ -88,7 +102,7 @@ export function beatEvent(state: GameState): GameEvent | null {
   return {
     title: fill(variant.title, state),
     source: "Секретно",
-    description: fill(variant.description, state),
+    description: chapter(dateline(state), fill(variant.description, state), BEAT_EXT[variant.title] && fill(BEAT_EXT[variant.title], state)),
     isCritical: episode === total,
     affectedFactions: [],
     choices: variant.choices.map((c, i) => ({
@@ -113,7 +127,7 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
     cardId: card.id,
     title: fill(card.title, state),
     source: card.source,
-    description: fill(card.description, state),
+    description: chapter(dateline(state), fill(card.description, state), EVENT_EXT[card.id] && fill(EVENT_EXT[card.id], state)),
     isCritical: warningLevel(state) === "critical",
     affectedFactions: state.factions.filter(f => blocs.has(f.bloc)).slice(0, 4).map(f => f.id),
     choices: card.choices.map((c, i) => ({
@@ -135,25 +149,40 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const pollsBefore = computePolls(state.country, state.factions, state.resources).leader;
   const pollsAfter = computePolls(state.country, plan.factions, plan.resources).leader;
 
-  // Сцена: авторская (эпизод интриги или карточка), при провале — как сорвалось исполнение.
-  const parts: string[] = [];
+  // Глава хода: сцена → последствия → «тем временем» → крючок интриги.
   const arc = plan.choice.arc;
   const failLine = () => pick(r, TAG_LINES[plan.choice.tags[0]].fail);
-  if (arc) parts.push(plan.success ? arc.ok : arc.fail ?? failLine());
-  else if (plan.choice.scene) parts.push(plan.success ? plan.choice.scene : failLine());
-  else for (const tag of plan.choice.tags) parts.push(pick(r, TAG_LINES[tag][plan.success ? "ok" : "fail"]));
-  if (plan.resolvedCrisis && !arc) parts.push(`Кризис «${plan.resolvedCrisis}» наконец отступает.`);
-  for (const m of plan.matured) parts.push(`А тем временем даёт о себе знать прошлое: «${m.label}».`);
+  let scene: string;
+  if (arc) scene = plan.success ? arc.ok : arc.fail ?? failLine();
+  else if (plan.choice.scene) scene = plan.success ? plan.choice.scene : `${failLine()} ${pick(r, TAG_LINES[plan.choice.tags[0]].fail)}`;
+  else scene = plan.choice.tags.map(tag => pick(r, TAG_LINES[tag][plan.success ? "ok" : "fail"])).join(" ");
+
+  const after: string[] = [];
+  if (plan.resolvedCrisis && !arc) after.push(`Кризис «${plan.resolvedCrisis}» наконец отступает. В ситуационном центре впервые за много дней кто-то шутит.`);
+  for (const m of plan.matured) after.push(`А тем временем даёт о себе знать прошлое: «${m.label}». Вы помните, с чего это началось, — с решения «${m.source}».`);
   if (plan.election) {
     const e = plan.election;
-    parts.push(e.outcome === "won"
-      ? `${ELECTION_LABEL[e.kind]}: в штабе открывают шампанское в 23:40 — ${e.leader}% против ${e.top.share}% у «${e.top.name}».`
-      : `${ELECTION_LABEL[e.kind]}: к полуночи всё ясно. «${e.top.name}» — ${e.top.share}%, у вас ${e.leader}%. В штабе выключают телевизоры.`);
+    after.push(e.outcome === "won"
+      ? `${ELECTION_LABEL[e.kind]}. В штабе открывают шампанское в 23:40, когда приходят данные из последнего региона: ${e.leader}% против ${e.top.share}% у «${e.top.name}». Вы выходите к сторонникам и впервые за месяц улыбаетесь не для камер.`
+      : `${ELECTION_LABEL[e.kind]}. К полуночи всё ясно: «${e.top.name}» — ${e.top.share}%, у вас ${e.leader}%. В штабе молча выключают телевизоры. Кто-то уже собирает вещи.`);
   }
-  if (Math.abs(pollsAfter - pollsBefore) >= 4) parts.push(pollsAfter > pollsBefore ? "Социологи фиксируют рост доверия — впервые за долгое время." : "Утренние опросы ложатся на стол молча. Цифры говорят сами.");
+  if (Math.abs(pollsAfter - pollsBefore) >= 4) after.push(pollsAfter > pollsBefore
+    ? "Утренние опросы ложатся на стол, и социолог впервые за долгое время позволяет себе улыбнуться: доверие растёт."
+    : "Утренние опросы ложатся на стол молча. Социолог не поднимает глаз. Цифры говорят сами.");
+
+  // «Тем временем»: персонаж, чьё отношение изменилось сильнее всего.
+  const moved = [...state.keyFigures]
+    .map(f => ({ f, d: plan.effects.factionRel[f.faction] ?? 0 }))
+    .filter(x => x.d !== 0)
+    .sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
+  const intercut = moved ? fill(pick(r, moved.d > 0 ? INTERCUT_WARM : INTERCUT_COLD), state,
+    { name: moved.f.name, role: moved.f.role.charAt(0).toLowerCase() + moved.f.role.slice(1) }) : null;
+
   // Нить интриги: между эпизодами — зловещая строка-предвестие.
   const arcDef = ARCS.find(a => a.id === state.arc?.id);
-  if (arcDef && !arc && !plan.endType) parts.push(fill(arcDef.hooks[(state.turn * 3 + (state.seed % 5)) % arcDef.hooks.length], state));
+  const hook = arcDef && !arc && !plan.endType
+    ? fill(arcDef.hooks[(state.turn * 3 + (state.seed % 5)) % arcDef.hooks.length], state) : null;
+  const parts = [scene, after.join(" "), intercut, hook];
 
   const react = (sign: number, pool: string[]) => state.keyFigures
     .filter(f => Math.sign(plan.effects.factionRel[f.faction] ?? 0) === sign)
@@ -161,10 +190,20 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     .map(f => fill(pick(r, pool), state, { name: f.name, role: f.role.charAt(0).toLowerCase() + f.role.slice(1) }));
   const reactions = [...react(1, REACT_APPROVE), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
 
+  // Документ хода: между эпизодами интриги — перехват, в остальных ходах — утренние газеты.
+  const document = arcDef && !arc && state.turn % 2 === 1
+    ? { kind: "intercept" as const, title: "ПЕРЕХВАТ · СОВЕРШЕННО СЕКРЕТНО", lines: [INTERCEPTS[arcDef.id][Math.floor(state.turn / 2) % INTERCEPTS[arcDef.id].length], "Источник не установлен. Абонент на связь больше не выходил."] }
+    : { kind: "press" as const, title: "УТРЕННИЕ ГАЗЕТЫ", lines: [
+        pick(r, PRESS_BY_TAG[plan.choice.tags[0]]),
+        fill(pick(r, PRESS_GENERAL), state),
+        ...(plan.choice.tags[1] ? [pick(r, PRESS_BY_TAG[plan.choice.tags[1]])] : []),
+      ] };
+
   const key = plan.newCrisisKey;
   return {
     headline: fill(pick(r, HEADLINES[tone]), state),
-    narrative: parts.join(" "),
+    narrative: chapter(...parts),
+    document,
     reactions,
     historianNote: pick(r, HISTORIAN[tone]),
     crisisTitle: key ? pick(r, CRISIS_TITLES[key]) : null,
