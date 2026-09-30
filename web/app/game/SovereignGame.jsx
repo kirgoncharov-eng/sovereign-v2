@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import { ACTIONS, APP_VERSION, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
-import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api as aiApi } from "@/lib/client/api.ts";
 import { classicApi } from "@/lib/game/classic.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
@@ -20,6 +20,7 @@ const expressApi = {
 const apiFor = mode => (mode === "classic" ? expressApi : aiApi);
 import { initTelegram, telegramShare } from "@/lib/client/telegram.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
+import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
 const barColor = v => v >= 60 ? "var(--grn)" : v >= 35 ? "var(--amb)" : "var(--red)";
@@ -35,6 +36,43 @@ const hov = (active) => ({
   onMouseOver: e => { if (!active) { e.currentTarget.style.background = G.bg3; e.currentTarget.style.borderColor = G.gold; } },
   onMouseOut:  e => { if (!active) { e.currentTarget.style.background = G.bg2; e.currentTarget.style.borderColor = G.bdr; } }
 });
+
+// Значки опор власти в духе Reigns: силуэт заполняется снизу по уровню ресурса.
+const RES_SHAPES = {
+  politicalCapital: <path d="M2 9.5 12 3l10 6.5zM4 11h3v7H4zm4.5 0h3v7h-3zm4.5 0h3v7h-3zm4.5 0h3v7h-3zM2 19h20v2.5H2z"/>,
+  economy: <g><rect x="3" y="17.5" width="14" height="3.5" rx="1.6"/><rect x="5" y="13" width="14" height="3.5" rx="1.6"/><rect x="3.5" y="8.5" width="14" height="3.5" rx="1.6"/><rect x="6" y="4" width="14" height="3.5" rx="1.6"/></g>,
+  military: <path d="M12 2 20.5 5v6.2c0 5.2-3.6 9.6-8.5 10.8-4.9-1.2-8.5-5.6-8.5-10.8V5zm0 5.2-1.3 2.9-3.1.3 2.3 2.1-.7 3.1 2.8-1.6 2.8 1.6-.7-3.1 2.3-2.1-3.1-.3z" fillRule="evenodd"/>,
+  externalReputation: <path d="M4 2h2.2v20H4zm2.2 1.4c3-1.6 5.4 1.4 8.2 0 2.2-1.1 4-1 6 0v9.4c-2-1-3.8-1.1-6 0-2.8 1.4-5.2-1.6-8.2 0z"/>,
+  internalLegitimacy: <g><circle cx="6.5" cy="8.5" r="2.7"/><circle cx="17.5" cy="8.5" r="2.7"/><circle cx="12" cy="6.5" r="3.2"/><path d="M1.5 20.5a5 5.6 0 0 1 10 0zm11 0a5 5.6 0 0 1 10 0z"/><path d="M5.8 21.5a6.2 7.4 0 0 1 12.4 0z"/></g>,
+  personalResource: <path d="M7 7a5 5 0 1 1 0 10A5 5 0 0 1 7 7zm0 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm4.6.8H22v2.6h-2v3.2h-2.4v-3.2h-1.4v2.2h-2.4v-2.2h-2.2z" fillRule="evenodd"/>,
+};
+function ResIcon({ k, value = 100, size = 24, color = "currentColor", dim = "var(--bdr2)" }) {
+  const id = useId();
+  const shape = RES_SHAPES[k];
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" style={{ display:"block", flexShrink:0 }}>
+      <defs><clipPath id={id}><rect x="0" y={24 * (1 - Math.max(0, Math.min(100, value)) / 100)} width="24" height="24"/></clipPath></defs>
+      <g fill={dim}>{shape}</g>
+      <g fill={color} clipPath={`url(#${id})`}>{shape}</g>
+    </svg>
+  );
+}
+
+// Карандашный портрет персонажа (рисуется один раз на имя и кэшируется).
+function Portrait({ name, size = 44, style }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c || !name) return;
+    const ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.drawImage(portraitCanvas(name, isFemaleName(name)), 0, 0);
+  }, [name]);
+  return <canvas ref={ref} width={PORTRAIT_W} height={PORTRAIT_H} aria-hidden="true"
+    style={{ width:size, height:Math.round(size * 1.25), background:"var(--paper-hi)", border:"1px solid rgba(0,0,0,.18)", boxShadow:"0 1px 3px rgba(0,0,0,.2)", flexShrink:0, ...style }}/>;
+}
+// Кто из известных людей произносит реплику: имя стоит в её начале.
+const speakerOf = (gs, text) => [...(gs.keyFigures ?? []), ...(gs.advisors ?? [])].find(p => String(text).includes(p.name));
 
 function Divider() { return <div style={{ height:1, background:G.bdr, margin:"0 0 24px" }}/>; }
 function Label({ children }) { return <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3, marginBottom:10 }}>{children}</div>; }
@@ -59,12 +97,21 @@ function Chip({ value, children }) {
     </span>
   );
 }
+function IconDelta({ k, value }) {
+  const pos = value > 0;
+  return (
+    <span title={`${RES_CONFIG.find(r => r.key === k)?.prompt}: ${signed(value)}`} style={{ display:"inline-flex", alignItems:"center", gap:4, fontFamily:narrow, fontSize:16, fontWeight:700, color:pos?G.grn:G.red, whiteSpace:"nowrap" }}>
+      <ResIcon k={k} size={17} color={pos?G.grn:G.red}/>{signed(value)}
+      <span style={{ position:"absolute", width:1, height:1, overflow:"hidden", clip:"rect(0 0 0 0)" }}>{SHORT[k]}</span>
+    </span>
+  );
+}
 function ResourceChips({ delta }) {
   const items = RES_CONFIG.filter(r => delta?.[r.key]);
   if (!items.length) return null;
   return (
-    <div style={{ display:"flex", flexWrap:"wrap", gap:"2px 14px" }}>
-      {items.map(r => <Chip key={r.key} value={delta[r.key]}>{SHORT[r.key]}</Chip>)}
+    <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 16px" }}>
+      {items.map(r => <IconDelta key={r.key} k={r.key} value={delta[r.key]}/>)}
     </div>
   );
 }
@@ -81,13 +128,13 @@ function ErrorBanner({ message, onRetry }) {
   );
 }
 
-function ResBar({ label, val, prev }) {
+function ResBar({ k, label, val, prev }) {
   const c = barColor(val);
   const delta = prev !== undefined ? val - prev : 0;
   return (
     <div style={{ marginBottom:9 }}>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-        <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{label}</span>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:7, fontFamily:narrow, fontSize:15, color:G.tx2 }}><ResIcon k={k} size={16} color={G.tx2}/>{label}</span>
         <span style={{ fontFamily:narrow, fontSize:15, color:c, fontWeight:"bold" }}>
           {val}{delta!==0&&<span style={{ color:delta>0?G.grn:G.red, marginLeft:3 }}>{signed(delta)}</span>}
         </span>
@@ -190,8 +237,9 @@ function ChoicePreview({ gs, c }) {
   return (
     <>
       {c.advisor && (
-        <div className="sv-hand" style={{ fontSize:18, lineHeight:1.2, marginBottom:4 }}>
-          предлагает {c.advisor.name}, {c.advisor.role.toLowerCase()} {stars(c.advisor.skill)}
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+          <Portrait name={c.advisor.name} size={30}/>
+          <span className="sv-hand" style={{ fontSize:18, lineHeight:1.2 }}>предлагает {c.advisor.name}, {c.advisor.role.toLowerCase()} {stars(c.advisor.skill)}</span>
         </div>
       )}
       <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
@@ -250,11 +298,12 @@ function CouncilPanel({ gs, onConvened, optProps, stamping }) {
         </button>
       )) : (
         <>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:"2px 16px", marginBottom:8 }}>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:"8px 18px", marginBottom:10 }}>
             {(gs.advisors ?? []).map(a => (
               <span key={a.id} title={`${a.role} · ${ADVISOR_SKILL[a.skill].label}`}
-                style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>
-                {a.name} <span style={{ color:G.gold }}>{stars(a.skill)}</span>
+                style={{ display:"inline-flex", alignItems:"center", gap:8, fontFamily:narrow, fontSize:15, color:G.tx2 }}>
+                <Portrait name={a.name} size={26}/>
+                <span>{a.name} <span style={{ color:G.gold }}>{stars(a.skill)}</span></span>
               </span>
             ))}
           </div>
@@ -395,18 +444,17 @@ function Hud({ gs, preview, onMenu, onHelp }) {
           {RES_CONFIG.map(r => {
             const v = gs.resources[r.key];
             const to = plan ? plan.resources[r.key] : null;
-            const lo = Math.min(v, to ?? v), hi = Math.max(v, to ?? v);
+            const d = to === null ? 0 : to - v;
             const danger = (to ?? v) <= LIMITS.endResource;
+            const dot = Math.abs(d) >= 6 ? 11 : 6;
             return (
-              <div key={r.key} title={r.prompt}>
-                <div style={{ display:"flex", flexWrap:"wrap", justifyContent:"space-between", columnGap:4, fontFamily:narrow, fontSize:15, lineHeight:1.2, fontVariantNumeric:"tabular-nums" }}>
-                  <span style={{ color:G.tx2, whiteSpace:"nowrap" }}>{SHORT[r.key]}</span>
-                  <span style={{ color:barColor(v), whiteSpace:"nowrap" }}>{danger && to !== null ? "! " : ""}{v}{arrow(v, to)}</span>
+              <div key={r.key} title={`${r.prompt}: ${v}${d ? ` → ${to}` : ""}`} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+                <div style={{ height:11, display:"flex", alignItems:"center" }}>
+                  {d !== 0 && <span className="sv-fade" style={{ width:dot, height:dot, borderRadius:"50%", background:d > 0 ? G.grn : G.red }}/>}
                 </div>
-                <div style={{ position:"relative", height:4, background:G.bdr, borderRadius:2, marginTop:3, overflow:"hidden" }}>
-                  <div style={{ position:"absolute", inset:0, width:`${lo}%`, background:barColor(v), transition:"width .5s" }}/>
-                  {to !== null && hi > lo && <div style={{ position:"absolute", top:0, bottom:0, left:`${lo}%`, width:`${hi - lo}%`, background:to > v ? G.grn : G.red, opacity:.8 }}/>}
-                  <div style={{ position:"absolute", top:0, bottom:0, left:"20%", width:1, background:G.bg }}/>
+                <ResIcon k={r.key} value={v} size={34} color={danger && to !== null ? G.red : barColor(v)}/>
+                <div style={{ fontFamily:narrow, fontSize:14, lineHeight:1, color:G.tx2, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>
+                  {v}{d !== 0 && <span style={{ color:d > 0 ? G.grn : G.red }}>→{to}</span>}
                 </div>
               </div>
             );
@@ -475,6 +523,17 @@ function HowToPlay({ onClose }) {
             <div style={{ fontFamily:serif, fontSize:15, color:G.txt, lineHeight:1.55 }}>{t}</div>
           </div>
         ))}
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, letterSpacing:".05em", color:G.gld2, marginBottom:6 }}>ШЕСТЬ ОПОР ВЛАСТИ</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))", gap:"6px 14px" }}>
+            {RES_CONFIG.map(r => (
+              <div key={r.key} style={{ display:"flex", alignItems:"center", gap:8, fontFamily:narrow, fontSize:15, color:G.txt }}>
+                <ResIcon k={r.key} size={22} value={60} color={G.txt}/>{r.prompt}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontFamily:serif, fontSize:14, color:G.tx2, marginTop:6, lineHeight:1.5 }}>Значок заполняется по уровню опоры. Точка над ним при выборе — опора изменится: крупная точка — сильно.</div>
+        </div>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginTop:8, flexWrap:"wrap" }}>
           <SoundToggle/>
           <PrimaryBtn onClick={close}>ПОНЯТНО</PrimaryBtn>
@@ -714,9 +773,11 @@ function Intro({ gs, onGo }) {
           <div style={{ display:"flex", justifyContent:"space-between", gap:12, fontFamily:mono, fontSize:12, color:G.tx3, marginBottom:12, flexWrap:"wrap" }}>
             <span>Личное дело № {docNumber(gs)}</span><span>{COUNTRIES[country].startYear}</span>
           </div>
+          <Portrait name={leader.name} size={100} style={{ float:"right", margin:"0 0 10px 16px", transform:"rotate(2deg)" }}/>
           <div style={{ fontFamily:serif, fontSize:34, fontWeight:700, color:G.txt, lineHeight:1.15, marginBottom:4 }}>{leader.name}</div>
           <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginBottom:10 }}>Президент · партия {leader.party} · {ci.label.toLowerCase()}</div>
           <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic", lineHeight:1.7 }}>{leader.bio}</div>
+          <div style={{ clear:"both" }}/>
         </Card>
         {speech && (
           <Card accent={G.blue} style={{ marginBottom:12 }}>
@@ -741,9 +802,12 @@ function Intro({ gs, onGo }) {
             <Label>{"КЛЮЧЕВЫЕ ИГРОКИ"}</Label>
             {keyFigures.map((f, i) => (
               <div key={f.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, padding:"7px 0", borderBottom:i<keyFigures.length-1?`1px solid ${G.bdr}`:"none" }}>
-                <div>
-                  <span style={{ fontFamily:serif, fontSize:16, fontWeight:500 }}>{f.name}</span>
-                  <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginLeft:10 }}>{f.role}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
+                  <Portrait name={f.name} size={38}/>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{f.name}</div>
+                    <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{f.role}</div>
+                  </div>
                 </div>
                 <span style={{ fontFamily:narrow, fontSize:15, color:relC(f.loyalty), letterSpacing:".05em" }}>{f.loyalty?.toUpperCase()}</span>
               </div>
@@ -755,9 +819,12 @@ function Intro({ gs, onGo }) {
             <Label>{"ВАШ СОВЕТ"}</Label>
             {gs.advisors.map((a, i) => (
               <div key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, padding:"7px 0", borderBottom:i<gs.advisors.length-1?`1px solid ${G.bdr}`:"none" }}>
-                <div>
-                  <span style={{ fontFamily:serif, fontSize:16, fontWeight:500 }}>{a.name}</span>
-                  <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginLeft:10 }}>{a.role}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
+                  <Portrait name={a.name} size={38}/>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{a.name}</div>
+                    <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{a.role}</div>
+                  </div>
                 </div>
                 <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }} title={ADVISOR_SKILL[a.skill].label}>{stars(a.skill)}</span>
               </div>
@@ -915,7 +982,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
             {sideTab === "res" && (
               <>
                 <Label>{"РЕСУРСЫ"}</Label>
-                {RES_CONFIG.map(r => <ResBar key={r.key} label={SHORT[r.key]} val={resources[r.key]} prev={prevResources?prevResources[r.key]:undefined}/>)}
+                {RES_CONFIG.map(r => <ResBar key={r.key} k={r.key} label={SHORT[r.key]} val={resources[r.key]} prev={prevResources?prevResources[r.key]:undefined}/>)}
                 <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10, lineHeight:1.6 }}>
                   ниже 20 — кризис · ≤ {LIMITS.endResource} — падение власти<br/>ниже 30 — понемногу восстанавливается
                 </div>
@@ -967,7 +1034,9 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                   const c = relColor(f.relation);
                   const delta = prev ? f.relation - prev.relation : 0;
                   return (
-                    <div key={f.id} style={{ marginBottom:10, paddingBottom:10, borderBottom:`1px solid ${G.bdr}` }}>
+                    <div key={f.id} style={{ display:"flex", gap:10, marginBottom:10, paddingBottom:10, borderBottom:`1px solid ${G.bdr}` }}>
+                      <Portrait name={f.name} size={32}/>
+                      <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:"flex", justifyContent:"space-between" }}>
                         <span style={{ fontFamily:serif, fontSize:13, fontWeight:500 }}>{f.name}</span>
                         <span style={{ fontFamily:narrow, fontSize:15, color:c }}>
@@ -978,6 +1047,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:2 }}>{f.role}</div>
                       <div style={{ height:2, background:G.bdr, borderRadius:2, marginTop:4 }}>
                         <div style={{ height:"100%", width:`${((f.relation+100)/200)*100}%`, background:c, borderRadius:2, transition:"all .6s" }}/>
+                      </div>
                       </div>
                     </div>
                   );
@@ -1108,9 +1178,15 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                 <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
 
                 {lastTurn.document && <DocumentCard doc={lastTurn.document}/>}
-                {(lastTurn.reactions||[]).slice(0, 2).map((r,i)=>(
-                  <div key={i} style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic", padding:"7px 0", borderTop:`1px solid ${G.bdr}` }}>{r}</div>
-                ))}
+                {(lastTurn.reactions||[]).slice(0, 2).map((r,i) => {
+                  const who = speakerOf(gs, r);
+                  return (
+                    <div key={i} style={{ display:"flex", gap:12, alignItems:"center", padding:"9px 0", borderTop:`1px solid ${G.bdr}` }}>
+                      {who && <Portrait name={who.name} size={36}/>}
+                      <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic" }}>{r}</div>
+                    </div>
+                  );
+                })}
                 {lastTurn.historianNote && (
                   <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>— {lastTurn.historianNote}</div>
                 )}
@@ -1118,7 +1194,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                 {(turnDelta || Object.keys(lastTurn.factionRelChanges||{}).length > 0) && (
                   <div style={{ marginTop:14, paddingTop:12, borderTop:`1px solid ${G.bdr2}`, display:"flex", flexWrap:"wrap", gap:"2px 14px", alignItems:"baseline" }}>
                     <span style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3, marginRight:4 }}>Итог</span>
-                    {turnDelta && RES_CONFIG.filter(r => turnDelta[r.key]).map(r => <Chip key={r.key} value={turnDelta[r.key]}>{SHORT[r.key]}</Chip>)}
+                    {turnDelta && RES_CONFIG.filter(r => turnDelta[r.key]).map(r => <IconDelta key={r.key} k={r.key} value={turnDelta[r.key]}/>)}
                     {Object.entries(lastTurn.factionRelChanges||{}).map(([fid,v]) => {
                       const f = factions.find(x => x.id === fid);
                       return f ? <Chip key={fid} value={v}>{f.name}</Chip> : null;
@@ -1296,6 +1372,7 @@ function Ending({ gs, setGs, onRestart }) {
         </div>
 
         <Card style={{ marginBottom:12, textAlign:"center" }}>
+          <Portrait name={gs.leader.name} size={96} style={{ display:"block", margin:"0 auto 12px", transform:"rotate(-1.5deg)", filter:isLoss ? "grayscale(1) contrast(.9)" : "none" }}/>
           <div style={{ fontFamily:serif, fontSize:34, fontWeight:700, color:G.txt, marginBottom:6 }}>{gs.leader.name}</div>
           {verdict?.title && <div style={{ margin:"10px 0 20px" }}><span className={`sv-stamp${isLoss ? " is-red" : ""}`} style={{ fontSize:17 }}>{verdict.title}</span></div>}
           <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{startYear}–{gs.year} · {plural(gs.history.length, "решение", "решения", "решений")} · ресурсы {avgRes}/100 · рейтинг {pa}%</div>
