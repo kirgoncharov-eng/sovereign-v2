@@ -206,3 +206,34 @@ test("у каждого решения есть свой заголовок га
   for (const [card, roles] of Object.entries({ ...COUNCIL_A, ...COUNCIL_B })) for (const role of Object.keys(roles)) ok(COUNCIL_HEADLINES[card]?.[role as "strategist"], `${card}/${role}`);
   for (const a of ARCS) for (const b of a.beats) for (const v of b.variants) for (const c of v.choices) ok(BEAT_HEADLINES[c.text], `${a.id}: ${c.text}`);
 });
+
+test("у каждого варианта события своя сцена провала, у обострения кризиса — обе сцены", async () => {
+  const { FAIL_A } = await import("../content/fail-a.ts");
+  const { FAIL_B, CRISIS_SCENES } = await import("../content/fail-b.ts");
+  const { CRISIS_ESCALATE } = await import("../content/events.ts");
+  const fails: Record<string, string[]> = { ...FAIL_A, ...FAIL_B };
+  for (const card of EVENT_CARDS.filter(c => c.id !== "crisis_escalates")) {
+    assert.equal(fails[card.id]?.length, card.choices.length, `провалы ${card.id}`);
+    for (const f of fails[card.id]) assert.ok(f.length > 80, card.id);
+  }
+  for (const [key, v] of Object.entries(CRISIS_ESCALATE)) {
+    assert.equal(CRISIS_SCENES[key]?.length, v.choices.length, key);
+    for (const [ok, fail] of CRISIS_SCENES[key]) assert.ok(ok.length > 60 && fail.length > 60, key);
+  }
+  // провал показывает авторскую сцену, а не общие фразы
+  let s = await newGame();
+  for (let i = 0; i < 12 && !s.ended; i++) {
+    s = startEvent(s, await classicApi.event(s));
+    const c = s.currentEvent!.choices[0];
+    assert.ok(c.arc || c.sceneFail, `нет сцены провала: ${s.currentEvent!.title}`);
+    assert.ok(!/\{\w+/.test((c.sceneFail ?? "") + (c.scene ?? "")));
+    s = resolveTurn(s, c.id, await classicApi.consequence(s, c.id));
+  }
+});
+
+test("у каждого решения в эпизодах интриг есть своя сцена провала", async () => {
+  const { ARCS } = await import("../content/arcs.ts");
+  const { BEAT_FAILS } = await import("../content/fail-beats.ts");
+  for (const a of ARCS) for (const b of a.beats) for (const v of b.variants) for (const c of v.choices)
+    assert.ok(c.fail || BEAT_FAILS[c.text], `${a.id}: ${c.text}`);
+});

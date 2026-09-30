@@ -2,6 +2,9 @@
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
 import { ARCS } from "../content/arcs.ts";
 import { COUNCIL_A } from "../content/council-a.ts";
+import { FAIL_A } from "../content/fail-a.ts";
+import { BEAT_FAILS } from "../content/fail-beats.ts";
+import { CRISIS_SCENES, FAIL_B } from "../content/fail-b.ts";
 import { CARD_HEADLINES, CRISIS_HEADLINES, type HeadlinePair } from "../content/headlines-cards.ts";
 import { COUNCIL_HEADLINES } from "../content/headlines-council.ts";
 import { BEAT_HEADLINES } from "../content/headlines-beats.ts";
@@ -121,7 +124,7 @@ export function beatEvent(state: GameState): GameEvent | null {
     affectedFactions: [],
     choices: variant.choices.map((c, i) => ({
       id: ["a", "b", "c"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags, resolvesCrisis: null,
-      arc: { flag: c.flag, ok: fill(c.ok, state), ...(c.fail ? { fail: fill(c.fail, state) } : {}), effect: c.effect ?? {}, ...(c.epilogue ? { epilogue: fill(c.epilogue, state) } : {}) },
+      arc: { flag: c.flag, ok: fill(c.ok, state), ...(c.fail ?? BEAT_FAILS[c.text] ? { fail: fill(c.fail ?? BEAT_FAILS[c.text], state) } : {}), effect: c.effect ?? {}, ...(c.epilogue ? { epilogue: fill(c.epilogue, state) } : {}) },
       ...headlines(BEAT_HEADLINES[c.text], state),
     })),
     council: null,
@@ -152,7 +155,12 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
     choices: card.choices.map((c, i) => ({
       id: ["a", "b", "c", "d"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags,
       resolvesCrisis: c.resolves ? crisisId : null,
-      ...(SCENES[card.id]?.[i] && !escalated ? { scene: fill(SCENES[card.id][i], state) } : {}),
+      ...(escalated
+        ? { scene: fill(CRISIS_SCENES[crisisKey!][i][0], state), sceneFail: fill(CRISIS_SCENES[crisisKey!][i][1], state) }
+        : {
+          ...(SCENES[card.id]?.[i] ? { scene: fill(SCENES[card.id][i], state) } : {}),
+          ...(FAIL_SCENES[card.id]?.[i] ? { sceneFail: fill(FAIL_SCENES[card.id][i], state) } : {}),
+        }),
       ...headlines(escalated ? CRISIS_HEADLINES[crisisKey!]?.[i] : CARD_HEADLINES[card.id]?.[i], state),
     })),
     council: null,
@@ -191,6 +199,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const failLine = () => pick(r, COUNCIL_OUTCOME[plan.choice.tags[0]].fail);
   let scene: string;
   if (arc) scene = plan.success ? arc.ok : arc.fail ?? failLine();
+  else if (!plan.success && plan.choice.sceneFail) scene = plan.choice.sceneFail;
   else if (plan.choice.scene) {
     const fails = [...new Set(plan.choice.tags.map(t => pick(r, COUNCIL_OUTCOME[t].fail)))];
     scene = plan.success ? plan.choice.scene : plan.choice.sceneFail ?? fails.join(" ");
@@ -265,6 +274,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
 const CRISIS_FIXERS = ["social", "investment", "anticorruption", "dialogue", "reform", "security"];
 
 const COUNCIL_CARDS = { ...COUNCIL_A, ...COUNCIL_B };
+const FAIL_SCENES: Record<string, string[]> = { ...FAIL_A, ...FAIL_B };
 
 function buildCouncil(state: GameState): Choice[] {
   const r = seededRandom(hashSeed(state.seed, "council", state.turn));
