@@ -151,6 +151,12 @@ export function startEvent(state: GameState, event: GameEvent): GameState {
   return { ...state, currentEvent: event, lastTurn: null };
 }
 
+// Оценённое решение игрока становится ещё одним вариантом текущего события.
+export function setCustomChoice(state: GameState, choice: Choice | null): GameState {
+  if (!state.currentEvent) return state;
+  return { ...state, currentEvent: { ...state.currentEvent, custom: choice } };
+}
+
 export function setVerdict(state: GameState, verdict: Verdict): GameState {
   return { ...state, verdict };
 }
@@ -225,7 +231,7 @@ export interface TurnPlan {
 export function planTurn(state: GameState, choiceId: string): TurnPlan {
   const event = state.currentEvent;
   if (!event) throw new Error("Нет активного события");
-  const choice = event.choices.find(c => c.id === choiceId);
+  const choice = event.choices.find(c => c.id === choiceId) ?? (event.custom?.id === choiceId ? event.custom : undefined);
   if (!choice) throw new Error("Неизвестный вариант решения");
 
   const effects = choiceEffects(state, choice);

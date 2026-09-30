@@ -1,10 +1,10 @@
 // Единая точка обращения к модели. Клиент присылает только игровое состояние и выбор —
 // промпты собираются здесь, поэтому эндпоинт нельзя использовать как прокси к API.
-import { MAX_TURNS, FIGURE_ROLES } from "@/lib/game/data.ts";
+import { CUSTOM_MAX_LENGTH, MAX_TURNS, FIGURE_ROLES } from "@/lib/game/data.ts";
 import { planTurn, warningLevel } from "@/lib/game/engine.ts";
-import { consequencePrompt, endingPrompt, eventPrompt, setupPrompt, SYS_BASE, SYS_CONSEQUENCE, SYS_ENDING } from "@/lib/game/prompts.ts";
+import { assessPrompt, consequencePrompt, endingPrompt, eventPrompt, setupPrompt, SYS_BASE, SYS_CONSEQUENCE, SYS_ENDING } from "@/lib/game/prompts.ts";
 import {
-  isObj, sanitizeNarration, sanitizeEvent, sanitizeIntro, sanitizeState, sanitizeVerdict,
+  isObj, sanitizeAssessment, sanitizeNarration, str, sanitizeEvent, sanitizeIntro, sanitizeState, sanitizeVerdict,
   validCountry, validDiff, validIdeo,
 } from "@/lib/game/sanitize.ts";
 import { generate, GenerationError } from "@/lib/server/llm.ts";
@@ -74,7 +74,9 @@ export async function POST(req: Request) {
 
       case "consequence": {
         const state = sanitizeState(body.state);
-        const choice = state?.currentEvent?.choices.find(c => c.id === body.choiceId);
+        const event = state?.currentEvent;
+        const custom = event?.custom;
+        const choice = event?.choices.find(c => c.id === body.choiceId) ?? (custom?.id === body.choiceId ? custom : undefined);
         if (!state || state.ended || !choice) return fail(400, "Некорректное состояние игры");
         const narration = await generate({
           task: "consequence",
@@ -83,6 +85,20 @@ export async function POST(req: Request) {
           validate: sanitizeNarration,
         });
         return Response.json({ narration });
+      }
+
+      case "assess": {
+        const state = sanitizeState(body.state);
+        const text = str(body.text, CUSTOM_MAX_LENGTH);
+        if (!state || state.ended || !state.currentEvent || text.length < 5) return fail(400, "Опишите решение подробнее");
+        const crisisIds = state.activeCrises.map(c => c.id);
+        const assessment = await generate({
+          task: "assess",
+          prompt: assessPrompt(state, text),
+          system: SYS_BASE, tier: "fast", maxTokens: 500,
+          validate: r => sanitizeAssessment(r, text, crisisIds),
+        });
+        return Response.json({ assessment });
       }
 
       case "ending": {

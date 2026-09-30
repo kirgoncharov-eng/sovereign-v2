@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ACTIONS, CRISIS_DRAIN, LIMITS, MAX_TURNS, START_RES } from "./data.ts";
 import {
-  applyDeltas, choiceEffects, computePolls, createInitialState, detectEnd, planTurn, resolveTurn, startEvent, tickCrises,
+  applyDeltas, choiceEffects, computePolls, createInitialState, detectEnd, planTurn, resolveTurn, setCustomChoice, startEvent, tickCrises,
 } from "./engine.ts";
 import type { Choice, GameEvent, GameState, Narration } from "./types.ts";
 
@@ -176,4 +176,11 @@ test("враждебные и сильные силовики устраиваю
   const base = newGame();
   const s = startEvent({ ...base, turn: 4, factions: base.factions.map(f => f.bloc === "security" ? { ...f, relation: -95 } : f) }, event([choice("a", ["delay"]), choice("b", ["delay"])]));
   assert.equal(resolveTurn(s, "a", narration).endType, "coup");
+});
+
+test("своё решение игрока считается движком как обычный вариант", () => {
+  const s = setCustomChoice(startEvent(newGame(), event()), { ...choice("x", ["repress"]), text: "Своё" });
+  const next = resolveTurn(s, "x", narration);
+  assert.equal(next.history[0].choice, "Своё");
+  assert.deepEqual(next.lastTurn?.resourceChanges, choiceEffects(s, s.currentEvent!.custom!).resources);
 });

@@ -1,12 +1,12 @@
 // Проверка и нормализация данных, пришедших извне: ответов модели и состояния от клиента.
 // Всё, что не проходит проверку, либо отбрасывается, либо приводится к безопасному значению.
 import {
-  ACTION_TAGS, COUNTRIES, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
+  ACTION_TAGS, COUNTRIES, CUSTOM_CHOICE_ID, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGIES, LIMITS, MAX_TURNS, RATINGS, RESOURCE_KEYS, SAVE_VERSION, START_RES, TEXT,
 } from "./data.ts";
 import { loyaltyLabel } from "./engine.ts";
 import type {
-  ActionTag, Choice, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
+  ActionTag, Assessment, Choice, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
   HistoryEntry, IdeologyId, Intro, NewCrisis, RandomEvent, ResourceDelta, Resources, Severity, Verdict,
 } from "./types.ts";
 
@@ -70,22 +70,39 @@ function sanitizeTags(v: unknown): ActionTag[] {
   return [...new Set(v.filter((t): t is ActionTag => typeof t === "string" && (ACTION_TAGS as string[]).includes(t)))].slice(0, 2);
 }
 
+function sanitizeChoice(c: Obj, id: string, crisisIds: string[]): Choice | null {
+  const text = str(c.text, TEXT.choice);
+  const tags = sanitizeTags(c.tags);
+  // без тега движок не знает цену решения — такой вариант отбрасываем
+  if (!text || !tags.length) return null;
+  const resolves = str(c.resolvesCrisis, 20);
+  return {
+    id, text, hint: str(c.hint, TEXT.hint), tags,
+    resolvesCrisis: crisisIds.includes(resolves) ? resolves : null,
+  };
+}
+
+// Ответ советника на решение игрока. Текст решения — всегда слова самого игрока.
+export function sanitizeAssessment(raw: unknown, playerText: string, crisisIds: string[]): Assessment | null {
+  if (!isObj(raw)) return null;
+  const advisor = str(raw.advisor, TEXT.hint);
+  if (raw.feasible === false) {
+    return { feasible: false, reason: str(raw.reason, TEXT.hint, "Это не решение, которое лидер может принять."), choice: null, advisor };
+  }
+  const choice = sanitizeChoice({ ...raw, text: playerText }, CUSTOM_CHOICE_ID, crisisIds);
+  if (!choice) return null;
+  return { feasible: true, reason: "", choice, advisor };
+}
+
 function sanitizeChoices(v: unknown, crisisIds: string[]): Choice[] {
   if (!Array.isArray(v)) return [];
   const out: Choice[] = [];
   for (const c of v) {
     if (out.length >= CHOICE_IDS.length) break;
     if (!isObj(c)) continue;
-    const text = str(c.text, TEXT.choice);
-    const tags = sanitizeTags(c.tags);
-    // без тега движок не знает цену решения — такой вариант отбрасываем
-    if (!text || !tags.length) continue;
-    const resolves = str(c.resolvesCrisis, 20);
     // id выдаём сами: модели не доверяем уникальность
-    out.push({
-      id: CHOICE_IDS[out.length], text, hint: str(c.hint, TEXT.hint), tags,
-      resolvesCrisis: crisisIds.includes(resolves) ? resolves : null,
-    });
+    const choice = sanitizeChoice(c, CHOICE_IDS[out.length], crisisIds);
+    if (choice) out.push(choice);
   }
   return out;
 }
@@ -102,7 +119,7 @@ function sanitizeRandomEvent(v: unknown): RandomEvent | null {
 }
 
 export function sanitizeEvent(
-  raw: unknown, factionIds: string[], opts: { isCritical: boolean; allowRandom: boolean; crisisIds: string[] },
+  raw: unknown, factionIds: string[], opts: { isCritical: boolean; allowRandom: boolean; crisisIds: string[]; allowCustom?: boolean },
 ): GameEvent | null {
   if (!isObj(raw)) return null;
   const title = str(raw.title, TEXT.title);
@@ -120,6 +137,7 @@ export function sanitizeEvent(
     affectedFactions: affected,
     choices,
     randomEvent: opts.allowRandom ? sanitizeRandomEvent(raw.randomEvent) : null,
+    custom: opts.allowCustom && isObj(raw.custom) ? sanitizeChoice(raw.custom, CUSTOM_CHOICE_ID, opts.crisisIds) : null,
   };
 }
 
@@ -287,7 +305,7 @@ export function sanitizeState(raw: unknown): GameState | null {
     history: sanitizeHistory(raw.history),
     elections: sanitizeElections(raw.elections),
     currentEvent: isObj(raw.currentEvent)
-      ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, crisisIds: activeCrises.map(c => c.id) })
+      ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, allowCustom: true, crisisIds: activeCrises.map(c => c.id) })
       : null,
     lastTurn: null,
     ended: raw.ended === true,

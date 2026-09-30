@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
-import { ACTIONS, APP_VERSION, COUNTRIES, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
-import { choiceEffects, computePolls, createInitialState, isSurvival, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { ACTIONS, APP_VERSION, COUNTRIES, CUSTOM_MAX_LENGTH, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
+import { choiceEffects, computePolls, createInitialState, isSurvival, resolveTurn, setCustomChoice, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api } from "@/lib/client/api.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
@@ -161,6 +161,78 @@ function PollWidget({ gs }) {
         {leading ? "▲ ВЫ ЛИДИРУЕТЕ" : "▼ КОНКУРЕНТ ВПЕРЕДИ"}{next ? ` · ${next.label.toLowerCase()} через ${next.in} ход.` : ""}
       </div>
     </Card>
+  );
+}
+
+function ChoicePreview({ gs, c }) {
+  const fx = choiceEffects(gs, c);
+  const crisis = c.resolvesCrisis && gs.activeCrises.find(x => x.id === c.resolvesCrisis);
+  return (
+    <>
+      <div style={{ fontFamily:mono, fontSize:9, color:G.bl2, letterSpacing:".12em", marginBottom:5 }}>
+        {c.tags.map(t => ACTIONS[t].label.toUpperCase()).join(" · ")}
+      </div>
+      <div style={{ fontFamily:serif, fontSize:16, fontWeight:500, marginBottom:4 }}>{c.text}</div>
+      <div style={{ fontFamily:mono, fontSize:11, color:G.tx3, marginBottom:8 }}>{c.hint}</div>
+      <ResourceChips delta={fx.resources}/>
+      {crisis && <div style={{ fontFamily:mono, fontSize:10, color:G.grn, marginTop:6 }}>✔ закроет кризис «{crisis.title}»</div>}
+    </>
+  );
+}
+
+// Решение своими словами: советник относит его к типам действий, цену считает движок.
+function CustomChoice({ gs, onAssessed, onChoose }) {
+  const [draft, setDraft]   = useState("");
+  const [busy, setBusy]     = useState(false);
+  const [note, setNote]     = useState(null); // { text, bad }
+  const custom = gs.currentEvent?.custom;
+
+  const assess = async () => {
+    if (busy || draft.trim().length < 5) return;
+    setBusy(true); setNote(null);
+    try {
+      const a = await api.assess(gs, draft);
+      if (a.feasible) { onAssessed(a.choice); setNote(a.advisor ? { text: a.advisor } : null); }
+      else setNote({ text: a.reason, bad: true });
+    } catch (e) {
+      setNote({ text: e.message, bad: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const edit = () => { setDraft(custom.text); setNote(null); onAssessed(null); };
+
+  return (
+    <div style={{ marginTop:14, paddingTop:14, borderTop:`1px dashed ${G.bdr2}` }}>
+      <Label>{"// СВОЁ РЕШЕНИЕ"}</Label>
+      {custom ? (
+        <div style={{ padding:"13px 16px", borderRadius:4, border:`1px solid ${G.gold}`, background:G.bg3 }}>
+          <ChoicePreview gs={gs} c={custom}/>
+          {note && !note.bad && <div style={{ fontFamily:serif, fontSize:13, fontStyle:"italic", color:G.tx2, marginTop:10 }}>Советник: «{note.text}»</div>}
+          <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
+            <PrimaryBtn onClick={() => onChoose(custom)}>ПРИНЯТЬ РЕШЕНИЕ</PrimaryBtn>
+            <button onClick={edit} style={{ background:"transparent", border:`1px solid ${G.bdr2}`, color:G.tx2, padding:"10px 18px", borderRadius:4, fontSize:11, letterSpacing:".15em" }}>ИЗМЕНИТЬ</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <label htmlFor="custom-decision" style={{ display:"block", fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic", marginBottom:8 }}>
+            Опишите конкретные действия. Советник оценит их — цену вы увидите до решения.
+          </label>
+          <textarea id="custom-decision" value={draft} onChange={e => setDraft(e.target.value)} maxLength={CUSTOM_MAX_LENGTH} rows={3}
+            placeholder="Например: созвать круглый стол с оппозицией и одновременно выделить деньги бастующим заводам"
+            style={{ width:"100%", resize:"vertical", padding:"10px 12px", borderRadius:4, background:G.bg, border:`1px solid ${G.bdr2}`, color:G.txt, fontFamily:serif, fontSize:15, lineHeight:1.5 }}/>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginTop:8, flexWrap:"wrap" }}>
+            <span style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>{draft.length}/{CUSTOM_MAX_LENGTH}</span>
+            <button onClick={assess} disabled={busy || draft.trim().length < 5}
+              style={{ background:"transparent", border:`1px solid ${G.blue}`, color:busy?G.tx3:G.bl2, padding:"8px 18px", borderRadius:4, fontSize:11, letterSpacing:".15em", opacity:draft.trim().length < 5 ? .5 : 1 }}>
+              {busy ? "СОВЕТНИК ДУМАЕТ..." : "ОЦЕНИТЬ ПОСЛЕДСТВИЯ"}
+            </button>
+          </div>
+          {note?.bad && <div style={{ fontFamily:mono, fontSize:11, color:G.amb, marginTop:8 }}>✖ {note.text}</div>}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -562,22 +634,13 @@ function Game({ gs, setGs, onEnd, onMenu }) {
               </Card>
               <Card>
                 <Label>{"// ВАШЕ РЕШЕНИЕ"}</Label>
-                {event.choices.map(c => {
-                  const fx = choiceEffects(gs, c);
-                  const crisis = c.resolvesCrisis && activeCrises.find(x => x.id === c.resolvesCrisis);
-                  return (
-                    <button key={c.id} onClick={()=>choose(c)} {...hovChoice()}
-                      style={{ display:"block", width:"100%", textAlign:"left", padding:"13px 16px", marginBottom:8, borderRadius:4, background:"rgba(255,255,255,0.02)", border:`1px solid ${G.bdr}`, color:G.txt }}>
-                      <div style={{ fontFamily:mono, fontSize:9, color:G.bl2, letterSpacing:".12em", marginBottom:5 }}>
-                        {c.tags.map(t => ACTIONS[t].label.toUpperCase()).join(" · ")}
-                      </div>
-                      <div style={{ fontFamily:serif, fontSize:16, fontWeight:500, marginBottom:4 }}>{c.text}</div>
-                      <div style={{ fontFamily:mono, fontSize:11, color:G.tx3, marginBottom:8 }}>{c.hint}</div>
-                      <ResourceChips delta={fx.resources}/>
-                      {crisis && <div style={{ fontFamily:mono, fontSize:10, color:G.grn, marginTop:6 }}>✔ закроет кризис «{crisis.title}»</div>}
-                    </button>
-                  );
-                })}
+                {event.choices.map(c => (
+                  <button key={c.id} onClick={()=>choose(c)} {...hovChoice()}
+                    style={{ display:"block", width:"100%", textAlign:"left", padding:"13px 16px", marginBottom:8, borderRadius:4, background:"rgba(255,255,255,0.02)", border:`1px solid ${G.bdr}`, color:G.txt }}>
+                    <ChoicePreview gs={gs} c={c}/>
+                  </button>
+                ))}
+                <CustomChoice gs={gs} onAssessed={ch => commit(setCustomChoice(gsRef.current, ch))} onChoose={choose}/>
               </Card>
             </div>
           )}

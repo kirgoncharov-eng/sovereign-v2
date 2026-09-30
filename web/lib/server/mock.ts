@@ -1,5 +1,5 @@
 // Заглушка модели для разработки без ключей: AI_MOCK=1 npm run dev
-export type Task = "setup" | "event" | "consequence" | "ending";
+export type Task = "setup" | "event" | "consequence" | "assess" | "ending";
 
 let counter = 0;
 
@@ -36,6 +36,11 @@ export function mockResponse(task: Task): string {
         crisisTitle: "Тестовый кризис",
         crisisDescription: "Описание кризиса.",
         powerLoss: "Ночью к резиденции подъехали бронемашины.",
+      });
+    case "assess":
+      return JSON.stringify({
+        feasible: true, reason: "", tags: ["dialogue"], resolvesCrisis: null,
+        hint: "улица довольна, силовики ворчат", advisor: "Господин президент, силовики этого не простят.",
       });
     case "ending":
       return JSON.stringify({

@@ -1,7 +1,7 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "2.6";
+export const APP_VERSION = "2.7";
 export const SAVE_VERSION = 3; // 3: партии, выборы, новые концовки
 export const MAX_TURNS = 20;
 
@@ -271,6 +271,9 @@ export const IDEOLOGY_ACTIONS: Record<IdeologyId, { aligned: ActionTag[]; oppose
 
 export const IDEOLOGY_BONUS: ResourceDelta = { personalResource:2, internalLegitimacy:1 };
 export const IDEOLOGY_PENALTY: ResourceDelta = { personalResource:-4, politicalCapital:-2 };
+
+export const CUSTOM_CHOICE_ID = "x";
+export const CUSTOM_MAX_LENGTH = 300;
 
 // Порог, ниже которого проседание ресурса порождает кризис, и пассивное восстановление.
 export const CRISIS_THRESHOLD = 20;

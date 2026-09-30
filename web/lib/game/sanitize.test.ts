@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LIMITS, TEXT } from "./data.ts";
 import { createInitialState, startEvent } from "./engine.ts";
-import { deltaMap, sanitizeEvent, sanitizeNarration, sanitizeIntro, sanitizeState, sanitizeVerdict, str } from "./sanitize.ts";
+import { deltaMap, sanitizeAssessment, sanitizeEvent, sanitizeNarration, sanitizeIntro, sanitizeState, sanitizeVerdict, str } from "./sanitize.ts";
 import { parseJson } from "../server/llm.ts";
 
 const factionIds = ["siloviki", "youth", "west"];
@@ -100,4 +100,16 @@ test("parseJson снимает markdown и вырезает объект из т
   assert.deepEqual(parseJson('```json\n{"a":1}\n```'), { a: 1 });
   assert.deepEqual(parseJson('Вот ответ: {"a":2} — готово'), { a: 2 });
   assert.equal(parseJson("совсем не json"), null);
+});
+
+test("sanitizeAssessment: текст решения — всегда слова игрока, теги из каталога", () => {
+  const a = sanitizeAssessment({ feasible: true, tags: ["dialogue", "magic"], resolvesCrisis: "c1", hint: "h", advisor: "Осторожно" }, "Созвать круглый стол", ["c1"])!;
+  assert.equal(a.choice?.text, "Созвать круглый стол");
+  assert.equal(a.choice?.id, "x");
+  assert.deepEqual(a.choice?.tags, ["dialogue"]);
+  assert.equal(a.choice?.resolvesCrisis, "c1");
+  const no = sanitizeAssessment({ feasible: false, reason: "Это желаемый результат, а не действие" }, "Выиграть выборы", [])!;
+  assert.equal(no.feasible, false);
+  assert.equal(no.choice, null);
+  assert.equal(sanitizeAssessment({ feasible: true, tags: [] }, "текст", []), null);
 });

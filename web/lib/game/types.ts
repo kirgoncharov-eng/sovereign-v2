@@ -71,6 +71,7 @@ export interface GameEvent {
   isCritical: boolean;
   affectedFactions: string[];
   choices: Choice[];
+  custom?: Choice | null; // решение игрока своими словами, оценённое советником
   randomEvent: RandomEvent | null;
 }
 
@@ -102,6 +103,14 @@ export interface TurnReport extends Narration {
   expiredCrises: string[]; // названия
   newCrisis: NewCrisis | null;
   election: Election | null;
+}
+
+// Оценка решения игрока, введённого своими словами.
+export interface Assessment {
+  feasible: boolean;
+  reason: string;       // почему невозможно (если feasible = false)
+  choice: Choice | null;
+  advisor: string;      // реплика советника о рисках
 }
 
 export interface PartyShare { id: string; name: string; share: number }

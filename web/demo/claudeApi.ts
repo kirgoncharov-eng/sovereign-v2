@@ -1,9 +1,9 @@
 // Демо-адаптер: та же игра, но модель вызывается прямо со страницы артефакта claude.ai
 // через возможность `sample` (на аккаунте зрителя). Интерфейс совпадает с lib/client/api.ts.
-import { FIGURE_ROLES } from "../lib/game/data.ts";
+import { CUSTOM_MAX_LENGTH, FIGURE_ROLES } from "../lib/game/data.ts";
 import { planTurn, warningLevel } from "../lib/game/engine.ts";
-import { consequencePrompt, endingPrompt, eventPrompt, setupPrompt, SYS_BASE, SYS_CONSEQUENCE, SYS_ENDING } from "../lib/game/prompts.ts";
-import { sanitizeNarration, sanitizeEvent, sanitizeIntro, sanitizeVerdict } from "../lib/game/sanitize.ts";
+import { assessPrompt, consequencePrompt, endingPrompt, eventPrompt, setupPrompt, SYS_BASE, SYS_CONSEQUENCE, SYS_ENDING } from "../lib/game/prompts.ts";
+import { sanitizeAssessment, sanitizeNarration, str, sanitizeEvent, sanitizeIntro, sanitizeVerdict } from "../lib/game/sanitize.ts";
 import type { DifficultyId, GameState, IdeologyId } from "../lib/game/types.ts";
 
 export class ApiError extends Error {
@@ -75,6 +75,13 @@ export const api = {
     try { prompt = consequencePrompt(state, planTurn(state, choiceId)); }
     catch (e) { return Promise.reject(new ApiError((e as Error).message)); }
     return generate(SYS_CONSEQUENCE, prompt, "quick", sanitizeNarration);
+  },
+
+  assess: (state: GameState, raw: string) => {
+    const text = str(raw, CUSTOM_MAX_LENGTH);
+    if (text.length < 5) return Promise.reject(new ApiError("Опишите решение подробнее"));
+    const crisisIds = state.activeCrises.map(c => c.id);
+    return generate(SYS_BASE, assessPrompt(state, text), "quick", r => sanitizeAssessment(r, text, crisisIds));
   },
 
   ending: (state: GameState) => generate(SYS_ENDING, endingPrompt(state), "default", sanitizeVerdict),
