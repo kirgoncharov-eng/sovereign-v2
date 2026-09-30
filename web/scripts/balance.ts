@@ -1,13 +1,13 @@
 // Симуляция баланса: 2000 партий на каждую сложность для случайного и «умного» игрока.
 // Запуск: npm run balance
-import { ACTION_TAGS, IDEOLOGIES, RESOURCE_KEYS, DIFFICULTIES } from "../lib/game/data.ts";
+import { ACTION_TAGS, COUNTRIES, IDEOLOGIES, RESOURCE_KEYS, DIFFICULTIES } from "../lib/game/data.ts";
 import type { DifficultyId } from "../lib/game/types.ts";
 import { createInitialState, startEvent, resolveTurn, planTurn, leaderRating } from "../lib/game/engine.ts";
 const intro = { leader:{name:"L",party:"P",bio:""}, speech:"", situation:"", players:[] };
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random()*a.length)];
 const narr = { headline:"h", narrative:"n", reactions:[], historianNote:"", crisisTitle:null, crisisDescription:null, powerLoss:null };
 function play(diff: DifficultyId, strategy: "random"|"smart") {
-  let s = createInitialState(pick(["Беларусь","Украина","Грузия"]), diff, pick(IDEOLOGIES).id, intro);
+  let s = createInitialState(pick(Object.keys(COUNTRIES)), diff, pick(IDEOLOGIES).id, intro);
   while (!s.ended) {
     const choices = ["a","b","c"].map(id => ({ id, text:id, hint:"", tags: Array.from({length: 1+Math.floor(Math.random()*2)}, () => pick(ACTION_TAGS)), resolvesCrisis: s.activeCrises.length && Math.random()<0.4 ? s.activeCrises[0].id : null }));
     const re = Math.random() < 0.28 ? { title:"r", description:"", resourceEffect: { [pick(RESOURCE_KEYS)]: Math.round(Math.random()*12-8) } } : null;

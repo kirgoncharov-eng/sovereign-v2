@@ -31,7 +31,9 @@ const result = await build({
 });
 
 const js = result.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
-const css = await readFile(path.join(here, "page.css"), "utf8");
+// Стили общие с веб-версией: app/globals.css без директивы Tailwind.
+const globals = (await readFile(path.join(root, "app", "globals.css"), "utf8")).replace(/@import\s+"tailwindcss";\s*/, "");
+const css = (await readFile(path.join(here, "page.css"), "utf8")) + globals;
 const fonts = "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=PT+Mono&family=Share+Tech+Mono&display=swap";
 
 const html = `<title>Суверен</title>

@@ -49,3 +49,95 @@ button:disabled {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ── HUD ─────────────────────────────────────────────────────────────── */
+.sv-hud {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 20;
+  background: rgba(7, 9, 14, 0.94);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid #1a2438;
+}
+.sv-hud-res {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+.sv-hud-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+/* Варианты решения: номер горячей клавиши и фокус */
+.sv-opt { position: relative; }
+.sv-opt:hover, .sv-opt:focus-visible {
+  background: #111b2e !important;
+  border-color: #c8a86c !important;
+  outline: none;
+}
+.sv-key {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-family: var(--font-tech), monospace;
+  font-size: 10px;
+  color: #77756c;
+  border: 1px solid #243452;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+/* Загрузка */
+.sv-progress {
+  height: 2px;
+  background: #1a2438;
+  overflow: hidden;
+  border-radius: 2px;
+}
+.sv-progress::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, #c8a86c, transparent);
+  animation: sv-slide 1.4s ease-in-out infinite;
+}
+@keyframes sv-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+/* Появление итогов хода */
+.sv-reveal {
+  animation: sv-rise 0.5s ease-out both;
+}
+@keyframes sv-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.sv-fade { animation: sv-rise 0.4s ease-out both; }
+
+/* Окно «Как играть» */
+.sv-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(3, 4, 8, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+@media (max-width: 760px) {
+  .sv-hud-res { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; }
+  .sv-hud-track { display: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sv-reveal, .sv-fade, .sv-progress::after { animation: none !important; }
+}

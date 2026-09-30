@@ -1,7 +1,7 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "2.9";
+export const APP_VERSION = "3.0";
 export const SAVE_VERSION = 5; // 5: отложенные последствия
 export const MAX_TURNS = 20;
 
@@ -15,7 +15,10 @@ export interface CountryInfo {
 export const COUNTRIES: Record<string, CountryInfo> = {
   "Беларусь": { flag:"🇧🇾", context:"Постлукашенковская Беларусь. Санкции Запада, жёсткая зависимость от России, силовики привыкли к авторитаризму, оппозиция в эмиграции и подполье, общество разорвано.", startYear:2025, capital:"Минск" },
   "Украина":  { flag:"🇺🇦", context:"Украина в послевоенной реконструкции. Кандидат ЕС. Западные союзники устают, олигархи ослаблены, общество истощено и требует победы.", startYear:2025, capital:"Киев" },
-  "Грузия":   { flag:"🇬🇪", context:"Малое государство. Абхазия и Ю.Осетия оккупированы Россией. Один олигарх контролирует правящую партию. Заявка на ЕС под угрозой. Улица против власти.", startYear:2025, capital:"Тбилиси" }
+  "Грузия":   { flag:"🇬🇪", context:"Малое государство. Абхазия и Ю.Осетия оккупированы Россией. Один олигарх контролирует правящую партию. Заявка на ЕС под угрозой. Улица против власти.", startYear:2025, capital:"Тбилиси" },
+  "Молдова":  { flag:"🇲🇩", context:"Беднейшая страна Европы между ЕС и Россией. В Приднестровье стоят российские войска, Гагаузия бунтует, беглые олигархи скупают голоса. Энергозависимость, кандидатство в ЕС под давлением.", startYear:2025, capital:"Кишинёв" },
+  "Армения":  { flag:"🇦🇲", context:"Страна после поражения в Карабахе. Граница с Азербайджаном не демаркирована, Россия теряет влияние, но держит базу в Гюмри. Церковь против власти, диаспора — главный инвестор, мир с соседями под вопросом.", startYear:2025, capital:"Ереван" },
+  "Казахстан":{ flag:"🇰🇿", context:"Богатая ресурсами страна после кровавого января 2022-го. Старые кланы не сдались, спецслужбы сильнее парламента, на севере много русскоязычных, Москва и Пекин тянут в разные стороны, Запад покупает уран и нефть.", startYear:2025, capital:"Астана" }
 };
 
 export const DIFFICULTIES: Record<DifficultyId, { label: string; emoji: string; desc: string }> = {
@@ -90,13 +93,43 @@ export const FACTIONS_DATA: Record<string, FactionInfo[]> = {
     { id:"west",       name:"Западные партнёры",  desc:"ЕС, США, НАТО",              emoji:"🌍", baseApproval:58, bloc:"west" },
     { id:"diaspora",   name:"Диаспора",            desc:"Эмигранты и зарубежная Грузия",emoji:"✈️", baseApproval:55, bloc:"liberal" },
   ],
+  "Молдова": [
+    { id:"west",      name:"ЕС и Румыния",          desc:"Брюссель и Бухарест",          emoji:"🌍", baseApproval:55, bloc:"west" },
+    { id:"russia",    name:"Кремль",                desc:"Москва и Тирасполь",           emoji:"🦅", baseApproval:30, bloc:"russia" },
+    { id:"oligarchs", name:"Беглые олигархи",       desc:"Теневые кланы и их партии",    emoji:"💼", baseApproval:20, bloc:"business" },
+    { id:"regions",   name:"Гагаузия и север",      desc:"Пророссийские регионы",        emoji:"🏛️", baseApproval:40, bloc:"regional" },
+    { id:"church",    name:"Митрополия",            desc:"Молдавская православная церковь",emoji:"⛪", baseApproval:65, bloc:"church" },
+    { id:"civil",     name:"Гражданское общество",  desc:"Проевропейские НКО и СМИ",     emoji:"🤝", baseApproval:55, bloc:"liberal" },
+    { id:"siloviki",  name:"Прокуратура и полиция", desc:"Силовой блок",                 emoji:"🛡️", baseApproval:35, bloc:"security" },
+    { id:"diaspora",  name:"Диаспора",              desc:"Молдаване в ЕС",               emoji:"✈️", baseApproval:60, bloc:"liberal" },
+  ],
+  "Армения": [
+    { id:"military",    name:"Армия и ветераны",     desc:"Генштаб и ветераны Карабаха", emoji:"⚔️", baseApproval:60, bloc:"security" },
+    { id:"church",      name:"Апостольская церковь", desc:"Эчмиадзин",                    emoji:"⛪", baseApproval:70, bloc:"church" },
+    { id:"oligarchs",   name:"Старые элиты",         desc:"Олигархи прежней власти",      emoji:"💼", baseApproval:25, bloc:"business" },
+    { id:"revanchists", name:"Реваншисты",           desc:"Карабахский клан и радикалы",  emoji:"🔱", baseApproval:40, bloc:"nationalist" },
+    { id:"civil",       name:"Гражданское общество", desc:"НКО, журналисты, студенты",    emoji:"🤝", baseApproval:55, bloc:"liberal" },
+    { id:"diaspora",    name:"Диаспора",             desc:"США, Франция, Россия",         emoji:"✈️", baseApproval:65, bloc:"liberal" },
+    { id:"west",        name:"ЕС и США",             desc:"Новые партнёры",               emoji:"🌍", baseApproval:55, bloc:"west" },
+    { id:"russia",      name:"Кремль и ОДКБ",        desc:"Бывший союзник",               emoji:"🦅", baseApproval:30, bloc:"russia" },
+  ],
+  "Казахстан": [
+    { id:"siloviki",     name:"КНБ и полиция",       desc:"Спецслужбы",                   emoji:"🛡️", baseApproval:35, bloc:"security" },
+    { id:"oligarchs",    name:"Семейные кланы",      desc:"Старая элита и её активы",     emoji:"💼", baseApproval:15, bloc:"business" },
+    { id:"regions",      name:"Акимы регионов",      desc:"Региональная вертикаль",       emoji:"🏛️", baseApproval:40, bloc:"regional" },
+    { id:"youth",        name:"Городская молодёжь",  desc:"Алматы, Астана, соцсети",      emoji:"🔥", baseApproval:60, bloc:"liberal" },
+    { id:"nationalists", name:"Национал-патриоты",   desc:"Казахоязычные активисты",      emoji:"🔱", baseApproval:45, bloc:"nationalist" },
+    { id:"church",       name:"Духовенство",         desc:"Духовное управление мусульман",emoji:"🕌", baseApproval:50, bloc:"church" },
+    { id:"russia",       name:"Кремль",              desc:"Москва и ЕАЭС",                emoji:"🦅", baseApproval:35, bloc:"russia" },
+    { id:"west",         name:"Западные инвесторы",  desc:"Нефть, уран, США и ЕС",        emoji:"🌍", baseApproval:45, bloc:"west" },
+  ],
 };
 
 export const IDEOLOGY_REL: Record<IdeologyId, Record<string, number>> = {
-  liberal:     { siloviki:-45,gossektor:-25,church:-15,opposition:+55,youth:+45,west:+65,russia:-70,media:+40, military:+10,oligarchs:-15,nationalists:-35,civil:+55,regions:+10, gdream:-55,business:+20,diaspora:+60 },
-  nationalist: { siloviki:+20,gossektor:-5, church:+50,opposition:-40,youth:+15,west:-50,russia:-20,media:+10, military:+60,oligarchs:-25,nationalists:+65,civil:-20,regions:+20, gdream:-20,business:-10,diaspora:+30 },
-  pragmatist:  { siloviki:+5, gossektor:+10,church:+10,opposition:-20,youth:+5, west:+15,russia:-15,media:+0,  military:+20,oligarchs:+30,nationalists:-15,civil:+10,regions:+20, gdream:+5, business:+30,diaspora:+10 },
-  leftist:     { siloviki:-30,gossektor:+50,church:-35,opposition:+20,youth:+35,west:+10,russia:-20,media:+30, military:-10,oligarchs:-60,nationalists:-30,civil:+65,regions:+15, gdream:-45,business:-45,diaspora:+20 },
+  liberal:     { revanchists:-35, siloviki:-45,gossektor:-25,church:-15,opposition:+55,youth:+45,west:+65,russia:-70,media:+40, military:+10,oligarchs:-15,nationalists:-35,civil:+55,regions:+10, gdream:-55,business:+20,diaspora:+60 },
+  nationalist: { revanchists:+40, siloviki:+20,gossektor:-5, church:+50,opposition:-40,youth:+15,west:-50,russia:-20,media:+10, military:+60,oligarchs:-25,nationalists:+65,civil:-20,regions:+20, gdream:-20,business:-10,diaspora:+30 },
+  pragmatist:  { revanchists:-10, siloviki:+5, gossektor:+10,church:+10,opposition:-20,youth:+5, west:+15,russia:-15,media:+0,  military:+20,oligarchs:+30,nationalists:-15,civil:+10,regions:+20, gdream:+5, business:+30,diaspora:+10 },
+  leftist:     { revanchists:-15, siloviki:-30,gossektor:+50,church:-35,opposition:+20,youth:+35,west:+10,russia:-20,media:+30, military:-10,oligarchs:-60,nationalists:-30,civil:+65,regions:+15, gdream:-45,business:-45,diaspora:+20 },
 };
 
 export const DIFF_REL_MOD: Record<DifficultyId, number> = { debut:+15, coalition:0, crisis:-20, ruins:-35 };
@@ -139,6 +172,36 @@ export const FIGURE_ROLES: Record<string, FigureRole[]> = {
     { id:"parliament", role:"Председатель парламента",  faction:"gdream",     baseMood:"враг"    },
     { id:"security",   role:"Глава спецслужб",          faction:"gdream",     baseMood:"враг"    },
   ],
+  "Молдова": [
+    { id:"bashkan",    role:"Башкан Гагаузии",          faction:"regions",    baseMood:"враг"    },
+    { id:"oligarch",   role:"Беглый олигарх",           faction:"oligarchs",  baseMood:"враг"    },
+    { id:"amb_eu",     role:"Посол ЕС",                 faction:"west",       baseMood:"союзник" },
+    { id:"amb_russia", role:"Посол России",             faction:"russia",     baseMood:"нейтрал" },
+    { id:"patriarch",  role:"Митрополит",               faction:"church",     baseMood:"нейтрал" },
+    { id:"prosecutor", role:"Генеральный прокурор",     faction:"siloviki",   baseMood:"нейтрал" },
+    { id:"activist",   role:"Лидер гражданских активистов", faction:"civil",  baseMood:"союзник" },
+    { id:"diaspora",   role:"Лидер диаспоры",           faction:"diaspora",   baseMood:"союзник" },
+  ],
+  "Армения": [
+    { id:"general",    role:"Начальник Генштаба",       faction:"military",   baseMood:"нейтрал" },
+    { id:"catholicos", role:"Католикос",                faction:"church",     baseMood:"враг"    },
+    { id:"oligarch",   role:"Олигарх старой элиты",     faction:"oligarchs",  baseMood:"враг"    },
+    { id:"revanchist", role:"Лидер реваншистов",        faction:"revanchists",baseMood:"враг"    },
+    { id:"activist",   role:"Лидер гражданского общества", faction:"civil",   baseMood:"союзник" },
+    { id:"diaspora",   role:"Лидер диаспоры",           faction:"diaspora",   baseMood:"союзник" },
+    { id:"amb_usa",    role:"Посол США",                faction:"west",       baseMood:"союзник" },
+    { id:"amb_russia", role:"Посол России",             faction:"russia",     baseMood:"нейтрал" },
+  ],
+  "Казахстан": [
+    { id:"knb",        role:"Председатель КНБ",         faction:"siloviki",   baseMood:"враг"    },
+    { id:"clan",       role:"Глава влиятельного клана", faction:"oligarchs",  baseMood:"враг"    },
+    { id:"akim",       role:"Аким Алматы",              faction:"regions",    baseMood:"нейтрал" },
+    { id:"activist",   role:"Лидер молодёжного движения", faction:"youth",    baseMood:"союзник" },
+    { id:"nat_leader", role:"Лидер национал-патриотов", faction:"nationalists",baseMood:"нейтрал" },
+    { id:"mufti",      role:"Верховный муфтий",         faction:"church",     baseMood:"нейтрал" },
+    { id:"amb_russia", role:"Посол России",             faction:"russia",     baseMood:"нейтрал" },
+    { id:"investor",   role:"Представитель западных инвесторов", faction:"west", baseMood:"союзник" },
+  ],
 };
 
 export const EVENT_SOURCES = ["МИД","Разведка","Кабинет","Улица","Кремль","Брюссель","Пресса","Олигарх","Армия","Оппозиция"];
@@ -168,6 +231,21 @@ export const PARTIES: Record<string, PartyInfo[]> = {
     { id:"front",  name:"Национальный фронт",      blocs:["nationalist","security"] },
     { id:"region", name:"Блок регионов",           blocs:["regional","business"] },
     { id:"europe", name:"Европейский выбор",       blocs:["liberal","church"] },
+  ],
+  "Молдова": [
+    { id:"socialists", name:"Партия социалистов",     blocs:["regional","church"] },
+    { id:"revival",    name:"Блок «Возрождение»",      blocs:["business","security"] },
+    { id:"europe",     name:"Проевропейский союз",     blocs:["liberal"] },
+  ],
+  "Армения": [
+    { id:"homeland",   name:"Движение «Родина»",       blocs:["nationalist","church","security"] },
+    { id:"prosper",    name:"Партия процветания",      blocs:["business"] },
+    { id:"civic",      name:"Гражданский союз",        blocs:["liberal"] },
+  ],
+  "Казахстан": [
+    { id:"stability",  name:"Партия стабильности",     blocs:["business","security","regional"] },
+    { id:"revival",    name:"Национальное возрождение", blocs:["nationalist","church"] },
+    { id:"newkz",      name:"Новый Казахстан",         blocs:["liberal"] },
   ],
   "Грузия": [
     { id:"dream",  name:"Грузинская мечта",        blocs:["ruling","church"] },
