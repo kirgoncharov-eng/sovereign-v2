@@ -1,5 +1,55 @@
 @import "tailwindcss";
 
+/* Кабинет: зелёное сукно стола, на нём серая писчая бумага.
+   Чернила — машинопись, фиолетовый штемпель, синяя шариковая ручка.
+   Одни и те же токены значат разное на столе (:root) и на листе (.sv-paper). */
+:root {
+  color-scheme: dark;
+  --bg:   #17221b;               /* сукно */
+  --bg2:  rgba(233, 229, 216, 0.05);
+  --bg3:  rgba(233, 229, 216, 0.10);
+  --bdr:  rgba(233, 229, 216, 0.14);
+  --bdr2: rgba(233, 229, 216, 0.28);
+  --gold: #e7e1cc;               /* главный акцент на столе — цвет бумаги */
+  --gld2: #fbf6e6;
+  --on-gold: #17221b;
+  --blue: #a9bde6;
+  --bl2:  #c3d1ef;
+  --txt:  #e6e4da;
+  --tx2:  #b1bbb0;
+  --tx3:  #86958a;
+  --grn:  #8fcf9c;
+  --amb:  #e0bb68;
+  --red:  #ec8c80;
+  --stamp: #b9a3e6;
+  --paper: #e4e2da;
+  --paper-hi: #efede6;
+}
+
+.sv-paper {
+  color-scheme: light;
+  --bg2:  #e4e2da;
+  --bg3:  #efede6;
+  --bdr:  #cbc7bb;
+  --bdr2: #a39e8f;
+  --gold: #4a2d84;               /* фиолетовый штемпель */
+  --gld2: #3a2168;
+  --on-gold: #f3f0e8;
+  --blue: #1f3d93;               /* шариковая ручка */
+  --bl2:  #2a4aa6;
+  --txt:  #1f1d19;
+  --tx2:  #45423b;
+  --tx3:  #6f6b61;
+  --grn:  #2b6639;
+  --amb:  #87600f;
+  --red:  #a3261d;
+  --stamp: #4a2d84;
+  color: var(--txt);
+  background-color: var(--paper);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.33 0 0 0 0 0.28 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25), 0 10px 28px -8px rgba(0, 0, 0, 0.55);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -7,28 +57,37 @@
 }
 
 body {
-  background: #07090e;
-  color: #ccc8be;
-  font-family: var(--font-serif), Georgia, serif;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse at 50% 20%, rgba(255, 255, 255, 0.05), transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.05 0 0 0 0 0.09 0 0 0 0 0.06 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-attachment: fixed;
+  color: var(--txt);
+  font-family: var(--font-serif), "PT Serif", Georgia, serif;
   min-height: 100vh;
 }
 
 button {
   cursor: pointer;
-  transition: all 0.15s;
-  font-family: var(--font-tech), var(--font-ptmono), "Courier New", monospace;
+  transition: background-color 0.15s, border-color 0.15s, filter 0.15s;
+  font-family: var(--font-narrow), "PT Sans Narrow", "Arial Narrow", sans-serif;
 }
 
 button:disabled {
   cursor: default;
 }
 
+button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
 ::-webkit-scrollbar {
-  width: 3px;
+  width: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #243452;
+  background: var(--bdr2);
 }
 
 /* Мобильная раскладка: сайдбар уходит под основную колонку */
@@ -50,14 +109,15 @@ button:disabled {
   }
 }
 
-/* ── HUD ─────────────────────────────────────────────────────────────── */
+/* ── HUD: планка на краю стола ──────────────────────────────────────── */
 .sv-hud {
   position: sticky;
   top: env(safe-area-inset-top, 0px);
   z-index: 20;
-  background: rgba(7, 9, 14, 0.94);
+  background: rgba(16, 24, 19, 0.96);
   backdrop-filter: blur(6px);
-  border-bottom: 1px solid #1a2438;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.8);
 }
 .sv-hud-res {
   display: grid;
@@ -72,38 +132,71 @@ button:disabled {
   flex-wrap: wrap;
 }
 
-/* Варианты решения: номер горячей клавиши и фокус */
+/* Резолюции: строки на листе, без коробок */
 .sv-opt { position: relative; }
 .sv-opt:hover, .sv-opt:focus-visible {
-  background: #111b2e !important;
-  border-color: #c8a86c !important;
+  background: var(--bg3) !important;
+  box-shadow: inset 3px 0 0 var(--gold);
   outline: none;
 }
 .sv-key {
   position: absolute;
-  top: 10px;
+  top: 12px;
   right: 12px;
-  font-family: var(--font-tech), monospace;
-  font-size: 10px;
-  color: #77756c;
-  border: 1px solid #243452;
+  font-family: var(--font-ptmono), monospace;
+  font-size: 11px;
+  color: var(--tx3);
+}
+
+/* Штемпель: удар печати при подписании и отметки об исполнении */
+.sv-stamp {
+  display: inline-block;
+  font-family: var(--font-narrow), "PT Sans Narrow", sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--stamp);
+  border: 3px double currentColor;
   border-radius: 3px;
-  padding: 1px 6px;
+  padding: 3px 10px 2px;
+  transform: rotate(-7deg);
+  opacity: 0.85;
+  mix-blend-mode: multiply;
+  line-height: 1.15;
+  text-align: center;
+}
+.sv-stamp.is-red { color: var(--red); }
+.sv-stamp-hit {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  font-size: 20px;
+  animation: sv-stamp 0.38s cubic-bezier(.2, .9, .3, 1.2) both;
+  pointer-events: none;
+}
+@keyframes sv-stamp {
+  from { opacity: 0; transform: translateY(-50%) rotate(-14deg) scale(1.9); }
+  to   { opacity: 0.85; transform: translateY(-50%) rotate(-7deg) scale(1); }
+}
+
+/* Рукописная резолюция */
+.sv-hand {
+  font-family: var(--font-hand), "Marck Script", cursive;
+  color: var(--blue);
 }
 
 /* Загрузка */
 .sv-progress {
   height: 2px;
-  background: #1a2438;
+  background: var(--bdr);
   overflow: hidden;
-  border-radius: 2px;
 }
 .sv-progress::after {
   content: "";
   display: block;
   height: 100%;
   width: 35%;
-  background: linear-gradient(90deg, transparent, #c8a86c, transparent);
+  background: var(--gold);
   animation: sv-slide 1.4s ease-in-out infinite;
 }
 @keyframes sv-slide {
@@ -126,7 +219,7 @@ button:disabled {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(3, 4, 8, 0.8);
+  background: rgba(6, 10, 8, 0.78);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -139,17 +232,17 @@ button:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sv-reveal, .sv-fade, .sv-progress::after { animation: none !important; }
+  .sv-reveal, .sv-fade, .sv-progress::after, .sv-stamp-hit { animation: none !important; }
 }
 
 /* Курсор печатающегося текста */
-.sv-caret { color: #c8a86c; animation: sv-blink 0.9s steps(2) infinite; }
+.sv-caret { color: var(--tx3); animation: sv-blink 0.9s steps(2) infinite; }
 @keyframes sv-blink { 50% { opacity: 0; } }
 
-/* Тач: выбранный вариант ждёт второго касания */
-.sv-opt[data-armed] { border-color: #c9a04a !important; box-shadow: 0 0 0 1px #c9a04a inset; }
+/* Тач: выбранная резолюция ждёт второго касания */
+.sv-opt[data-armed] { background: var(--bg3) !important; box-shadow: inset 3px 0 0 var(--gold); }
 .sv-opt[data-armed]::after {
-  content: "Коснитесь ещё раз, чтобы подписать";
-  display: block; margin-top: 10px; padding-top: 8px; border-top: 1px solid #2a3550;
-  font-family: var(--font-tech), monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #c9a04a;
+  content: "Коснитесь ещё раз — подписать";
+  display: block; margin-top: 10px;
+  font-family: var(--font-hand), "Marck Script", cursive; font-size: 17px; color: var(--blue);
 }

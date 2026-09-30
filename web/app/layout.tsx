@@ -1,26 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, PT_Mono, Share_Tech_Mono } from "next/font/google";
+import { Marck_Script, PT_Mono, PT_Sans_Narrow, PT_Serif } from "next/font/google";
 import "./globals.css";
 
-const serif = Cormorant_Garamond({
-  variable: "--font-serif",
-  subsets: ["latin", "cyrillic"],
-  weight: ["400", "500", "600", "700"],
-  style: ["normal", "italic"],
-});
-
-// Share Tech Mono не содержит кириллицы — для неё браузер берёт PT Mono из того же стека.
-const tech = Share_Tech_Mono({
-  variable: "--font-tech",
-  subsets: ["latin"],
-  weight: "400",
-});
-
-const ptMono = PT_Mono({
-  variable: "--font-ptmono",
-  subsets: ["cyrillic"],
-  weight: "400",
-});
+// Гарнитуры ParaType — шрифты российского делопроизводства; Marck Script — рукописные резолюции.
+const serif = PT_Serif({ variable: "--font-serif", subsets: ["latin", "cyrillic"], weight: ["400", "700"], style: ["normal", "italic"] });
+const narrow = PT_Sans_Narrow({ variable: "--font-narrow", subsets: ["latin", "cyrillic"], weight: ["400", "700"] });
+const ptMono = PT_Mono({ variable: "--font-ptmono", subsets: ["latin", "cyrillic"], weight: "400" });
+const hand = Marck_Script({ variable: "--font-hand", subsets: ["latin", "cyrillic"], weight: "400" });
 
 const DESCRIPTION = "Двадцать решений. Одна страна. Политический триллер, где каждый ход — глава детектива: заговоры, выборы, предатели в собственном совете.";
 
@@ -33,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#07090e",
+  themeColor: "#17221b",
 };
 
 export default function RootLayout({
@@ -42,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${serif.variable} ${tech.variable} ${ptMono.variable}`}>
+    <html lang="ru" className={`${serif.variable} ${narrow.variable} ${ptMono.variable} ${hand.variable}`}>
       <body>{children}</body>
     </html>
   );

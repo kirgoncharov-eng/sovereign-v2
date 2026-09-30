@@ -1,7 +1,8 @@
 /* Демо-сборка: шрифты грузятся с Google Fonts, остальные стили — из app/globals.css */
 :root {
   color-scheme: dark;
-  --font-serif: "Cormorant Garamond";
-  --font-tech: "Share Tech Mono";
+  --font-serif: "PT Serif";
+  --font-narrow: "PT Sans Narrow";
   --font-ptmono: "PT Mono";
+  --font-hand: "Marck Script";
 }

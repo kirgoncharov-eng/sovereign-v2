@@ -21,35 +21,31 @@ const apiFor = mode => (mode === "classic" ? expressApi : aiApi);
 import { initTelegram, telegramShare } from "@/lib/client/telegram.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
-const barColor = v => v >= 60 ? "#5cb87a" : v >= 35 ? "#c9a04a" : "#b85252";
-const relColor = v => v >= 30 ? "#5cb87a" : v > -30 ? "#c9a04a" : "#b85252";
-const signed = v => v > 0 ? `+${v}` : `${v}`;
+const barColor = v => v >= 60 ? "var(--grn)" : v >= 35 ? "var(--amb)" : "var(--red)";
+const relColor = v => v >= 30 ? "var(--grn)" : v > -30 ? "var(--amb)" : "var(--red)";
+const signed = v => v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0";
 
-const G = {
-  bg:"#07090e", bg2:"#0c1120", bg3:"#111b2e",
-  bdr:"#1a2438", bdr2:"#243452",
-  gold:"#c8a86c", gld2:"#e0c488",
-  blue:"#4a7aaa", bl2:"#6a9aca",
-  txt:"#d6d2c6", tx2:"#9d9a8c", tx3:"#77756c",
-  grn:"#5cb87a", amb:"#c9a04a", red:"#b85252",
-};
-const mono  = "var(--font-tech), var(--font-ptmono), 'Courier New', monospace";
-const serif = "var(--font-serif), 'Georgia', serif";
+// Цвета — CSS-переменные: на столе и на листе бумаги (.sv-paper) они разные.
+const G = Object.fromEntries(["bg","bg2","bg3","bdr","bdr2","gold","gld2","blue","bl2","txt","tx2","tx3","grn","amb","red"].map(k => [k, `var(--${k})`]));
+const mono   = "var(--font-ptmono), 'PT Mono', 'Courier New', monospace";
+const serif  = "var(--font-serif), 'PT Serif', Georgia, serif";
+const narrow = "var(--font-narrow), 'PT Sans Narrow', 'Arial Narrow', sans-serif";
 const hov = (active) => ({
   onMouseOver: e => { if (!active) { e.currentTarget.style.background = G.bg3; e.currentTarget.style.borderColor = G.gold; } },
   onMouseOut:  e => { if (!active) { e.currentTarget.style.background = G.bg2; e.currentTarget.style.borderColor = G.bdr; } }
 });
 
-function Divider() { return <div style={{ height:1, background:`linear-gradient(to right,transparent,${G.bdr2},transparent)`, margin:"0 0 24px" }}/>; }
-function Label({ children }) { return <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".18em", color:G.tx3, marginBottom:12 }}>{children}</div>; }
-function Card({ children, style, accent }) {
-  return <div style={{ background:G.bg2, border:`1px solid ${G.bdr}`, borderRadius:6, padding:"18px 20px", ...(accent?{borderLeft:`3px solid ${accent}`}:{}), ...style }}>{children}</div>;
+function Divider() { return <div style={{ height:1, background:G.bdr, margin:"0 0 24px" }}/>; }
+function Label({ children }) { return <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3, marginBottom:10 }}>{children}</div>; }
+// Лист бумаги на столе. accent оставлен для совместимости вызовов и не рисуется.
+function Card({ children, style, className = "" }) {
+  return <div className={`sv-paper ${className}`} style={{ borderRadius:2, padding:"20px 22px", ...style }}>{children}</div>;
 }
 function PrimaryBtn({ children, onClick, disabled, danger, id }) {
   return (
     <button id={id} onClick={onClick} disabled={disabled}
-      onMouseOver={e=>{e.currentTarget.style.background=G.bg3;}} onMouseOut={e=>{e.currentTarget.style.background="transparent";}}
-      style={{ background:"transparent", border:`1px solid ${danger?G.red:G.gold}`, color:disabled?G.tx3:danger?G.red:G.gold, padding:"12px 36px", borderRadius:4, fontSize:13, letterSpacing:".2em", opacity:disabled?.5:1 }}>
+      onMouseOver={e=>{ if (!disabled) e.currentTarget.style.filter="brightness(1.08)"; }} onMouseOut={e=>{e.currentTarget.style.filter="none";}}
+      style={{ background:danger?G.red:G.gold, border:"none", color:"var(--on-gold)", padding:"12px 30px", borderRadius:2, fontSize:16, fontWeight:700, letterSpacing:".06em", opacity:disabled?.45:1, boxShadow:"0 2px 0 rgba(0,0,0,.35)" }}>
       {children}
     </button>
   );
@@ -57,8 +53,8 @@ function PrimaryBtn({ children, onClick, disabled, danger, id }) {
 function Chip({ value, children }) {
   const pos = value > 0;
   return (
-    <span style={{ fontFamily:mono, fontSize:10, padding:"3px 8px", borderRadius:3, background:pos?"rgba(92,184,122,0.1)":"rgba(184,82,82,0.1)", color:pos?G.grn:G.red, border:`1px solid ${pos?"rgba(92,184,122,0.25)":"rgba(184,82,82,0.25)"}` }}>
-      {children} {signed(value)}
+    <span style={{ fontFamily:narrow, fontSize:15, color:pos?G.grn:G.red, whiteSpace:"nowrap" }}>
+      {children} <b>{signed(value)}</b>
     </span>
   );
 }
@@ -66,17 +62,17 @@ function ResourceChips({ delta }) {
   const items = RES_CONFIG.filter(r => delta?.[r.key]);
   if (!items.length) return null;
   return (
-    <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-      {items.map(r => <Chip key={r.key} value={delta[r.key]}>{r.label}</Chip>)}
+    <div style={{ display:"flex", flexWrap:"wrap", gap:"2px 14px" }}>
+      {items.map(r => <Chip key={r.key} value={delta[r.key]}>{SHORT[r.key]}</Chip>)}
     </div>
   );
 }
 function ErrorBanner({ message, onRetry }) {
   return (
-    <div style={{ marginBottom:10, padding:"12px 16px", borderRadius:4, background:"rgba(184,82,82,0.12)", border:`1px solid ${G.red}`, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-      <span style={{ fontFamily:mono, fontSize:11, color:G.red, letterSpacing:".06em" }}>✖ {message}</span>
+    <div style={{ marginBottom:10, padding:"12px 16px", borderRadius:2, background:"rgba(184,82,82,0.12)", border:`1px solid ${G.red}`, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+      <span style={{ fontFamily:narrow, fontSize:15, color:G.red, letterSpacing:".06em" }}>✖ {message}</span>
       {onRetry && (
-        <button onClick={onRetry} style={{ background:"transparent", border:`1px solid ${G.red}`, color:G.red, padding:"6px 16px", borderRadius:4, fontSize:11, letterSpacing:".15em" }}>
+        <button onClick={onRetry} style={{ background:"transparent", border:`1px solid ${G.red}`, color:G.red, padding:"6px 16px", borderRadius:2, fontSize:15, letterSpacing:".05em" }}>
           ПОВТОРИТЬ
         </button>
       )}
@@ -90,9 +86,9 @@ function ResBar({ label, val, prev }) {
   return (
     <div style={{ marginBottom:9 }}>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-        <span style={{ fontFamily:mono, fontSize:11, color:G.tx2 }}>{label}</span>
-        <span style={{ fontFamily:mono, fontSize:11, color:c, fontWeight:"bold" }}>
-          {val}{delta!==0&&<span style={{ color:delta>0?G.grn:G.red, fontSize:10, marginLeft:2 }}>{signed(delta)}</span>}
+        <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{label}</span>
+        <span style={{ fontFamily:narrow, fontSize:15, color:c, fontWeight:"bold" }}>
+          {val}{delta!==0&&<span style={{ color:delta>0?G.grn:G.red, marginLeft:3 }}>{signed(delta)}</span>}
         </span>
       </div>
       <div style={{ height:2, background:G.bdr, borderRadius:2 }}>
@@ -109,10 +105,10 @@ function RelBar({ label, val, prevVal }) {
   return (
     <div style={{ marginBottom:8 }}>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-        <span style={{ fontFamily:mono, fontSize:10, color:G.tx2 }}>{label}</span>
-        <span style={{ fontFamily:mono, fontSize:10, color:c }}>
+        <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{label}</span>
+        <span style={{ fontFamily:narrow, fontSize:15, color:c }}>
           {signed(val)}
-          {delta !== 0 && <span style={{ color:delta>0?G.grn:G.red, fontSize:10, marginLeft:2 }}>{signed(delta)}</span>}
+          {delta !== 0 && <span style={{ color:delta>0?G.grn:G.red, marginLeft:3 }}>{signed(delta)}</span>}
         </span>
       </div>
       <div style={{ height:2, background:G.bdr, borderRadius:2, position:"relative" }}>
@@ -127,6 +123,10 @@ function nextElection(turn) {
   const t = Object.keys(ELECTIONS).map(Number).find(x => x > turn);
   return t ? { label: ELECTION_LABEL[ELECTIONS[t]], in: t - turn } : null;
 }
+// Подпись под резолюцией: «А. Шевчик».
+const signature = name => { const [f, ...rest] = String(name).split(" "); return rest.length ? `${f[0]}. ${rest.join(" ")}` : name; };
+// Входящий номер документа: стабилен для хода партии, выглядит как настоящий.
+const docNumber = gs => `${(gs.seed % 700) + 101 + gs.turn * 13}-с`;
 const inTurns = n => n === 1 ? "после этого хода" : `через ${plural(n, "ход", "хода", "ходов")}`;
 
 function PollWidget({ gs }) {
@@ -144,12 +144,12 @@ function PollWidget({ gs }) {
   return (
     <Card style={{ marginBottom:10 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-        <span style={{ fontFamily:mono, fontSize:10, letterSpacing:".15em", color:G.tx3 }}>ОПРОС</span>
+        <span style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3 }}>ОПРОС</span>
         <button onClick={()=>setInfo(v=>!v)} aria-expanded={info} title="Как считается рейтинг"
           style={{ background:"transparent", border:`1px solid ${G.bdr}`, color:G.tx3, borderRadius:10, width:18, height:18, fontSize:10, lineHeight:"16px", padding:0 }}>?</button>
       </div>
       {info && (
-        <div style={{ fontFamily:serif, fontSize:12, color:G.tx2, lineHeight:1.5, marginBottom:10, padding:"8px 10px", background:G.bg3, borderRadius:4 }}>
+        <div style={{ fontFamily:serif, fontSize:12, color:G.tx2, lineHeight:1.5, marginBottom:10, padding:"8px 10px", background:G.bg3, borderRadius:2 }}>
           Голосуют группы общества — по своему весу. Группа поддерживает вас тем сильнее, чем лучше её отношение к вам и чем выше легитимность и экономика. Недовольные уходят к партии-конкуренту своего лагеря. Запад и Кремль не голосуют. Рейтинг ≤ {LIMITS.endRating}% — революция.
         </div>
       )}
@@ -159,8 +159,8 @@ function PollWidget({ gs }) {
         return (
           <div key={r.id} style={{ marginBottom:7 }}>
             <div style={{ display:"flex", justifyContent:"space-between", gap:6, marginBottom:2 }}>
-              <span style={{ fontFamily:mono, fontSize:10, color:r.me?G.gld2:G.tx2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.me ? "★ " : ""}{r.name}</span>
-              <span style={{ fontFamily:mono, fontSize:10, color:c, whiteSpace:"nowrap" }}>
+              <span style={{ fontFamily:narrow, fontSize:15, color:r.me?G.gld2:G.tx2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.me ? "★ " : ""}{r.name}</span>
+              <span style={{ fontFamily:narrow, fontSize:15, color:c, whiteSpace:"nowrap" }}>
                 {r.share}%{d !== 0 && <span style={{ color:d>0?G.grn:G.red, marginLeft:3 }}>{signed(d)}</span>}
               </span>
             </div>
@@ -170,7 +170,7 @@ function PollWidget({ gs }) {
           </div>
         );
       })}
-      <div style={{ fontFamily:mono, fontSize:10, color:leading?G.grn:G.amb, marginTop:8, letterSpacing:".06em" }}>
+      <div style={{ fontFamily:narrow, fontSize:15, color:leading?G.grn:G.amb, marginTop:8, letterSpacing:".06em" }}>
         {leading ? "▲ ВЫ ЛИДИРУЕТЕ" : "▼ КОНКУРЕНТ ВПЕРЕДИ"}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
       </div>
     </Card>
@@ -180,30 +180,29 @@ function PollWidget({ gs }) {
 function ChoicePreview({ gs, c }) {
   const fx = choiceEffects(gs, c);
   const crisis = c.resolvesCrisis && gs.activeCrises.find(x => x.id === c.resolvesCrisis);
+  const later = delayedEffects(c);
   return (
     <>
       {c.advisor && (
-        <div style={{ fontFamily:mono, fontSize:10, color:G.gold, marginBottom:4 }}>
-          {c.advisor.name} · {c.advisor.role.toLowerCase()} {stars(c.advisor.skill)}
+        <div className="sv-hand" style={{ fontSize:18, lineHeight:1.2, marginBottom:4 }}>
+          предлагает {c.advisor.name}, {c.advisor.role.toLowerCase()} {stars(c.advisor.skill)}
         </div>
       )}
-      <div style={{ fontFamily:mono, fontSize:10, color:G.bl2, letterSpacing:".12em", marginBottom:5, paddingRight:30 }}>
-        {c.tags.map(t => ACTIONS[t].label.toUpperCase()).join(" · ")}
-        <ChanceBadge p={successChance(gs, c)}/>
+      <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
+      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:8 }}>
+        {c.tags.map(t => ACTIONS[t].label).join(" · ")} · <ChanceBadge p={successChance(gs, c)}/> · <i style={{ fontFamily:serif }}>{c.hint}</i>
       </div>
-      <div style={{ fontFamily:serif, fontSize:16, fontWeight:500, marginBottom:4 }}>{c.text}</div>
-      <div style={{ fontFamily:mono, fontSize:11, color:G.tx3, marginBottom:8 }}>{c.hint}</div>
       <ResourceChips delta={fx.resources}/>
-      {delayedEffects(c).length > 0 && (
-        <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:7, lineHeight:1.6 }}>
-          ПОЗЖЕ · {delayedEffects(c).map(d => {
+      {later.length > 0 && (
+        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6, lineHeight:1.45 }}>
+          Позже: {later.map((d, k) => {
             const fx = RES_CONFIG.filter(r => d.res[r.key]).map(r => `${SHORT[r.key].toLowerCase()} ${signed(d.res[r.key])}`).join(", ");
             const good = Object.values(d.res).reduce((a, b) => a + (b ?? 0), 0) >= 0;
-            return <span key={d.label} style={{ color:good ? G.grn : G.red, marginRight:10 }}>{d.label} ({fx}) через {plural(d.turns, "ход", "хода", "ходов")}</span>;
+            return <span key={d.label} style={{ color:good ? G.grn : G.red }}>{k ? "; " : ""}{d.label} ({fx}) через {plural(d.turns, "ход", "хода", "ходов")}</span>;
           })}
         </div>
       )}
-      {crisis && <div style={{ fontFamily:mono, fontSize:10, color:G.grn, marginTop:6 }}>✔ закроет кризис «{crisis.title}»</div>}
+      {crisis && <div style={{ fontFamily:narrow, fontSize:15, color:G.grn, marginTop:6 }}>Закроет кризис «{crisis.title}»</div>}
     </>
   );
 }
@@ -211,13 +210,13 @@ function ChoicePreview({ gs, c }) {
 function ChanceBadge({ p }) {
   const pct = Math.round(p * 100);
   const c = pct >= 75 ? G.grn : pct >= 55 ? G.amb : G.red;
-  return <span title="Шанс, что решение исполнят как задумано. Зависит от советника, отношения исполнителей и ресурсов." style={{ marginLeft:10, color:c, letterSpacing:".04em" }}>◎ {pct}%</span>;
+  return <span title="Шанс, что решение исполнят как задумано. Зависит от советника, отношения исполнителей и ресурсов." style={{ color:c, fontWeight:700 }}>исполнят с шансом {pct}%</span>;
 }
 
 const stars = n => "★".repeat(n) + "☆".repeat(3 - n);
 
 // Совет: ограниченное число раз за мандат советники предлагают свои решения.
-function CouncilPanel({ gs, onConvened, optProps }) {
+function CouncilPanel({ gs, onConvened, optProps, stamping }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
   const proposals = gs.currentEvent?.council;
@@ -232,35 +231,35 @@ function CouncilPanel({ gs, onConvened, optProps }) {
   };
 
   return (
-    <div style={{ marginTop:14, paddingTop:14, borderTop:`1px dashed ${G.bdr2}` }}>
+    <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}` }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
-        <span style={{ fontFamily:mono, fontSize:11, letterSpacing:".18em", color:G.tx3 }}>{"СОВЕТ"}</span>
-        <span style={{ fontFamily:mono, fontSize:10, color:charges?G.gold:G.tx3 }}>сборов осталось: {charges}</span>
+        <span style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>Совет</span>
+        <span style={{ fontFamily:narrow, fontSize:15, color:charges?G.gold:G.tx3 }}>{charges ? `можно собрать ещё ${plural(charges, "раз", "раза", "раз")}` : "больше не соберётся"}</span>
       </div>
       {proposals?.length ? proposals.map((c, i) => (
         <button key={c.id} {...optProps(c, i)}
-          style={{ display:"block", width:"100%", textAlign:"left", padding:"13px 16px", marginBottom:8, borderRadius:4, background:"rgba(200,168,108,0.04)", border:`1px solid ${G.bdr}`, color:G.txt }}>
-          <span className="sv-key">{optProps(c, i).id.slice(4)}</span>
+          style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 16px", marginBottom:6, borderRadius:2, background:"transparent", border:`1px dashed ${G.bdr2}`, color:G.txt, position:"relative" }}>
           <ChoicePreview gs={gs} c={c}/>
+          {stamping === c.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
         </button>
       )) : (
         <>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:"2px 16px", marginBottom:8 }}>
             {(gs.advisors ?? []).map(a => (
               <span key={a.id} title={`${a.role} · ${ADVISOR_SKILL[a.skill].label}`}
-                style={{ fontFamily:mono, fontSize:10, padding:"4px 8px", borderRadius:3, border:`1px solid ${G.bdr}`, color:G.tx2 }}>
+                style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>
                 {a.name} <span style={{ color:G.gold }}>{stars(a.skill)}</span>
               </span>
             ))}
           </div>
-          <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic", marginBottom:10 }}>
+          <div style={{ fontFamily:serif, fontSize:14, color:G.tx3, fontStyle:"italic", marginBottom:10 }}>
             Каждый советник предложит своё решение из своей области. Сильный советник предлагает ходы дешевле и выгоднее.
           </div>
           <button onClick={convene} disabled={busy || charges <= 0}
-            style={{ background:"transparent", border:`1px solid ${charges?G.gold:G.bdr}`, color:charges?G.gold:G.tx3, padding:"9px 20px", borderRadius:4, fontSize:11, letterSpacing:".15em", opacity:charges?1:.5 }}>
-            {busy ? "СОВЕТНИКИ СОБИРАЮТСЯ..." : charges ? "СОБРАТЬ СОВЕТ" : "СОВЕТ ИСЧЕРПАН"}
+            style={{ background:"transparent", border:`1.5px solid ${charges?G.gold:G.bdr}`, color:charges?G.gold:G.tx3, padding:"8px 18px", borderRadius:2, fontSize:15, fontWeight:700, opacity:charges?1:.5 }}>
+            {busy ? "Советники собираются…" : charges ? "Собрать совет" : "Совет исчерпан"}
           </button>
-          {err && <div style={{ fontFamily:mono, fontSize:11, color:G.amb, marginTop:8 }}>✖ {err}</div>}
+          {err && <div style={{ fontFamily:narrow, fontSize:15, color:G.amb, marginTop:8 }}>✖ {err}</div>}
         </>
       )}
     </div>
@@ -275,8 +274,8 @@ function Prose({ text }) {
   return (
     <div>
       {paras.map((p, i) => DATELINE.test(p)
-        ? <div key={i} style={{ fontFamily:mono, fontSize:11, color:G.gold, letterSpacing:".04em", lineHeight:1.7, marginBottom:14, paddingLeft:10, borderLeft:`2px solid ${G.bdr2}` }}>{p}</div>
-        : <p key={i} style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:i === 1 ? G.txt : G.tx2, marginBottom:12 }}>{p}</p>)}
+        ? <div key={i} style={{ fontFamily:mono, fontSize:12.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}>{p}</div>
+        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch" }}>{p}</p>)}
     </div>
   );
 }
@@ -285,10 +284,14 @@ function Prose({ text }) {
 function DocumentCard({ doc }) {
   const secret = doc.kind === "intercept";
   return (
-    <div style={{ margin:"14px 0", padding:"14px 16px", background:secret ? "rgba(184,82,82,0.06)" : "rgba(214,210,198,0.04)", border:`1px dashed ${secret ? G.red : G.bdr2}`, borderRadius:3 }}>
-      <div style={{ fontFamily:mono, fontSize:10, letterSpacing:".2em", color:secret ? G.red : G.tx2, marginBottom:10 }}>{doc.title}</div>
+    <div style={{ margin:"18px 0", padding:"16px 18px", background:G.bg3, border:`1px solid ${G.bdr}`, boxShadow:"0 3px 10px -4px rgba(0,0,0,.35)", transform:`rotate(${secret ? -0.5 : 0.4}deg)` }}>
+      <div style={{ marginBottom:10 }}>
+        {secret
+          ? <span className="sv-stamp is-red" style={{ fontSize:13, transform:"rotate(-3deg)" }}>{doc.title}</span>
+          : <span style={{ fontFamily:narrow, fontWeight:700, fontSize:14, color:G.tx3 }}>{doc.title}</span>}
+      </div>
       {doc.lines.map((l, i) => (
-        <div key={i} style={{ fontFamily:secret ? mono : serif, fontSize:secret ? 12 : 16, fontWeight:secret ? 400 : 600, fontStyle:secret && i > 0 ? "italic" : "normal", color:secret && i > 0 ? G.tx3 : G.txt, lineHeight:1.5, padding:"4px 0", borderTop:!secret && i ? `1px solid ${G.bdr}` : "none" }}>{l}</div>
+        <div key={i} style={{ fontFamily:secret ? mono : serif, fontSize:secret ? 13 : 17, fontWeight:secret ? 400 : 700, fontStyle:secret && i > 0 ? "italic" : "normal", color:secret && i > 0 ? G.tx3 : G.txt, lineHeight:1.5, padding:"5px 0", borderTop:!secret && i ? `1px solid ${G.bdr}` : "none" }}>{l}</div>
       ))}
     </div>
   );
@@ -335,7 +338,7 @@ function Typewriter({ text, onDone }) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
-const SHORT = { politicalCapital:"ПОЛИТКАП.", economy:"ЭКОНОМИКА", military:"СИЛОВИКИ", externalReputation:"РЕПУТАЦИЯ", internalLegitimacy:"ЛЕГИТИМН.", personalResource:"ЛИЧН. РЕС." };
+const SHORT = { politicalCapital:"Политкапитал", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимность", personalResource:"Личный ресурс" };
 
 // Постоянная панель статуса. При наведении на вариант показывает итог хода, посчитанный движком.
 function Hud({ gs, preview, onMenu, onHelp }) {
@@ -351,7 +354,7 @@ function Hud({ gs, preview, onMenu, onHelp }) {
       <div style={{ maxWidth:1080, margin:"0 auto", padding:"10px 14px" }}>
         <div className="sv-hud-top" style={{ marginBottom:10 }}>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontFamily:mono, fontSize:10, letterSpacing:".14em", color:G.bl2 }}>{COUNTRIES[gs.country].flag} {gs.country.toUpperCase()} · {ci.emoji} {ci.label.toUpperCase()}</div>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{COUNTRIES[gs.country].flag} {gs.country} · {ci.label.toLowerCase()}</div>
             <div style={{ fontFamily:serif, fontSize:18, fontWeight:600, color:G.gold, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{gs.leader.name}</div>
           </div>
           <div className="sv-hud-track" style={{ display:"flex", flexDirection:"column", gap:4, flex:"1 1 260px", maxWidth:360 }}>
@@ -363,22 +366,22 @@ function Hud({ gs, preview, onMenu, onHelp }) {
                   style={{ flex:1, height:vote ? 8 : 5, alignSelf:"flex-end", borderRadius:1, background: done ? G.gold : now ? G.gld2 : vote ? G.bdr2 : G.bdr, opacity: done ? .75 : 1, outline: now ? `1px solid ${G.gld2}` : "none" }}/>;
               })}
             </div>
-            <div style={{ fontFamily:mono, fontSize:10, color:G.tx2 }}>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>
               {gs.year} · ход {Math.min(gs.turn + 1, MAX_TURNS)}/{MAX_TURNS}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
             </div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:14 }}>
             <div style={{ textAlign:"right" }}>
-              <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, letterSpacing:".12em" }}>РЕЙТИНГ</div>
+              <div style={{ fontFamily:narrow, fontSize:13, color:G.tx3 }}>рейтинг</div>
               <div style={{ fontFamily:serif, fontSize:22, fontWeight:600, color:rating >= 35 ? G.grn : rating >= 20 ? G.amb : G.red, lineHeight:1 }}>
                 {rating}%<span style={{ fontSize:14 }}>{arrow(rating, nextRating)}</span>
               </div>
             </div>
             <div style={{ display:"flex", gap:6 }}>
               <button onClick={onHelp} title="Как играть" aria-label="Как играть"
-                style={{ background:"transparent", border:`1px solid ${G.bdr2}`, color:G.tx2, width:28, height:28, borderRadius:4, fontSize:12 }}>?</button>
+                style={{ background:"transparent", border:`1px solid ${G.bdr2}`, color:G.tx2, width:30, height:30, borderRadius:2, fontSize:15 }}>?</button>
               <button onClick={onMenu} title="В меню (партия сохранится)"
-                style={{ background:"transparent", border:`1px solid ${G.bdr2}`, color:G.tx2, padding:"0 10px", height:28, borderRadius:4, fontSize:10, letterSpacing:".12em" }}>МЕНЮ</button>
+                style={{ background:"transparent", border:`1px solid ${G.bdr2}`, color:G.tx2, padding:"0 12px", height:30, borderRadius:2, fontSize:15 }}>Меню</button>
             </div>
           </div>
         </div>
@@ -390,9 +393,9 @@ function Hud({ gs, preview, onMenu, onHelp }) {
             const danger = (to ?? v) <= LIMITS.endResource;
             return (
               <div key={r.key} title={r.prompt}>
-                <div style={{ display:"flex", justifyContent:"space-between", gap:4, fontFamily:mono, fontSize:10 }}>
-                  <span style={{ color:G.tx2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{SHORT[r.key]}</span>
-                  <span style={{ color:barColor(v), whiteSpace:"nowrap" }}>{danger && to !== null ? "☠ " : ""}{v}{arrow(v, to)}</span>
+                <div style={{ display:"flex", flexWrap:"wrap", justifyContent:"space-between", columnGap:4, fontFamily:narrow, fontSize:15, lineHeight:1.2, fontVariantNumeric:"tabular-nums" }}>
+                  <span style={{ color:G.tx2, whiteSpace:"nowrap" }}>{SHORT[r.key]}</span>
+                  <span style={{ color:barColor(v), whiteSpace:"nowrap" }}>{danger && to !== null ? "! " : ""}{v}{arrow(v, to)}</span>
                 </div>
                 <div style={{ position:"relative", height:4, background:G.bdr, borderRadius:2, marginTop:3, overflow:"hidden" }}>
                   <div style={{ position:"absolute", inset:0, width:`${lo}%`, background:barColor(v), transition:"width .5s" }}/>
@@ -448,11 +451,11 @@ function HowToPlay({ onClose }) {
   ];
   return (
     <div className="sv-modal" role="dialog" aria-modal="true" aria-labelledby="howto-title" onClick={close}>
-      <div onClick={e => e.stopPropagation()} className="sv-fade" style={{ maxWidth:560, width:"100%", maxHeight:"90vh", overflowY:"auto", background:G.bg2, border:`1px solid ${G.bdr2}`, borderRadius:8, padding:"24px 24px 20px" }}>
+      <div onClick={e => e.stopPropagation()} className="sv-fade" style={{ maxWidth:560, width:"100%", maxHeight:"90vh", overflowY:"auto", background:G.bg2, border:`1px solid ${G.bdr2}`, borderRadius:2, padding:"24px 24px 20px" }}>
         <div id="howto-title" style={{ fontFamily:serif, fontSize:28, fontWeight:600, color:G.gold, marginBottom:16 }}>Как править</div>
         {items.map(([h, t]) => (
           <div key={h} style={{ marginBottom:14 }}>
-            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".1em", color:G.gld2, marginBottom:3 }}>{h.toUpperCase()}</div>
+            <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.gld2, marginBottom:3 }}>{h.toUpperCase()}</div>
             <div style={{ fontFamily:serif, fontSize:15, color:G.txt, lineHeight:1.55 }}>{t}</div>
           </div>
         ))}
@@ -469,16 +472,16 @@ function DailyCard({ meta, disabled, onPlay }) {
   return (
     <Card accent={done ? undefined : G.gold} style={{ marginBottom:22, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
       <div>
-        <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, letterSpacing:".15em", marginBottom:4 }}>ДЕЛО ДНЯ · {dd}.{mm}</div>
+        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, letterSpacing:".05em", marginBottom:4 }}>ДЕЛО ДНЯ · {dd}.{mm}</div>
         <div style={{ fontFamily:serif, fontSize:17, color:G.txt }}>
           {COUNTRIES[d.country].flag} {d.country} · {DIFFICULTIES[d.diff].label.toLowerCase()} · {IDEOLOGIES.find(i => i.id === d.ideo)?.label.toLowerCase()}
         </div>
-        <div style={{ fontFamily:mono, fontSize:10, color:G.tx2, marginTop:3 }}>
+        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginTop:3 }}>
           {done ? `ваш итог: «${done.title}» · ${END_TYPES[done.endType]}` : "одна партия на всех — сравните итог с друзьями"}
         </div>
       </div>
       {done
-        ? <span style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>новое дело завтра</span>
+        ? <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>новое дело завтра</span>
         : <PrimaryBtn onClick={() => onPlay(d)} disabled={disabled}>ВЗЯТЬСЯ</PrimaryBtn>}
     </Card>
   );
@@ -491,8 +494,8 @@ function Archive({ meta }) {
     <Card style={{ marginBottom:22 }}>
       <button onClick={() => setOpenList(v => !v)} aria-expanded={openList}
         style={{ width:"100%", display:"flex", flexWrap:"wrap", gap:"4px 12px", justifyContent:"space-between", alignItems:"center", background:"transparent", border:"none", color:G.txt, padding:0, textAlign:"left" }}>
-        <span style={{ fontFamily:mono, fontSize:11, letterSpacing:".15em", color:G.tx2, whiteSpace:"nowrap" }}>АРХИВ ПРАВИТЕЛЕЙ</span>
-        <span style={{ fontFamily:mono, fontSize:10, color:G.gold }}>
+        <span style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx2, whiteSpace:"nowrap" }}>АРХИВ ПРАВИТЕЛЕЙ</span>
+        <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }}>
           партий {meta.runs.length} · концовок {endings}/{ALL_ENDINGS.length} · достижений {meta.achievements.length}/{ACHIEVEMENTS.length} {openList ? "▴" : "▾"}
         </span>
       </button>
@@ -502,15 +505,15 @@ function Archive({ meta }) {
             const got = meta.achievements.includes(a.id);
             return (
               <div key={a.id} style={{ display:"flex", gap:10, marginBottom:6, opacity:got ? 1 : .5 }}>
-                <span style={{ fontFamily:mono, fontSize:11, color:got ? G.gold : G.tx3, minWidth:14 }}>{got ? "●" : "○"}</span>
-                <span style={{ fontFamily:mono, fontSize:11, color:got ? G.gld2 : G.tx2 }}>{a.title}</span>
+                <span style={{ fontFamily:narrow, fontSize:15, color:got ? G.gold : G.tx3, minWidth:14 }}>{got ? "●" : "○"}</span>
+                <span style={{ fontFamily:narrow, fontSize:15, color:got ? G.gld2 : G.tx2 }}>{a.title}</span>
                 <span style={{ fontFamily:serif, fontSize:13, color:G.tx2 }}>{a.desc}</span>
               </div>
             );
           })}
           <div style={{ borderTop:`1px solid ${G.bdr}`, marginTop:10, paddingTop:10 }}>
             {meta.runs.slice(0, 6).map(r => (
-              <div key={r.seed} style={{ display:"flex", justifyContent:"space-between", gap:8, fontFamily:mono, fontSize:10, color:G.tx2, marginBottom:4 }}>
+              <div key={r.seed} style={{ display:"flex", justifyContent:"space-between", gap:8, fontFamily:narrow, fontSize:15, color:G.tx2, marginBottom:4 }}>
                 <span>{COUNTRIES[r.country]?.flag} {r.leader} — «{r.title}»{r.daily && <span style={{ color:G.gold }}> · дело дня</span>}</span>
                 <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>{END_TYPES[r.endType]}</span>
               </div>
@@ -562,7 +565,7 @@ function Setup({ onStart, saved, onResume }) {
   };
 
   const btnS = (active) => ({
-    display:"block", width:"100%", textAlign:"left", padding:"11px 14px", marginBottom:7, borderRadius:4,
+    display:"block", width:"100%", textAlign:"left", padding:"11px 14px", marginBottom:7, borderRadius:2,
     background:active?G.bg3:G.bg2, border:`1px solid ${active?G.gold:G.bdr}`, color:active?G.gld2:G.txt
   });
 
@@ -570,9 +573,9 @@ function Setup({ onStart, saved, onResume }) {
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"36px 16px" }}>
       <div style={{ maxWidth:580, width:"100%" }}>
         <div style={{ textAlign:"center", marginBottom:36 }}>
-          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".26em", color:G.tx3, marginBottom:16 }}>
+          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:16 }}>
             {"ПОЛИТИЧЕСКИЙ ТРИЛЛЕР"}
-            <span style={{ marginLeft:12, padding:"2px 8px", borderRadius:3, border:`1px solid ${G.bdr2}`, fontSize:10, color:G.bdr2 }}>v{APP_VERSION}</span>
+            <span style={{ marginLeft:12, padding:"2px 8px", borderRadius:2, border:`1px solid ${G.bdr2}`, fontSize:10, color:G.bdr2 }}>v{APP_VERSION}</span>
           </div>
           <h1 style={{ fontFamily:serif, fontSize:42, fontWeight:600, color:G.gold }}>Суверен</h1>
           <div style={{ fontFamily:serif, fontSize:17, color:G.tx2, fontStyle:"italic", marginTop:10, marginBottom:20 }}>Двадцать решений. Одна страна. Ни одного права на ошибку.</div>
@@ -582,11 +585,11 @@ function Setup({ onStart, saved, onResume }) {
         {saved && (
           <Card accent={G.gold} style={{ marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
             <div>
-              <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, letterSpacing:".15em", marginBottom:4 }}>СОХРАНЁННАЯ ПАРТИЯ</div>
+              <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, letterSpacing:".05em", marginBottom:4 }}>СОХРАНЁННАЯ ПАРТИЯ</div>
               <div style={{ fontFamily:serif, fontSize:17, color:G.txt }}>
                 {COUNTRIES[saved.state.country].flag} {saved.state.leader.name}
               </div>
-              <div style={{ fontFamily:mono, fontSize:10, color:G.tx2, marginTop:2 }}>
+              <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginTop:2 }}>
                 {saved.state.ended ? "правление завершено" : `ход ${saved.state.turn}/${MAX_TURNS} · ${saved.state.year}`}
               </div>
             </div>
@@ -600,8 +603,8 @@ function Setup({ onStart, saved, onResume }) {
             { id:"ai",      title:"ИИ-РЕЖИССЁР", desc:"Импровизирует сюжет · тратит лимит Claude" },
           ].map(m => (
             <button key={m.id} onClick={() => setMode(m.id)} {...hov(mode === m.id)} aria-pressed={mode === m.id}
-              style={{ textAlign:"left", padding:"12px 14px", borderRadius:4, background:mode===m.id?G.bg3:G.bg2, border:`1px solid ${mode===m.id?G.gold:G.bdr}`, color:mode===m.id?G.gld2:G.txt }}>
-              <div style={{ fontFamily:mono, fontSize:12, letterSpacing:".08em", marginBottom:4 }}>{m.title}</div>
+              style={{ textAlign:"left", padding:"12px 14px", borderRadius:2, background:mode===m.id?G.bg3:G.bg2, border:`1px solid ${mode===m.id?G.gold:G.bdr}`, color:mode===m.id?G.gld2:G.txt }}>
+              <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", marginBottom:4 }}>{m.title}</div>
               <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>{m.desc}</div>
             </button>
           ))}
@@ -609,7 +612,7 @@ function Setup({ onStart, saved, onResume }) {
 
         <div style={{ textAlign:"center", marginBottom:26 }}>
           <PrimaryBtn onClick={quick} disabled={loading}>БЫСТРАЯ ПАРТИЯ</PrimaryBtn>
-          <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:8 }}>случайная страна и идеология · сложность «Коалиция»</div>
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:8 }}>случайная страна и идеология · сложность «Коалиция»</div>
         </div>
 
         <DailyCard meta={meta} disabled={loading} onPlay={d => go(d.country, d.diff, d.ideo, d)}/>
@@ -626,15 +629,15 @@ function Setup({ onStart, saved, onResume }) {
               return (
                 <button key={name} onClick={()=>!locked && setCountry(name)} disabled={locked} {...hov(active)}
                   title={locked ? "Откроется после первой завершённой партии" : `Открыто концовок: ${endings}/${ALL_ENDINGS.length}`}
-                  style={{ padding:"14px 6px", borderRadius:4, textAlign:"center", background:active?G.bg3:G.bg2, border:`1px solid ${active?G.gold:G.bdr}`, color:active?G.gld2:G.txt, opacity:locked ? .45 : 1 }}>
+                  style={{ padding:"14px 6px", borderRadius:2, textAlign:"center", background:active?G.bg3:G.bg2, border:`1px solid ${active?G.gold:G.bdr}`, color:active?G.gld2:G.txt, opacity:locked ? .45 : 1 }}>
                   <div style={{ fontSize:26, marginBottom:6 }}>{locked ? "🔒" : c.flag}</div>
-                  <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".1em" }}>{name.toUpperCase()}</div>
-                  {!locked && endings > 0 && <div style={{ fontFamily:mono, fontSize:10, color:G.gold, marginTop:4 }}>{"◆".repeat(endings)}{"◇".repeat(ALL_ENDINGS.length - endings)}</div>}
+                  <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em" }}>{name.toUpperCase()}</div>
+                  {!locked && endings > 0 && <div style={{ fontFamily:narrow, fontSize:15, color:G.gold, marginTop:4 }}>{"◆".repeat(endings)}{"◇".repeat(ALL_ENDINGS.length - endings)}</div>}
                 </button>
               );
             })}
           </div>
-          {country && <div style={{ padding:"11px 14px", background:G.bg2, border:`1px solid ${G.bdr}`, borderRadius:4, fontSize:14, color:G.tx2, fontStyle:"italic", lineHeight:1.6, fontFamily:serif }}>{COUNTRIES[country].context}</div>}
+          {country && <div style={{ padding:"11px 14px", background:G.bg2, border:`1px solid ${G.bdr}`, borderRadius:2, fontSize:14, color:G.tx2, fontStyle:"italic", lineHeight:1.6, fontFamily:serif }}>{COUNTRIES[country].context}</div>}
         </div>
 
         <div style={{ marginBottom:22 }}>
@@ -643,7 +646,7 @@ function Setup({ onStart, saved, onResume }) {
             const active = diff === id;
             return (
               <button key={id} onClick={()=>setDiff(id)} {...hov(active)} style={btnS(active)}>
-                <span style={{ fontFamily:mono, fontSize:12, letterSpacing:".08em" }}><span style={{ color:G.gold, letterSpacing:2, marginRight:8 }}>{"▮".repeat(Object.keys(DIFFICULTIES).indexOf(id) + 1)}<span style={{ color:G.bdr2 }}>{"▮".repeat(3 - Object.keys(DIFFICULTIES).indexOf(id))}</span></span>{d.label}</span>
+                <span style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em" }}><span style={{ color:G.gold, letterSpacing:2, marginRight:8 }}>{"▮".repeat(Object.keys(DIFFICULTIES).indexOf(id) + 1)}<span style={{ color:G.bdr2 }}>{"▮".repeat(3 - Object.keys(DIFFICULTIES).indexOf(id))}</span></span>{d.label}</span>
                 <span style={{ fontFamily:serif, fontSize:14, color:active?G.gld2:G.tx2, marginLeft:10, fontStyle:"italic" }}>{d.desc}</span>
               </button>
             );
@@ -657,8 +660,8 @@ function Setup({ onStart, saved, onResume }) {
               const active = ideo === i.id;
               return (
                 <button key={i.id} onClick={()=>setIdeo(i.id)} {...hov(active)}
-                  style={{ textAlign:"left", padding:"12px 14px", borderRadius:4, background:active?G.bg3:G.bg2, border:`1px solid ${active?G.gold:G.bdr}`, color:active?G.gld2:G.txt }}>
-                  <div style={{ fontFamily:mono, fontSize:12, marginBottom:4 }}>{i.emoji} {i.label.toUpperCase()}</div>
+                  style={{ textAlign:"left", padding:"12px 14px", borderRadius:2, background:active?G.bg3:G.bg2, border:`1px solid ${active?G.gold:G.bdr}`, color:active?G.gld2:G.txt }}>
+                  <div style={{ fontFamily:narrow, fontSize:15, marginBottom:4 }}>{i.emoji} {i.label.toUpperCase()}</div>
                   <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>{i.desc}</div>
                 </button>
               );
@@ -669,7 +672,7 @@ function Setup({ onStart, saved, onResume }) {
         {err && <div style={{ fontFamily:mono, color:G.red, fontSize:12, textAlign:"center", marginBottom:12 }}>{err}</div>}
         <div style={{ textAlign:"center" }}>
           <PrimaryBtn onClick={() => go()} disabled={!ready||loading}>{loading?"СОЗДАНИЕ МИРА...":saved?"НОВАЯ ПАРТИЯ":"НАЧАТЬ"}</PrimaryBtn>
-          {saved && <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:10 }}>Новая партия заменит сохранённую</div>}
+          {saved && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10 }}>Новая партия заменит сохранённую</div>}
         </div>
       </div>
     </div>
@@ -685,12 +688,15 @@ function Intro({ gs, onGo }) {
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"28px 16px" }}>
       <div style={{ maxWidth:660, width:"100%" }}>
         <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".22em", color:G.tx3, marginBottom:12 }}>{COUNTRIES[country].flag} {country.toUpperCase()} · НОВОЕ РУКОВОДСТВО</div>
+          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:12 }}>{COUNTRIES[country].flag} {country.toUpperCase()} · НОВОЕ РУКОВОДСТВО</div>
           <Divider/>
         </div>
-        <Card style={{ marginBottom:12, borderColor:G.bdr2 }}>
-          <div style={{ fontFamily:serif, fontSize:32, fontWeight:600, color:G.gold, marginBottom:4 }}>{leader.name}</div>
-          <div style={{ fontFamily:mono, fontSize:11, color:G.bl2, letterSpacing:".1em", marginBottom:10 }}>{leader.party} · {ci.emoji} {ci.label.toUpperCase()}</div>
+        <Card style={{ marginBottom:12 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", gap:12, fontFamily:mono, fontSize:12, color:G.tx3, marginBottom:12, flexWrap:"wrap" }}>
+            <span>Личное дело № {docNumber(gs)}</span><span>{COUNTRIES[country].startYear}</span>
+          </div>
+          <div style={{ fontFamily:serif, fontSize:34, fontWeight:700, color:G.txt, lineHeight:1.15, marginBottom:4 }}>{leader.name}</div>
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginBottom:10 }}>Президент · партия {leader.party} · {ci.label.toLowerCase()}</div>
           <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic", lineHeight:1.7 }}>{leader.bio}</div>
         </Card>
         {speech && (
@@ -700,9 +706,9 @@ function Intro({ gs, onGo }) {
           </Card>
         )}
         {gs.arc && (
-          <Card accent={G.red} style={{ marginBottom:12, background:"rgba(184,82,82,0.06)" }}>
-            <Label>{"ДОСЬЕ · СЕКРЕТНО"}</Label>
-            <div style={{ fontFamily:serif, fontSize:17, fontStyle:"italic", lineHeight:1.6, color:G.txt }}>{ARCS.find(a => a.id === gs.arc.id)?.teaser}</div>
+          <Card style={{ marginBottom:12, transform:"rotate(-0.4deg)" }}>
+            <span className="sv-stamp is-red" style={{ fontSize:14, marginBottom:12 }}>Совершенно секретно</span>
+            <div className="sv-hand" style={{ fontSize:24, lineHeight:1.35 }}>{ARCS.find(a => a.id === gs.arc.id)?.teaser}</div>
           </Card>
         )}
         {situation && (
@@ -718,9 +724,9 @@ function Intro({ gs, onGo }) {
               <div key={f.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, padding:"7px 0", borderBottom:i<keyFigures.length-1?`1px solid ${G.bdr}`:"none" }}>
                 <div>
                   <span style={{ fontFamily:serif, fontSize:16, fontWeight:500 }}>{f.name}</span>
-                  <span style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginLeft:10 }}>{f.role}</span>
+                  <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginLeft:10 }}>{f.role}</span>
                 </div>
-                <span style={{ fontFamily:mono, fontSize:10, color:relC(f.loyalty), letterSpacing:".1em" }}>{f.loyalty?.toUpperCase()}</span>
+                <span style={{ fontFamily:narrow, fontSize:15, color:relC(f.loyalty), letterSpacing:".05em" }}>{f.loyalty?.toUpperCase()}</span>
               </div>
             ))}
           </Card>
@@ -732,12 +738,12 @@ function Intro({ gs, onGo }) {
               <div key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, padding:"7px 0", borderBottom:i<gs.advisors.length-1?`1px solid ${G.bdr}`:"none" }}>
                 <div>
                   <span style={{ fontFamily:serif, fontSize:16, fontWeight:500 }}>{a.name}</span>
-                  <span style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginLeft:10 }}>{a.role}</span>
+                  <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginLeft:10 }}>{a.role}</span>
                 </div>
-                <span style={{ fontFamily:mono, fontSize:11, color:G.gold }} title={ADVISOR_SKILL[a.skill].label}>{stars(a.skill)}</span>
+                <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }} title={ADVISOR_SKILL[a.skill].label}>{stars(a.skill)}</span>
               </div>
             ))}
-            <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:10 }}>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10 }}>
               Совет можно собрать {plural(gs.councilCharges, "раз", "раза", "раз")} за мандат · победа на парламентских выборах даёт ещё один
             </div>
           </Card>
@@ -759,6 +765,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
   const [help, setHelp]       = useState(() => !tutorialSeen());
   const gsRef = useRef(gs);
   const inFlight = useRef(false);
+  const [stamping, setStamping] = useState(null); // резолюция, на которую опускается печать
   useEffect(() => { gsRef.current = gs; }, [gs]);
 
   const [attempt, setAttempt] = useState(0);
@@ -796,6 +803,9 @@ function Game({ gs, setGs, onEnd, onMenu }) {
   const choose = async (choice) => {
     if (busy || inFlight.current) return;
     inFlight.current = true;
+    setStamping(choice.id);
+    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) await new Promise(r => setTimeout(r, 480));
+    setStamping(null);
     setBusy("choice"); setError(null);
     try {
       const consequence = await apiFor(gsRef.current.mode).consequence(gsRef.current, choice.id);
@@ -854,10 +864,10 @@ function Game({ gs, setGs, onEnd, onMenu }) {
     : null;
 
   const tabs = [
-    { id:"res", label:"РЕСУРСЫ", title:"Ресурсы государства" },
-    { id:"fac", label:"СИЛЫ", title:"Фракции и группы общества" },
-    { id:"fig", label:"ЛЮДИ", title:"Ключевые игроки" },
-    { id:"log", label:"ХРОНИКА", title:"Хроника правления" },
+    { id:"res", label:"Ресурсы", title:"Ресурсы государства" },
+    { id:"fac", label:"Силы", title:"Фракции и группы общества" },
+    { id:"fig", label:"Люди", title:"Ключевые игроки" },
+    { id:"log", label:"Хроника", title:"Хроника правления" },
   ];
 
   return (
@@ -873,7 +883,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:4, margin:"10px 0 6px" }}>
             {tabs.map(t => (
               <button key={t.id} onClick={()=>setSideTab(t.id)} title={t.title} aria-label={t.title}
-                style={{ padding:"7px 0", borderRadius:4, border:`1px solid ${sideTab===t.id?G.gold:G.bdr}`, background:sideTab===t.id?G.bg3:G.bg2, color:sideTab===t.id?G.gold:G.tx3, fontSize:10, letterSpacing:".06em" }}>
+                style={{ padding:"7px 0", borderRadius:2, border:`1px solid ${sideTab===t.id?G.gold:G.bdr}`, background:sideTab===t.id?G.bg3:G.bg2, color:sideTab===t.id?G.gold:G.tx3, fontSize:15 }}>
                 {t.label}
               </button>
             ))}
@@ -883,8 +893,8 @@ function Game({ gs, setGs, onEnd, onMenu }) {
             {sideTab === "res" && (
               <>
                 <Label>{"РЕСУРСЫ"}</Label>
-                {RES_CONFIG.map(r => <ResBar key={r.key} label={r.label} val={resources[r.key]} prev={prevResources?prevResources[r.key]:undefined}/>)}
-                <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:10, lineHeight:1.6 }}>
+                {RES_CONFIG.map(r => <ResBar key={r.key} label={SHORT[r.key]} val={resources[r.key]} prev={prevResources?prevResources[r.key]:undefined}/>)}
+                <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10, lineHeight:1.6 }}>
                   ниже 20 — кризис · ≤ {LIMITS.endResource} — падение власти<br/>ниже 30 — понемногу восстанавливается
                 </div>
                 {gs.pending?.length > 0 && (
@@ -894,7 +904,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                       const good = Object.values(p.res).reduce((a, b) => a + (b ?? 0), 0) >= 0;
                       const fx = RES_CONFIG.filter(r => p.res[r.key]).map(r => `${SHORT[r.key].toLowerCase()} ${signed(p.res[r.key])}`).join(", ");
                       return (
-                        <div key={p.id} style={{ fontFamily:mono, fontSize:10, lineHeight:1.5, marginBottom:7, color:G.tx2 }}>
+                        <div key={p.id} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.5, marginBottom:7, color:G.tx2 }}>
                           <span style={{ color:G.tx3 }}>через {p.due - turn} · </span>{p.label}
                           <div style={{ color:good ? G.grn : G.red }}>{fx}</div>
                         </div>
@@ -916,7 +926,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                     return (
                       <div key={f.id} style={{ marginBottom:10 }}>
                         <RelBar label={f.name} val={f.relation} prevVal={prev?.relation}/>
-                        <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:-4 }}>
+                        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:-4 }}>
                           {foreign ? "внешняя сила · не голосует" : `${Math.round(f.approval / total * 100)}% избирателей`}
                           {f.relation <= -60 && <span style={{ color:G.red }}> · враждебна, вредит</span>}
                         </div>
@@ -924,7 +934,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                     );
                   });
                 })()}
-                <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:6, lineHeight:1.6 }}>шкала −100…+100 · ≤ −60 — вредит каждый ход</div>
+                <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6, lineHeight:1.6 }}>шкала −100…+100 · ≤ −60 — вредит каждый ход</div>
               </>
             )}
             {sideTab === "fig" && (
@@ -938,12 +948,12 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                     <div key={f.id} style={{ marginBottom:10, paddingBottom:10, borderBottom:`1px solid ${G.bdr}` }}>
                       <div style={{ display:"flex", justifyContent:"space-between" }}>
                         <span style={{ fontFamily:serif, fontSize:13, fontWeight:500 }}>{f.name}</span>
-                        <span style={{ fontFamily:mono, fontSize:10, color:c }}>
+                        <span style={{ fontFamily:narrow, fontSize:15, color:c }}>
                           {signed(f.relation)}
-                          {delta!==0&&<span style={{ fontSize:10, marginLeft:2, color:delta>0?G.grn:G.red }}>{signed(delta)}</span>}
+                          {delta!==0&&<span style={{ marginLeft:3, color:delta>0?G.grn:G.red }}>{signed(delta)}</span>}
                         </span>
                       </div>
-                      <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:2 }}>{f.role}</div>
+                      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:2 }}>{f.role}</div>
                       <div style={{ height:2, background:G.bdr, borderRadius:2, marginTop:4 }}>
                         <div style={{ height:"100%", width:`${((f.relation+100)/200)*100}%`, background:c, borderRadius:2, transition:"all .6s" }}/>
                       </div>
@@ -955,10 +965,10 @@ function Game({ gs, setGs, onEnd, onMenu }) {
             {sideTab === "log" && (
               <>
                 <Label>{"ХРОНИКА"}</Label>
-                {history.length === 0 && <div style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>История пуста</div>}
+                {history.length === 0 && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>История пуста</div>}
                 {[...history].reverse().slice(0,6).map((h, i) => (
                   <div key={i} style={{ marginBottom:8, paddingBottom:8, borderBottom:i<5?`1px solid ${G.bdr}`:"none" }}>
-                    <div style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>{h.year}</div>
+                    <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{h.year}</div>
                     <div style={{ fontFamily:serif, fontSize:12, color:G.tx2, fontStyle:"italic", lineHeight:1.4 }}>«{h.headline}»</div>
                   </div>
                 ))}
@@ -969,8 +979,8 @@ function Game({ gs, setGs, onEnd, onMenu }) {
 
         <div className="sv-main">
           {warnLevel !== "none" && !busy && !gs.ended && (
-            <div style={{ marginBottom:10, padding:"10px 16px", borderRadius:4, background:warnLevel==="critical"?"rgba(184,82,82,0.15)":"rgba(201,160,74,0.12)", border:`1px solid ${warnLevel==="critical"?G.red:G.amb}` }}>
-              <span style={{ fontFamily:mono, fontSize:11, color:warnLevel==="critical"?G.red:G.amb, letterSpacing:".1em" }}>
+            <div style={{ marginBottom:10, padding:"10px 16px", borderRadius:2, background:warnLevel==="critical"?"rgba(184,82,82,0.15)":"rgba(201,160,74,0.12)", border:`1px solid ${warnLevel==="critical"?G.red:G.amb}` }}>
+              <span style={{ fontFamily:narrow, fontSize:15, color:warnLevel==="critical"?G.red:G.amb, letterSpacing:".05em" }}>
                 {warnLevel==="critical" ? "Власть под серьёзной угрозой. Следующее решение может стать последним." : "Положение ослаблено. Действуйте осторожно."}
               </span>
             </div>
@@ -983,10 +993,10 @@ function Game({ gs, setGs, onEnd, onMenu }) {
           {activeCrises?.length > 0 && !busy && (
             <div style={{ marginBottom:10 }}>
               {activeCrises.map(c => (
-                <div key={c.id} style={{ marginBottom:6, padding:"10px 14px", borderRadius:4, background:"rgba(184,82,82,0.1)", border:`1px solid ${G.red}` }}>
+                <div key={c.id} style={{ marginBottom:6, padding:"10px 14px", borderRadius:2, background:"rgba(184,82,82,0.1)", border:`1px solid ${G.red}` }}>
                   <div style={{ display:"flex", justifyContent:"space-between", gap:8 }}>
-                    <span style={{ fontFamily:mono, fontSize:11, color:G.red, letterSpacing:".08em" }}>КРИЗИС · {c.title.toUpperCase()}</span>
-                    <span style={{ fontFamily:mono, fontSize:10, color:G.tx3, whiteSpace:"nowrap" }}>{c.severity} · {plural(c.turnsActive, "ход", "хода", "ходов")}</span>
+                    <span style={{ fontFamily:narrow, fontSize:15, color:G.red, letterSpacing:".05em" }}>КРИЗИС · {c.title.toUpperCase()}</span>
+                    <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3, whiteSpace:"nowrap" }}>{c.severity} · {plural(c.turnsActive, "ход", "хода", "ходов")}</span>
                   </div>
                   <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, marginTop:4, fontStyle:"italic" }}>{c.description}</div>
                   {Object.keys(c.resourceDrain||{}).length > 0 && <div style={{ marginTop:6 }}><ResourceChips delta={c.resourceDrain}/></div>}
@@ -1000,59 +1010,72 @@ function Game({ gs, setGs, onEnd, onMenu }) {
           {!busy && event && (
             <div>
               {event.randomEvent && (
-                <div style={{ marginBottom:10, padding:"10px 14px", borderRadius:4, background:"rgba(74,122,170,0.1)", border:`1px solid ${G.blue}` }}>
-                  <div style={{ fontFamily:mono, fontSize:10, color:G.bl2, letterSpacing:".1em", marginBottom:4 }}>ВНЕЗАПНО</div>
+                <div style={{ marginBottom:10, padding:"10px 14px", borderRadius:2, background:"rgba(74,122,170,0.1)", border:`1px solid ${G.blue}` }}>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.bl2, letterSpacing:".05em", marginBottom:4 }}>ВНЕЗАПНО</div>
                   <div style={{ fontFamily:serif, fontSize:14, fontWeight:500, color:G.txt, marginBottom:3 }}>{event.randomEvent.title}</div>
                   <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic", marginBottom:6 }}>{event.randomEvent.description}</div>
                   <ResourceChips delta={event.randomEvent.resourceEffect}/>
                 </div>
               )}
-              <Card style={{ marginBottom:12, ...(event.beat ? { borderColor:G.red, background:"rgba(184,82,82,0.06)" } : {}) }}>
+              <Card style={{ marginBottom:14, padding:"20px 24px 22px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"8px 12px", marginBottom:14, flexWrap:"wrap" }}>
+                  <div style={{ fontFamily:mono, fontSize:12, color:G.tx3, lineHeight:1.6, whiteSpace:"nowrap" }}>
+                    <div>{event.source || "Служебная записка"}</div>
+                    <div>Экз. № 1 · вх. № {docNumber(gs)}</div>
+                  </div>
+                  {(event.beat || event.isCritical) && <span className="sv-stamp is-red" style={{ fontSize:14, flexShrink:0 }}>{event.beat ? "Совершенно секретно" : "Срочно"}</span>}
+                </div>
                 {event.beat && (
-                  <div style={{ fontFamily:mono, fontSize:11, color:G.red, letterSpacing:".14em", marginBottom:8 }}>
-                    ГЛАВНАЯ ИНТРИГА · «{event.beat.arcTitle.toUpperCase()}» · ЭПИЗОД {event.beat.episode}/{event.beat.total}
+                  <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, color:G.red, marginBottom:4 }}>
+                    Главная интрига «{event.beat.arcTitle}» · эпизод {event.beat.episode} из {event.beat.total}
                   </div>
                 )}
-                <div style={{ fontFamily:mono, fontSize:11, color:G.bl2, letterSpacing:".12em", marginBottom:12 }}>
-                  {event.source?.toUpperCase()}
-                  {event.isCritical && <span style={{ marginLeft:12, color:G.red }}>КРИТИЧЕСКОЕ</span>}
-                </div>
-                <div style={{ fontFamily:serif, fontSize:26, fontWeight:600, color:G.txt, lineHeight:1.25, marginBottom:14 }}>{event.title}</div>
+                <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:16, textWrap:"balance" }}>{event.title}</h2>
                 <Prose text={event.description}/>
                 {event.affectedFactions?.length > 0 && (
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:12 }}>
-                    <span style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>Затронуто:</span>
-                    {event.affectedFactions.map(fid => {
-                      const f = factions.find(x => x.id === fid);
-                      return f ? <span key={fid} style={{ fontFamily:mono, fontSize:10, padding:"2px 7px", borderRadius:3, background:"rgba(74,122,170,0.15)", color:G.bl2, border:`1px solid rgba(74,122,170,0.3)` }}>{f.name}</span> : null;
-                    })}
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10 }}>
+                    Касается: {event.affectedFactions.map(fid => factions.find(x => x.id === fid)?.name).filter(Boolean).join(", ")}
                   </div>
                 )}
               </Card>
-              <Card>
-                <Label>{"ВАШЕ РЕШЕНИЕ"}</Label>
+              <Card style={{ padding:"18px 0 8px" }}>
+                <div style={{ padding:"0 24px" }}><Label>{"Резолюция"}</Label></div>
                 {event.choices.map((c, i) => (
                   <button key={c.id} {...optProps(c, i + 1)}
-                    style={{ display:"block", width:"100%", textAlign:"left", padding:"13px 16px", marginBottom:8, borderRadius:4, background:"rgba(255,255,255,0.02)", border:`1px solid ${G.bdr}`, color:G.txt }}>
-                    <span className="sv-key">{i + 1}</span>
+                    style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
+                    <span style={{ position:"absolute", left:22, top:13, fontFamily:serif, fontWeight:700, fontSize:18, color:G.tx3 }}>{i + 1}.</span>
                     <ChoicePreview gs={gs} c={c}/>
+                    {stamping === c.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
                   </button>
                 ))}
-                <CouncilPanel gs={gs} onConvened={list => commit(conveneCouncil(gsRef.current, list))} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
+                <div style={{ padding:"0 24px 12px" }}>
+                <CouncilPanel gs={gs} stamping={stamping} onConvened={list => commit(conveneCouncil(gsRef.current, list))} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
+                </div>
               </Card>
             </div>
           )}
 
           {!busy && !event && lastTurn && (
             <div>
-              <Card accent={G.amb} style={{ marginBottom:12 }}>
+              <Card style={{ marginBottom:12, padding:"20px 24px 22px" }}>
                 <div className="sv-reveal">
-                <Label>{"ПОСЛЕДСТВИЯ"}</Label>
-                {lastTurn.success === false
-                  ? <div style={{ fontFamily:mono, fontSize:11, color:G.red, letterSpacing:".08em", marginBottom:8 }}>✖ ПРОВАЛ ИСПОЛНЕНИЯ · шанс был {Math.round(lastTurn.chance * 100)}%</div>
-                  : lastTurn.chance < 1 && <div style={{ fontFamily:mono, fontSize:11, color:G.grn, letterSpacing:".08em", marginBottom:8 }}>✔ ИСПОЛНЕНО · шанс был {Math.round(lastTurn.chance * 100)}%</div>}
-                <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:8 }}>Решение: {lastTurn.choiceText}{lastTurn.tags?.length ? ` · ${lastTurn.tags.map(t => ACTIONS[t].label).join(", ")}` : ""}</div>
-                <div style={{ fontFamily:serif, fontSize:24, fontWeight:600, color:G.gld2, marginBottom:14, lineHeight:1.25 }}>«{lastTurn.headline}»</div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px 14px", marginBottom:18, flexWrap:"wrap" }}>
+                  <div style={{ minWidth:0, flex:"1 1 240px" }}>
+                    <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3, marginBottom:2 }}>Ваша резолюция</div>
+                    <div className="sv-hand" style={{ fontSize:21, lineHeight:1.25 }}>{lastTurn.choiceText}. — {signature(gs.leader.name)}</div>
+                  </div>
+                  {lastTurn.chance < 1 && (
+                    <span className={`sv-stamp${lastTurn.success === false ? " is-red" : ""}`} style={{ fontSize:15, flexShrink:0 }}>
+                      {lastTurn.success === false ? "Не исполнено" : "Исполнено"}
+                      <span style={{ display:"block", fontSize:11, fontWeight:400, letterSpacing:0, textTransform:"none" }}>шанс был {Math.round(lastTurn.chance * 100)}%</span>
+                    </span>
+                  )}
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10, flexWrap:"wrap", borderTop:`2px solid ${G.txt}`, borderBottom:`1px solid ${G.txt}`, padding:"5px 0 4px", marginBottom:12 }}>
+                  <span style={{ fontFamily:serif, fontWeight:700, fontSize:19 }}>Вечерний {COUNTRIES[gs.country].capital}</span>
+                  <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{gs.year} · № {turn}</span>
+                </div>
+                <h2 style={{ fontFamily:narrow, fontWeight:700, fontSize:32, lineHeight:1.08, color:G.txt, marginBottom:14, textWrap:"balance" }}>{lastTurn.headline}</h2>
                 <Typewriter key={`t${turn}`} text={lastTurn.narrative} onDone={() => setTypedTurn(turn)}/>
                 <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
 
@@ -1065,9 +1088,9 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                 )}
 
                 {(turnDelta || Object.keys(lastTurn.factionRelChanges||{}).length > 0) && (
-                  <div style={{ marginTop:14, paddingTop:12, borderTop:`1px solid ${G.bdr2}`, display:"flex", flexWrap:"wrap", gap:5, alignItems:"center" }}>
-                    <span style={{ fontFamily:mono, fontSize:10, color:G.tx3, letterSpacing:".14em", marginRight:4 }}>ИТОГ</span>
-                    {turnDelta && RES_CONFIG.filter(r => turnDelta[r.key]).map(r => <Chip key={r.key} value={turnDelta[r.key]}>{r.label}</Chip>)}
+                  <div style={{ marginTop:14, paddingTop:12, borderTop:`1px solid ${G.bdr2}`, display:"flex", flexWrap:"wrap", gap:"2px 14px", alignItems:"baseline" }}>
+                    <span style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3, marginRight:4 }}>Итог</span>
+                    {turnDelta && RES_CONFIG.filter(r => turnDelta[r.key]).map(r => <Chip key={r.key} value={turnDelta[r.key]}>{SHORT[r.key]}</Chip>)}
                     {Object.entries(lastTurn.factionRelChanges||{}).map(([fid,v]) => {
                       const f = factions.find(x => x.id === fid);
                       return f ? <Chip key={fid} value={v}>{f.name}</Chip> : null;
@@ -1080,34 +1103,34 @@ function Game({ gs, setGs, onEnd, onMenu }) {
               <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
 
               {lastTurn.matured?.map(p => (
-                <div key={p.id} style={{ marginBottom:8, padding:"10px 14px", borderRadius:4, background:G.bg2, border:`1px solid ${G.bdr2}` }}>
-                  <div style={{ fontFamily:mono, fontSize:11, color:G.tx2, marginBottom:6 }}>АУКНУЛОСЬ · {p.label.toUpperCase()} <span style={{ color:G.tx3 }}>· из-за «{p.source}»</span></div>
+                <div key={p.id} style={{ marginBottom:8, padding:"10px 14px", borderRadius:2, background:G.bg2, border:`1px solid ${G.bdr2}` }}>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginBottom:6 }}>АУКНУЛОСЬ · {p.label.toUpperCase()} <span style={{ color:G.tx3 }}>· из-за «{p.source}»</span></div>
                   <ResourceChips delta={p.res}/>
                 </div>
               ))}
               {lastTurn.election && (
-                <div style={{ marginBottom:8, padding:"12px 14px", borderRadius:4, background:G.bg2, border:`1px solid ${lastTurn.election.outcome==="won"?G.grn:G.red}` }}>
-                  <div style={{ fontFamily:mono, fontSize:11, color:lastTurn.election.outcome==="won"?G.grn:G.red, letterSpacing:".08em", marginBottom:4 }}>
+                <div style={{ marginBottom:8, padding:"12px 14px", borderRadius:2, background:G.bg2, border:`1px solid ${lastTurn.election.outcome==="won"?G.grn:G.red}` }}>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:lastTurn.election.outcome==="won"?G.grn:G.red, letterSpacing:".05em", marginBottom:4 }}>
                     {ELECTION_LABEL[lastTurn.election.kind].toUpperCase()}: {lastTurn.election.outcome==="won" ? "ПОБЕДА" : lastTurn.election.outcome==="impeached" ? "РАЗГРОМ И ИМПИЧМЕНТ" : "ПОРАЖЕНИЕ"}
                   </div>
-                  <div style={{ fontFamily:mono, fontSize:10, color:G.tx2 }}>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>
                     ваша партия {lastTurn.election.leader}% · {lastTurn.election.top.name} {lastTurn.election.top.share}%
                   </div>
                 </div>
               )}
               {lastTurn.resolvedCrisis && (
-                <div style={{ marginBottom:8, padding:"10px 14px", borderRadius:4, background:"rgba(92,184,122,0.08)", border:`1px solid ${G.grn}` }}>
-                  <span style={{ fontFamily:mono, fontSize:11, color:G.grn }}>КРИЗИС ПРЕОДОЛЁН · {lastTurn.resolvedCrisis.toUpperCase()}</span>
+                <div style={{ marginBottom:8, padding:"10px 14px", borderRadius:2, background:"rgba(92,184,122,0.08)", border:`1px solid ${G.grn}` }}>
+                  <span style={{ fontFamily:narrow, fontSize:15, color:G.grn }}>КРИЗИС ПРЕОДОЛЁН · {lastTurn.resolvedCrisis.toUpperCase()}</span>
                 </div>
               )}
               {lastTurn.expiredCrises?.map(t => (
-                <div key={t} style={{ marginBottom:8, padding:"10px 14px", borderRadius:4, background:G.bg2, border:`1px solid ${G.bdr2}` }}>
-                  <span style={{ fontFamily:mono, fontSize:11, color:G.tx2 }}>КРИЗИС ЗАТИХ · {t.toUpperCase()}</span>
+                <div key={t} style={{ marginBottom:8, padding:"10px 14px", borderRadius:2, background:G.bg2, border:`1px solid ${G.bdr2}` }}>
+                  <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>КРИЗИС ЗАТИХ · {t.toUpperCase()}</span>
                 </div>
               ))}
               {lastTurn.newCrisis && (
-                <div style={{ marginBottom:12, padding:"10px 14px", borderRadius:4, background:"rgba(184,82,82,0.1)", border:`1px solid ${G.red}` }}>
-                  <div style={{ fontFamily:mono, fontSize:11, color:G.red, marginBottom:4 }}>НОВЫЙ КРИЗИС · {lastTurn.newCrisis.title.toUpperCase()}</div>
+                <div style={{ marginBottom:12, padding:"10px 14px", borderRadius:2, background:"rgba(184,82,82,0.1)", border:`1px solid ${G.red}` }}>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.red, marginBottom:4 }}>НОВЫЙ КРИЗИС · {lastTurn.newCrisis.title.toUpperCase()}</div>
                   <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>{lastTurn.newCrisis.description}</div>
                 </div>
               )}
@@ -1146,7 +1169,7 @@ function Collection() {
       {items.map(([k, v]) => (
         <div key={k} style={{ textAlign:"center" }}>
           <div style={{ fontFamily:serif, fontSize:24, fontWeight:600, color:G.gold, lineHeight:1 }}>{v}</div>
-          <div style={{ fontFamily:mono, fontSize:10, letterSpacing:".16em", color:G.tx3, marginTop:4 }}>{k}</div>
+          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginTop:4 }}>{k}</div>
         </div>
       ))}
     </div>
@@ -1189,7 +1212,7 @@ function ShareButton({ gs }) {
       <PrimaryBtn onClick={copy}>{state === "ok" ? "✓ СКОПИРОВАНО" : "ПОДЕЛИТЬСЯ ИТОГОМ"}</PrimaryBtn>
       {state === "manual" && (
         <textarea readOnly value={text} rows={5} onFocus={e => e.target.select()} aria-label="Итог правления"
-          style={{ width:280, background:G.bg, color:G.txt, border:`1px solid ${G.bdr2}`, borderRadius:4, padding:8, fontFamily:mono, fontSize:11 }}/>
+          style={{ width:280, background:G.bg, color:G.txt, border:`1px solid ${G.bdr2}`, borderRadius:2, padding:8, fontFamily:narrow, fontSize:15 }}/>
       )}
     </div>
   );
@@ -1240,17 +1263,17 @@ function Ending({ gs, setGs, onRestart }) {
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"32px 16px" }}>
       <div style={{ maxWidth:660, width:"100%", display:"flex", flexDirection:"column" }}>
         <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".22em", color:G.tx3, marginBottom:12 }}>{COUNTRIES[gs.country].flag} {gs.country.toUpperCase()} · {gs.endType ? END_TYPES[gs.endType].toUpperCase() : "КОНЕЦ ПРАВЛЕНИЯ"}</div>
+          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:12 }}>{COUNTRIES[gs.country].flag} {gs.country.toUpperCase()} · {gs.endType ? END_TYPES[gs.endType].toUpperCase() : "КОНЕЦ ПРАВЛЕНИЯ"}</div>
           <Divider/>
         </div>
 
-        <Card style={{ marginBottom:12, borderColor:isLoss?G.red:G.bdr2, textAlign:"center", borderLeft:isLoss?`3px solid ${G.red}`:undefined }}>
-          <div style={{ fontFamily:serif, fontSize:34, fontWeight:600, color:isLoss?G.red:G.gold, marginBottom:6 }}>{gs.leader.name}</div>
-          {verdict?.title && <div style={{ fontFamily:mono, fontSize:12, color:G.amb, letterSpacing:".1em", marginBottom:6 }}>{verdict.title.toUpperCase()}</div>}
-          <div style={{ fontFamily:mono, fontSize:11, color:G.tx3 }}>{startYear}–{gs.year} · {plural(gs.history.length, "решение", "решения", "решений")} · ресурсы {avgRes}/100 · рейтинг {pa}%</div>
+        <Card style={{ marginBottom:12, textAlign:"center" }}>
+          <div style={{ fontFamily:serif, fontSize:34, fontWeight:700, color:G.txt, marginBottom:6 }}>{gs.leader.name}</div>
+          {verdict?.title && <div style={{ margin:"10px 0 20px" }}><span className={`sv-stamp${isLoss ? " is-red" : ""}`} style={{ fontSize:17 }}>{verdict.title}</span></div>}
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{startYear}–{gs.year} · {plural(gs.history.length, "решение", "решения", "решений")} · ресурсы {avgRes}/100 · рейтинг {pa}%</div>
         </Card>
 
-        {loading && <Card style={{ padding:"50px 20px", textAlign:"center" }}><div style={{ fontFamily:mono, fontSize:13, color:G.tx3, letterSpacing:".1em" }}>{"ИСТОРИКИ ПИШУТ ХРОНИКИ..."}</div></Card>}
+        {loading && <Card style={{ padding:"50px 20px", textAlign:"center" }}><div style={{ fontFamily:mono, fontSize:13, color:G.tx3, letterSpacing:".05em" }}>{"Историки пишут хронику…"}</div></Card>}
         {!loading && error && <ErrorBanner message={error} onRetry={retry}/>}
 
         {!loading && (
@@ -1259,7 +1282,7 @@ function Ending({ gs, setGs, onRestart }) {
               <Card accent={G.red} style={{ marginBottom:12, order:3 }}>
                 <Label>{"КАК ЭТО ПРОИЗОШЛО"}</Label>
                 <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt }}>{verdict?.fallNarrative || gs.powerLoss}</div>
-                {endCause(gs) && <div style={{ fontFamily:mono, fontSize:11, lineHeight:1.6, color:G.red, marginTop:10, paddingTop:10, borderTop:`1px solid ${G.bdr}` }}>{endCause(gs)}</div>}
+                {endCause(gs) && <div style={{ fontFamily:narrow, fontSize:15, lineHeight:1.6, color:G.red, marginTop:10, paddingTop:10, borderTop:`1px solid ${G.bdr}` }}>{endCause(gs)}</div>}
               </Card>
             )}
 
@@ -1268,7 +1291,7 @@ function Ending({ gs, setGs, onRestart }) {
                 <Label>{"ВЕРДИКТ ИСТОРИИ"}</Label>
                 <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{verdict.verdict}</div>
                 {verdict.epitaph && <div style={{ fontFamily:serif, fontSize:15, fontStyle:"italic", color:G.tx2, padding:"12px 0", borderTop:`1px solid ${G.bdr}`, borderBottom:`1px solid ${G.bdr}` }}>«{verdict.epitaph}»</div>}
-                <div style={{ marginTop:12, fontFamily:mono, fontSize:12, color:G.amb, letterSpacing:".1em" }}>ОЦЕНКА: {verdict.rating.toUpperCase()}</div>
+                <div style={{ marginTop:12, fontFamily:narrow, fontSize:15, color:G.amb, letterSpacing:".05em" }}>ОЦЕНКА: {verdict.rating.toUpperCase()}</div>
               </Card>
             )}
 
@@ -1279,8 +1302,8 @@ function Ending({ gs, setGs, onRestart }) {
                   const v=gs.resources[r.key]; const c=barColor(v);
                   return <div key={r.key} style={{ marginBottom:8 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                      <span style={{ fontFamily:mono, fontSize:10, color:G.tx2 }}>{r.label}</span>
-                      <span style={{ fontFamily:mono, fontSize:10, color:c }}>{v}</span>
+                      <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{r.label}</span>
+                      <span style={{ fontFamily:narrow, fontSize:15, color:c }}>{v}</span>
                     </div>
                     <div style={{ height:2, background:G.bdr, borderRadius:2 }}><div style={{ height:"100%", width:`${v}%`, background:c, borderRadius:2 }}/></div>
                   </div>;
@@ -1292,8 +1315,8 @@ function Ending({ gs, setGs, onRestart }) {
                   const c=relColor(f.relation);
                   return <div key={f.id} style={{ marginBottom:7 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                      <span style={{ fontFamily:mono, fontSize:10, color:G.tx2 }}>{f.name}</span>
-                      <span style={{ fontFamily:mono, fontSize:10, color:c }}>{signed(f.relation)}</span>
+                      <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{f.name}</span>
+                      <span style={{ fontFamily:narrow, fontSize:15, color:c }}>{signed(f.relation)}</span>
                     </div>
                     <div style={{ height:2, background:G.bdr, borderRadius:2 }}>
                       <div style={{ height:"100%", width:`${((f.relation+100)/200)*100}%`, background:c, borderRadius:2 }}/>
@@ -1308,10 +1331,10 @@ function Ending({ gs, setGs, onRestart }) {
                 <Label>{"ХРОНИКА ПРАВЛЕНИЯ"}</Label>
                 {gs.history.map((h,i)=>(
                   <div key={i} style={{ display:"flex", gap:12, padding:"7px 0", borderBottom:i<gs.history.length-1?`1px solid ${G.bdr}`:"none" }}>
-                    <span style={{ fontFamily:mono, fontSize:11, color:G.tx3, minWidth:36 }}>{h.year}</span>
+                    <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3, minWidth:36 }}>{h.year}</span>
                     <span style={{ minWidth:0 }}>
                       <span style={{ fontFamily:serif, fontSize:14, color:G.txt }}>{h.title}</span>
-                      <span style={{ display:"block", fontFamily:mono, fontSize:10, color:h.success === false ? G.red : G.tx2, marginTop:2 }}>{h.success === false ? "✖ " : "→ "}{h.choice}</span>
+                      <span style={{ display:"block", fontFamily:narrow, fontSize:15, color:h.success === false ? G.red : G.tx2, marginTop:2 }}>{h.success === false ? "✖ " : "→ "}{h.choice}</span>
                     </span>
                   </div>
                 ))}
@@ -1324,10 +1347,10 @@ function Ending({ gs, setGs, onRestart }) {
           const def = ARCS.find(a => a.id === gs.arc.id);
           const solved = !!gs.arc.epilogue;
           return (
-            <Card accent={G.red} style={{ marginBottom:12, background:"rgba(184,82,82,0.05)", order:4 }}>
+            <Card style={{ marginBottom:12, order:4 }}>
               <Label>{`ГЛАВНАЯ ИНТРИГА · «${def?.title.toUpperCase()}»`}</Label>
               <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.6, color:G.txt, fontStyle:solved ? "normal" : "italic" }}>
-                {solved ? gs.arc.epilogue : `Осталась нераскрытой. ${def?.teaser} Кем был ${gs.arc.targetRole ? gs.arc.targetRole.toLowerCase() : "тот человек"} ${gs.arc.target} на самом деле, история так и не узнала.`}
+                {solved ? gs.arc.epilogue : `Осталась нераскрытой. ${def?.teaser} Кем был ${gs.arc.targetRole ? gs.arc.targetRole[0].toLowerCase() + gs.arc.targetRole.slice(1) : "тот человек"} ${gs.arc.target} на самом деле, история так и не узнала.`}
               </div>
             </Card>
           );
@@ -1338,7 +1361,7 @@ function Ending({ gs, setGs, onRestart }) {
             <Label>{"НОВЫЕ ДОСТИЖЕНИЯ"}</Label>
             {newAch.map(a => (
               <div key={a.id} className="sv-fade" style={{ marginBottom:8 }}>
-                <span style={{ fontFamily:mono, fontSize:12, color:G.gld2 }}>{a.title.toUpperCase()}</span>
+                <span style={{ fontFamily:narrow, fontSize:15, color:G.gld2 }}>{a.title.toUpperCase()}</span>
                 <span style={{ fontFamily:serif, fontSize:14, color:G.tx2, marginLeft:10 }}>{a.desc}</span>
               </div>
             ))}
