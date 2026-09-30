@@ -18,6 +18,12 @@ import type { Bloc, Choice, DifficultyId, GameEvent, GameState, IdeologyId, Intr
 type Rand = () => number;
 const pick = <T,>(r: Rand, list: T[]): T => list[Math.floor(r() * list.length)];
 
+// Выбор без повторов в пределах партии: пул перемешан зерном партии, индекс — номер хода.
+function cycle<T>(list: T[], seed: number, salt: string, idx: number): T {
+  const order = list.map((_, i) => i).sort((a, b) => hashSeed(seed, salt, a) - hashSeed(seed, salt, b));
+  return list[order[((idx % list.length) + list.length) % list.length]];
+}
+
 const factionOf = (state: GameState, bloc: string) => state.factions.find(f => f.bloc === bloc);
 function figureOf(state: GameState, bloc: string) {
   const ids = state.factions.filter(f => f.bloc === bloc).map(f => f.id);
@@ -54,7 +60,8 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
 // Шапка главы: день, время, погода, место. Детерминирована ходом, чтобы не менялась при перезагрузке.
 export function dateline(state: GameState): string {
   const r = seededRandom(hashSeed(state.seed, "dateline", state.turn));
-  return fill(`${pick(r, WEEKDAYS)}, ${pick(r, TIMES)}. ${pick(r, WEATHER)} ${pick(r, PLACES)}`, state);
+  const t = state.turn;
+  return fill(`${WEEKDAYS[(t + state.seed) % 7]}, ${pick(r, TIMES)}. ${cycle(WEATHER, state.seed, "weather", t)} ${cycle(PLACES, state.seed, "place", t)}`, state);
 }
 
 const chapter = (...parts: (string | undefined | null)[]) => parts.filter(Boolean).join("\n\n");
@@ -175,7 +182,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     .map(f => ({ f, d: plan.effects.factionRel[f.faction] ?? 0 }))
     .filter(x => x.d !== 0)
     .sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
-  const intercut = moved ? fill(pick(r, moved.d > 0 ? INTERCUT_WARM : INTERCUT_COLD), state,
+  const intercut = moved ? fill(cycle(moved.d > 0 ? INTERCUT_WARM : INTERCUT_COLD, state.seed, `ic${moved.d > 0}`, state.turn), state,
     { name: moved.f.name, role: moved.f.role.charAt(0).toLowerCase() + moved.f.role.slice(1) }) : null;
 
   // Нить интриги: между эпизодами — зловещая строка-предвестие.
@@ -187,7 +194,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const react = (sign: number, pool: string[]) => state.keyFigures
     .filter(f => f !== moved?.f && Math.sign(plan.effects.factionRel[f.faction] ?? 0) === sign)
     .slice(0, 2)
-    .map(f => fill(pick(r, pool), state, { name: f.name, role: f.role.charAt(0).toLowerCase() + f.role.slice(1) }));
+    .map((f, i) => fill(cycle(pool, state.seed, `re${sign}`, state.turn * 2 + i), state, { name: f.name, role: f.role.charAt(0).toLowerCase() + f.role.slice(1) }));
   const reactions = [...react(1, REACT_APPROVE), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
 
   // Документ хода: между эпизодами интриги — перехват, в остальных ходах — утренние газеты.
@@ -201,11 +208,11 @@ function buildNarration(state: GameState, choiceId: string): Narration {
 
   const key = plan.newCrisisKey;
   return {
-    headline: fill(pick(r, HEADLINES[tone]), state),
+    headline: fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state),
     narrative: chapter(...parts),
     document,
     reactions,
-    historianNote: pick(r, HISTORIAN[tone]),
+    historianNote: cycle(HISTORIAN[tone], state.seed, `hi${tone}`, state.turn),
     crisisTitle: key ? pick(r, CRISIS_TITLES[key]) : null,
     crisisDescription: key ? CRISIS_DESC[key] : null,
     powerLoss: plan.endType && !isSurvival(plan.endType) ? fill(pick(r, POWER_LOSS[plan.endType]), state) : null,
