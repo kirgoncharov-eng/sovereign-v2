@@ -235,3 +235,11 @@ test("антагонист интриги — мужчина, если есть 
     if (arc.id === "mole") assert.equal(arc.target, "Павел Гром");
   }
 });
+
+test("причина падения называет рухнувший ресурс", async () => {
+  const { endCause } = await import("./engine.ts");
+  const res = { politicalCapital: 50, economy: 3, military: 50, internationalReputation: 50, internalLegitimacy: 50, personalResource: 50 };
+  const cause = endCause({ endType: "collapse", resources: res as never, factions: [] });
+  assert.match(cause!, /экономика — 3 из 100/);
+  assert.equal(endCause({ endType: "mandate", resources: res as never, factions: [] }), null);
+});

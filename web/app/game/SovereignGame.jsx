@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
 import { ACTIONS, APP_VERSION, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
-import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api as aiApi } from "@/lib/client/api.ts";
 import { classicApi } from "@/lib/game/classic.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
@@ -1250,6 +1250,7 @@ function Ending({ gs, setGs, onRestart }) {
               <Card accent={G.red} style={{ marginBottom:12, order:3 }}>
                 <Label>{"КАК ЭТО ПРОИЗОШЛО"}</Label>
                 <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt }}>{verdict?.fallNarrative || gs.powerLoss}</div>
+                {endCause(gs) && <div style={{ fontFamily:mono, fontSize:11, lineHeight:1.6, color:G.red, marginTop:10, paddingTop:10, borderTop:`1px solid ${G.bdr}` }}>{endCause(gs)}</div>}
               </Card>
             )}
 

@@ -131,6 +131,18 @@ export function detectEnd(resources: Resources, factions: Faction[], turn: numbe
   return null;
 }
 
+// Конкретная причина падения — одной строкой, чтобы поражение не казалось случайным.
+export function endCause(state: Pick<GameState, "endType" | "resources" | "factions">): string | null {
+  const { endType, resources: r, factions } = state;
+  const low = RES_CONFIG.filter(c => r[c.key] <= LIMITS.endResource).map(c => `${c.prompt.toLowerCase()} — ${r[c.key]} из 100`);
+  if (endType === "collapse") return low.length ? `Рухнул ресурс: ${low.join(", ")}.` : null;
+  if (endType === "revolution") return r.internalLegitimacy <= LIMITS.endResource
+    ? `Легитимность упала до ${r.internalLegitimacy} из 100 — улица перестала признавать власть.`
+    : `Рейтинг власти упал до ${leaderRating(factions, r)}% — поддержки не осталось.`;
+  if (endType === "coup") return `Силовики стали враждебны (отношение ${securityRelation(factions)}), а армия осталась сильной (${r.military} из 100).`;
+  return null;
+}
+
 // ── Интрига ──────────────────────────────────────────────────────────────────
 // Авторские тексты интриг написаны в мужском роде — антагонистом выбираем мужчину, если он есть.
 const FEMALE_NAMES = new Set(Object.values(NAMES).flatMap(n => n.first.slice(8)));
