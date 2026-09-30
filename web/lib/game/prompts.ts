@@ -1,6 +1,6 @@
 // Промпты для модели. Собираются только на сервере из проверенного состояния.
 import { ACTIONS, ACTION_TAGS, ADVISOR_ROLES, COUNTRIES, DIFFICULTIES, ELECTIONS, ELECTION_LABEL, END_TYPES, FIGURE_ROLES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, RATINGS } from "./data.ts";
-import { computePolls, isSurvival, type TurnPlan } from "./engine.ts";
+import { computePolls, isSurvival, plural, type TurnPlan } from "./engine.ts";
 import { ARCS } from "../content/arcs.ts";
 import type { DifficultyId, GameState, IdeologyId } from "./types.ts";
 
@@ -20,7 +20,7 @@ function pollLine(state: Pick<GameState, "country" | "factions" | "resources" | 
 
 function nextElection(turn: number): string {
   const next = Object.keys(ELECTIONS).map(Number).find(t => t > turn);
-  return next ? `${ELECTION_LABEL[ELECTIONS[next]]} через ${next - turn} ход(а)` : "выборов больше не будет";
+  return next ? `${ELECTION_LABEL[ELECTIONS[next]]} через ${plural(next - turn, "ход", "хода", "ходов")}` : "выборов больше не будет";
 }
 
 // Тайная интрига партии: ИИ-рассказчик вплетает намёки в обычные события.

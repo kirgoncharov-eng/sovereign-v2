@@ -15,6 +15,12 @@ import type {
 
 export const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
 export const clampRel = (v: number) => Math.max(-100, Math.min(100, Math.round(v)));
+// «1 ход», «3 хода», «5 ходов».
+export function plural(n: number, one: string, few: string, many: string): string {
+  const a = Math.abs(n) % 100, b = a % 10;
+  return `${n} ${a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many}`;
+}
+
 export const loyaltyLabel = (r: number): Loyalty => (r >= 30 ? "союзник" : r <= -30 ? "враг" : "нейтрал");
 
 export function initFactions(country: string, ideo: IdeologyId, diff: DifficultyId): Faction[] {
@@ -37,7 +43,7 @@ export function initFigures(
     return {
       id: r.id, role: r.role, faction: r.faction,
       name: names[i] || r.role,
-      loyalty: r.baseMood,
+      loyalty: loyaltyLabel(relation),
       relation,
     };
   });

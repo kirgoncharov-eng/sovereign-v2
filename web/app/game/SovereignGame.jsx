@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
 import { ACTIONS, APP_VERSION, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
-import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, conveneCouncil, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, plural, conveneCouncil, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api as aiApi } from "@/lib/client/api.ts";
 import { classicApi } from "@/lib/game/classic.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
@@ -21,7 +21,7 @@ const apiFor = mode => (mode === "classic" ? expressApi : aiApi);
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
 const barColor = v => v >= 60 ? "#5cb87a" : v >= 35 ? "#c9a04a" : "#b85252";
-const relColor = v => v >= 20 ? "#5cb87a" : v >= -20 ? "#c9a04a" : "#b85252";
+const relColor = v => v >= 30 ? "#5cb87a" : v > -30 ? "#c9a04a" : "#b85252";
 const signed = v => v > 0 ? `+${v}` : `${v}`;
 
 const G = {
@@ -169,7 +169,7 @@ function PollWidget({ gs }) {
         );
       })}
       <div style={{ fontFamily:mono, fontSize:10, color:leading?G.grn:G.amb, marginTop:8, letterSpacing:".06em" }}>
-        {leading ? "▲ ВЫ ЛИДИРУЕТЕ" : "▼ КОНКУРЕНТ ВПЕРЕДИ"}{next ? ` · ${next.label.toLowerCase()} через ${next.in} ход.` : ""}
+        {leading ? "▲ ВЫ ЛИДИРУЕТЕ" : "▼ КОНКУРЕНТ ВПЕРЕДИ"}{next ? ` · ${next.label.toLowerCase()} через ${plural(next.in, "ход", "хода", "ходов")}` : ""}
       </div>
     </Card>
   );
@@ -647,7 +647,7 @@ function Setup({ onStart, saved, onResume }) {
 function Intro({ gs, onGo }) {
   const { country, ideo, leader, speech, situation, keyFigures } = gs;
   const ci = IDEOLOGIES.find(i => i.id === ideo);
-  const relC = r => r >= 20 ? G.grn : r <= -20 ? G.red : G.tx3;
+  const relC = l => l === "союзник" ? G.grn : l === "враг" ? G.red : G.tx3;
   return (
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"28px 16px" }}>
       <div style={{ maxWidth:660, width:"100%" }}>
@@ -687,7 +687,7 @@ function Intro({ gs, onGo }) {
                   <span style={{ fontFamily:serif, fontSize:16, fontWeight:500 }}>{f.name}</span>
                   <span style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginLeft:10 }}>{f.role}</span>
                 </div>
-                <span style={{ fontFamily:mono, fontSize:10, color:relC(f.relation), letterSpacing:".1em" }}>{f.loyalty?.toUpperCase()}</span>
+                <span style={{ fontFamily:mono, fontSize:10, color:relC(f.loyalty), letterSpacing:".1em" }}>{f.loyalty?.toUpperCase()}</span>
               </div>
             ))}
           </Card>
@@ -705,7 +705,7 @@ function Intro({ gs, onGo }) {
               </div>
             ))}
             <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:10 }}>
-              Совет можно собрать {gs.councilCharges} раз(а) за мандат · победа на парламентских выборах даёт ещё один
+              Совет можно собрать {plural(gs.councilCharges, "раз", "раза", "раз")} за мандат · победа на парламентских выборах даёт ещё один
             </div>
           </Card>
         )}
@@ -948,7 +948,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                 <div key={c.id} style={{ marginBottom:6, padding:"10px 14px", borderRadius:4, background:"rgba(184,82,82,0.1)", border:`1px solid ${G.red}` }}>
                   <div style={{ display:"flex", justifyContent:"space-between", gap:8 }}>
                     <span style={{ fontFamily:mono, fontSize:11, color:G.red, letterSpacing:".08em" }}>КРИЗИС · {c.title.toUpperCase()}</span>
-                    <span style={{ fontFamily:mono, fontSize:10, color:G.tx3, whiteSpace:"nowrap" }}>{c.severity} · {c.turnsActive} ход</span>
+                    <span style={{ fontFamily:mono, fontSize:10, color:G.tx3, whiteSpace:"nowrap" }}>{c.severity} · {plural(c.turnsActive, "ход", "хода", "ходов")}</span>
                   </div>
                   <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, marginTop:4, fontStyle:"italic" }}>{c.description}</div>
                   {Object.keys(c.resourceDrain||{}).length > 0 && <div style={{ marginTop:6 }}><ResourceChips delta={c.resourceDrain}/></div>}
@@ -1123,7 +1123,7 @@ function shareText(gs) {
   return [
     `${c.flag} СУВЕРЕН · ${gs.country}`,
     `${gs.leader.name} — «${v.title}»`,
-    `${c.startYear}–${gs.year} · ${gs.history.length} решений · ${END_TYPES[gs.endType] ?? ""}`,
+    `${c.startYear}–${gs.year} · ${plural(gs.history.length, "решение", "решения", "решений")} · ${END_TYPES[gs.endType] ?? ""}`,
     `Оценка истории: ${v.rating} · рейтинг ${rating}%`,
     v.epitaph ? `«${v.epitaph}»` : "",
   ].filter(Boolean).join("\n");
@@ -1199,7 +1199,7 @@ function Ending({ gs, setGs, onRestart }) {
         <Card style={{ marginBottom:12, borderColor:isLoss?G.red:G.bdr2, textAlign:"center", borderLeft:isLoss?`3px solid ${G.red}`:undefined }}>
           <div style={{ fontFamily:serif, fontSize:34, fontWeight:600, color:isLoss?G.red:G.gold, marginBottom:6 }}>{gs.leader.name}</div>
           {verdict?.title && <div style={{ fontFamily:mono, fontSize:12, color:G.amb, letterSpacing:".1em", marginBottom:6 }}>{verdict.title.toUpperCase()}</div>}
-          <div style={{ fontFamily:mono, fontSize:11, color:G.tx3 }}>{startYear}–{gs.year} · {gs.history.length} решений · ресурсы {avgRes}/100 · рейтинг {pa}%</div>
+          <div style={{ fontFamily:mono, fontSize:11, color:G.tx3 }}>{startYear}–{gs.year} · {plural(gs.history.length, "решение", "решения", "решений")} · ресурсы {avgRes}/100 · рейтинг {pa}%</div>
         </Card>
 
         {loading && <Card style={{ padding:"50px 20px", textAlign:"center" }}><div style={{ fontFamily:mono, fontSize:13, color:G.tx3, letterSpacing:".1em" }}>{"ИСТОРИКИ ПИШУТ ХРОНИКИ..."}</div></Card>}

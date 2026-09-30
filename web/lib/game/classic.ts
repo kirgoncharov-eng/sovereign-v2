@@ -8,10 +8,10 @@ import { BEAT_EXT } from "../content/beats-ext.ts";
 import { INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, PRESS_BY_TAG, PRESS_GENERAL, TIMES, WEATHER, WEEKDAYS } from "../content/frame.ts";
 import {
   COUNCIL_TEXT, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
-  IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, SPEECHES, TAG_LINES, TITLES,
+  FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
 import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, ELECTIONS, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
-import { computePolls, dueBeat, hashSeed, isSurvival, planTurn, seededRandom, warningLevel } from "./engine.ts";
+import { computePolls, dueBeat, hashSeed, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import type { Bloc, Choice, DifficultyId, GameEvent, GameState, IdeologyId, Intro, Narration, Verdict } from "./types.ts";
 
@@ -249,24 +249,27 @@ const BIOS = [
   "Бывший офицер, ставший депутатом на волне протестов.",
 ];
 
-function personName(country: string, r: Rand, male = false): string {
+function personName(country: string, r: Rand, male = false, used?: Set<string>): string {
   const n = NAMES[country] ?? NAMES["Беларусь"];
   const i = Math.floor(r() * (male ? 8 : n.first.length));
-  let last = pick(r, n.last);
+  const free = used ? n.last.filter(l => !used.has(l)) : [];
+  let last = pick(r, free.length ? free : n.last);
+  used?.add(last);
   if (i >= 8) last = last.replace(/(ов|ев|ин)$/, "$1а").replace(/ский$/, "ская");
   return `${n.first[i]} ${last}`;
 }
 
 function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId): Intro {
   const r = Math.random;
-  const names = new Set<string>();
-  const unique = (male = false) => { let n = personName(country, r, male); while (names.has(n)) n = personName(country, r, male); names.add(n); return n; };
+  const surnames = new Set<string>();
+  const unique = (male = false) => personName(country, r, male, surnames);
+  const foreign = (pool: { first: string[]; last: string[] }) => `${pick(r, pool.first)} ${pick(r, pool.last)}`;
   const leader = unique(true);
   return {
     leader: { name: leader, party: pick(r, IDEOLOGY_PARTIES[ideo]), bio: pick(r, BIOS) },
     speech: SPEECHES[ideo][0].replaceAll("{country}", country),
     situation: `${COUNTRIES[country].context} ${DIFFICULTY_SITUATION[diff]}`,
-    players: FIGURE_ROLES[country].map(() => unique()),
+    players: FIGURE_ROLES[country].map(f => FOREIGN_NAMES[f.id] ? foreign(FOREIGN_NAMES[f.id]) : unique()),
     advisors: ADVISOR_ROLES.map(() => unique()),
   };
 }
@@ -290,7 +293,7 @@ function buildVerdict(state: GameState): Verdict {
 
   const verdict = [
     `${state.leader.name} правил страной с ${startYear} по ${state.year} год — ${state.history.length} из ${MAX_TURNS} ключевых решений.`,
-    topCount ? `Его главным инструментом был «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему он прибегал ${topCount} раз.` : "",
+    topCount ? `Его главным инструментом был «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему он прибегал ${plural(topCount, "раз", "раза", "раз")}.` : "",
     elections ? `Выборы: ${elections}.` : "",
     state.stats?.crisesResolved ? `Кризисов преодолено: ${state.stats.crisesResolved}.` : "",
     `К концу правления партия власти имела ${rating}% поддержки.`,
