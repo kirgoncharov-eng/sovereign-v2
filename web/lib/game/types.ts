@@ -224,6 +224,7 @@ export interface GameState {
   elections: Election[];
   mode: GameMode;
   seed: number;
+  daily?: string | null; // дата «дела дня», если партия общая для всех
   usedEvents: string[]; // карточки сценариев, уже показанные в этой партии
   stats: GameStats;
   advisors: Advisor[];

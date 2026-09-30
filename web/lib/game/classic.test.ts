@@ -132,3 +132,22 @@ test("каждая интрига проходит все 5 эпизодов, т
     if (s.turn >= 17) assert.deepEqual(beats, [1, 3, 7, 12, 16], def.id);
   }
 });
+
+test("дело дня одинаково у всех: страна, вступление, интрига и первое событие", async () => {
+  const { dailyCase } = await import("../client/meta.ts");
+  const { seededRandom } = await import("./engine.ts");
+  const day = new Date(2026, 8, 30);
+  const play = async () => {
+    const d = dailyCase(day);
+    const intro = await classicApi.setup(d.country, d.diff, d.ideo, d.seed);
+    const s = createInitialState(d.country, d.diff, d.ideo, intro, seededRandom(d.seed));
+    return { d, s, ev: await classicApi.event(s) };
+  };
+  const a = await play(), b = await play();
+  assert.deepEqual(a.d, b.d);
+  assert.equal(a.s.leader.name, b.s.leader.name);
+  assert.equal(a.s.seed, b.s.seed);
+  assert.equal(a.s.arc!.id, b.s.arc!.id);
+  assert.equal(a.ev.description, b.ev.description);
+  assert.notEqual(dailyCase(new Date(2026, 9, 1)).seed, a.d.seed);
+});

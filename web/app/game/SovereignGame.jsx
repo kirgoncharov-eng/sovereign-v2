@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
 import { ACTIONS, APP_VERSION, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
-import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, plural, conveneCouncil, resolveTurn, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api as aiApi } from "@/lib/client/api.ts";
 import { classicApi } from "@/lib/game/classic.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
-import { ACHIEVEMENTS, ALL_ENDINGS, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
+import { ACHIEVEMENTS, ALL_ENDINGS, dailyCase, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
 // Кто пишет текст: библиотека сценариев (мгновенно) или ИИ-рассказчик.
 // В экспресс-режиме ответ готов мгновенно — даём сцене короткую театральную паузу.
@@ -437,14 +437,13 @@ function HowToPlay({ onClose }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+  const desktop = typeof matchMedia === "function" && matchMedia("(pointer:fine)").matches;
   const items = [
-    ["Каждый ход — одно событие", "Выберите вариант. Под ним видна цена: что прибавится, что убудет и что аукнется через несколько ходов (⏳)."],
-    ["Наведите — увидите итог", "При наведении или фокусе на вариант панель сверху покажет ресурсы и рейтинг после хода."],
+    ["Каждый ход — одно решение", "Под каждым вариантом — его цена и то, что аукнется позже. Выбранный вариант сразу показывает итог на панели сверху."],
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
-    ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг растёт от отношения групп общества, легитимности и экономики."],
-    ["Совет — козырь", "Несколько раз за мандат соберите советников: сильный советник (★★★) предложит ход дешевле и выгоднее."],
-    ["Главная интрига", "В каждой партии тайно развивается сюжет: предатель, заговор или тёмное прошлое. Эпизоды помечены 🕵 — ваши выборы в них решают развязку."],
-    ["Клавиши", "1–9 — выбрать вариант, Enter — подтвердить, дочитать текст или перейти к следующему ходу, Esc — закрыть окно."],
+    ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
+    ["У вас есть тайна", "В каждой партии развивается главная интрига. Эпизоды помечены «Главная интрига» — ваши решения в них определят развязку."],
+    ...(desktop ? [["Клавиши", "1–9 — выбрать, Enter — подтвердить или дочитать, Esc — закрыть окно."]] : []),
   ];
   return (
     <div className="sv-modal" role="dialog" aria-modal="true" aria-labelledby="howto-title" onClick={close}>
@@ -462,14 +461,36 @@ function HowToPlay({ onClose }) {
   );
 }
 
+function DailyCard({ meta, disabled, onPlay }) {
+  const d = useMemo(() => dailyCase(), []);
+  const done = meta.runs.find(r => r.daily === d.date);
+  const [, mm, dd] = d.date.split("-");
+  return (
+    <Card accent={done ? undefined : G.gold} style={{ marginBottom:22, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+      <div>
+        <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, letterSpacing:".15em", marginBottom:4 }}>ДЕЛО ДНЯ · {dd}.{mm}</div>
+        <div style={{ fontFamily:serif, fontSize:17, color:G.txt }}>
+          {COUNTRIES[d.country].flag} {d.country} · {DIFFICULTIES[d.diff].label.toLowerCase()} · {IDEOLOGIES.find(i => i.id === d.ideo)?.label.toLowerCase()}
+        </div>
+        <div style={{ fontFamily:mono, fontSize:10, color:G.tx2, marginTop:3 }}>
+          {done ? `ваш итог: «${done.title}» · ${END_TYPES[done.endType]}` : "одна партия на всех — сравните итог с друзьями"}
+        </div>
+      </div>
+      {done
+        ? <span style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>новое дело завтра</span>
+        : <PrimaryBtn onClick={() => onPlay(d)} disabled={disabled}>ВЗЯТЬСЯ</PrimaryBtn>}
+    </Card>
+  );
+}
+
 function Archive({ meta }) {
   const [openList, setOpenList] = useState(false);
   const endings = new Set(Object.values(meta.endings).flat()).size;
   return (
     <Card style={{ marginBottom:22 }}>
       <button onClick={() => setOpenList(v => !v)} aria-expanded={openList}
-        style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", background:"transparent", border:"none", color:G.txt, padding:0, textAlign:"left" }}>
-        <span style={{ fontFamily:mono, fontSize:11, letterSpacing:".15em", color:G.tx2 }}>АРХИВ ПРАВИТЕЛЕЙ</span>
+        style={{ width:"100%", display:"flex", flexWrap:"wrap", gap:"4px 12px", justifyContent:"space-between", alignItems:"center", background:"transparent", border:"none", color:G.txt, padding:0, textAlign:"left" }}>
+        <span style={{ fontFamily:mono, fontSize:11, letterSpacing:".15em", color:G.tx2, whiteSpace:"nowrap" }}>АРХИВ ПРАВИТЕЛЕЙ</span>
         <span style={{ fontFamily:mono, fontSize:10, color:G.gold }}>
           партий {meta.runs.length} · концовок {endings}/{ALL_ENDINGS.length} · достижений {meta.achievements.length}/{ACHIEVEMENTS.length} {openList ? "▴" : "▾"}
         </span>
@@ -489,7 +510,7 @@ function Archive({ meta }) {
           <div style={{ borderTop:`1px solid ${G.bdr}`, marginTop:10, paddingTop:10 }}>
             {meta.runs.slice(0, 6).map(r => (
               <div key={r.seed} style={{ display:"flex", justifyContent:"space-between", gap:8, fontFamily:mono, fontSize:10, color:G.tx2, marginBottom:4 }}>
-                <span>{COUNTRIES[r.country]?.flag} {r.leader} — «{r.title}»</span>
+                <span>{COUNTRIES[r.country]?.flag} {r.leader} — «{r.title}»{r.daily && <span style={{ color:G.gold }}> · дело дня</span>}</span>
                 <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>{END_TYPES[r.endType]}</span>
               </div>
             ))}
@@ -519,12 +540,14 @@ function Setup({ onStart, saved, onResume }) {
   const open = unlockedCountries(meta);
   const ready = country && diff && ideo;
 
-  const go = async (c = country, d = diff, i = ideo) => {
+  const go = async (c = country, d = diff, i = ideo, daily = null) => {
     if (!(c && d && i) || loading) return;
     setLoading(true); setErr(null);
     try {
-      const intro = await apiFor(mode).setup(c, d, i);
-      onStart(createInitialState(c, d, i, intro, Math.random, mode));
+      const m = daily ? "classic" : mode; // дело дня — авторский сюжет, одинаковый у всех
+      const intro = await apiFor(m).setup(c, d, i, daily?.seed);
+      const st = createInitialState(c, d, i, intro, daily ? seededRandom(daily.seed) : Math.random, m);
+      onStart(daily ? { ...st, daily: daily.date } : st);
     } catch (e) {
       console.error(e);
       setErr(e.message || "Ошибка API. Попробуйте снова.");
@@ -587,6 +610,8 @@ function Setup({ onStart, saved, onResume }) {
           <PrimaryBtn onClick={quick} disabled={loading}>БЫСТРАЯ ПАРТИЯ</PrimaryBtn>
           <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginTop:8 }}>случайная страна и идеология · сложность «Коалиция»</div>
         </div>
+
+        <DailyCard meta={meta} disabled={loading} onPlay={d => go(d.country, d.diff, d.ideo, d)}/>
 
         {meta.runs.length > 0 && <Archive meta={meta}/>}
 
@@ -1128,7 +1153,7 @@ function shareText(gs) {
   const c = COUNTRIES[gs.country];
   const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
   return [
-    `${c.flag} СУВЕРЕН · ${gs.country}`,
+    `${c.flag} СУВЕРЕН · ${gs.daily ? `дело дня ${gs.daily.split("-").reverse().slice(0, 2).join(".")} · ` : ""}${gs.country}`,
     `${gs.leader.name} — «${v.title}»`,
     `${c.startYear}–${gs.year} · ${plural(gs.history.length, "решение", "решения", "решений")} · ${END_TYPES[gs.endType] ?? ""}`,
     `Оценка истории: ${v.rating} · рейтинг ${rating}%`,

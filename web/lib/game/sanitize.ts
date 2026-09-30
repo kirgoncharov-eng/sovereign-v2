@@ -367,6 +367,7 @@ export function sanitizeState(raw: unknown): GameState | null {
     councilCharges: num(raw.councilCharges, 0, 10, 0),
     mode: raw.mode === "ai" ? "ai" : "classic",
     seed: num(raw.seed, 0, 4294967295, 0),
+    daily: typeof raw.daily === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.daily) ? raw.daily : null,
     usedEvents: [],
     stats: {
       crisesResolved: num(isObj(raw.stats) ? raw.stats.crisesResolved : 0, 0, 99, 0),

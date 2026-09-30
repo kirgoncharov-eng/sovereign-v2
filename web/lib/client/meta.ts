@@ -1,9 +1,9 @@
 // Мета-прогрессия между партиями: архив правлений, коллекция концовок, достижения, открытие стран.
-import { COUNTRIES } from "../game/data.ts";
+import { COUNTRIES, IDEOLOGIES } from "../game/data.ts";
 import { ARCS } from "../content/arcs.ts";
-import { isSurvival } from "../game/engine.ts";
+import { hashSeed, isSurvival, seededRandom } from "../game/engine.ts";
 import { isObj } from "../game/sanitize.ts";
-import type { EndType, GameState } from "../game/types.ts";
+import type { DifficultyId, EndType, GameState, IdeologyId } from "../game/types.ts";
 
 const KEY = "sovereign.meta";
 export const ALL_ENDINGS: EndType[] = ["reelected", "mandate", "revolution", "collapse", "coup", "impeachment"];
@@ -19,6 +19,7 @@ export interface RunRecord {
   rating: string;
   turns: number;
   date: string;
+  daily?: string;
 }
 
 export interface Meta {
@@ -66,6 +67,21 @@ export function parseMeta(raw: string | null): Meta {
   }
 }
 
+// «Дело дня»: одна и та же партия у всех игроков в течение суток — можно сравнить итог с друзьями.
+export function dailyCase(now = new Date()) {
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const seed = hashSeed("daily", date);
+  const r = seededRandom(seed);
+  const countries = Object.keys(COUNTRIES);
+  const diffs: DifficultyId[] = ["coalition", "coalition", "crisis"];
+  return {
+    date, seed,
+    country: countries[Math.floor(r() * countries.length)],
+    diff: diffs[Math.floor(r() * diffs.length)],
+    ideo: IDEOLOGIES[Math.floor(r() * IDEOLOGIES.length)].id as IdeologyId,
+  };
+}
+
 export const unlockedCountries = (meta: Meta) =>
   meta.runs.length ? Object.keys(COUNTRIES) : BASE_COUNTRIES;
 
@@ -76,6 +92,7 @@ export function recordRun(gs: GameState): { meta: Meta; unlocked: Achievement[] 
   meta.runs = [{
     seed: gs.seed, country: gs.country, diff: gs.diff, leader: gs.leader.name, title: gs.verdict.title,
     endType: gs.endType, rating: gs.verdict.rating, turns: gs.turn, date: new Date().toISOString().slice(0, 10),
+    ...(gs.daily ? { daily: gs.daily } : {}),
   }, ...meta.runs].slice(0, 50);
   if (gs.arc?.epilogue && !meta.arcs?.includes(gs.arc.id)) meta.arcs = [...(meta.arcs ?? []), gs.arc.id];
   const got = meta.endings[gs.country] ?? [];

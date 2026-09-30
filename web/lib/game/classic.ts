@@ -259,8 +259,8 @@ function personName(country: string, r: Rand, male = false, used?: Set<string>):
   return `${n.first[i]} ${last}`;
 }
 
-function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId): Intro {
-  const r = Math.random;
+function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?: number): Intro {
+  const r = seed === undefined ? Math.random : seededRandom(hashSeed(seed, "intro"));
   const surnames = new Set<string>();
   const unique = (male = false) => personName(country, r, male, surnames);
   const foreign = (pool: { first: string[]; last: string[] }) => `${pick(r, pool.first)} ${pick(r, pool.last)}`;
@@ -310,7 +310,7 @@ function buildVerdict(state: GameState): Verdict {
 
 // Тот же интерфейс, что у ИИ-клиента, — экран игры не знает, кто пишет текст.
 export const classicApi = {
-  setup: async (country: string, diff: string, ideo: string) => buildIntro(country, diff as DifficultyId, ideo as IdeologyId),
+  setup: async (country: string, diff: string, ideo: string, seed?: number) => buildIntro(country, diff as DifficultyId, ideo as IdeologyId, seed),
   event: async (state: GameState) => buildEvent(state),
   consequence: async (state: GameState, choiceId: string) => buildNarration(state, choiceId),
   council: async (state: GameState) => buildCouncil(state),
