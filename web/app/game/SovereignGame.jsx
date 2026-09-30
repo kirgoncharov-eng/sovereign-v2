@@ -506,6 +506,12 @@ function Setup({ onStart, saved, onResume }) {
   const [diff, setDiff]       = useState(null);
   const [ideo, setIdeo]       = useState(null);
   const [mode, setMode]       = useState("classic");
+  const [aiOk, setAiOk]       = useState(false); // переключатель режимов показываем, только если ИИ доступен
+  useEffect(() => {
+    let live = true;
+    aiApi.available().then(ok => { if (!live) return; setAiOk(ok); if (!ok) setMode("classic"); });
+    return () => { live = false; };
+  }, []);
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState(null);
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
@@ -564,7 +570,7 @@ function Setup({ onStart, saved, onResume }) {
           </Card>
         )}
 
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:22 }} className="sv-two-col">
+        {aiOk && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:22 }} className="sv-two-col">
           {[
             { id:"classic", title:"ТРИЛЛЕР", desc:"Авторский сюжет · офлайн · бесплатно" },
             { id:"ai",      title:"ИИ-РЕЖИССЁР", desc:"Импровизирует сюжет · тратит лимит Claude" },
@@ -575,7 +581,7 @@ function Setup({ onStart, saved, onResume }) {
               <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>{m.desc}</div>
             </button>
           ))}
-        </div>
+        </div>}
 
         <div style={{ textAlign:"center", marginBottom:26 }}>
           <PrimaryBtn onClick={quick} disabled={loading}>БЫСТРАЯ ПАРТИЯ</PrimaryBtn>

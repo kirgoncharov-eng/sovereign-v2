@@ -39,6 +39,8 @@ function slim(state: GameState) {
 }
 
 export const api = {
+  available: () =>
+    fetch("/api/ai").then(r => r.json()).then(d => Boolean(d?.ai)).catch(() => false),
   setup: (country: string, diff: string, ideo: string) =>
     call<{ intro: Intro }>({ task: "setup", country, diff, ideo }).then(d => d.intro),
   event: (state: GameState) =>

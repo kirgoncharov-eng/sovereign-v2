@@ -59,6 +59,7 @@ async function generate<T>(system: string, prompt: string, tier: Tier, validate:
 }
 
 export const api = {
+  available: () => getSample().then(Boolean).catch(() => false),
   setup: (country: string, diff: string, ideo: string) =>
     generate(SYS_BASE, setupPrompt(country, diff as DifficultyId, ideo as IdeologyId), "quick",
       r => sanitizeIntro(r, FIGURE_ROLES[country].length)),
