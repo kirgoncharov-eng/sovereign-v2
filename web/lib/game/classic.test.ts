@@ -109,3 +109,24 @@ test("в тексте итога нет роботизированных фра�
   const hooks = ARCS.find(a => a.id === s.arc!.id)!.hooks.map(h => fill(h, s));
   assert.ok(hooks.some(h => n.narrative.includes(h)));
 });
+
+test("каждая интрига проходит все 4 эпизода, тексты заполнены, у эпизодов есть второй абзац", async () => {
+  const { ARCS } = await import("../content/arcs.ts");
+  const { BEAT_EXT } = await import("../content/beats-ext.ts");
+  const { INTERCEPTS } = await import("../content/frame.ts");
+  for (const def of ARCS) {
+    assert.ok(INTERCEPTS[def.id]?.length, `перехваты для ${def.id}`);
+    for (const b of def.beats) for (const v of b.variants) assert.ok(BEAT_EXT[v.title], `второй абзац: ${v.title}`);
+    let s = await newGame("Армения");
+    s = { ...s, arc: { ...s.arc!, id: def.id } };
+    const beats: number[] = [];
+    while (!s.ended && s.turn < 17) {
+      s = startEvent(s, await classicApi.event(s));
+      const ev = s.currentEvent!;
+      if (ev.beat) beats.push(ev.beat.turn);
+      assert.ok(!/\{\w+(:\w+)?\}/.test(ev.description + ev.choices.map(c => c.text + (c.arc?.ok ?? "")).join()), `слот в ${def.id}`);
+      s = resolveTurn(s, "b", await classicApi.consequence(s, "b"));
+    }
+    if (s.turn >= 17) assert.deepEqual(beats, [3, 7, 12, 16], def.id);
+  }
+});

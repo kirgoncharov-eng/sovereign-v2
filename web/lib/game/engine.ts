@@ -140,6 +140,7 @@ export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "fact
   const men = <T extends { name: string }>(list: T[]) => (list.filter(x => !isFemaleName(x.name)).length ? list.filter(x => !isFemaleName(x.name)) : list);
   if (arc.target === "advisor") { const pool = men(state.advisors); who = pool[Math.floor(rand() * pool.length)]; }
   if (arc.target === "security") who = men(state.keyFigures.filter(f => blocOf(f) === "security"))[0];
+  if (arc.target === "business") who = men(state.keyFigures.filter(f => blocOf(f) === "business" || blocOf(f) === "ruling"))[0];
   if (arc.target === "rival") who = men(state.keyFigures.filter(f => blocOf(f) === "liberal" || blocOf(f) === "nationalist"))[0];
   who ??= [...state.keyFigures].sort((a, b) => a.relation - b.relation)[0];
   return { id: arc.id, target: who?.name ?? "неизвестный", targetRole: who?.role ?? "", flags: [], done: [], epilogue: null };
