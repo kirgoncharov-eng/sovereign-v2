@@ -126,6 +126,7 @@ function nextElection(turn) {
   const t = Object.keys(ELECTIONS).map(Number).find(x => x > turn);
   return t ? { label: ELECTION_LABEL[ELECTIONS[t]], in: t - turn } : null;
 }
+const inTurns = n => n === 1 ? "после этого хода" : `через ${plural(n, "ход", "хода", "ходов")}`;
 
 function PollWidget({ gs }) {
   const [info, setInfo] = useState(false);
@@ -169,7 +170,7 @@ function PollWidget({ gs }) {
         );
       })}
       <div style={{ fontFamily:mono, fontSize:10, color:leading?G.grn:G.amb, marginTop:8, letterSpacing:".06em" }}>
-        {leading ? "▲ ВЫ ЛИДИРУЕТЕ" : "▼ КОНКУРЕНТ ВПЕРЕДИ"}{next ? ` · ${next.label.toLowerCase()} через ${plural(next.in, "ход", "хода", "ходов")}` : ""}
+        {leading ? "▲ ВЫ ЛИДИРУЕТЕ" : "▼ КОНКУРЕНТ ВПЕРЕДИ"}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
       </div>
     </Card>
   );
@@ -197,7 +198,7 @@ function ChoicePreview({ gs, c }) {
           ПОЗЖЕ · {delayedEffects(c).map(d => {
             const fx = RES_CONFIG.filter(r => d.res[r.key]).map(r => `${SHORT[r.key].toLowerCase()} ${signed(d.res[r.key])}`).join(", ");
             const good = Object.values(d.res).reduce((a, b) => a + (b ?? 0), 0) >= 0;
-            return <span key={d.label} style={{ color:good ? G.grn : G.red, marginRight:10 }}>{d.label.toLowerCase()} ({fx}) через {d.turns}</span>;
+            return <span key={d.label} style={{ color:good ? G.grn : G.red, marginRight:10 }}>{d.label} ({fx}) через {plural(d.turns, "ход", "хода", "ходов")}</span>;
           })}
         </div>
       )}
@@ -362,7 +363,7 @@ function Hud({ gs, preview, onMenu, onHelp }) {
               })}
             </div>
             <div style={{ fontFamily:mono, fontSize:10, color:G.tx2 }}>
-              {gs.year} · ход {Math.min(gs.turn + 1, MAX_TURNS)}/{MAX_TURNS}{next ? ` · ${next.label.toLowerCase()} через ${next.in}` : ""}
+              {gs.year} · ход {Math.min(gs.turn + 1, MAX_TURNS)}/{MAX_TURNS}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
             </div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:14 }}>
@@ -1125,20 +1126,27 @@ function shareText(gs) {
     `${gs.leader.name} — «${v.title}»`,
     `${c.startYear}–${gs.year} · ${plural(gs.history.length, "решение", "решения", "решений")} · ${END_TYPES[gs.endType] ?? ""}`,
     `Оценка истории: ${v.rating} · рейтинг ${rating}%`,
+    gs.arc ? `Интрига «${ARCS.find(a => a.id === gs.arc.id)?.title}»: ${gs.arc.epilogue ? "раскрыта" : "так и осталась тайной"}` : "",
     v.epitaph ? `«${v.epitaph}»` : "",
-  ].filter(Boolean).join("\n");
+    "",
+    isSurvival(gs.endType) ? "Сможешь лучше?" : `Мой президент продержался ${plural(gs.history.length, "ход", "хода", "ходов")}. А твой?`,
+    /^https?:/.test(location.href) ? location.href.split("#")[0] : "",
+  ].filter((l, i, a) => l || (i > 0 && a[i - 1])).join("\n").trim();
 }
 
 function ShareButton({ gs }) {
   const [state, setState] = useState(null); // "ok" | "manual"
   const text = shareText(gs);
   const copy = async () => {
+    if (navigator.share && matchMedia("(pointer:coarse)").matches) {
+      try { await navigator.share({ text }); return; } catch (e) { if (e?.name === "AbortError") return; }
+    }
     try { await navigator.clipboard.writeText(text); setState("ok"); }
     catch { setState("manual"); }
   };
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
-      <PrimaryBtn onClick={copy}>{state === "ok" ? "✓ СКОПИРОВАНО" : "СКОПИРОВАТЬ ИТОГ"}</PrimaryBtn>
+      <PrimaryBtn onClick={copy}>{state === "ok" ? "✓ СКОПИРОВАНО" : "ПОДЕЛИТЬСЯ ИТОГОМ"}</PrimaryBtn>
       {state === "manual" && (
         <textarea readOnly value={text} rows={5} onFocus={e => e.target.select()} aria-label="Итог правления"
           style={{ width:280, background:G.bg, color:G.txt, border:`1px solid ${G.bdr2}`, borderRadius:4, padding:8, fontFamily:mono, fontSize:11 }}/>

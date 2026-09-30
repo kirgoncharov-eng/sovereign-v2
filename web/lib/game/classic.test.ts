@@ -80,8 +80,8 @@ test("интрига: эпизоды приходят на своих ходах
     s = resolveTurn(s, "a", n);
   }
   const reached = seen.map(x => x.turn);
-  assert.deepEqual(reached, [3, 7, 12, 16].filter(t => t <= s.turn));
-  if (reached.length === 4) assert.ok(s.arc!.epilogue);
+  assert.deepEqual(reached, [1, 3, 7, 12, 16].filter(t => t <= s.turn));
+  if (reached.length === 5) assert.ok(s.arc!.epilogue);
 });
 
 test("финальный эпизод зависит от сделанных ранее выборов", async () => {
@@ -103,6 +103,8 @@ test("у каждой авторской карточки есть сцена н
 test("в тексте итога нет роботизированных фраз, между эпизодами звучит нить интриги", async () => {
   let s = await newGame();
   s = startEvent(s, await classicApi.event(s));
+  s = resolveTurn(s, "a", await classicApi.consequence(s, "a")); // первый ход — завязка интриги
+  s = startEvent(s, await classicApi.event(s));
   const n = await classicApi.consequence(s, "a");
   assert.ok(!n.narrative.startsWith("Решение принято"));
   const { ARCS } = await import("../content/arcs.ts");
@@ -110,7 +112,7 @@ test("в тексте итога нет роботизированных фра�
   assert.ok(hooks.some(h => n.narrative.includes(h)));
 });
 
-test("каждая интрига проходит все 4 эпизода, тексты заполнены, у эпизодов есть второй абзац", async () => {
+test("каждая интрига проходит все 5 эпизодов, тексты заполнены, у эпизодов есть второй абзац", async () => {
   const { ARCS } = await import("../content/arcs.ts");
   const { BEAT_EXT } = await import("../content/beats-ext.ts");
   const { INTERCEPTS } = await import("../content/frame.ts");
@@ -127,6 +129,6 @@ test("каждая интрига проходит все 4 эпизода, те
       assert.ok(!/\{\w+(:\w+)?\}/.test(ev.description + ev.choices.map(c => c.text + (c.arc?.ok ?? "")).join()), `слот в ${def.id}`);
       s = resolveTurn(s, "b", await classicApi.consequence(s, "b"));
     }
-    if (s.turn >= 17) assert.deepEqual(beats, [3, 7, 12, 16], def.id);
+    if (s.turn >= 17) assert.deepEqual(beats, [1, 3, 7, 12, 16], def.id);
   }
 });
