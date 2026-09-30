@@ -293,7 +293,6 @@ function buildVerdict(state: GameState): Verdict {
     topCount ? `Его главным инструментом был «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему он прибегал ${topCount} раз.` : "",
     elections ? `Выборы: ${elections}.` : "",
     state.stats?.crisesResolved ? `Кризисов преодолено: ${state.stats.crisesResolved}.` : "",
-    state.arc?.epilogue ?? "",
     `К концу правления партия власти имела ${rating}% поддержки.`,
   ].filter(Boolean).join(" ");
 

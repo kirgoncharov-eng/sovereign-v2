@@ -1093,6 +1093,28 @@ function Game({ gs, setGs, onEnd, onMenu }) {
   );
 }
 
+// Прогресс коллекции — повод сыграть ещё.
+function Collection() {
+  const raw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
+  const meta = useMemo(() => parseMeta(raw), [raw]);
+  const endings = new Set(Object.values(meta.endings).flat()).size;
+  const items = [
+    ["ИНТРИГИ", `${meta.arcs?.length ?? 0}/${ARCS.length}`],
+    ["КОНЦОВКИ", `${endings}/${ALL_ENDINGS.length}`],
+    ["ДОСТИЖЕНИЯ", `${meta.achievements.length}/${ACHIEVEMENTS.length}`],
+  ];
+  return (
+    <div style={{ display:"flex", justifyContent:"center", gap:24, flexWrap:"wrap", margin:"4px 0 18px", order:7 }}>
+      {items.map(([k, v]) => (
+        <div key={k} style={{ textAlign:"center" }}>
+          <div style={{ fontFamily:serif, fontSize:24, fontWeight:600, color:G.gold, lineHeight:1 }}>{v}</div>
+          <div style={{ fontFamily:mono, fontSize:10, letterSpacing:".16em", color:G.tx3, marginTop:4 }}>{k}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Итог правления одним сообщением — чтобы поделиться в мессенджере.
 function shareText(gs) {
   const v = gs.verdict;
@@ -1168,7 +1190,7 @@ function Ending({ gs, setGs, onRestart }) {
 
   return (
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"32px 16px" }}>
-      <div style={{ maxWidth:660, width:"100%" }}>
+      <div style={{ maxWidth:660, width:"100%", display:"flex", flexDirection:"column" }}>
         <div style={{ textAlign:"center", marginBottom:20 }}>
           <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".22em", color:G.tx3, marginBottom:12 }}>{COUNTRIES[gs.country].flag} {gs.country.toUpperCase()} · {gs.endType ? END_TYPES[gs.endType].toUpperCase() : "КОНЕЦ ПРАВЛЕНИЯ"}</div>
           <Divider/>
@@ -1184,16 +1206,16 @@ function Ending({ gs, setGs, onRestart }) {
         {!loading && error && <ErrorBanner message={error} onRetry={retry}/>}
 
         {!loading && (
-          <div>
+          <div style={{ display:"contents" }}>
             {isLoss && (verdict?.fallNarrative || gs.powerLoss) && (
-              <Card accent={G.red} style={{ marginBottom:12 }}>
+              <Card accent={G.red} style={{ marginBottom:12, order:3 }}>
                 <Label>{"КАК ЭТО ПРОИЗОШЛО"}</Label>
                 <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt }}>{verdict?.fallNarrative || gs.powerLoss}</div>
               </Card>
             )}
 
             {verdict && (
-              <Card accent={G.amb} style={{ marginBottom:12 }}>
+              <Card accent={G.amb} style={{ marginBottom:12, order:5 }}>
                 <Label>{"ВЕРДИКТ ИСТОРИИ"}</Label>
                 <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{verdict.verdict}</div>
                 {verdict.epitaph && <div style={{ fontFamily:serif, fontSize:15, fontStyle:"italic", color:G.tx2, padding:"12px 0", borderTop:`1px solid ${G.bdr}`, borderBottom:`1px solid ${G.bdr}` }}>«{verdict.epitaph}»</div>}
@@ -1201,7 +1223,7 @@ function Ending({ gs, setGs, onRestart }) {
               </Card>
             )}
 
-            <div className="sv-two-col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
+            <div className="sv-two-col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12, order:10 }}>
               <Card>
                 <Label>{"РЕСУРСЫ"}</Label>
                 {RES_CONFIG.map(r => {
@@ -1233,12 +1255,15 @@ function Ending({ gs, setGs, onRestart }) {
             </div>
 
             {gs.history.length > 0 && (
-              <Card style={{ marginBottom:24 }}>
+              <Card style={{ marginBottom:24, order:11 }}>
                 <Label>{"ХРОНИКА ПРАВЛЕНИЯ"}</Label>
                 {gs.history.map((h,i)=>(
-                  <div key={i} style={{ display:"flex", gap:12, padding:"6px 0", borderBottom:i<gs.history.length-1?`1px solid ${G.bdr}`:"none" }}>
+                  <div key={i} style={{ display:"flex", gap:12, padding:"7px 0", borderBottom:i<gs.history.length-1?`1px solid ${G.bdr}`:"none" }}>
                     <span style={{ fontFamily:mono, fontSize:11, color:G.tx3, minWidth:36 }}>{h.year}</span>
-                    <span style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>«{h.headline}»</span>
+                    <span style={{ minWidth:0 }}>
+                      <span style={{ fontFamily:serif, fontSize:14, color:G.txt }}>{h.title}</span>
+                      <span style={{ display:"block", fontFamily:mono, fontSize:10, color:h.success === false ? G.red : G.tx2, marginTop:2 }}>{h.success === false ? "✖ " : "→ "}{h.choice}</span>
+                    </span>
                   </div>
                 ))}
               </Card>
@@ -1246,8 +1271,21 @@ function Ending({ gs, setGs, onRestart }) {
           </div>
         )}
 
+        {verdict && gs.arc && (() => {
+          const def = ARCS.find(a => a.id === gs.arc.id);
+          const solved = !!gs.arc.epilogue;
+          return (
+            <Card accent={G.red} style={{ marginBottom:12, background:"rgba(184,82,82,0.05)", order:4 }}>
+              <Label>{`ГЛАВНАЯ ИНТРИГА · «${def?.title.toUpperCase()}»`}</Label>
+              <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.6, color:G.txt, fontStyle:solved ? "normal" : "italic" }}>
+                {solved ? gs.arc.epilogue : `Осталась нераскрытой. ${def?.teaser} Кем был ${gs.arc.targetRole ? gs.arc.targetRole.toLowerCase() : "тот человек"} ${gs.arc.target} на самом деле, история так и не узнала.`}
+              </div>
+            </Card>
+          );
+        })()}
+        {verdict && <Collection/>}
         {newAch.length > 0 && (
-          <Card accent={G.gold} style={{ marginBottom:16 }}>
+          <Card accent={G.gold} style={{ marginBottom:16, order:6 }}>
             <Label>{"НОВЫЕ ДОСТИЖЕНИЯ"}</Label>
             {newAch.map(a => (
               <div key={a.id} className="sv-fade" style={{ marginBottom:8 }}>
@@ -1257,7 +1295,7 @@ function Ending({ gs, setGs, onRestart }) {
             ))}
           </Card>
         )}
-        <div style={{ display:"flex", justifyContent:"center", gap:10, flexWrap:"wrap" }}>
+        <div style={{ display:"flex", justifyContent:"center", gap:10, flexWrap:"wrap", order:8, marginBottom:28 }}>
           {verdict && <ShareButton gs={gs}/>}
           <PrimaryBtn onClick={onRestart}>НОВАЯ ПАРТИЯ</PrimaryBtn>
         </div>

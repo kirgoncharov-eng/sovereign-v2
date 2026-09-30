@@ -1,5 +1,6 @@
 // Мета-прогрессия между партиями: архив правлений, коллекция концовок, достижения, открытие стран.
 import { COUNTRIES } from "../game/data.ts";
+import { ARCS } from "../content/arcs.ts";
 import { isSurvival } from "../game/engine.ts";
 import { isObj } from "../game/sanitize.ts";
 import type { EndType, GameState } from "../game/types.ts";
@@ -24,6 +25,7 @@ export interface Meta {
   runs: RunRecord[];
   endings: Record<string, EndType[]>;
   achievements: string[];
+  arcs?: string[]; // раскрытые интриги
 }
 
 interface Achievement { id: string; title: string; desc: string; check: (gs: GameState, meta: Meta) => boolean }
@@ -38,6 +40,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id:"hundred_days",title:"Сто дней",          desc:"Потерять власть до 5-го хода",                  check: gs => !isSurvival(gs.endType) && gs.turn < 5 },
   { id:"epaulettes",  title:"Недооценил погоны", desc:"Пасть жертвой переворота",                      check: gs => gs.endType === "coup" },
   { id:"all_roads",   title:"Все дороги",        desc:"Открыть все 6 концовок",                         check: (_, m) => new Set(Object.values(m.endings).flat()).size >= ALL_ENDINGS.length },
+  { id:"all_secrets", title:"Все тайны",        desc:"Довести до развязки каждую интригу",            check: (_, m) => ARCS.every(a => m.arcs?.includes(a.id)) },
   { id:"traveler",    title:"Путешественник",    desc:"Сыграть за все страны",                          check: (_, m) => Object.keys(COUNTRIES).every(c => m.runs.some(r => r.country === c)) },
 ];
 
@@ -74,6 +77,7 @@ export function recordRun(gs: GameState): { meta: Meta; unlocked: Achievement[] 
     seed: gs.seed, country: gs.country, diff: gs.diff, leader: gs.leader.name, title: gs.verdict.title,
     endType: gs.endType, rating: gs.verdict.rating, turns: gs.turn, date: new Date().toISOString().slice(0, 10),
   }, ...meta.runs].slice(0, 50);
+  if (gs.arc?.epilogue && !meta.arcs?.includes(gs.arc.id)) meta.arcs = [...(meta.arcs ?? []), gs.arc.id];
   const got = meta.endings[gs.country] ?? [];
   if (!got.includes(gs.endType)) meta.endings[gs.country] = [...got, gs.endType];
   const unlocked = ACHIEVEMENTS.filter(a => !meta.achievements.includes(a.id) && a.check(gs, meta));
