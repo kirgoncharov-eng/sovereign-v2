@@ -264,6 +264,7 @@ export interface GameState {
   arc: ArcState | null;
   pacts?: Pact[];        // действующие союзы
   betrayals?: number;    // сколько союзов вы нарушили
+  echoes?: Record<string, number>; // сколько раз уже звучало эхо каждого отложенного последствия
   currentEvent: GameEvent | null;
   lastTurn: TurnReport | null;
   ended: boolean;

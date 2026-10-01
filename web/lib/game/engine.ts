@@ -595,6 +595,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     pending: plan.pending,
     pacts: plan.pacts,
     betrayals: plan.betrayals,
+    echoes: plan.matured.reduce((acc, m) => ({ ...acc, [m.label]: (acc[m.label] ?? 0) + 1 }), { ...(state.echoes ?? {}) }),
     arc: state.arc ? {
       ...state.arc,
       flags: plan.choice.arc?.flag ? [...state.arc.flags, plan.choice.arc.flag] : state.arc.flags,

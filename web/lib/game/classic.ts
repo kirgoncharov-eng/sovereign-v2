@@ -13,13 +13,14 @@ import { CRISIS_ESCALATE, EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../
 import { SCENES } from "../content/scenes.ts";
 import { EVENT_EXT } from "../content/events-ext.ts";
 import { BEAT_EXT } from "../content/beats-ext.ts";
-import { INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, PRESS_BY_TAG, PRESS_GENERAL, TIMES, WEATHER, WEEKDAYS } from "../content/frame.ts";
+import { INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, TIMES, WEATHER, WEEKDAYS } from "../content/frame.ts";
+import { ECHOES } from "../content/echoes.ts";
 import {
   COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
   FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, REACT_FAILED, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
 import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, DELAYED, WEAK_ADVISOR_DELAYED, ELECTIONS, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
-import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PACT, PACT_BROKEN_LINE, PACT_GIVES, PACT_KEPT_LINE, type SpecialChoice } from "../content/people.ts";
+import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PACT, PACT_BROKEN_LINE, PACT_GIVES, PACT_KEPT_LINE, PACT_OK_VARIANTS, type SpecialChoice } from "../content/people.ts";
 import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, bondOf, pactBans, traitOf } from "./people.ts";
 import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { sanitizeProposals } from "./sanitize.ts";
@@ -218,16 +219,19 @@ function pactEvent(state: GameState, turn: number, r: Rand, seen: (kind: string,
   const banCount = Math.min(3, 1 + (warm ? 0 : 1) + (state.betrayals ? 1 : 0));
   const rival = state.factions.filter(f => RIVAL_BLOCS[fac.bloc].includes(f.bloc) && !active.has(f.id)).sort((a, b) => a.relation - b.relation)[0];
   const ban = pactBans(fac.bloc, banCount), banAgainst = pactBans(fac.bloc, banCount + 1);
+  // Какой по счёту союз предлагают: от него зависит, какими словами описан исход.
+  const nth = (state.usedEvents ?? []).filter(u => u.includes(":pact:")).length;
+  const variant = (c: SpecialChoice, extra: string[]) => ({ ...c, ok: [c.ok, ...extra][nth % (extra.length + 1)] });
   const slots = {
     name: fig?.name ?? "", role: lower(fig?.role ?? ""), camp: fac.name, gives: PACT_GIVES[fac.bloc],
     turns: plural(turns, "ход", "хода", "ходов"), ban: tagLabels(ban), against: rival?.name ?? "",
   };
   const base = fig ? { figure: fig.id } : {};
   const options: SpecialOption[] = [
-    { c: PACT.sign, tags: [PACT_TAG[fac.bloc]], deal: { ...base, pact: { faction: fac.id, turns, ban } } },
-    ...(rival ? [{ c: PACT.against, tags: [PACT_TAG[fac.bloc]],
+    { c: variant(PACT.sign, PACT_OK_VARIANTS.sign), tags: [PACT_TAG[fac.bloc]], deal: { ...base, pact: { faction: fac.id, turns, ban } } },
+    ...(rival ? [{ c: variant(PACT.against, PACT_OK_VARIANTS.against), tags: [PACT_TAG[fac.bloc]],
       deal: { ...base, pact: { faction: fac.id, turns, ban: banAgainst, against: rival.id } } }] : []),
-    { c: PACT.refuse, tags: ["delay"], deal: { ...base, figureRel: -6, factionRel: { [fac.id]: -4 } } },
+    { c: variant(PACT.refuse, PACT_OK_VARIANTS.refuse), tags: ["delay"], deal: { ...base, figureRel: -6, factionRel: { [fac.id]: -4 } } },
   ];
   const choices = specialChoices(state, options, slots);
   return {
@@ -321,9 +325,26 @@ function electionHeadline(e: NonNullable<ReturnType<typeof planTurn>["election"]
 const headlines = (pair: HeadlinePair | undefined, state: GameState) =>
   pair ? { headline: fill(pair[0], state), headlineFail: fill(pair[1], state) } : {};
 
-// Эхо прошлого решения — авторская фраза из таблицы отложенных последствий.
-const maturedStory = (label: string) =>
-  [...Object.values(DELAYED), WEAK_ADVISOR_DELAYED].find(d => d?.label === label)?.story ?? `Аукнулось прошлое решение: ${label.toLowerCase()}.`;
+// Эхо прошлого решения — авторская фраза. Если то же эхо уже звучало в партии, берётся следующий вариант.
+const maturedStory = (label: string, times: number) => {
+  const first = [...Object.values(DELAYED), WEAK_ADVISOR_DELAYED].find(d => d?.label === label)?.story ?? `Аукнулось прошлое решение: ${label.toLowerCase()}.`;
+  const all = [first, ...(ECHOES[label] ?? [])];
+  return all[times % all.length];
+};
+
+// Строки об опросах: доверие растёт или падает — каждый раз немного по-разному.
+const POLLS_UP = [
+  "Утренние опросы ложатся на стол, и социолог впервые за долгое время позволяет себе улыбнуться: доверие растёт.",
+  "Свежий замер приходит раньше обычного: цифры поползли вверх, и пресс-служба просит разрешения их опубликовать.",
+  "Социологи звонят сами, что бывает редко: рост виден даже в регионах, где за вас не голосовали никогда.",
+  "В штабе вешают на стену новый график. Линия впервые за месяц смотрит вверх.",
+];
+const POLLS_DOWN = [
+  "Утренние опросы ложатся на стол молча. Социолог не поднимает глаз. Цифры говорят сами.",
+  "Новый замер приносят без сопроводительной записки — её и не нужно. Доверие проседает.",
+  "Пресс-служба просит не публиковать свежий опрос. Цифры такие, что их лучше пересчитать дважды.",
+  "Социологи осторожно пишут «отрицательная динамика». В переводе на обычный язык — люди отворачиваются.",
+];
 
 // ── Итог хода ────────────────────────────────────────────────────────────────
 function buildNarration(state: GameState, choiceId: string): Narration {
@@ -354,19 +375,20 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const after: string[] = [];
   let electionLine: string | null = null;
   if (plan.resolvedCrisis && !arc) after.push(`Кризис «${plan.resolvedCrisis}» наконец отступает. В ситуационном центре впервые за много дней кто-то шутит.`);
-  for (const m of plan.matured) after.push(maturedStory(m.label));
+  const heard: Record<string, number> = { ...(state.echoes ?? {}) };
+  for (const m of plan.matured) after.push(maturedStory(m.label, (heard[m.label] = (heard[m.label] ?? 0) + 1) - 1));
   if (plan.election) {
     const e = plan.election;
     electionLine = (e.outcome === "won"
-      ? `${ELECTION_LABEL[e.kind]}. В штабе открывают шампанское в 23:40, когда приходят данные из последнего региона: ${e.leader}% против ${e.top.share}% у «${e.top.name}». Вы выходите к сторонникам и впервые за месяц улыбаетесь не для камер.`
+      ? e.kind === "president"
+        ? `${ELECTION_LABEL[e.kind]}. Последний регион досчитывают к трём часам ночи: ${e.leader}% против ${e.top.share}% у «${e.top.name}». Второй срок. Вы долго стоите у окна резиденции и смотрите на площадь, где уже начинают праздновать.`
+        : `${ELECTION_LABEL[e.kind]}. В штабе открывают шампанское в 23:40, когда приходят данные из последнего региона: ${e.leader}% против ${e.top.share}% у «${e.top.name}». Вы выходите к сторонникам и впервые за месяц улыбаетесь не для камер.`
       : `${ELECTION_LABEL[e.kind]}. К полуночи всё ясно: «${e.top.name}» — ${e.top.share}%, у вас ${e.leader}%. В штабе молча выключают телевизоры. Кто-то уже собирает вещи.`);
   }
   const news = plan.pactNews;
-  for (const name of news.kept) after.push(fill(PACT_KEPT_LINE, state, { camp: name }));
-  for (const name of news.broken) after.push(fill(PACT_BROKEN_LINE, state, { camp: name }));
-  if (Math.abs(pollsAfter - pollsBefore) >= 4) after.push(pollsAfter > pollsBefore
-    ? "Утренние опросы ложатся на стол, и социолог впервые за долгое время позволяет себе улыбнуться: доверие растёт."
-    : "Утренние опросы ложатся на стол молча. Социолог не поднимает глаз. Цифры говорят сами.");
+  for (const name of news.kept) after.push(fill(cycle(PACT_KEPT_LINE, state.seed, "kept", state.turn), state, { camp: name }));
+  for (const name of news.broken) after.push(fill(cycle(PACT_BROKEN_LINE, state.seed, "broken", state.betrayals ?? 0), state, { camp: name }));
+  if (Math.abs(pollsAfter - pollsBefore) >= 4) after.push(cycle(pollsAfter > pollsBefore ? POLLS_UP : POLLS_DOWN, state.seed, `polls${pollsAfter > pollsBefore}`, state.turn));
 
   // «Тем временем»: персонаж, чьё личное отношение изменилось сильнее всего.
   // Антагонист интриги и герой особого дела не комментируют собственные эпизоды — они в них участники.
@@ -390,25 +412,26 @@ function buildNarration(state: GameState, choiceId: string): Narration {
 
   // Нить интриги: между эпизодами — зловещая строка-предвестие.
   const arcDef = ARCS.find(a => a.id === state.arc?.id);
-  const hook = arcDef && !arc && !plan.endType
-    ? fill(arcDef.hooks[(state.turn * 3 + (state.seed % 5)) % arcDef.hooks.length], state) : null;
+  // Через ход и без повторов: предвестие должно тревожить, а не надоедать.
+  const hookIdx = (state.turn - 1) / 2;
+  const hook = arcDef && !arc && !plan.endType && state.turn % 2 === 1 && hookIdx < arcDef.hooks.length
+    ? fill(cycle(arcDef.hooks, state.seed, "hook", hookIdx), state) : null;
   const parts = [scene, after.join(" "), electionLine, intercut, hook];
 
   const react = (sign: number, pool: string[]) => cast
     .filter(f => f !== moved?.f && f !== bonded && Math.abs(delta(f)) >= 3 && Math.sign(delta(f)) === sign)
-    .slice(0, 2)
-    .map((f, i) => fill(cycle(pool, state.seed, `re${sign}`, state.turn * 2 + i), state, { name: f.name, role: f.role.charAt(0).toLowerCase() + f.role.slice(1) }));
+    .slice(0, 1)
+    .map(f => fill(cycle(pool, state.seed, `re${sign}`, state.turn), state, { name: f.name, role: f.role.charAt(0).toLowerCase() + f.role.slice(1) }));
   // При провале сторонники идеи недовольны исполнением, а не хвалят «решимость».
   const reactions = [...react(1, plan.success ? REACT_APPROVE : REACT_FAILED), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
 
-  // Документ хода: между эпизодами интриги — перехват, в остальных ходах — утренние газеты.
-  const document = arcDef && !arc && state.turn % 2 === 1
-    ? { kind: "intercept" as const, title: "ПЕРЕХВАТ · СОВЕРШЕННО СЕКРЕТНО", lines: [INTERCEPTS[arcDef.id][Math.floor(state.turn / 2) % INTERCEPTS[arcDef.id].length], "Источник не установлен. Абонент на связь больше не выходил."] }
-    : { kind: "press" as const, title: "УТРЕННИЕ ГАЗЕТЫ", lines: [
-        pick(r, PRESS_BY_TAG[plan.choice.tags[0]]),
-        fill(pick(r, PRESS_GENERAL), state),
-        ...(plan.choice.tags[1] ? [pick(r, PRESS_BY_TAG[plan.choice.tags[1]])] : []),
-      ] };
+  // Документ хода — перехват по линии интриги, раз в четыре хода и без повторов.
+  // Газета уже сама по себе итог хода, вторая подборка заголовков в ней не нужна.
+  const icpt = arcDef ? INTERCEPTS[arcDef.id] : [];
+  const icptIdx = (state.turn - 2) / 4;
+  const document = arcDef && !arc && state.turn % 4 === 2 && icptIdx < icpt.length
+    ? { kind: "intercept" as const, title: "ПЕРЕХВАТ · СОВЕРШЕННО СЕКРЕТНО", lines: [icpt[icptIdx], "Источник не установлен. Абонент на связь больше не выходил."] }
+    : null;
 
   const key = plan.newCrisisKey;
   return {

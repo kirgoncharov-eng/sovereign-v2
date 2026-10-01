@@ -13,9 +13,9 @@ import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMet
 const theatrical = (fn, ms) => async (...args) => (await Promise.all([fn(...args), new Promise(r => setTimeout(r, ms))]))[0];
 const expressApi = {
   setup: theatrical(classicApi.setup, 600),
-  event: theatrical(classicApi.event, 900),
-  consequence: theatrical(classicApi.consequence, 1800),
-  council: theatrical(classicApi.council, 1200),
+  event: theatrical(classicApi.event, 500),
+  consequence: theatrical(classicApi.consequence, 1100),
+  council: theatrical(classicApi.council, 800),
   ending: theatrical(classicApi.ending, 1500),
 };
 const apiFor = mode => (mode === "classic" ? expressApi : aiApi);
@@ -565,8 +565,13 @@ function SquareView({ gs, scene, height = 48, mono = false, still = false, style
 }
 
 // Ведомость за ход: строка за строкой, с отточиями — как вечерний расчёт в Papers, Please.
-function Ledger({ rows }) {
-  if (!rows.length) return null;
+function Ledger({ rows: all }) {
+  const [full, setFull] = useState(false);
+  if (!all.length) return null;
+  // Ресурсы — всегда; группы — четыре самые заметные перемены, остальные по нажатию.
+  const res = all.filter(r => !r.rel), rel = [...all.filter(r => r.rel)].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const rows = full ? [...res, ...rel] : [...res, ...rel.slice(0, 4)];
+  const hidden = rel.length - 4;
   return (
     <div style={{ marginTop:16, paddingTop:10, borderTop:`2px solid ${G.txt}` }}>
       <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>ВЕДОМОСТЬ ЗА ХОД</div>
@@ -580,6 +585,11 @@ function Ledger({ rows }) {
           </div>
         ))}
       </div>
+      {!full && hidden > 0 && (
+        <button onClick={() => setFull(true)} style={{ marginTop:6, background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+          ещё {plural(hidden, "группа", "группы", "групп")}
+        </button>
+      )}
     </div>
   );
 }
@@ -1061,6 +1071,8 @@ function Game({ gs, setGs, onEnd, onMenu }) {
   const gsRef = useRef(gs);
   const inFlight = useRef(false);
   const [stamping, setStamping] = useState(null); // резолюция, на которую опускается печать
+  const [dossier, setDossier] = useState(false);   // телефон: досье под игрой свёрнуто
+  const [resolutionInView, setResolutionInView] = useState(false);
   useEffect(() => { gsRef.current = gs; }, [gs]);
 
   const [attempt, setAttempt] = useState(0);
@@ -1154,11 +1166,29 @@ function Game({ gs, setGs, onEnd, onMenu }) {
       if (armed !== c.id && matchMedia("(pointer:coarse)").matches) { setArmed(c.id); setPreview(c); return; }
       setArmed(null); choose(c);
     },
-    onMouseEnter: () => setPreview(c), onMouseLeave: () => setPreview(null),
+    // Наведение — только для мыши: на касании браузер шлёт «уход курсора» сразу после выбора.
+    onPointerEnter: e => { if (e.pointerType === "mouse") setPreview(c); },
+    onPointerLeave: e => { if (e.pointerType === "mouse") setPreview(null); },
     onFocus: () => setPreview(c), onBlur: () => { setPreview(null); setArmed(null); },
   });
 
   const { resources, prevResources, factions, prevFactions, keyFigures, prevFigures, turn, history, activeCrises, currentEvent: event, lastTurn } = gs;
+  // Видна ли резолюция на экране — тогда нижней кнопке «К резолюции» показываться незачем.
+  // Проверяем при прокрутке: резолюция уже на экране или проскроллена выше.
+  useEffect(() => {
+    let raf = 0;
+    const check = () => {
+      raf = 0;
+      const el = document.getElementById("sv-resolution");
+      setResolutionInView(!!el && el.getBoundingClientRect().top < window.innerHeight * 0.65);
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
+    check();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [event, busy]);
+  const armedChoice = armed && event ? [...event.choices, ...(event.council ?? [])].find(c => c.id === armed) : null;
   const warnLevel = warningLevel(gs);
   const turnDelta = lastTurn && prevResources
     ? Object.fromEntries(RES_CONFIG.map(r => [r.key, resources[r.key] - prevResources[r.key]]))
@@ -1179,7 +1209,11 @@ function Game({ gs, setGs, onEnd, onMenu }) {
       <div style={{ display:"flex", justifyContent:"center", padding:"14px" }}>
       <div className="sv-game-grid" style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px 1fr", gap:14 }}>
 
-        <div className="sv-sidebar">
+        <div className="sv-sidebar" data-open={dossier || undefined}>
+          <button className="sv-dossier-toggle" onClick={() => setDossier(v => !v)} aria-expanded={dossier}>
+            {dossier ? "Свернуть досье ▴" : "Досье ▾ опрос, ресурсы, люди, хроника"}
+          </button>
+          <div className="sv-side-body">
           <PollWidget gs={gs}/>
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:4, margin:"10px 0 6px" }}>
@@ -1286,6 +1320,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
               </>
             )}
           </Card>
+          </div>
         </div>
 
         <div className="sv-main">
@@ -1361,7 +1396,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                 )}
               </Card>
               <Card style={{ padding:"18px 0 8px" }}>
-                <div style={{ padding:"0 24px" }}><Label>{"Резолюция"}</Label></div>
+                <div id="sv-resolution" style={{ padding:"0 24px" }}><Label>{"Резолюция"}</Label></div>
                 {event.choices.map((c, i) => (
                   <button key={c.id} {...optProps(c, i + 1)}
                     style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
@@ -1415,7 +1450,8 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                     </div>
                   );
                 })}
-                {lastTurn.historianNote && (
+                {/* Историк подводит черту только в конце главы — иначе его реплики приедаются */}
+                {lastTurn.historianNote && (turn % 5 === 0 || gs.ended) && (
                   <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>— {lastTurn.historianNote}</div>
                 )}
 
@@ -1489,6 +1525,38 @@ function Game({ gs, setGs, onEnd, onMenu }) {
         </div>
       </div>
       </div>
+      <ActionBar
+        mode={busy ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (typed ? (gs.ended ? "end" : "next") : "skip") : null}
+        choice={armedChoice}
+        onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
+        onCancel={() => { setArmed(null); setPreview(null); }}
+        onJump={() => document.getElementById("opt-1")?.scrollIntoView({ behavior:"smooth", block:"center" })}
+        onSkip={() => window.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter" }))}
+        onNext={nextTurn} onEnd={onEnd}/>
+    </div>
+  );
+}
+
+// Нижняя панель на телефоне: главное действие хода всегда под большим пальцем.
+// Кнопки не забирают фокус — иначе выбранная резолюция успела бы сброситься.
+function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd }) {
+  if (!mode) return null;
+  const keep = { onPointerDown: e => e.preventDefault(), onMouseDown: e => e.preventDefault() };
+  const main = { flex:1, minHeight:48, background:G.gold, color:"var(--on-gold)", border:"2px solid #000", fontFamily:pixel, fontSize:15, textTransform:"uppercase", padding:"0 14px", boxShadow:"var(--hard)" };
+  return (
+    <div className="sv-actionbar">
+      {mode === "sign" && <>
+        <button {...keep} onClick={onCancel} aria-label="Отменить выбор"
+          style={{ width:48, minHeight:48, background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, fontSize:20 }}>×</button>
+        <button {...keep} onClick={onSign} style={{ ...main, display:"flex", flexDirection:"column", alignItems:"flex-start", justifyContent:"center", textAlign:"left", gap:2, minWidth:0 }}>
+          <span>Подписать</span>
+          <span style={{ fontFamily:narrow, fontSize:14, textTransform:"none", opacity:.8, maxWidth:"100%", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{choice?.text}</span>
+        </button>
+      </>}
+      {mode === "jump" && <button {...keep} onClick={onJump} style={main}>К резолюции ↓</button>}
+      {mode === "skip" && <button {...keep} onClick={onSkip} style={{ ...main, background:"transparent", color:G.txt, border:`2px solid ${G.bdr2}`, boxShadow:"none" }}>Показать текст сразу</button>}
+      {mode === "next" && <button {...keep} onClick={onNext} style={main}>Следующий ход →</button>}
+      {mode === "end" && <button {...keep} onClick={onEnd} style={{ ...main, background:G.red }}>Подвести итоги →</button>}
     </div>
   );
 }

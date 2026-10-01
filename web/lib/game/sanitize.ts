@@ -430,6 +430,7 @@ export function sanitizeState(raw: unknown): GameState | null {
     arc: sanitizeArc(raw.arc),
     pacts: sanitizePacts(raw.pacts, factionIds, turn),
     betrayals: num(raw.betrayals, 0, 9, 0),
+    echoes: isObj(raw.echoes) ? Object.fromEntries(Object.entries(raw.echoes).slice(0, 20).map(([k, v]) => [str(k, TEXT.short), num(v, 0, 20, 0)])) : {},
     currentEvent: isObj(raw.currentEvent)
       ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, advisors, allowArc: true, crisisIds: activeCrises.map(c => c.id) })
       : null,
