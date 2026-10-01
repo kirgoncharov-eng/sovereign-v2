@@ -237,3 +237,18 @@ test("у каждого решения в эпизодах интриг есть
   for (const a of ARCS) for (const b of a.beats) for (const v of b.variants) for (const c of v.choices)
     assert.ok((c.fail ?? BEAT_FAILS[c.text] ?? "").length >= 200, `короткий провал — ${a.id}: ${c.text}`);
 });
+
+test("газета и реплики: у каждой карточки своя сцена, другие издания и реплики по сути решения", async () => {
+  const { sceneOf } = await import("../content/scene-map.ts");
+  for (const c of EVENT_CARDS) assert.notEqual(sceneOf({ card: c.id, source: c.source }), "square", `сцена для ${c.id}`);
+  let s = await newGame("Украина");
+  const ev = await classicApi.event(s);
+  s = startEvent(s, ev);
+  const n = await classicApi.consequence(s, ev.choices[0].id);
+  assert.ok(n.scene, "сцена хода");
+  assert.ok(n.press?.length && n.press.every(p => p.outlet && p.headline && !/\{\w+/.test(p.headline)), "что пишут другие");
+  // цитаты без финальной точки: её ставит подача после кавычек
+  const { REACT_BY_TAG, REACT_DIPLOMAT, REACT_SPECIAL } = await import("../content/reactions.ts");
+  for (const pool of [...Object.values(REACT_BY_TAG), ...Object.values(REACT_DIPLOMAT), ...Object.values(REACT_SPECIAL)])
+    for (const q of [...pool.pro, ...pool.con]) assert.ok(!q.endsWith("."), q);
+});

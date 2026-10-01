@@ -583,6 +583,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       year: state.year, title: event.title, choice: plan.choice.text,
       headline: narration.headline, historianNote: narration.historianNote,
       tags: plan.choice.tags, success: plan.success,
+      ...(narration.heard?.length ? { heard: narration.heard } : {}),
     }],
     currentEvent: null,
     lastTurn: {

@@ -1,4 +1,5 @@
 // Общие типы игрового состояния. Используются и клиентом, и сервером.
+import type { SceneKey } from "../content/scene-map.ts";
 
 export type ResourceKey =
   | "politicalCapital"
@@ -160,6 +161,9 @@ export interface Narration {
   crisisDescription: string | null;
   powerLoss: string | null;
   document?: TurnDocument | null; // газеты или перехват — документ хода
+  press?: { outlet: string; headline: string }[]; // что пишут другие издания о том же решении
+  scene?: SceneKey;       // картинка события: она же фото в газете
+  heard?: string[];       // реплики и заголовки этого хода — чтобы не повторять их в партии
 }
 
 export interface TurnDocument {
@@ -214,6 +218,7 @@ export interface HistoryEntry {
   historianNote: string;
   tags?: ActionTag[];
   success?: boolean;
+  heard?: string[];       // уже прозвучавшие реплики и заголовки
 }
 
 export interface GameStats {

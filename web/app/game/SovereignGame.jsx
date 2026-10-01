@@ -27,6 +27,8 @@ import { resultCard } from "@/lib/client/card.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare } from "@/lib/client/square.ts";
+import { drawScene } from "@/lib/client/scenes.ts";
+import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
 const barColor = v => v >= 60 ? "var(--grn)" : v >= 35 ? "var(--amb)" : "var(--red)";
@@ -800,7 +802,20 @@ function squareState(gs) {
     phase: dayPhase(gs.currentEvent?.description),
   };
 }
-function SquareView({ gs, scene, height = 48, mono = false, still = false, style }) {
+// Рубрика над заголовком газеты — по сути решения.
+const RUBRICS = {
+  repress:"Порядок", security:"Безопасность", reform:"Политика", pro_west:"Внешняя политика", pro_russia:"Внешняя политика",
+  social:"Общество", austerity:"Экономика", investment:"Экономика", anticorruption:"Расследования", elite_deal:"Кулуары",
+  dialogue:"Общество", patriotism:"Страна", propaganda:"Медиа", delay:"Политика",
+};
+function rubricOf(t) {
+  if (t.election) return t.election.kind === "president" ? "Президентские выборы" : "Парламентские выборы";
+  if (t.success === false) return "Провал";
+  const tag = (t.tags || []).find(x => x !== "delay") || (t.tags || [])[0];
+  return RUBRICS[tag] || "Политика";
+}
+
+function SquareView({ gs, scene, sceneKey, partner, height = 48, mono = false, still = false, style }) {
   const wrap = useRef(null), ref = useRef(null);
   const [w, setW] = useState(0);
   useEffect(() => {
@@ -814,7 +829,7 @@ function SquareView({ gs, scene, height = 48, mono = false, still = false, style
   const lw = Math.max(80, Math.round(w / scale));
   // После решения дела уже нет — время суток остаётся тем же, что было в его шапке.
   const st0 = scene ?? squareState(gs);
-  const key = JSON.stringify({ ...st0, phase: st0.phase ?? phaseMemo.v });
+  const key = JSON.stringify({ ...st0, phase: st0.phase ?? phaseMemo.v, sceneKey, partner });
   useEffect(() => { if (st0.phase !== undefined) phaseMemo.v = st0.phase; }, [st0.phase]);
   useEffect(() => {
     const c = ref.current;
@@ -822,11 +837,12 @@ function SquareView({ gs, scene, height = 48, mono = false, still = false, style
     const st = JSON.parse(key);
     const ctx = c.getContext("2d");
     let frame = 0;
-    const draw = () => drawSquare(ctx, lw, height, st, frame++);
+    // Сцена события или сама площадь — один и тот же растр и палитра.
+    const draw = () => st.sceneKey && st.sceneKey !== "square" ? drawScene(ctx, lw, height, st.sceneKey, st, frame++, st.partner) : drawSquare(ctx, lw, height, st, frame++);
     draw();
     const reduce = still || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     if (reduce) return;
-    const t = setInterval(() => { if (!document.hidden) draw(); }, 420);
+    const t = setInterval(() => { if (!document.hidden) draw(); }, st.sceneKey && st.sceneKey !== "square" ? 260 : 420);
     return () => clearInterval(t);
   }, [key, lw, height, w, still]);
   return (
@@ -1784,7 +1800,12 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     Главная интрига «{event.beat.arcTitle}» · эпизод {event.beat.episode} из {event.beat.total}
                   </div>
                 )}
-                <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:16, textWrap:"balance" }}>{event.title}</h2>
+                <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
+                {sceneOf(event) !== "square" && (
+                  <figure className="sv-scene" style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
+                    <SquareView gs={gs} sceneKey={sceneOf(event)} partner={event.source === "Кремль" ? "ru" : "eu"} height={44}/>
+                  </figure>
+                )}
                 {event.special && <SpecialHeader gs={gs} event={event}/>}
                 <Prose text={event.description}/>
                 {event.affectedFactions?.length > 0 && (
@@ -1884,14 +1905,15 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     </span>
                   )}
                 </div>
-                <div style={{ borderTop:`4px solid ${G.txt}`, borderBottom:`2px solid ${G.txt}`, padding:"8px 0 6px", marginBottom:12, textAlign:"center" }}>
+                <div className="sv-paper-drop" style={{ borderTop:`4px solid ${G.txt}`, borderBottom:`2px solid ${G.txt}`, padding:"8px 0 6px", marginBottom:12, textAlign:"center" }}>
                   <div style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(30px, 8vw, 46px)", lineHeight:.9, textTransform:"uppercase", letterSpacing:".06em" }}>Вечерний {COUNTRIES[gs.country].capital}</div>
                   <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:5 }}>{gs.year} · выпуск № {turn} · цена 5 коп.</div>
                 </div>
-                <h2 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.02, color:G.txt, marginBottom:12, textWrap:"balance" }}>{lastTurn.headline}</h2>
+                <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>
+                <h2 className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.02, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}>{lastTurn.headline}</h2>
                 <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
-                  <SquareView gs={gs} height={36} mono still/>
-                  <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>Площадь перед резиденцией. Фото редакции</figcaption>
+                  <SquareView gs={gs} sceneKey={lastTurn.scene} height={36} mono still/>
+                  <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>{SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции</figcaption>
                 </figure>
                 <Typewriter key={`t${turn}`} text={lastTurn.narrative} onDone={() => setTypedTurn(turn)}/>
                 <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
@@ -1906,6 +1928,17 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     </div>
                   );
                 })}
+                {lastTurn.press?.length > 0 && (
+                  <div style={{ margin:"10px 0 4px", padding:"10px 12px", border:`1px solid ${G.bdr2}`, background:G.bg2 }}>
+                    <div style={{ fontFamily:narrow, fontWeight:700, fontSize:12, letterSpacing:".1em", textTransform:"uppercase", color:G.tx3, marginBottom:6 }}>Что пишут другие</div>
+                    {lastTurn.press.map((p, i) => (
+                      <div key={i} className="sv-fade" style={{ padding:"5px 0", borderTop: i ? `1px dashed ${G.bdr}` : "none", animationDelay:`${0.2 + i * 0.25}s` }}>
+                        <div style={{ fontFamily:narrow, fontSize:13, color:G.tx3 }}>{p.outlet}</div>
+                        <div style={{ fontFamily:serif, fontWeight:700, fontSize:16, lineHeight:1.25, color:G.txt }}>{p.headline}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {/* Историк подводит черту только в конце главы — иначе его реплики приедаются */}
                 {lastTurn.historianNote && (turn % 5 === 0 || gs.ended) && (
                   <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>— {lastTurn.historianNote}</div>

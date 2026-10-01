@@ -131,7 +131,17 @@ export function drawSquare(ctx: CanvasRenderingContext2D, W: number, H: number, 
   }
 }
 
-type Px = (x: number, y: number, w: number, h: number, c: string) => void;
+export type Px = (x: number, y: number, w: number, h: number, c: string) => void;
+
+// Флаг страны (или партнёра) для сцен событий.
+export function flagPx(px: Px, country: string, x: number, y: number, w: number, h: number, frame: number) {
+  drawFlag(px, FLAGS[country] ?? PARTNER_FLAGS[country], x, y, w, h, frame);
+}
+const PARTNER_FLAGS: Record<string, Flag> = {
+  eu: { dir: "h", bands: ["#2a4aa0"], mark: "#f2cd2e" },
+  ru: { dir: "h", bands: ["#f2f2ee", "#2f5fb0", "#cc2a2e"] },
+};
+export { SKIES };
 
 // Флажок страны для списков и шапок: те же полосы, что над резиденцией.
 export function drawFlagAt(ctx: CanvasRenderingContext2D, country: string, w: number, h: number) {
