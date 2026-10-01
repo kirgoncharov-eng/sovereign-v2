@@ -276,6 +276,7 @@ export interface GameState {
   pacts?: Pact[];        // действующие союзы
   betrayals?: number;    // сколько союзов вы нарушили
   echoes?: Record<string, number>; // сколько раз уже звучало эхо каждого отложенного последствия
+  former?: string[];      // люди, ушедшие с постов: их имена не достаются преемникам
   currentEvent: GameEvent | null;
   lastTurn: TurnReport | null;
   ended: boolean;

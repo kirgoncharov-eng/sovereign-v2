@@ -13,7 +13,7 @@ import { CRISIS_ESCALATE, EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../
 import { SCENES } from "../content/scenes.ts";
 import { EVENT_EXT } from "../content/events-ext.ts";
 import { BEAT_EXT } from "../content/beats-ext.ts";
-import { INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, TIMES, WEATHER, WEEKDAYS } from "../content/frame.ts";
+import { DAY_TIMES, DAYLIGHT, INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, TIMES, WEATHER, WEEKDAYS } from "../content/frame.ts";
 import { ECHOES } from "../content/echoes.ts";
 import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
 import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
@@ -32,6 +32,8 @@ import type { ActionTag, Bloc, Choice, Deal, DifficultyId, Faction, Figure, Game
 
 type Rand = () => number;
 const pick = <T,>(r: Rand, list: T[]): T => list[Math.floor(r() * list.length)];
+// Вариант текста для n-го повторения одного и того же события за партию.
+const nth = (list: readonly string[], n: number) => list[n % list.length];
 
 // Выбор без повторов в пределах партии: пул перемешан зерном партии, индекс — номер хода.
 function cycle<T>(list: T[], seed: number, salt: string, idx: number): T {
@@ -54,6 +56,20 @@ function rivalName(state: GameState): string {
   return top ? quoted(top.name) : "оппозиции";
 }
 
+// Религиозная лексика страны: в Казахстане вместо церкви и прихожан — духовенство и верующие.
+// {faith:temple} — со строчной, {faith:Temple} — с прописной.
+const FAITH: Record<"christian" | "muslim", Record<string, string>> = {
+  christian: {
+    church: "церковь", temple: "храм", flock_gen: "прихожан", flock_dat: "прихожанам", parishes_dat: "приходам",
+    diocese_dat: "епархии", priest_gen: "священника", icons: "иконами",
+  },
+  muslim: {
+    church: "духовенство", temple: "мечеть", flock_gen: "верующих", flock_dat: "верующим", parishes_dat: "общинам",
+    diocese_dat: "духовному управлению", priest_gen: "имама", icons: "плакатами",
+  },
+};
+const faithOf = (country: string) => FAITH[country === "Казахстан" ? "muslim" : "christian"];
+
 // Подстановка слотов {capital} {fig:security} и т.п.
 export function fill(tpl: string, state: GameState, extra: Record<string, string> = {}): string {
   return tpl.replace(/\{(\w+)(?::(\w+))?\}/g, (m, key: string, arg?: string) => {
@@ -69,6 +85,10 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
       case "target": return state.arc?.target ?? "неизвестный";
       case "fig": return figureOf(state, arg!)?.name ?? factionOf(state, arg!)?.name ?? "оппоненты";
       case "fac": return factionOf(state, arg!)?.name ?? "оппоненты";
+      case "faith": {
+        const word = faithOf(state.country)[arg!.toLowerCase()] ?? m;
+        return arg![0] === arg![0].toUpperCase() ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+      }
       default: return extra[key] ?? m;
     }
   });
@@ -78,7 +98,9 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
 export function dateline(state: GameState): string {
   const r = seededRandom(hashSeed(state.seed, "dateline", state.turn));
   const t = state.turn;
-  return fill(`${WEEKDAYS[(t + state.seed) % 7]}, ${pick(r, TIMES)}. ${cycle(WEATHER, state.seed, "weather", t)} ${cycle(PLACES, state.seed, "place", t)}`, state);
+  const weather = cycle(WEATHER, state.seed, "weather", t), place = cycle(PLACES, state.seed, "place", t);
+  const time = pick(r, DAYLIGHT.has(weather) || DAYLIGHT.has(place) ? DAY_TIMES : TIMES);
+  return fill(`${WEEKDAYS[(t + state.seed) % 7]}, ${time}. ${weather} ${place}`, state);
 }
 
 const chapter = (...parts: (string | undefined | null)[]) => parts.filter(Boolean).join("\n\n");
@@ -89,6 +111,7 @@ const neededBlocs = (card: EventCard) =>
 
 export function cardAvailable(card: EventCard, state: GameState): boolean {
   if (card.countries && !card.countries.includes(state.country)) return false;
+  if (card.notArc && state.arc && card.notArc.includes(state.arc.id)) return false;
   if (neededBlocs(card).some(b => !state.factions.some(f => f.bloc === b))) return false;
   const w = card.when ?? {};
   const turn = state.turn + 1;
@@ -123,6 +146,10 @@ export function beatEvent(state: GameState): GameEvent | null {
   const due = dueBeat(state);
   if (!due) return null;
   const { arc, beat, variant, episode, total } = due;
+  // Антагонист, которого развязка убирает с поста, уступает место преемнику — и больше не мелькает в хронике.
+  const villain = state.keyFigures.find(f => f.name === state.arc?.target);
+  const heir = villain ? successorName(state, villain) : "";
+  const heirLine = heir ? ` Новый ${lower(villain!.role)} — ${heir}.` : "";
   return {
     title: fill(variant.title, state),
     source: "Секретно",
@@ -131,7 +158,8 @@ export function beatEvent(state: GameState): GameEvent | null {
     affectedFactions: [],
     choices: variant.choices.map((c, i) => ({
       id: ["a", "b", "c"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags, resolvesCrisis: null,
-      arc: { flag: c.flag, ok: fill(c.ok, state), ...(c.fail ?? BEAT_FAILS[c.text] ? { fail: fill(c.fail ?? BEAT_FAILS[c.text], state) } : {}), effect: c.effect ?? {}, ...(c.epilogue ? { epilogue: fill(c.epilogue, state) } : {}) },
+      ...(c.removes && villain ? { deal: { figure: villain.id, replace: heir } } : {}),
+      arc: { flag: c.flag, ok: fill(c.ok, state) + (c.removes ? heirLine : ""), ...(c.fail ?? BEAT_FAILS[c.text] ? { fail: fill(c.fail ?? BEAT_FAILS[c.text], state) } : {}), effect: c.effect ?? {}, ...(c.epilogue ? { epilogue: fill(c.epilogue, state) } : {}) },
       ...headlines(BEAT_HEADLINES[c.text], state),
     })),
     council: null,
@@ -155,10 +183,10 @@ function successorName(state: GameState, fig: Figure): string {
     return `${pick(r, pool.first)} ${pick(r, lasts.length ? lasts : pool.last)}`;
   }
   const used = new Set<string>();
-  for (const n of [state.leader.name, ...state.keyFigures.map(f => f.name), ...state.advisors.map(a => a.name)]) {
+  for (const n of [state.leader.name, ...state.keyFigures.map(f => f.name), ...state.advisors.map(a => a.name), ...(state.former ?? [])]) {
     const [first, last] = n.split(" ");
     used.add(`first:${first}`);
-    if (last) used.add(last.replace(/(ов|ев|ин)а$/, "$1").replace(/ская$/, "ский"));
+    if (last) used.add(last.replace(/(ов|ев|ин)а$/, "$1").replace(/(ск|цк)ая$/, "$1ий"));
   }
   return personName(state.country, r, MALE_ROLES.has(fig.id), used);
 }
@@ -281,9 +309,9 @@ export function specialEvent(state: GameState): SpecialEvent | null {
 }
 
 // ── Проверка документов ──────────────────────────────────────────────────────
-// Три раза за партию на стол ложится доклад и справка к нему. Первый доклад всегда лжёт —
-// так игрок узнаёт механику; один из трёх честный — чтобы не обвинять вслепую.
-export const inspectTurns = (seed: number) => (seed % 2 ? [4, 11, 15] : [5, 13, 17]);
+// Дважды за партию на стол ложится доклад и справка к нему. Первый доклад всегда лжёт —
+// так игрок узнаёт механику; второй честен через раз — чтобы не обвинять вслепую.
+export const inspectTurns = (seed: number) => (seed % 2 ? [4, 14] : [5, 15]);
 
 export function inspectEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
@@ -292,12 +320,12 @@ export function inspectEvent(state: GameState): SpecialEvent | null {
   const docs = INSPECT_DOCS.filter(d => state.factions.some(f => f.bloc === d.bloc))
     .sort((a, b) => hashSeed(state.seed, "doc", a.id) - hashSeed(state.seed, "doc", b.id));
   const lies = docs.filter(d => d.lie !== null), honest = docs.filter(d => d.lie === null);
-  const order = state.seed % 3 === 0 ? [lies[0], honest[0], lies[1]] : [lies[0], lies[1], honest[0]];
+  const order = hashSeed(state.seed, "honest") % 2 ? [lies[0], honest[0]] : [lies[0], lies[1]];
   const doc = order[k];
   if (!doc) return null;
   const facIds = state.factions.filter(f => f.bloc === doc.bloc).map(f => f.id);
   const rel = (n: number) => Object.fromEntries(facIds.map(id => [id, n]));
-  const slots = { who: doc.who, who_cap: doc.who.charAt(0).toUpperCase() + doc.who.slice(1), title: doc.title, reveal: doc.reveal ?? "" };
+  const slots = { who: doc.who, who_cap: doc.who.charAt(0).toUpperCase() + doc.who.slice(1), title: fill(doc.title, state), reveal: doc.reveal ?? "" };
   const f = (t: string) => fill(t, state, slots);
   const T = INSPECT_TEXT;
   const lie = doc.lie !== null;
@@ -305,10 +333,10 @@ export function inspectEvent(state: GameState): SpecialEvent | null {
     id, text, hint, tags, resolvesCrisis: null, deal: { pure: true, ...deal }, scene: f(scene), sceneFail: f(scene), headline: f(head), headlineFail: f(head),
   });
   const wrong = choice("d", T.accuse.text, T.accuse.hint, ["anticorruption"],
-    { res: { internalLegitimacy: -3, politicalCapital: -4 }, factionRel: rel(-10) }, T.accuse.wrong, T.accuse.headWrong);
+    { res: { internalLegitimacy: -3, politicalCapital: -4 }, factionRel: rel(-10) }, nth(T.accuse.wrong, k), T.accuse.headWrong);
   return {
     cardId: `ins:${turn}:${doc.id}`,
-    title: doc.title,
+    title: slots.title,
     source: "На подпись",
     description: chapter(dateline(state), f(doc.intro)),
     isCritical: false,
@@ -317,16 +345,16 @@ export function inspectEvent(state: GameState): SpecialEvent | null {
       choice("a", T.accept.text, T.accept.hint, ["delay"], {
         res: { politicalCapital: 3 }, factionRel: rel(4),
         ...(lie && doc.exposed ? { later: { turns: 2, label: doc.exposed.label, res: doc.exposed.res, story: doc.exposed.story } } : {}),
-      }, lie ? T.accept.lie : T.accept.honest, T.accept.head),
-      choice("b", T.back.text, T.back.hint, ["delay"], { res: { politicalCapital: -2 }, factionRel: rel(-3) }, lie ? T.back.lie : T.back.honest, T.back.head),
+      }, nth(lie ? T.accept.lie : T.accept.honest, k), T.accept.head),
+      choice("b", T.back.text, T.back.hint, ["delay"], { res: { politicalCapital: -2 }, factionRel: rel(-3) }, nth(lie ? T.back.lie : T.back.honest, k), T.back.head),
       lie ? choice("c", T.accuse.text, T.accuse.hint, ["anticorruption"],
-        { res: { internalLegitimacy: 4, politicalCapital: 3 }, factionRel: rel(-6) }, T.accuse.right, doc.head ?? T.accuse.headWrong)
+        { res: { internalLegitimacy: 4, politicalCapital: 3 }, factionRel: rel(-6) }, nth(T.accuse.right, k), doc.head ?? T.accuse.headWrong)
         : { ...wrong, id: "c" },
       wrong,
     ],
     council: null,
     special: { kind: "inspect", figure: null, faction: facIds[0] ?? "" },
-    doc: { facts: doc.facts, lines: doc.lines, author: doc.who, key: doc.lie },
+    doc: { facts: doc.facts.map(f), lines: doc.lines.map(f), author: doc.who, key: doc.lie },
     randomEvent: null,
   };
 }
@@ -404,7 +432,7 @@ export function pressChoice(state: GameState, picks: number[]): Choice {
   const count = (t: string) => tones.filter(x => x === t).length;
   // Тон пресс-конференции — тот, что прозвучал хотя бы дважды; иначе зал запомнит смешанное впечатление.
   const tone = (["honest", "hard", "evasive"] as const).find(t => count(t) >= 2) ?? "mixed";
-  lines.push(PRESS_TEXT.close[tone]);
+  lines.push(nth(PRESS_TEXT.close[tone], Math.max(0, PRESS_TURNS.indexOf(state.turn + 1))));
   const factionRel: Record<string, number> = {};
   for (const f of state.factions) if (relBloc[f.bloc]) factionRel[f.id] = relBloc[f.bloc];
   const headline = quote && quote.length <= 70 ? `Президент: ${quote}` : "Президент ответил на вопросы журналистов";
@@ -420,7 +448,7 @@ export function pressChoice(state: GameState, picks: number[]): Choice {
 // ── Звонок по защищённой линии ───────────────────────────────────────────────
 // Дважды за партию звонит человек из окружения. Подход, который подходит его характеру,
 // делает разговор дешёвым; не тот подход — дорогим. Первым звонит самый недовольный.
-export const CALL_TURNS = [6, 14];
+export const CALL_TURNS = [11, 17];
 const CONCESSION: Record<Bloc, keyof GameState["resources"]> = {
   security: "economy", business: "economy", church: "politicalCapital", liberal: "politicalCapital", west: "economy",
   russia: "externalReputation", nationalist: "externalReputation", regional: "economy", ruling: "politicalCapital",
@@ -456,7 +484,7 @@ export function callEvent(state: GameState): SpecialEvent | null {
     choices: [{ ...hang, id: "a" }, hang],
     council: null,
     special: { kind: "call", figure: fig.id, faction: fac.id },
-    call: { figure: fig.id, trait: traitOf(state.seed, fig, fac.bloc), demand: cycle(CALL_DEMANDS[fac.bloc], state.seed, `demand${fig.id}`, k) },
+    call: { figure: fig.id, trait: traitOf(state.seed, fig, fac.bloc), demand: fill(cycle(CALL_DEMANDS[fac.bloc], state.seed, `demand${fig.id}`, k), state) },
     randomEvent: null,
   };
 }
@@ -488,7 +516,7 @@ export function callChoice(state: GameState, approach: Approach, ending: (typeof
   const scene = [
     `${fig.name} начинает без приветствия: ${fill(call.demand, state, slots)}`,
     `Вы ${APPROACH_SAY[approach]}. ${reply}.`,
-    fill(T.outcome[`${ending}_${ok ? "ok" : "no"}`], state, slots),
+    fill(nth(T.outcome[`${ending}_${ok ? "ok" : "no"}`], Math.max(0, CALL_TURNS.indexOf(state.turn + 1))), state, slots),
   ].join(" ");
   const head = fill(T.heads[ending], state, slots);
   return {
@@ -638,12 +666,20 @@ const POLLS_UP = [
   "Свежий замер приходит раньше обычного: цифры поползли вверх, и пресс-служба просит разрешения их опубликовать.",
   "Социологи звонят сами, что бывает редко: рост виден даже в регионах, где за вас не голосовали никогда.",
   "В штабе вешают на стену новый график. Линия впервые за месяц смотрит вверх.",
+  "Таксисты в столице, которых опрашивает ваша пресс-служба, впервые говорят о вас без мата. Для пресс-службы это лучший индикатор.",
+  "Даже оппозиционный телеканал вынужден признать в вечернем выпуске: рейтинг президента растёт.",
+  "Социолог приносит замер лично и задерживается в дверях: «Такого прироста я не видел с прошлых выборов».",
+  "На рынке в рабочем районе продавщица говорит в камеру: «Этот хоть что-то делает». Пресс-служба пересылает вам ролик трижды.",
 ];
 const POLLS_DOWN = [
   "Утренние опросы ложатся на стол молча. Социолог не поднимает глаз. Цифры говорят сами.",
   "Новый замер приносят без сопроводительной записки — её и не нужно. Доверие проседает.",
   "Пресс-служба просит не публиковать свежий опрос. Цифры такие, что их лучше пересчитать дважды.",
   "Социологи осторожно пишут «отрицательная динамика». В переводе на обычный язык — люди отворачиваются.",
+  "Опрос показывает то, что вы и так чувствуете по лицам в зале: доверие уходит, и уходит быстро.",
+  "Ваш портрет на остановке у министерства кто-то разрисовал ночью. Дворники стирают его к утру, социологи — нет.",
+  "Штаб просит отменить поездку в регионы: по свежим цифрам там вас встретят не цветами.",
+  "Рейтинг проседает на четыре пункта за неделю. Пресс-секретарь впервые не находит, как это подать.",
 ];
 
 // ── Итог хода ────────────────────────────────────────────────────────────────
@@ -693,7 +729,8 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // «Тем временем»: персонаж, чьё личное отношение изменилось сильнее всего.
   // Антагонист интриги и герой особого дела не комментируют собственные эпизоды — они в них участники.
   const subject = state.currentEvent?.special?.figure;
-  const cast = state.keyFigures.filter(f => !(arc && f.name === state.arc?.target) && f.id !== subject);
+  // Антагонист интриги живёт своей линией: в репликах и параллельных сценах его нет.
+  const cast = state.keyFigures.filter(f => f.name !== state.arc?.target && f.id !== subject);
   const delta = (f: (typeof cast)[number]) => {
     const next = plan.keyFigures.find(x => x.id === f.id);
     return next && next.name === f.name ? next.relation - f.relation : 0;
@@ -714,7 +751,9 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const arcDef = ARCS.find(a => a.id === state.arc?.id);
   // Через ход и без повторов: предвестие должно тревожить, а не надоедать.
   const hookIdx = (state.turn - 1) / 2;
-  const hook = arcDef && !arc && !plan.endType && state.turn % 2 === 1 && hookIdx < arcDef.hooks.length
+  // После развязки интрига молчит: ни предвестий, ни перехватов.
+  const arcOpen = !!arcDef && (state.arc?.done.length ?? 0) < arcDef.beats.length;
+  const hook = arcDef && arcOpen && !arc && !plan.endType && state.turn % 2 === 1 && hookIdx < arcDef.hooks.length
     ? fill(cycle(arcDef.hooks, state.seed, "hook", hookIdx), state) : null;
   const parts = [scene, after.join(" "), electionLine, intercut, hook];
 
@@ -729,7 +768,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // Газета уже сама по себе итог хода, вторая подборка заголовков в ней не нужна.
   const icpt = arcDef ? INTERCEPTS[arcDef.id] : [];
   const icptIdx = (state.turn - 2) / 4;
-  const document = arcDef && !arc && state.turn % 4 === 2 && icptIdx < icpt.length
+  const document = arcDef && arcOpen && !arc && state.turn % 4 === 2 && icptIdx < icpt.length
     ? { kind: "intercept" as const, title: "ПЕРЕХВАТ · СОВЕРШЕННО СЕКРЕТНО", lines: [icpt[icptIdx], "Источник не установлен. Абонент на связь больше не выходил."] }
     : null;
 
@@ -764,7 +803,7 @@ function buildCouncil(state: GameState): Choice[] {
       if (!p) return [];
       const [tag, text, hint, ok, fail] = p;
       return [{
-        advisor: role.id, text: fill(text, state), hint, tags: [tag], scene: fill(ok, state), sceneFail: fill(fail, state),
+        advisor: role.id, text: fill(text, state), hint: fill(hint, state), tags: [tag], scene: fill(ok, state), sceneFail: fill(fail, state),
         ...headlines(COUNCIL_HEADLINES[state.currentEvent!.card!]?.[role.id as keyof (typeof COUNCIL_HEADLINES)[string]], state),
         resolvesCrisis: crisisId && CRISIS_FIXERS.includes(tag) && r() < 0.5 ? crisisId : null,
       }];
@@ -810,7 +849,7 @@ function personName(country: string, r: Rand, male = false, used?: Set<string>):
   const free = used ? n.last.filter(l => !used.has(l)) : [];
   let last = pick(r, free.length ? free : n.last);
   used?.add(last);
-  if (i >= 8) last = last.replace(/(ов|ев|ин)$/, "$1а").replace(/ский$/, "ская");
+  if (i >= 8) last = last.replace(/(ов|ев|ин)$/, "$1а").replace(/(ск|цк)ий$/, "$1ая");
   return `${n.first[i]} ${last}`;
 }
 

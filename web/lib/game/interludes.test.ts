@@ -9,12 +9,14 @@ const newGame = async (seed = 3, bio?: string): Promise<GameState> =>
   createInitialState("Украина", "coalition", "liberal", await classicApi.setup("Украина", "coalition", "liberal", seed), () => 0.4, "classic", bio);
 const at = (s: GameState, turn: number): GameState => ({ ...s, turn: turn - 1, arc: null });
 
-test("проверка документа: три доклада за партию, первый лжёт, исходы зависят от отмеченной строки", async () => {
-  const s0 = await newGame();
+test("проверка документа: два доклада за партию, первый лжёт, исходы зависят от отмеченной строки", async () => {
+  // зерно, при котором второй доклад честный: так в одной партии есть и ложь, и правда
+  let s0 = await newGame();
+  for (let seed = 4; inspectEvent(at(s0, inspectTurns(s0.seed)[1]))!.doc!.key !== null; seed++) s0 = await newGame(seed);
   const turns = inspectTurns(s0.seed);
+  assert.equal(turns.length, 2);
   const docs = turns.map(t => inspectEvent(at(s0, t)));
   assert.ok(docs.every(Boolean));
-  assert.equal(docs.filter(d => d!.doc!.key === null).length, 1, "один честный доклад");
   assert.notEqual(docs[0]!.doc!.key, null, "первый доклад лжёт");
   const ev = docs[0]!;
   const s = startEvent(at(s0, turns[0]), ev);

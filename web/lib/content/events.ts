@@ -26,6 +26,7 @@ export interface CardChoice {
 export interface EventCard {
   id: string;
   countries?: string[];
+  notArc?: string[];      // не выпадает, если в партии идёт эта интрига: сюжет бы повторился
   when?: CardCondition;
   weight?: number;
   source: string;
@@ -105,7 +106,7 @@ const AUTHORED_CARDS: EventCard[] = [
     ] },
 
   // ── Силовики и безопасность ────────────────────────────────────────────────
-  { id:"sec_ultimatum", source:"Армия", when:{ hostile:"security" }, weight:3,
+  { id:"sec_ultimatum", notArc:["generals"], source:"Армия", when:{ hostile:"security" }, weight:3,
     title:"Ультиматум силовиков",
     description:"{fig:security} пришёл без записи. Разговор короткий: либо силовой блок получает бюджет и свободу рук, либо «ответственность за порядок снимается». В приёмной ждут ещё трое генералов.",
     choices:[
@@ -113,7 +114,7 @@ const AUTHORED_CARDS: EventCard[] = [
       { text:"Уволить его и назначить своего человека", hint:"рискованно, но власть ваша", tags:["reform"] },
       { text:"Предложить ему кресло и долю в госзаказе", hint:"купить лояльность", tags:["elite_deal"] },
     ] },
-  { id:"sec_leak", source:"Разведка", when:{ minTurn:2 },
+  { id:"sec_leak", notArc:["mole"], source:"Разведка", when:{ minTurn:2 },
     title:"Прослушка в кабинете",
     description:"Техники нашли жучок в переговорной. Запись последнего совещания уже ушла в анонимный канал. Подозрения падают на {fac:security}.",
     choices:[
@@ -137,7 +138,7 @@ const AUTHORED_CARDS: EventCard[] = [
       { text:"Увеличить бюджет спецслужб и усилить охрану объектов", hint:"надёжно и дорого", tags:["security"] },
       { text:"Выступить с обращением о единстве нации", hint:"слова вместо мер", tags:["patriotism"] },
     ] },
-  { id:"general_ambition", source:"Армия", when:{ high:["military"], minTurn:4 },
+  { id:"general_ambition", notArc:["generals"], source:"Армия", when:{ high:["military"], minTurn:4 },
     title:"Генерал в телевизоре",
     description:"{fig:security} дал интервью, где назвал правительство «временным» и пообещал «навести порядок, если политики не справятся». Рейтинг генерала растёт.",
     choices:[
@@ -163,7 +164,7 @@ const AUTHORED_CARDS: EventCard[] = [
       { text:"Отчислить зачинщиков", hint:"жёстко и надолго", tags:["repress"] },
       { text:"Подождать, пока протест выдохнется", hint:"может разрастись", tags:["delay"] },
     ] },
-  { id:"journalist", source:"Пресса", when:{ minTurn:2 },
+  { id:"journalist", notArc:["kompromat"], source:"Пресса", when:{ minTurn:2 },
     title:"Расследование о вашей семье",
     description:"Независимое издание опубликовало расследование о недвижимости родственников лидера. Цифры неточные, но фотографии настоящие. Ссылку разослали миллион раз.",
     choices:[
@@ -221,9 +222,10 @@ const AUTHORED_CARDS: EventCard[] = [
       { text:"Отстранить губернатора указом", hint:"жёстко, может вспыхнуть регион", tags:["repress"] },
       { text:"Объехать регионы и договориться напрямую с людьми", hint:"долго, но надёжно", tags:["dialogue"] },
     ] },
-  { id:"church_pressure", source:"Кабинет", when:{ minTurn:2 },
+  // Сцены, советы и заголовки этого дела написаны о православной церкви — в Казахстане его нет.
+  { id:"church_pressure", countries:["Беларусь","Украина","Грузия","Молдова","Армения"], source:"Кабинет", when:{ minTurn:2 },
     title:"Церковь требует слова",
-    description:"{fig:church} публично выступил против нового закона о правах меньшинств. Прихожане собирают подписи, Запад следит за реакцией правительства.",
+    description:"{fig:church} публично выступает против нового закона о правах меньшинств. Прихожане собирают подписи, Запад следит за реакцией правительства.",
     choices:[
       { text:"Отозвать закон ради мира в обществе", hint:"церковь довольна, Запад нет", tags:["patriotism"] },
       { text:"Принять закон, несмотря на протесты", hint:"ценности против традиции", tags:["reform","pro_west"] },
@@ -396,6 +398,14 @@ const AUTHORED_CARDS: EventCard[] = [
       { text:"Вернуть цены и пообещать реформы", hint:"уступка улице", tags:["social","dialogue"] },
       { text:"Ввести режим ЧП в регионах", hint:"память о январе", tags:["repress"] },
       { text:"Обвинить кланы в сговоре и начать аресты", hint:"удар по старой элите", tags:["anticorruption"] },
+    ] },
+  { id:"kz_hijab", countries:["Казахстан"], source:"Кабинет", when:{ minTurn:2 },
+    title:"Платки в школах",
+    description:"{fig:church} публично выступает против запрета платков в школах. В южных областях родители забирают дочерей с уроков, министр образования стоит на своём.",
+    choices:[
+      { text:"Отменить запрет ради мира в обществе", hint:"верующие довольны, светские — нет", tags:["patriotism"] },
+      { text:"Оставить запрет: государство светское", hint:"закон против традиции", tags:["reform"] },
+      { text:"Договориться с муфтиятом о компромиссной форме", hint:"тихая сделка", tags:["elite_deal"] },
     ] },
 ];
 

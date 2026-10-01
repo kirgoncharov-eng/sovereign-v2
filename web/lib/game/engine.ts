@@ -447,10 +447,12 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   // Провал отменяет отложенную пользу, но не отложенный вред.
   const net = (d: { res: ResourceDelta }) => Object.values(d.res).reduce((x, y) => x + (y ?? 0), 0);
   const later = success && choice.deal?.later ? [{ ...choice.deal.later, story: choice.deal.later.story ?? "" }] : [];
-  const scheduled: Pending[] = [...delayedEffects(choice).filter(d => success || net(d) < 0), ...later].map((d, i) => ({
+  // Сюжет храним только у сделок: эхо из таблицы DELAYED рассказчик берёт сам, с вариантами.
+  const tagged = delayedEffects(choice).filter(d => success || net(d) < 0).map(d => ({ ...d, story: "" }));
+  const scheduled: Pending[] = [...tagged, ...later].map((d, i) => ({
     id: `p${nextTurn}_${i}`, due: nextTurn + d.turns, label: d.label, res: d.res, source: choice.text,
     ...(state.currentEvent?.title ? { event: state.currentEvent.title } : {}),
-    ...("story" in d && d.story ? { story: d.story as string } : {}),
+    ...(d.story ? { story: d.story } : {}),
   }));
   const pending = [...pendingAll.filter(p => p.due > nextTurn), ...scheduled].slice(-MAX_PENDING);
   if (event.randomEvent) resources = applyDeltas(resources, event.randomEvent.resourceEffect);
@@ -602,6 +604,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     pending: plan.pending,
     pacts: plan.pacts,
     betrayals: plan.betrayals,
+    former: [...(state.former ?? []), ...state.keyFigures.filter(f => !plan.keyFigures.some(g => g.name === f.name)).map(f => f.name)],
     echoes: plan.matured.reduce((acc, m) => ({ ...acc, [m.label]: (acc[m.label] ?? 0) + 1 }), { ...(state.echoes ?? {}) }),
     arc: state.arc ? {
       ...state.arc,
