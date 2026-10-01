@@ -75,8 +75,13 @@ export interface Deal {
   factionAppr?: Record<string, number>;
   replace?: string;       // имя преемника: человек уходит с поста
   res?: ResourceDelta;    // цена или выгода самой сделки
+  pure?: boolean;         // эффект задаёт только сделка: теги лишь подписывают решение, исполнение гарантировано
+  later?: { turns: number; label: string; res: ResourceDelta; story?: string }; // аукнется позже, если исполнят
   pact?: { faction: string; turns: number; ban: ActionTag[]; against?: string | null };
 }
+
+export interface PressAnswer { text: string; tone: "honest" | "hard" | "evasive"; res: ResourceDelta; rel: Partial<Record<Bloc, number>> }
+export interface PressQuestion { id: string; who: string; topic: string; text: string; answers: PressAnswer[] }
 
 export interface Pact {
   faction: string;
@@ -129,7 +134,9 @@ export interface GameEvent {
   choices: Choice[];
   council?: Choice[] | null; // предложения советников, если совет собирали
   card?: string;        // авторская карточка, из которой собрано событие
-  special?: { kind: "overture" | "insider" | "mole" | "pact"; figure: string | null; faction: string } | null; // дело о людях и союзах
+  special?: { kind: "overture" | "insider" | "mole" | "pact" | "inspect" | "press"; figure: string | null; faction: string } | null; // особое дело
+  doc?: { facts: string[]; lines: string[]; author: string; key: number | null } | null;  // проверка документа: справка и строки доклада
+  press?: { outlet: string; questions: PressQuestion[] } | null;       // пресс-конференция
   beat?: { arcId: string; arcTitle: string; turn: number; episode: number; total: number } | null; // эпизод интриги
   randomEvent: RandomEvent | null;
 }
@@ -194,6 +201,7 @@ export interface Pending {
   res: ResourceDelta;
   source: string;       // решение, которое его вызвало
   event?: string;       // дело, по которому принималось решение
+  story?: string;       // авторская сцена, когда последствие сработает
 }
 
 export interface HistoryEntry {
@@ -256,6 +264,7 @@ export interface GameState {
   mode: GameMode;
   seed: number;
   daily?: string | null; // дата «дела дня», если партия общая для всех
+  bio?: string;         // биография лидера (BIOGRAPHIES)
   usedEvents: string[]; // карточки сценариев, уже показанные в этой партии
   stats: GameStats;
   advisors: Advisor[];

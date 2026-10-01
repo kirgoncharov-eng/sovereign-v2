@@ -1,7 +1,7 @@
 // Проверка и нормализация данных, пришедших извне: ответов модели и состояния от клиента.
 // Всё, что не проходит проверку, либо отбрасывается, либо приводится к безопасному значению.
 import {
-  ACTION_TAGS, ADVISOR_ROLES, MAX_PENDING, COUNTRIES, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
+  ACTION_TAGS, ADVISOR_ROLES, BIOGRAPHIES, MAX_PENDING, COUNTRIES, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGIES, LIMITS, MAX_TURNS, RATINGS, RESOURCE_KEYS, SAVE_VERSION, START_RES, TEXT,
 } from "./data.ts";
 import { ARCS } from "../content/arcs.ts";
@@ -113,6 +113,11 @@ function sanitizeDeal(v: unknown): Deal | null {
     ...(map(v.factionAppr) ? { factionAppr: map(v.factionAppr) } : {}),
     ...(str(v.replace, TEXT.name) ? { replace: str(v.replace, TEXT.name) } : {}),
     ...(isObj(v.res) ? { res: deltaMap(v.res, RESOURCE_KEYS, 10) } : {}),
+    ...(v.pure === true ? { pure: true } : {}),
+    ...(isObj(v.later) && str(v.later.label, TEXT.short) ? { later: {
+      turns: num(v.later.turns, 1, 5, 2), label: str(v.later.label, TEXT.short), res: deltaMap(v.later.res, RESOURCE_KEYS, 8),
+      ...(str(v.later.story, TEXT.long) ? { story: str(v.later.story, TEXT.long) } : {}),
+    } } : {}),
     ...(pact && pact.ban.length ? { pact } : {}),
   };
   return Object.keys(deal).length ? deal : null;
@@ -209,7 +214,7 @@ export function sanitizeEvent(
     randomEvent: opts.allowRandom ? sanitizeRandomEvent(raw.randomEvent) : null,
     council: opts.advisors ? sanitizeProposals(raw.council, opts.advisors, opts.crisisIds, opts.allowArc) : null,
     ...(opts.allowArc && str(raw.card, 40) ? { card: str(raw.card, 40) } : {}),
-    ...(opts.allowArc && isObj(raw.special) && ["overture", "insider", "mole", "pact"].includes(raw.special.kind as string) ? {
+    ...(opts.allowArc && isObj(raw.special) && ["overture", "insider", "mole", "pact", "inspect", "press"].includes(raw.special.kind as string) ? {
       special: { kind: raw.special.kind as "overture", figure: str(raw.special.figure, 20) || null, faction: str(raw.special.faction, 20) },
     } : {}),
     beat: opts.allowArc && isObj(raw.beat) ? {
@@ -337,6 +342,7 @@ function sanitizePending(v: unknown, turn: number): Pending[] {
     res: deltaMap(p.res, RESOURCE_KEYS, 8),
     source: str(p.source, TEXT.choice),
     ...(typeof p.event === "string" ? { event: str(p.event, TEXT.choice) } : {}),
+    ...(typeof p.story === "string" && p.story ? { story: str(p.story, TEXT.long) } : {}),
   }));
 }
 
@@ -419,6 +425,7 @@ export function sanitizeState(raw: unknown): GameState | null {
     councilCharges: num(raw.councilCharges, 0, 10, 0),
     mode: raw.mode === "ai" ? "ai" : "classic",
     seed: num(raw.seed, 0, 4294967295, 0),
+    ...(BIOGRAPHIES.some(b => b.id === raw.bio) ? { bio: raw.bio as string } : {}),
     daily: typeof raw.daily === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.daily) ? raw.daily : null,
     usedEvents: strList(raw.usedEvents, 40, 60),
     stats: {

@@ -1,7 +1,7 @@
 // Игровой движок: чистые функции без сети и без React.
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
 import {
-  ACTIONS, ADVISOR_ROLES, DELAYED, MAX_PENDING, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, CRISIS_DRAIN, DIFF_PRESSURE, ELECTIONS,
+  ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, MAX_PENDING, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, CRISIS_DRAIN, DIFF_PRESSURE, ELECTIONS,
   ELECTION_LOSS_PENALTY, ELECTION_WIN_BONUS, HOSTILE_DRAIN, HOSTILE_RELATION, IMPEACH_RATING, NON_VOTING_BLOCS, PARTIES, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, MAX_TURNS, RECOVERY_BELOW, RECOVERY_RATE,
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES,
@@ -178,8 +178,9 @@ export function dueBeat(state: Pick<GameState, "arc" | "turn">) {
 
 export function createInitialState(
   country: string, diff: DifficultyId, ideo: IdeologyId, intro: Intro, rand: () => number = Math.random,
-  mode: GameMode = "classic",
+  mode: GameMode = "classic", bio?: string,
 ): GameState {
+  const biography = BIOGRAPHIES.find(b => b.id === bio);
   const state: GameState = {
     version: SAVE_VERSION,
     mode,
@@ -190,7 +191,8 @@ export function createInitialState(
     leader: intro.leader,
     speech: intro.speech,
     situation: intro.situation,
-    resources: { ...START_RES[diff] }, prevResources: null,
+    resources: biography ? applyDeltas(START_RES[diff], { [biography.res]: BIO_RES }) : { ...START_RES[diff] }, prevResources: null,
+    ...(biography ? { bio: biography.id } : {}),
     factions: initFactions(country, ideo, diff), prevFactions: null,
     keyFigures: initFigures(country, ideo, diff, intro.players, rand), prevFigures: null,
     activeCrises: [],
@@ -240,6 +242,7 @@ export function initAdvisors(diff: DifficultyId, names: string[], rand: () => nu
 
 // Отложенные последствия решения: по тегам и за слабого советника.
 export function delayedEffects(choice: Choice): DelayedInfo[] {
+  if (choice.deal?.pure) return [];
   const list = choice.tags.map(t => DELAYED[t]).filter((d): d is DelayedInfo => !!d);
   if (choice.advisor?.skill === 1) list.push(WEAK_ADVISOR_DELAYED);
   return list;
@@ -298,7 +301,7 @@ export function seededRandom(seed: number): () => number {
 }
 
 // Шанс, что решение исполнят как задумано. Выжидание не проваливается.
-type ChanceState = Pick<GameState, "factions" | "resources"> & Partial<Pick<GameState, "keyFigures" | "pacts">>;
+type ChanceState = Pick<GameState, "factions" | "resources"> & Partial<Pick<GameState, "keyFigures" | "pacts" | "bio">>;
 // Группы, руками которых решение исполняется: те, кому оно выгодно.
 export const executors = (factions: Faction[], choice: Pick<Choice, "tags">) => {
   const blocs = new Set(choice.tags.flatMap(t => Object.entries(ACTIONS[t]?.rel ?? {}).filter(([, v]) => (v ?? 0) > 0).map(([b]) => b)));
@@ -306,10 +309,12 @@ export const executors = (factions: Faction[], choice: Pick<Choice, "tags">) => 
 };
 
 export function successChance(state: ChanceState, choice: Choice): number {
-  if (choice.tags.every(t => t === "delay")) return 1;
+  if (choice.tags.every(t => t === "delay") || choice.deal?.pure) return 1;
   let p = 0.8;
   if (choice.advisor) p += (choice.advisor.skill - 2) * 0.12;
   if (choice.resolvesCrisis) p += 0.1; // на борьбу с кризисом брошены все силы
+  const bio = BIOGRAPHIES.find(b => b.id === state.bio);
+  if (bio && choice.tags.some(t => bio.tags.includes(t))) p += BIO_CHANCE; // лидер знает это ремесло
   // чем лучше к вам относятся исполнители, тем надёжнее; а их люди могут и помочь, и саботировать
   const exec = executors(state.factions, choice);
   const avg = (xs: number[]) => xs.reduce((s, r) => s + r, 0) / xs.length;
@@ -333,7 +338,7 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions"> & Part
   const appr: Record<string, number> = {};
   const ideo = IDEOLOGY_ACTIONS[state.ideo];
   addDelta(res, choice.arc?.effect);
-  for (const tag of choice.tags) {
+  for (const tag of choice.deal?.pure ? [] : choice.tags) {
     const a = ACTIONS[tag];
     if (!a) continue;
     addDelta(res, a.res);
@@ -365,7 +370,7 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions"> & Part
     }
   }
   // Нарушенный союз: обманутая группа в ярости, остальные делают выводы. Считается и при провале — важен умысел.
-  for (const p of breaches(state.pacts, choice.tags)) {
+  for (const p of choice.deal?.pure ? [] : breaches(state.pacts, choice.tags)) {
     for (const f of state.factions) addDelta(extra, { [f.id]: f.id === p.faction ? PACT_BROKEN.faction : PACT_BROKEN.others });
   }
   for (const [k, v] of Object.entries(extra)) relOut[k] = (relOut[k] ?? 0) + Math.round(v);
@@ -386,7 +391,7 @@ export function figureDeltas(
   kept: Pact[] = [],
 ): Record<string, number> {
   const out: Record<string, number> = {};
-  const broken = breaches(state.pacts, choice.tags);
+  const broken = choice.deal?.pure ? [] : breaches(state.pacts, choice.tags);
   const deal = success ? choice.deal : undefined;
   for (const fig of state.keyFigures) {
     let d = Math.round((factionRel[fig.faction] ?? 0) * FACTION_PASS) + personalDelta(state.seed ?? 0, fig, state.factions.find(f => f.id === fig.faction)?.bloc, choice.tags, !success);
@@ -441,16 +446,18 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   for (const p of matured) resources = applyDeltas(resources, p.res);
   // Провал отменяет отложенную пользу, но не отложенный вред.
   const net = (d: { res: ResourceDelta }) => Object.values(d.res).reduce((x, y) => x + (y ?? 0), 0);
-  const scheduled: Pending[] = delayedEffects(choice).filter(d => success || net(d) < 0).map((d, i) => ({
+  const later = success && choice.deal?.later ? [{ ...choice.deal.later, story: choice.deal.later.story ?? "" }] : [];
+  const scheduled: Pending[] = [...delayedEffects(choice).filter(d => success || net(d) < 0), ...later].map((d, i) => ({
     id: `p${nextTurn}_${i}`, due: nextTurn + d.turns, label: d.label, res: d.res, source: choice.text,
     ...(state.currentEvent?.title ? { event: state.currentEvent.title } : {}),
+    ...("story" in d && d.story ? { story: d.story as string } : {}),
   }));
   const pending = [...pendingAll.filter(p => p.due > nextTurn), ...scheduled].slice(-MAX_PENDING);
   if (event.randomEvent) resources = applyDeltas(resources, event.randomEvent.resourceEffect);
 
   // Союзы: нарушенные рвутся, истёкшие засчитываются, новые вступают в силу со следующего хода.
   const oldPacts = state.pacts ?? [];
-  const broken = breaches(oldPacts, choice.tags);
+  const broken = choice.deal?.pure ? [] : breaches(oldPacts, choice.tags);
   const kept = oldPacts.filter(p => !broken.includes(p) && p.until <= nextTurn);
   const facName = (id: string) => state.factions.find(f => f.id === id)?.name ?? id;
   for (const p of oldPacts) {

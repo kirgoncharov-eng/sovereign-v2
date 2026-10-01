@@ -327,3 +327,13 @@ button:focus-visible {
   .sv-sidebar:not([data-open]) .sv-side-body { display: none; }
   .sv-opt[data-armed]::after { content: "Подпишите кнопкой внизу или коснитесь ещё раз"; }
 }
+
+/* Таймер вопроса на пресс-конференции */
+.sv-timer { transform-origin: left center; animation-name: sv-timer; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes sv-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+@media (prefers-reduced-motion: reduce) { .sv-timer { animation-duration: 45s !important; } }
+
+/* Прокрутка к резолюции не прячет её под липкой шапкой */
+#sv-resolution { scroll-margin-top: 150px; }
+@media (max-width: 760px) { #sv-resolution { scroll-margin-top: 140px; } }

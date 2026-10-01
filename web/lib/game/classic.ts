@@ -15,6 +15,8 @@ import { EVENT_EXT } from "../content/events-ext.ts";
 import { BEAT_EXT } from "../content/beats-ext.ts";
 import { INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, TIMES, WEATHER, WEEKDAYS } from "../content/frame.ts";
 import { ECHOES } from "../content/echoes.ts";
+import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
+import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
 import {
   COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
   FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, REACT_FAILED, SPEECHES, TAG_LINES, TITLES,
@@ -276,9 +278,145 @@ export function specialEvent(state: GameState): SpecialEvent | null {
   return null;
 }
 
+// ── Проверка документов ──────────────────────────────────────────────────────
+// Три раза за партию на стол ложится доклад и справка к нему. Первый доклад всегда лжёт —
+// так игрок узнаёт механику; один из трёх честный — чтобы не обвинять вслепую.
+export const inspectTurns = (seed: number) => (seed % 2 ? [4, 11, 15] : [5, 13, 17]);
+
+export function inspectEvent(state: GameState): SpecialEvent | null {
+  const turn = state.turn + 1;
+  const k = inspectTurns(state.seed).indexOf(turn);
+  if (k < 0 || dueBeat(state)) return null;
+  const docs = INSPECT_DOCS.filter(d => state.factions.some(f => f.bloc === d.bloc))
+    .sort((a, b) => hashSeed(state.seed, "doc", a.id) - hashSeed(state.seed, "doc", b.id));
+  const lies = docs.filter(d => d.lie !== null), honest = docs.filter(d => d.lie === null);
+  const order = state.seed % 3 === 0 ? [lies[0], honest[0], lies[1]] : [lies[0], lies[1], honest[0]];
+  const doc = order[k];
+  if (!doc) return null;
+  const facIds = state.factions.filter(f => f.bloc === doc.bloc).map(f => f.id);
+  const rel = (n: number) => Object.fromEntries(facIds.map(id => [id, n]));
+  const slots = { who: doc.who, who_cap: doc.who.charAt(0).toUpperCase() + doc.who.slice(1), title: doc.title, reveal: doc.reveal ?? "" };
+  const f = (t: string) => fill(t, state, slots);
+  const T = INSPECT_TEXT;
+  const lie = doc.lie !== null;
+  const choice = (id: string, text: string, hint: string, tags: ActionTag[], deal: Deal, scene: string, head: string): Choice => ({
+    id, text, hint, tags, resolvesCrisis: null, deal: { pure: true, ...deal }, scene: f(scene), sceneFail: f(scene), headline: f(head), headlineFail: f(head),
+  });
+  const wrong = choice("d", T.accuse.text, T.accuse.hint, ["anticorruption"],
+    { res: { internalLegitimacy: -3, politicalCapital: -4 }, factionRel: rel(-10) }, T.accuse.wrong, T.accuse.headWrong);
+  return {
+    cardId: `ins:${turn}:${doc.id}`,
+    title: doc.title,
+    source: "На подпись",
+    description: chapter(dateline(state), f(doc.intro)),
+    isCritical: false,
+    affectedFactions: facIds.slice(0, 2),
+    choices: [
+      choice("a", T.accept.text, T.accept.hint, ["delay"], {
+        res: { politicalCapital: 3 }, factionRel: rel(4),
+        ...(lie && doc.exposed ? { later: { turns: 2, label: doc.exposed.label, res: doc.exposed.res, story: doc.exposed.story } } : {}),
+      }, lie ? T.accept.lie : T.accept.honest, T.accept.head),
+      choice("b", T.back.text, T.back.hint, ["delay"], { res: { politicalCapital: -2 }, factionRel: rel(-3) }, lie ? T.back.lie : T.back.honest, T.back.head),
+      lie ? choice("c", T.accuse.text, T.accuse.hint, ["anticorruption"],
+        { res: { internalLegitimacy: 4, politicalCapital: 3 }, factionRel: rel(-6) }, T.accuse.right, doc.head ?? T.accuse.headWrong)
+        : { ...wrong, id: "c" },
+      wrong,
+    ],
+    council: null,
+    special: { kind: "inspect", figure: null, faction: facIds[0] ?? "" },
+    doc: { facts: doc.facts, lines: doc.lines, author: doc.who, key: doc.lie },
+    randomEvent: null,
+  };
+}
+
+// ── Пресс-конференция ────────────────────────────────────────────────────────
+// Накануне выборов: три вопроса, подобранных под положение страны, без повторов за партию.
+export const PRESS_TURNS = [9, 19];
+
+export function pressEvent(state: GameState): SpecialEvent | null {
+  const turn = state.turn + 1;
+  const k = PRESS_TURNS.indexOf(turn);
+  if (k < 0 || dueBeat(state)) return null;
+  const asked = new Set((state.usedEvents ?? []).filter(u => u.startsWith("prs:")).flatMap(u => u.split(":")[2].split(",")));
+  const r = state.resources;
+  const fits: Record<PressWhen, boolean> = {
+    always: true, crisis: state.activeCrises.length > 0, lowEcon: r.economy < 40, lowLegit: r.internalLegitimacy < 40,
+    elect: true, pact: (state.pacts ?? []).length > 0, highMil: r.military > 60,
+  };
+  const order = (q: { id: string }) => hashSeed(state.seed, "press", turn, q.id);
+  const pool = PRESS_QUESTIONS.filter(q => fits[q.when] && !asked.has(q.id));
+  const topical = pool.filter(q => q.when !== "always").sort((a, b) => order(a) - order(b));
+  const general = pool.filter(q => q.when === "always").sort((a, b) => order(a) - order(b));
+  const picked = [...topical.slice(0, 2), ...general].slice(0, 3);
+  if (picked.length < 3) return null;
+  const pactName = state.factions.find(f => f.id === state.pacts?.[0]?.faction)?.name ?? "";
+  const questions = picked.map(q => ({ id: q.id, who: q.who, topic: q.topic, answers: q.answers, text: fill(q.text, state, { pact: pactName }) }));
+  const skip: Choice = {
+    id: "b", text: PRESS_TEXT.skip.text, hint: PRESS_TEXT.skip.hint, tags: ["delay"], resolvesCrisis: null,
+    deal: { pure: true, res: { internalLegitimacy: -3, politicalCapital: -2 } },
+    scene: PRESS_TEXT.skip.scene, sceneFail: PRESS_TEXT.skip.scene, headline: PRESS_TEXT.skip.head, headlineFail: PRESS_TEXT.skip.head,
+  };
+  return {
+    cardId: `prs:${turn}:${picked.map(q => q.id).join(",")}`,
+    title: PRESS_TEXT.title[k],
+    source: "Пресс-служба",
+    description: chapter(dateline(state), PRESS_TEXT.intro),
+    isCritical: false,
+    affectedFactions: [],
+    // Итоговое решение собирается из ответов (pressChoice); до тех пор доступна только отмена.
+    choices: [{ ...skip, id: "a" }, skip],
+    council: null,
+    special: { kind: "press", figure: null, faction: "" },
+    press: { outlet: "", questions },
+    randomEvent: null,
+  };
+}
+
+// Итог пресс-конференции: сумма эффектов ответов, тон большинства, сцена и цитата в заголовок.
+// picks — номер ответа на каждый вопрос; -1 — промолчали, не уложившись во время.
+export function pressChoice(state: GameState, picks: number[]): Choice {
+  const qs = state.currentEvent?.press?.questions ?? [];
+  const res: Record<string, number> = {}, relBloc: Record<string, number> = {};
+  const tones: string[] = [];
+  const lines: string[] = [PRESS_TEXT.open];
+  let quote = "", strongest = -1;
+  qs.forEach((q, i) => {
+    const about = `${/^[аеиоуэ]/i.test(q.topic) ? "об" : "о"} ${q.topic}`;
+    const a = q.answers[picks[i]];
+    if (!a) {
+      tones.push("evasive");
+      res.internalLegitimacy = (res.internalLegitimacy ?? 0) - 2;
+      lines.push(fill(PRESS_TEXT.silent, state, { about }));
+      return;
+    }
+    tones.push(a.tone);
+    for (const [k, v] of Object.entries(a.res)) res[k] = (res[k] ?? 0) + (v ?? 0);
+    for (const [b, v] of Object.entries(a.rel)) relBloc[b] = (relBloc[b] ?? 0) + (v ?? 0);
+    lines.push(fill(PRESS_TEXT.answer, state, { about, text: a.text }));
+    const weight = Object.values(a.res).reduce((x, y) => x + Math.abs(y ?? 0), 0);
+    if (weight > strongest) { strongest = weight; quote = a.text; }
+  });
+  const count = (t: string) => tones.filter(x => x === t).length;
+  // Тон пресс-конференции — тот, что прозвучал хотя бы дважды; иначе зал запомнит смешанное впечатление.
+  const tone = (["honest", "hard", "evasive"] as const).find(t => count(t) >= 2) ?? "mixed";
+  lines.push(PRESS_TEXT.close[tone]);
+  const factionRel: Record<string, number> = {};
+  for (const f of state.factions) if (relBloc[f.bloc]) factionRel[f.id] = relBloc[f.bloc];
+  const headline = quote && quote.length <= 70 ? `Президент: ${quote}` : "Президент ответил на вопросы журналистов";
+  const scene = lines.join(" ");
+  return {
+    id: "p", text: "Ответить на вопросы журналистов", hint: "", resolvesCrisis: null,
+    tags: [tone === "hard" ? "propaganda" : tone === "evasive" ? "delay" : "dialogue"],
+    deal: { pure: true, res, factionRel },
+    scene, sceneFail: scene, headline, headlineFail: headline,
+  };
+}
+
 function buildEvent(state: GameState): GameEvent & { cardId?: string } {
   const beat = beatEvent(state);
   if (beat) return beat;
+  const interlude = inspectEvent(state) ?? pressEvent(state);
+  if (interlude) return interlude;
   const special = specialEvent(state);
   if (special) return special;
   const r = seededRandom(hashSeed(state.seed, "event", state.turn));
@@ -376,7 +514,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   let electionLine: string | null = null;
   if (plan.resolvedCrisis && !arc) after.push(`Кризис «${plan.resolvedCrisis}» наконец отступает. В ситуационном центре впервые за много дней кто-то шутит.`);
   const heard: Record<string, number> = { ...(state.echoes ?? {}) };
-  for (const m of plan.matured) after.push(maturedStory(m.label, (heard[m.label] = (heard[m.label] ?? 0) + 1) - 1));
+  for (const m of plan.matured) after.push(m.story || maturedStory(m.label, (heard[m.label] = (heard[m.label] ?? 0) + 1) - 1));
   if (plan.election) {
     const e = plan.election;
     electionLine = (e.outcome === "won"

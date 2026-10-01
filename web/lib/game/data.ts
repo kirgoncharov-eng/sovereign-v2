@@ -1,7 +1,7 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "4.2";
+export const APP_VERSION = "4.3";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 export const MAX_TURNS = 20;
 
@@ -55,6 +55,22 @@ export const RES_CONFIG: { key: ResourceKey; label: string; prompt: string }[] =
 ];
 
 export const RESOURCE_KEYS: ResourceKey[] = RES_CONFIG.map(r => r.key);
+
+// Биография лидера: свои решения исполняются надёжнее, и одна опора на старте крепче.
+export interface Biography { id: string; label: string; text: string; tags: ActionTag[]; res: ResourceKey; note: string }
+export const BIOGRAPHIES: Biography[] = [
+  { id:"officer",   label:"Офицер",         text:"Бывший офицер, ставший депутатом на волне протестов.", tags:["security", "repress", "patriotism"], res:"military",
+    note:"силовые и патриотические решения надёжнее; силовики +8" },
+  { id:"economist", label:"Экономист",      text:"Экономист, прославившийся резкими выступлениями против коррупции.", tags:["investment", "austerity", "anticorruption"], res:"economy",
+    note:"экономические решения и антикоррупция надёжнее; экономика +8" },
+  { id:"lawyer",    label:"Правозащитник",  text:"Юрист по правам человека, неожиданно для всех выигравший праймериз.", tags:["dialogue", "reform", "social"], res:"internalLegitimacy",
+    note:"диалог, реформы и соцполитика надёжнее; легитимность +8" },
+  { id:"diplomat",  label:"Дипломат",       text:"Бывший дипломат, вернувшийся в политику после десяти лет за границей.", tags:["pro_west", "pro_russia", "dialogue"], res:"externalReputation",
+    note:"внешняя политика надёжнее; репутация +8" },
+  { id:"mayor",     label:"Мэр",            text:"Мэр промышленного города, которого называют «человеком из народа».", tags:["social", "elite_deal", "propaganda"], res:"politicalCapital",
+    note:"сделки, соцполитика и агитация надёжнее; политкапитал +8" },
+];
+export const BIO_CHANCE = 0.08, BIO_RES = 8;
 
 export const START_RES: Record<DifficultyId, Resources> = {
   debut:     { politicalCapital:72, economy:65, military:62, externalReputation:58, internalLegitimacy:70, personalResource:82 },

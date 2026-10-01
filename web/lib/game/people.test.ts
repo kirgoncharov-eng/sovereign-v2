@@ -87,7 +87,8 @@ test("особые дела: появляются, без пустых слот�
         const restored = sanitizeState(JSON.parse(JSON.stringify(s)))!;
         assert.deepEqual(restored.currentEvent?.choices.map(c => c.deal), ev.choices.map(c => c.deal));
         assert.deepEqual(restored.currentEvent?.special, ev.special);
-        assert.equal(specialEvent({ ...restored, turn: restored.turn + 1 }), null, "особые дела не идут подряд");
+        // Проверки документов и пресс-конференции идут по своему графику, а дела о людях и союзах — не подряд.
+        if (!["inspect", "press"].includes(ev.special.kind)) assert.equal(specialEvent({ ...restored, turn: restored.turn + 1 }), null, "особые дела не идут подряд");
       }
       const id = ev.choices[0].id;
       s = resolveTurn(s, id, await classicApi.consequence(s, id));
