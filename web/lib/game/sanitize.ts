@@ -1,14 +1,14 @@
-// Проверка и нормализация данных, пришедших извне: ответов модели и состояния от клиента.
+// Проверка и нормализация данных, пришедших извне: сохранённого состояния и авторских сценариев.
 // Всё, что не проходит проверку, либо отбрасывается, либо приводится к безопасному значению.
 import {
   ACTION_TAGS, ADVISOR_ROLES, BIOGRAPHIES, MAX_PENDING, COUNTRIES, CRISIS_LIFETIME, DIFFICULTIES, EVENT_SOURCES, FACTIONS_DATA, FIGURE_ROLES,
-  IDEOLOGIES, LIMITS, MAX_TURNS, RATINGS, RESOURCE_KEYS, SAVE_VERSION, START_RES, TEXT,
+  IDEOLOGIES, LIMITS, MAX_TURNS, RESOURCE_KEYS, SAVE_VERSION, START_RES, TEXT,
 } from "./data.ts";
 import { ARCS } from "../content/arcs.ts";
 import { loyaltyLabel } from "./engine.ts";
 import type {
-  ActionTag, Advisor, ArcChoice, ArcState, Choice, Deal, Pact, Pending, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
-  HistoryEntry, IdeologyId, Intro, NewCrisis, RandomEvent, ResourceDelta, Resources, Severity, Verdict,
+  ActionTag, Advisor, ArcChoice, ArcState, Choice, Deal, Pact, Pending, Election, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
+  HistoryEntry, IdeologyId, NewCrisis, RandomEvent, ResourceDelta, Resources, Severity,
 } from "./types.ts";
 
 type Obj = Record<string, unknown>;
@@ -46,29 +46,6 @@ const strList = (v: unknown, maxItems: number, maxLen: number) =>
   Array.isArray(v) ? v.map(x => str(x, maxLen)).filter(Boolean).slice(0, maxItems) : [];
 
 // ── Ответы модели ────────────────────────────────────────────────────────────
-
-export function sanitizeIntro(raw: unknown, playerCount: number): Intro | null {
-  if (!isObj(raw) || !isObj(raw.leader)) return null;
-  const name = str(raw.leader.name, TEXT.name);
-  if (!name) return null;
-  const players = Array.isArray(raw.players)
-    ? raw.players.slice(0, playerCount).map(p => str(isObj(p) ? p.name : p, TEXT.name))
-    : [];
-  const advisors = Array.isArray(raw.advisors)
-    ? raw.advisors.slice(0, ADVISOR_ROLES.length).map(p => str(isObj(p) ? p.name : p, TEXT.name))
-    : [];
-  return {
-    advisors,
-    leader: {
-      name,
-      party: str(raw.leader.party, TEXT.name, "Беспартийный"),
-      bio: str(raw.leader.bio, TEXT.medium),
-    },
-    speech: str(raw.speech, TEXT.long),
-    situation: str(raw.situation, TEXT.long),
-    players,
-  };
-}
 
 function sanitizeTags(v: unknown): ActionTag[] {
   if (!Array.isArray(v)) return [];
@@ -248,36 +225,6 @@ function sanitizeNewCrisis(v: unknown): NewCrisis | null {
   };
 }
 
-export function sanitizeNarration(raw: unknown): Narration | null {
-  if (!isObj(raw)) return null;
-  const headline = str(raw.headline, TEXT.title);
-  const narrative = str(raw.narrative, TEXT.narrative);
-  if (!headline || !narrative) return null;
-  return {
-    headline,
-    narrative,
-    reactions: strList(raw.reactions, 4, TEXT.medium),
-    historianNote: str(raw.historianNote, TEXT.title),
-    crisisTitle: str(raw.crisisTitle, TEXT.short) || null,
-    crisisDescription: str(raw.crisisDescription, TEXT.medium) || null,
-    powerLoss: str(raw.powerLoss, TEXT.long) || null,
-  };
-}
-
-export function sanitizeVerdict(raw: unknown): Verdict | null {
-  if (!isObj(raw)) return null;
-  const verdict = str(raw.verdict, TEXT.long);
-  if (!verdict) return null;
-  const rating = str(raw.rating, 60);
-  return {
-    verdict,
-    title: str(raw.title, TEXT.name),
-    epitaph: str(raw.epitaph, TEXT.title),
-    rating: RATINGS.find(r => r.toLowerCase() === rating.toLowerCase()) ?? RATINGS[2],
-    fallNarrative: str(raw.fallNarrative, TEXT.long) || null,
-  };
-}
-
 // ── Состояние от клиента ─────────────────────────────────────────────────────
 // Клиент хранит партию у себя, поэтому сервер пересобирает состояние из справочников
 // и берёт от клиента только числа и тексты в допустимых пределах.
@@ -423,7 +370,7 @@ export function sanitizeState(raw: unknown): GameState | null {
     elections: sanitizeElections(raw.elections),
     advisors,
     councilCharges: num(raw.councilCharges, 0, 10, 0),
-    mode: raw.mode === "ai" ? "ai" : "classic",
+    mode: "classic",
     seed: num(raw.seed, 0, 4294967295, 0),
     ...(BIOGRAPHIES.some(b => b.id === raw.bio) ? { bio: raw.bio as string } : {}),
     daily: typeof raw.daily === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.daily) ? raw.daily : null,

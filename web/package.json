@@ -12,8 +12,7 @@
     "test": "node --test \"lib/**/*.test.ts\"",
     "check": "npm run lint && npm run typecheck && npm test",
     "build:demo": "node demo/build.mjs",
-    "balance": "node scripts/balance.ts",
-    "generate:content": "node scripts/generate-content.ts"
+    "balance": "node scripts/balance.ts"
   },
   "dependencies": {
     "next": "16.2.6",

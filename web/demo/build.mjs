@@ -8,11 +8,10 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 
-// В браузерном демо запросы к /api/ai заменяются вызовами Claude со страницы.
+// Пути «@/…» указывают на корень веб-приложения, как в Next.
 const demoAliases = {
   name: "demo-aliases",
   setup(b) {
-    b.onResolve({ filter: /^@\/lib\/client\/api\.ts$/ }, () => ({ path: path.join(here, "claudeApi.ts") }));
     b.onResolve({ filter: /^@\// }, args => ({ path: path.join(root, args.path.slice(2)) }));
   },
 };

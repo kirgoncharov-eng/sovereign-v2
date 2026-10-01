@@ -2,15 +2,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
-import { api as aiApi } from "@/lib/client/api.ts";
 import { classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, pactIncome as pactIncomeOf, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
 import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
 import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
-// Кто пишет текст: библиотека сценариев (мгновенно) или ИИ-рассказчик.
-// В экспресс-режиме ответ готов мгновенно — даём сцене короткую театральную паузу.
+// Весь текст — из библиотеки авторских сценариев, без сети и без модели.
+// Ответ готов мгновенно — даём сцене короткую театральную паузу.
 const theatrical = (fn, ms) => async (...args) => (await Promise.all([fn(...args), new Promise(r => setTimeout(r, ms))]))[0];
 const expressApi = {
   setup: theatrical(classicApi.setup, 600),
@@ -19,7 +18,7 @@ const expressApi = {
   council: theatrical(classicApi.council, 800),
   ending: theatrical(classicApi.ending, 1500),
 };
-const apiFor = mode => (mode === "classic" ? expressApi : aiApi);
+const game = expressApi;
 import { cloudGet, cloudSet, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons } from "@/lib/client/telegram.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { resultCard } from "@/lib/client/card.ts";
@@ -38,10 +37,6 @@ const mono   = "var(--font-ptmono), 'PT Mono', 'Courier New', monospace";
 const serif  = "var(--font-serif), 'PT Serif', Georgia, serif";
 const narrow = "var(--font-narrow)";
 const pixel  = "var(--font-pixel)";
-const hov = (active) => ({
-  onMouseOver: e => { if (!active) { e.currentTarget.style.background = G.bg3; e.currentTarget.style.borderColor = G.gold; } },
-  onMouseOut:  e => { if (!active) { e.currentTarget.style.background = G.bg2; e.currentTarget.style.borderColor = G.bdr; } }
-});
 
 // Значки опор власти в духе Reigns: силуэт заполняется снизу по уровню ресурса.
 const RES_SHAPES = {
@@ -540,7 +535,7 @@ function CouncilPanel({ gs, onConvened, optProps, stamping }) {
   const convene = async () => {
     if (busy || charges <= 0) return;
     setBusy(true); setErr(null);
-    try { onConvened(await apiFor(gs.mode).council(gs)); }
+    try { onConvened(await game.council(gs)); }
     catch (e) { setErr(e.message); }
     finally { setBusy(false); }
   };
@@ -1088,13 +1083,6 @@ function Setup({ onStart, saved, onResume }) {
   const [diff, setDiff]       = useState(null);
   const [ideo, setIdeo]       = useState(null);
   const [bio, setBio]         = useState(null);
-  const [mode, setMode]       = useState("classic");
-  const [aiOk, setAiOk]       = useState(false); // переключатель режимов показываем, только если ИИ доступен
-  useEffect(() => {
-    let live = true;
-    aiApi.available().then(ok => { if (!live) return; setAiOk(ok); if (!ok) setMode("classic"); });
-    return () => { live = false; };
-  }, []);
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState(null);
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
@@ -1106,12 +1094,11 @@ function Setup({ onStart, saved, onResume }) {
     if (!(c && d && i) || loading) return;
     setLoading(true); setErr(null);
     try {
-      const m = daily ? "classic" : mode; // дело дня — авторский сюжет, одинаковый у всех
       // Биография: выбранная в анкете, у дела дня — общая для всех, иначе случайная.
       const B = daily ? BIOGRAPHIES[daily.seed % BIOGRAPHIES.length] : BIOGRAPHIES.find(x => x.id === b) ?? BIOGRAPHIES[Math.floor(Math.random() * BIOGRAPHIES.length)];
-      const raw = await apiFor(m).setup(c, d, i, daily?.seed);
+      const raw = await game.setup(c, d, i, daily?.seed);
       const intro = { ...raw, leader: { ...raw.leader, bio: B.text } };
-      const st = createInitialState(c, d, i, intro, daily ? seededRandom(daily.seed) : Math.random, m, B.id);
+      const st = createInitialState(c, d, i, intro, daily ? seededRandom(daily.seed) : Math.random, "classic", B.id);
       onStart(daily ? { ...st, daily: daily.date } : st);
     } catch (e) {
       console.error(e);
@@ -1161,18 +1148,6 @@ function Setup({ onStart, saved, onResume }) {
           </Card>
         )}
 
-        {aiOk && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:18 }} className="sv-two-col">
-          {[
-            { id:"classic", title:"ТРИЛЛЕР", desc:"Авторский сюжет · офлайн · бесплатно" },
-            { id:"ai",      title:"ИИ-РЕЖИССЁР", desc:"Импровизирует сюжет · тратит лимит Claude" },
-          ].map(m => (
-            <button key={m.id} onClick={() => setMode(m.id)} {...hov(mode === m.id)} aria-pressed={mode === m.id}
-              style={{ textAlign:"left", padding:"12px 14px", borderRadius:0, background:mode===m.id?G.bg3:G.bg2, border:`2px solid ${mode===m.id?G.gold:G.bdr}`, color:mode===m.id?G.gld2:G.txt }}>
-              <div style={{ fontFamily:pixel, fontSize:13, marginBottom:4 }}>{m.title}</div>
-              <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{m.desc}</div>
-            </button>
-          ))}
-        </div>}
 
         <div style={{ textAlign:"center", marginBottom:22 }}>
           <PrimaryBtn onClick={quick} disabled={loading}>БЫСТРАЯ ПАРТИЯ</PrimaryBtn>
@@ -1381,7 +1356,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     let cancelled = false;
     const pf = prefetch.current;
     prefetch.current = null;
-    const request = pf && pf.turn === gsRef.current.turn ? pf.promise : apiFor(gsRef.current.mode).event(gsRef.current);
+    const request = pf && pf.turn === gsRef.current.turn ? pf.promise : game.event(gsRef.current);
     request.then(
       event => {
         if (cancelled) return;
@@ -1410,12 +1385,12 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     setStamping(null);
     setBusy("choice"); setError(null);
     try {
-      const consequence = await apiFor(gsRef.current.mode).consequence(gsRef.current, choice.id);
+      const consequence = await game.consequence(gsRef.current, choice.id);
       const next = resolveTurn(gsRef.current, choice.id, consequence);
       commit(next);
       if (next.lastTurn && next.lastTurn.chance < 1) outcomeFx(next.lastTurn.success !== false);
       if (!next.ended) {
-        const promise = apiFor(next.mode).event(next);
+        const promise = game.event(next);
         promise.catch(() => {}); // ошибку покажет обычная загрузка события
         prefetch.current = { turn: next.turn, promise };
       }
@@ -2069,7 +2044,7 @@ function Ending({ gs, setGs, onRestart }) {
   useEffect(() => {
     if (!needsVerdict) return;
     let cancelled = false;
-    apiFor(gsRef.current.mode).ending(gsRef.current).then(
+    game.ending(gsRef.current).then(
       v => {
         if (cancelled) return;
         const next = setVerdict(gsRef.current, v);

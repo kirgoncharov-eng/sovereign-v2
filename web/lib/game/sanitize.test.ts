@@ -2,8 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LIMITS, TEXT } from "./data.ts";
 import { createInitialState, startEvent } from "./engine.ts";
-import { deltaMap, sanitizeEvent, sanitizeProposals, sanitizeNarration, sanitizeIntro, sanitizeState, sanitizeVerdict, str } from "./sanitize.ts";
-import { parseJson } from "../server/llm.ts";
+import { deltaMap, sanitizeEvent, sanitizeProposals, sanitizeState, str } from "./sanitize.ts";
 
 const factionIds = ["siloviki", "youth", "west"];
 
@@ -55,24 +54,6 @@ test("sanitizeEvent: случайное событие отбрасываетс�
   assert.equal(e.randomEvent, null);
 });
 
-test("sanitizeNarration: только текст, 'null' превращается в null", () => {
-  assert.equal(sanitizeNarration({ headline: "x" }), null);
-  const n = sanitizeNarration({ headline: "Заголовок", narrative: "Текст", reactions: ["a", 2, null], crisisTitle: "null", powerLoss: "" })!;
-  assert.deepEqual(n.reactions, ["a", "2"]);
-  assert.equal(n.crisisTitle, null);
-  assert.equal(n.powerLoss, null);
-});
-
-test("sanitizeIntro и sanitizeVerdict", () => {
-  assert.equal(sanitizeIntro({}, 8), null);
-  const i = sanitizeIntro({ leader: { name: "Пётр" }, players: [{ name: "A" }, "B", { name: "C" }] }, 2)!;
-  assert.deepEqual(i.players, ["A", "B"]);
-  assert.equal(i.leader.party, "Беспартийный");
-  const v = sanitizeVerdict({ verdict: "Итог", rating: "успех", fallNarrative: "null" })!;
-  assert.equal(v.rating, "Успех");
-  assert.equal(v.fallNarrative, null);
-});
-
 test("sanitizeState пересобирает фракции из справочника и режет текст", () => {
   const intro = { leader: { name: "Лидер", party: "П", bio: "" }, speech: "", situation: "", players: [] };
   const base = startEvent(createInitialState("Грузия", "crisis", "pragmatist", intro, () => 0.5), {
@@ -94,12 +75,6 @@ test("sanitizeState пересобирает фракции из справоч�
 
   assert.equal(sanitizeState({ ...tampered, country: "Атлантида" }), null);
   assert.equal(sanitizeState({ ...tampered, leader: {} }), null);
-});
-
-test("parseJson снимает markdown и вырезает объект из текста", () => {
-  assert.deepEqual(parseJson('```json\n{"a":1}\n```'), { a: 1 });
-  assert.deepEqual(parseJson('Вот ответ: {"a":2} — готово'), { a: 2 });
-  assert.equal(parseJson("совсем не json"), null);
 });
 
 test("sanitizeProposals: только советники из состава и только теги их области", () => {
