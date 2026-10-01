@@ -73,3 +73,21 @@ test("звонок: дважды за партию, разные собесед�
   const second = callEvent({ ...at(s, CALL_TURNS[1]), usedEvents: s.usedEvents })!;
   assert.notEqual(second.call!.figure, first.call!.figure, "второй звонок — от другого человека");
 });
+
+test("контент вставок полон: доклады, вопросы прессы, требования в звонках", async () => {
+  const { INSPECT_DOCS } = await import("../content/inspect.ts");
+  const { PRESS_QUESTIONS } = await import("../content/press.ts");
+  const { CALL_DEMANDS, CALL_REPLIES } = await import("../content/calls.ts");
+  for (const d of INSPECT_DOCS) {
+    assert.ok(d.facts.length >= 2 && d.lines.length === 6, d.id);
+    if (d.lie === null) assert.ok(!d.reveal && !d.exposed, `${d.id}: у честного доклада нет разоблачения`);
+    else assert.ok(d.reveal && d.head && d.exposed?.story && d.lie < d.lines.length, `${d.id}: разоблачение и последствие`);
+  }
+  assert.equal(new Set(INSPECT_DOCS.map(d => d.id)).size, INSPECT_DOCS.length);
+  for (const q of PRESS_QUESTIONS) {
+    assert.equal(new Set(q.answers.map(a => a.tone)).size, 3, `${q.id}: три разных тона`);
+  }
+  assert.equal(new Set(PRESS_QUESTIONS.map(q => q.id)).size, PRESS_QUESTIONS.length);
+  for (const list of Object.values(CALL_DEMANDS)) assert.ok(list.length >= 3);
+  for (const r of Object.values(CALL_REPLIES)) assert.ok(r.ok.length >= 2 && r.no.length >= 2);
+});

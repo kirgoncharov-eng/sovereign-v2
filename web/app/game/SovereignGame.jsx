@@ -2,8 +2,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
-import { approachWorks, callChoice, classicApi, pressChoice } from "@/lib/game/classic.ts";
-import { APPROACHES, CALL_ENDINGS, CALL_REPLIES, TRAIT_TIP } from "@/lib/content/calls.ts";
+import { approachWorks, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
+import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
 import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, pactIncome as pactIncomeOf, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
 import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
@@ -366,7 +366,7 @@ function InspectDoc({ doc, marked, onMark }) {
 }
 
 // Звонок по защищённой линии: сначала подход, потом развязка. Как ответят — решает характер собеседника.
-function CallPanel({ call, onFinish, onHang, stamping }) {
+function CallPanel({ call, seed, onFinish, onHang, stamping }) {
   const [approach, setApproach] = useState(null);
   const [secs, setSecs] = useState(0);
   useEffect(() => { const t = setInterval(() => setSecs(x => x + 1), 1000); return () => clearInterval(t); }, []);
@@ -397,7 +397,7 @@ function CallPanel({ call, onFinish, onHang, stamping }) {
         <div className="sv-fade">
           <div style={{ padding:"8px 22px 12px", borderTop:`1px dashed ${G.bdr2}` }}>
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>Вы: {APPROACHES.find(a => a.id === approach).text.toLowerCase()}</div>
-            <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.5, fontStyle:"italic", color:ok ? G.grn : G.red, marginTop:4 }}>{CALL_REPLIES[approach][ok ? "ok" : "no"]}.</div>
+            <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.5, fontStyle:"italic", color:ok ? G.grn : G.red, marginTop:4 }}>{callReply(seed, call, approach, ok)}.</div>
           </div>
           {CALL_ENDINGS.map((e, i) => (
             <button key={e.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => onFinish(approach, e.id)}>
@@ -1722,7 +1722,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               </Card>
               {event.doc && <InspectDoc doc={event.doc} marked={marked} onMark={setMarked}/>}
               {event.call ? (
-                <CallPanel key={`call${turn}`} call={event.call} stamping={stamping}
+                <CallPanel key={`call${turn}`} call={event.call} seed={gs.seed} stamping={stamping}
                   onHang={() => choose(event.choices[1])}
                   onFinish={(approach, ending) => {
                     const final = callChoice(gsRef.current, approach, ending);

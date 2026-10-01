@@ -343,12 +343,15 @@ export function pressEvent(state: GameState): SpecialEvent | null {
   const fits: Record<PressWhen, boolean> = {
     always: true, crisis: state.activeCrises.length > 0, lowEcon: r.economy < 40, lowLegit: r.internalLegitimacy < 40,
     elect: true, pact: (state.pacts ?? []).length > 0, highMil: r.military > 60,
+    highRating: computePolls(state.country, state.factions, r).leader >= 45, lowRep: r.externalReputation < 40,
+    betrayal: (state.betrayals ?? 0) > 0, arc: !!state.arc && !state.arc.epilogue && state.arc.done.length >= 2,
   };
   const order = (q: { id: string }) => hashSeed(state.seed, "press", turn, q.id);
   const pool = PRESS_QUESTIONS.filter(q => fits[q.when] && !asked.has(q.id));
+  // Один вопрос — про то, что происходит в стране сейчас; два других — из всего, что подходит.
   const topical = pool.filter(q => q.when !== "always").sort((a, b) => order(a) - order(b));
-  const general = pool.filter(q => q.when === "always").sort((a, b) => order(a) - order(b));
-  const picked = [...topical.slice(0, 2), ...general].slice(0, 3);
+  const rest = pool.filter(q => q !== topical[0]).sort((a, b) => order(a) - order(b));
+  const picked = [...topical.slice(0, 1), ...rest].slice(0, 3);
   if (picked.length < 3) return null;
   const pactName = state.factions.find(f => f.id === state.pacts?.[0]?.faction)?.name ?? "";
   const questions = picked.map(q => ({ id: q.id, who: q.who, topic: q.topic, answers: q.answers, text: fill(q.text, state, { pact: pactName }) }));
@@ -452,10 +455,14 @@ export function callEvent(state: GameState): SpecialEvent | null {
     choices: [{ ...hang, id: "a" }, hang],
     council: null,
     special: { kind: "call", figure: fig.id, faction: fac.id },
-    call: { figure: fig.id, trait: traitOf(state.seed, fig, fac.bloc), demand: CALL_DEMANDS[fac.bloc] },
+    call: { figure: fig.id, trait: traitOf(state.seed, fig, fac.bloc), demand: cycle(CALL_DEMANDS[fac.bloc], state.seed, `demand${fig.id}`, k) },
     randomEvent: null,
   };
 }
+
+// Ответ собеседника на подход — один и тот же в интерфейсе и в тексте хода.
+export const callReply = (seed: number, call: { figure: string }, approach: Approach, ok: boolean) =>
+  cycle(CALL_REPLIES[approach][ok ? "ok" : "no"], seed, `reply${call.figure}${approach}`, 0);
 
 // Сработает ли подход на этого человека.
 export const approachWorks = (trait: string, approach: Approach) => (APPROACH_WORKS[approach] as string[]).includes(trait);
@@ -466,7 +473,7 @@ export function callChoice(state: GameState, approach: Approach, ending: (typeof
   const fac = state.factions.find(f => f.id === fig.faction)!;
   const slots = { name: fig.name, role: lower(fig.role), camp: fac.name };
   const ok = approachWorks(call.trait, approach);
-  const reply = CALL_REPLIES[approach][ok ? "ok" : "no"];
+  const reply = callReply(state.seed, call, approach, ok);
   const T = CALL_TEXT;
   const table: { fig: number; fac: number; res: Record<string, number> } = {
     deal:   ok ? { fig: 15, fac: 6, res: { politicalCapital: -1 } } : { fig: 8, fac: 6, res: { politicalCapital: -3, [CONCESSION[fac.bloc]]: -3 } },

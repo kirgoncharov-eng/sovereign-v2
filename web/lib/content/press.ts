@@ -3,7 +3,7 @@
 // Ответы — прямая речь президента; эффекты небольшие, но складываются за три вопроса.
 import type { PressQuestion } from "../game/types.ts";
 
-export type PressWhen = "always" | "crisis" | "lowEcon" | "lowLegit" | "elect" | "pact" | "highMil";
+export type PressWhen = "always" | "crisis" | "lowEcon" | "lowLegit" | "elect" | "pact" | "highMil" | "highRating" | "lowRep" | "betrayal" | "arc";
 export const PRESS_QUESTIONS: (PressQuestion & { when: PressWhen })[] = [
   { id: "promises", when: "always", who: "Корреспондент оппозиционного канала", topic: "невыполненных обещаниях",
     text: "Ваши оппоненты говорят, что вы обещали больше, чем сделали. Что вы им ответите?",
@@ -102,6 +102,90 @@ export const PRESS_QUESTIONS: (PressQuestion & { when: PressWhen })[] = [
       { tone: "honest", text: "«Читаю доклады. Иногда — между строк»", res: { personalResource: 2 }, rel: {} },
       { tone: "hard", text: "«У президента нет свободного времени»", res: { politicalCapital: 1 }, rel: {} },
       { tone: "evasive", text: "«Обещаю внукам приехать на выходные — и обычно не приезжаю»", res: { internalLegitimacy: 2 }, rel: {} },
+    ] },
+  { id: "plot", when: "arc", who: "Корреспондент оппозиционной газеты", topic: "слухах о заговоре",
+    text: "Говорят, в вашем окружении зреет заговор. Что вам об этом известно?",
+    answers: [
+      { tone: "honest", text: "«Известно больше, чем мне хотелось бы. Подробности — когда будут доказательства»", res: { internalLegitimacy: 2, politicalCapital: -1 }, rel: {} },
+      { tone: "hard", text: "«Тем, кто его затевает, советую подумать о последствиях. Они знают, о ком я»", res: { politicalCapital: 2, externalReputation: -1 }, rel: { security: 3 } },
+      { tone: "evasive", text: "«Заговоры — это для сериалов»", res: { internalLegitimacy: -1 }, rel: {} },
+    ] },
+  { id: "betrayal", when: "betrayal", who: "Политический обозреватель", topic: "нарушенном договоре",
+    text: "Вы нарушили договор с партнёрами. Почему с вами вообще кто-то должен договариваться?",
+    answers: [
+      { tone: "honest", text: "«Это была ошибка, и я за неё отвечаю. Следующий договор я выполню до последней строчки»", res: { internalLegitimacy: 2, politicalCapital: -2 }, rel: { ruling: 2 } },
+      { tone: "hard", text: "«Договор перестал работать на страну. Я выбираю страну»", res: { politicalCapital: 2, externalReputation: -2 }, rel: { nationalist: 3 } },
+      { tone: "evasive", text: "«У каждой стороны своя версия событий»", res: { internalLegitimacy: -2 }, rel: {} },
+    ] },
+  { id: "dictator", when: "lowRep", who: "Корреспондент иностранного агентства", topic: "репутации за рубежом",
+    text: "Западные газеты называют вас «последним диктатором региона». Вам обидно?",
+    answers: [
+      { tone: "honest", text: "«Обидно. Значит, мы плохо объясняем, что делаем. Будем объяснять лучше»", res: { externalReputation: 3, politicalCapital: -1 }, rel: { west: 3 } },
+      { tone: "hard", text: "«Пусть пишут. Мои избиратели живут здесь, а не в редакциях»", res: { politicalCapital: 2, externalReputation: -3 }, rel: { nationalist: 3, west: -4 } },
+      { tone: "evasive", text: "«Я не читаю иностранную прессу»", res: { externalReputation: -1 }, rel: {} },
+    ] },
+  { id: "rating", when: "highRating", who: "Ведущий вечернего ток-шоу", topic: "высоком рейтинге",
+    text: "Ваш рейтинг выше, чем у любого предшественника. Не боитесь, что это ненадолго?",
+    answers: [
+      { tone: "honest", text: "«Боюсь. Поэтому работаю так, будто он завтра упадёт»", res: { internalLegitimacy: 2 }, rel: {} },
+      { tone: "hard", text: "«Рейтинг — это не удача, а результат. Результат будет и дальше»", res: { politicalCapital: 2, internalLegitimacy: -1 }, rel: { ruling: 2 } },
+      { tone: "evasive", text: "«Я не слежу за рейтингами»", res: {}, rel: {} },
+    ] },
+  { id: "pension", when: "always", who: "Корреспондентка социального канала", topic: "пенсионном возрасте",
+    text: "Будете повышать пенсионный возраст? Ответьте «да» или «нет».",
+    answers: [
+      { tone: "honest", text: "«Нет — пока я президент. И да, бюджету от этого тяжело»", res: { internalLegitimacy: 3, economy: -2 }, rel: { regional: 3, business: -2 } },
+      { tone: "hard", text: "«Да. Иначе через десять лет платить будет нечем»", res: { economy: 3, internalLegitimacy: -4 }, rel: { business: 3, regional: -4 } },
+      { tone: "evasive", text: "«Этот вопрос требует широкого обсуждения»", res: { internalLegitimacy: -2 }, rel: {} },
+    ] },
+  { id: "bureaucrats", when: "always", who: "Журналист экономического издания", topic: "сокращении чиновников",
+    text: "Вы обещали сократить чиновников вдвое. Сколько уже сократили?",
+    answers: [
+      { tone: "honest", text: "«Пока — каждого десятого. Это мало, и я это знаю»", res: { internalLegitimacy: 2, politicalCapital: -1 }, rel: { ruling: -2 } },
+      { tone: "hard", text: "«Достаточно, чтобы аппарат меня возненавидел. Значит, всё правильно»", res: { politicalCapital: 1, internalLegitimacy: 1 }, rel: { ruling: -4, liberal: 2 } },
+      { tone: "evasive", text: "«Цифры вам предоставит администрация»", res: { internalLegitimacy: -1 }, rel: {} },
+    ] },
+  { id: "emigrants", when: "always", who: "Корреспондентка радио диаспоры", topic: "уехавших",
+    text: "Что вы скажете семьям тех, кто уехал из страны за последний год?",
+    answers: [
+      { tone: "honest", text: "«Что мы их ждём. И что я сделаю всё, чтобы им было куда вернуться»", res: { internalLegitimacy: 2, externalReputation: 1 }, rel: { liberal: 3 } },
+      { tone: "hard", text: "«Кто уехал в трудный час, сделал свой выбор»", res: { politicalCapital: 1, externalReputation: -2 }, rel: { nationalist: 3, liberal: -4 } },
+      { tone: "evasive", text: "«Люди ездят — это нормально»", res: { internalLegitimacy: -1 }, rel: {} },
+    ] },
+  { id: "papers", when: "always", who: "Главный редактор сатирического журнала", topic: "газетах",
+    text: "Правда ли, что вы не читаете газет?",
+    answers: [
+      { tone: "honest", text: "«Читаю. Особенно те, где меня ругают — там больше полезного»", res: { internalLegitimacy: 2, externalReputation: 1 }, rel: { liberal: 2 } },
+      { tone: "hard", text: "«У меня есть доклады. Они точнее газет»", res: { politicalCapital: 1, internalLegitimacy: -1 }, rel: {} },
+      { tone: "evasive", text: "«Иногда читаю ваш журнал. Смешно»", res: { personalResource: 1 }, rel: {} },
+    ] },
+  { id: "concert", when: "always", who: "Корреспондент культурного обозрения", topic: "запрете концерта",
+    text: "Церковь просит запретить концерт иностранной группы. Ваша позиция?",
+    answers: [
+      { tone: "honest", text: "«Концерт будет. Нравится — идите, не нравится — не ходите»", res: { externalReputation: 2 }, rel: { liberal: 3, church: -4 } },
+      { tone: "hard", text: "«Есть вещи, которые наша страна не обязана терпеть»", res: { politicalCapital: 1, externalReputation: -2 }, rel: { church: 4, liberal: -3 } },
+      { tone: "evasive", text: "«Пусть решают организаторы и город»", res: {}, rel: {} },
+    ] },
+  { id: "currency", when: "lowEcon", who: "Финансовый обозреватель", topic: "курсе валюты",
+    text: "Курс бьёт рекорды. Вы сами храните сбережения в нашей валюте?",
+    answers: [
+      { tone: "honest", text: "«Да, все до копейки. Если ей не верю я, почему должны верить вы?»", res: { internalLegitimacy: 3, personalResource: -2 }, rel: {} },
+      { tone: "hard", text: "«Курс раскачивают спекулянты. Ими займутся»", res: { politicalCapital: 1, economy: -1 }, rel: { security: 2, business: -3 } },
+      { tone: "evasive", text: "«Мои сбережения — моё личное дело»", res: { internalLegitimacy: -3 }, rel: {} },
+    ] },
+  { id: "blame", when: "crisis", who: "Корреспондентка утренних новостей", topic: "виновных в кризисе",
+    text: "Кто персонально ответит за кризис «{crisis}»?",
+    answers: [
+      { tone: "honest", text: "«Я. Остальные — после меня»", res: { internalLegitimacy: 3, personalResource: -2 }, rel: {} },
+      { tone: "hard", text: "«Список фамилий уже у прокурора»", res: { politicalCapital: 2, internalLegitimacy: 1 }, rel: { ruling: -3, security: 2 } },
+      { tone: "evasive", text: "«Сейчас не время искать виноватых»", res: { internalLegitimacy: -2 }, rel: {} },
+    ] },
+  { id: "memoirs", when: "always", who: "Литературный обозреватель", topic: "мемуарах бывшего советника",
+    text: "Ваш бывший советник пишет мемуары. Вы их прочтёте?",
+    answers: [
+      { tone: "honest", text: "«Обязательно. Хочу узнать, что я тогда думал»", res: { internalLegitimacy: 1, personalResource: 1 }, rel: {} },
+      { tone: "hard", text: "«Пусть пишет. Юристы прочтут первыми»", res: { politicalCapital: 1, externalReputation: -1 }, rel: {} },
+      { tone: "evasive", text: "«У меня нет времени на художественную литературу»", res: { personalResource: 1 }, rel: {} },
     ] },
 ];
 
