@@ -7,8 +7,8 @@ import type { GameState } from "../game/types.ts";
 import { portraitCanvas } from "./portrait.ts";
 
 const W = 1080, H = 1350;
-const INK = "#1f1d19", INK2 = "#4a463f", VIOLET = "#4a2d84", RED = "#a3261d", PAPER = "#e4e2da";
-const SERIF = "'PT Serif', Georgia, serif", NARROW = "'PT Sans Narrow', 'Arial Narrow', sans-serif", MONO = "'PT Mono', monospace";
+const INK = "#2a241d", INK2 = "#4a4236", STAMP_OK = "#3d6a27", RED = "#a02f24", PAPER = "#d9cfb2";
+const SERIF = "'PT Serif', Georgia, serif", NARROW = "'Handjet SV', 'PT Sans Narrow', 'Arial Narrow', sans-serif", MONO = "'PT Mono', monospace";
 
 function wrap(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lh: number, maxLines = 4) {
   const words = text.split(/\s+/);
@@ -39,7 +39,7 @@ function stamp(ctx: CanvasRenderingContext2D, text: string, x: number, y: number
 }
 
 export async function resultCard(gs: GameState): Promise<Blob | null> {
-  try { await document.fonts?.ready; } catch { /* шрифты по умолчанию */ }
+  try { await document.fonts?.load(`700 36px 'Handjet SV'`, "Суверен"); await document.fonts?.ready; } catch { /* шрифты по умолчанию */ }
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const ctx = c.getContext("2d");
@@ -75,7 +75,7 @@ export async function resultCard(gs: GameState): Promise<Blob | null> {
   ctx.fillText(`${country.flag} ${gs.country} · ${country.startYear}–${gs.year}`, tx, 290);
   ctx.fillStyle = INK; ctx.font = `700 68px ${SERIF}`;
   const nameLines = wrap(ctx, gs.leader.name, tx, 370, tw, 76, 2);
-  stamp(ctx, v.title, tx + tw / 2, 370 + nameLines * 76 + 60, loss ? RED : VIOLET, 38);
+  stamp(ctx, v.title, tx + tw / 2, 370 + nameLines * 76 + 60, loss ? RED : STAMP_OK, 38);
   ctx.fillStyle = INK2; ctx.font = `36px ${NARROW}`;
   ctx.fillText(END_TYPES[gs.endType ?? "collapse"] ?? "", tx, 370 + nameLines * 76 + 190);
 
@@ -93,7 +93,7 @@ export async function resultCard(gs: GameState): Promise<Blob | null> {
   const arc = gs.arc && ARCS.find(a => a.id === gs.arc!.id);
   let y = 1060;
   if (arc) {
-    ctx.fillStyle = gs.arc!.epilogue ? VIOLET : RED; ctx.font = `700 36px ${NARROW}`;
+    ctx.fillStyle = gs.arc!.epilogue ? STAMP_OK : RED; ctx.font = `700 36px ${NARROW}`;
     ctx.fillText(`Интрига «${arc.title}»: ${gs.arc!.epilogue ? "раскрыта" : "осталась тайной"}`, 80, y);
     y += 70;
   }

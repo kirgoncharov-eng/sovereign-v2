@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Двадцать решений. Одна страна. Политический триллер, где каждый ход — глава детектива.",
     start_url: "/",
     display: "standalone",
-    background_color: "#07090e",
-    theme_color: "#07090e",
+    background_color: "#2a2622",
+    theme_color: "#2a2622",
     lang: "ru",
     icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
   };

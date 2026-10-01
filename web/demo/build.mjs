@@ -33,8 +33,11 @@ const result = await build({
 const js = result.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 // Стили общие с веб-версией: app/globals.css без директивы Tailwind.
 const globals = (await readFile(path.join(root, "app", "globals.css"), "utf8")).replace(/@import\s+"tailwindcss";\s*/, "");
-const css = (await readFile(path.join(here, "page.css"), "utf8")) + globals;
-const fonts = "https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Sans+Narrow:wght@400;700&family=PT+Mono&family=Marck+Script&display=swap";
+// Пиксельные шрифты из public/fonts встраиваются в страницу: у демо нет своего сервера.
+const inlined = await Promise.all([...globals.matchAll(/url\(\/fonts\/([\w.-]+)\)/g)].map(async m =>
+  [m[0], `url(data:font/woff2;base64,${(await readFile(path.join(root, "public", "fonts", m[1]))).toString("base64")})`]));
+const css = (await readFile(path.join(here, "page.css"), "utf8")) + inlined.reduce((acc, [from, to]) => acc.replaceAll(from, to), globals);
+const fonts = "https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Mono&family=Marck+Script&display=swap";
 
 const html = `<title>Суверен</title>
 <link rel="stylesheet" href="${fonts}">
