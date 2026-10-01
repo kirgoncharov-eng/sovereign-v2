@@ -235,5 +235,5 @@ test("у каждого решения в эпизодах интриг есть
   const { ARCS } = await import("../content/arcs.ts");
   const { BEAT_FAILS } = await import("../content/fail-beats.ts");
   for (const a of ARCS) for (const b of a.beats) for (const v of b.variants) for (const c of v.choices)
-    assert.ok(c.fail || BEAT_FAILS[c.text], `${a.id}: ${c.text}`);
+    assert.ok((c.fail ?? BEAT_FAILS[c.text] ?? "").length >= 200, `короткий провал — ${a.id}: ${c.text}`);
 });
