@@ -17,6 +17,7 @@ import { INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, TIMES, WEATHER, WEEKD
 import { ECHOES } from "../content/echoes.ts";
 import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
 import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
+import { APPROACH_WORKS, CALL_DEMANDS, CALL_ENDINGS, CALL_REPLIES, CALL_TEXT, type Approach } from "../content/calls.ts";
 import {
   COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
   FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, REACT_FAILED, SPEECHES, TAG_LINES, TITLES,
@@ -412,10 +413,97 @@ export function pressChoice(state: GameState, picks: number[]): Choice {
   };
 }
 
+// ── Звонок по защищённой линии ───────────────────────────────────────────────
+// Дважды за партию звонит человек из окружения. Подход, который подходит его характеру,
+// делает разговор дешёвым; не тот подход — дорогим. Первым звонит самый недовольный.
+export const CALL_TURNS = [6, 14];
+const CONCESSION: Record<Bloc, keyof GameState["resources"]> = {
+  security: "economy", business: "economy", church: "politicalCapital", liberal: "politicalCapital", west: "economy",
+  russia: "externalReputation", nationalist: "externalReputation", regional: "economy", ruling: "politicalCapital",
+};
+
+export function callEvent(state: GameState): SpecialEvent | null {
+  const turn = state.turn + 1;
+  const k = CALL_TURNS.indexOf(turn);
+  if (k < 0 || dueBeat(state)) return null;
+  const called = new Set((state.usedEvents ?? []).filter(u => u.startsWith("call:")).map(u => u.split(":")[2]));
+  const facOf = (f: Figure) => state.factions.find(x => x.id === f.faction);
+  const pool = state.keyFigures.filter(f => f.name !== state.arc?.target && !called.has(f.id) && facOf(f));
+  if (!pool.length) return null;
+  const fig = k === 0
+    ? [...pool].sort((a, b) => a.relation - b.relation)[0]
+    : [...pool].sort((a, b) => hashSeed(state.seed, "call", a.id) - hashSeed(state.seed, "call", b.id))[0];
+  const fac = facOf(fig)!;
+  const slots = { name: fig.name, role: lower(fig.role), camp: fac.name };
+  const hang: Choice = {
+    id: "b", text: CALL_TEXT.hangup.text, hint: CALL_TEXT.hangup.hint, tags: ["delay"], resolvesCrisis: null,
+    deal: { pure: true, figure: fig.id, figureRel: -10, factionRel: { [fac.id]: -3 } },
+    scene: fill(CALL_TEXT.hangup.scene, state, slots), sceneFail: fill(CALL_TEXT.hangup.scene, state, slots),
+    headline: CALL_TEXT.hangup.head, headlineFail: CALL_TEXT.hangup.head,
+  };
+  return {
+    cardId: `call:${turn}:${fig.id}`,
+    title: CALL_TEXT.title,
+    source: "Защищённая линия",
+    description: chapter(dateline(state), fill(CALL_TEXT.intro, state, slots)),
+    isCritical: false,
+    affectedFactions: [fac.id],
+    // Итог собирается из выбранного подхода и развязки (callChoice); до тех пор можно не брать трубку.
+    choices: [{ ...hang, id: "a" }, hang],
+    council: null,
+    special: { kind: "call", figure: fig.id, faction: fac.id },
+    call: { figure: fig.id, trait: traitOf(state.seed, fig, fac.bloc), demand: CALL_DEMANDS[fac.bloc] },
+    randomEvent: null,
+  };
+}
+
+// Сработает ли подход на этого человека.
+export const approachWorks = (trait: string, approach: Approach) => (APPROACH_WORKS[approach] as string[]).includes(trait);
+
+export function callChoice(state: GameState, approach: Approach, ending: (typeof CALL_ENDINGS)[number]["id"]): Choice {
+  const call = state.currentEvent!.call!;
+  const fig = state.keyFigures.find(f => f.id === call.figure)!;
+  const fac = state.factions.find(f => f.id === fig.faction)!;
+  const slots = { name: fig.name, role: lower(fig.role), camp: fac.name };
+  const ok = approachWorks(call.trait, approach);
+  const reply = CALL_REPLIES[approach][ok ? "ok" : "no"];
+  const T = CALL_TEXT;
+  const table: { fig: number; fac: number; res: Record<string, number> } = {
+    deal:   ok ? { fig: 15, fac: 6, res: { politicalCapital: -1 } } : { fig: 8, fac: 6, res: { politicalCapital: -3, [CONCESSION[fac.bloc]]: -3 } },
+    refuse: ok ? { fig: -5, fac: -3, res: { politicalCapital: 1 } } : { fig: -15, fac: -8, res: {} },
+    later:  ok ? { fig: 0, fac: 0, res: {} } : { fig: -5, fac: -2, res: {} },
+  }[ending];
+  // Предложить должность стоит личных ресурсов, давление без успеха — лишний враг.
+  const res: Record<string, number> = { ...table.res };
+  if (approach === "offer") res.personalResource = (res.personalResource ?? 0) - 2;
+  const figRel = table.fig + (approach === "pressure" && !ok ? -5 : 0);
+  const scene = [
+    `${fig.name} начинает без приветствия: ${fill(call.demand, state, slots)}`,
+    `Вы ${APPROACH_SAY[approach]}. ${reply}.`,
+    fill(T.outcome[`${ending}_${ok ? "ok" : "no"}`], state, slots),
+  ].join(" ");
+  const head = fill(T.heads[ending], state, slots);
+  return {
+    id: "p", text: "Разговор по защищённой линии", hint: "", resolvesCrisis: null,
+    tags: [ending === "deal" ? "elite_deal" : ending === "refuse" ? "security" : "delay"],
+    deal: {
+      pure: true, figure: fig.id, figureRel: figRel, factionRel: table.fac ? { [fac.id]: table.fac } : undefined, res,
+      ...(ending === "later" ? { later: { turns: 2, label: T.later.label, res: { politicalCapital: -2 }, story: fill(T.later.story, state, slots) } } : {}),
+    },
+    scene, sceneFail: scene, headline: head, headlineFail: head,
+  };
+}
+const APPROACH_SAY: Record<Approach, string> = {
+  offer: "предлагаете взамен должность и бюджет",
+  principle: "говорите о принципах и о стране",
+  pressure: "напоминаете, кто здесь власть",
+  numbers: "раскладываете цифры: кто и что потеряет",
+};
+
 function buildEvent(state: GameState): GameEvent & { cardId?: string } {
   const beat = beatEvent(state);
   if (beat) return beat;
-  const interlude = inspectEvent(state) ?? pressEvent(state);
+  const interlude = inspectEvent(state) ?? pressEvent(state) ?? callEvent(state);
   if (interlude) return interlude;
   const special = specialEvent(state);
   if (special) return special;

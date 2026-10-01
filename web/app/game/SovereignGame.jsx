@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
-import { classicApi, pressChoice } from "@/lib/game/classic.ts";
+import { approachWorks, callChoice, classicApi, pressChoice } from "@/lib/game/classic.ts";
+import { APPROACHES, CALL_ENDINGS, CALL_REPLIES, TRAIT_TIP } from "@/lib/content/calls.ts";
 import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, pactIncome as pactIncomeOf, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
 import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
@@ -364,6 +365,52 @@ function InspectDoc({ doc, marked, onMark }) {
   );
 }
 
+// Звонок по защищённой линии: сначала подход, потом развязка. Как ответят — решает характер собеседника.
+function CallPanel({ call, onFinish, onHang, stamping }) {
+  const [approach, setApproach] = useState(null);
+  const [secs, setSecs] = useState(0);
+  useEffect(() => { const t = setInterval(() => setSecs(x => x + 1), 1000); return () => clearInterval(t); }, []);
+  const ok = approach && approachWorks(call.trait, approach);
+  const row = { display:"block", width:"100%", textAlign:"left", padding:"12px 22px 12px 48px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" };
+  const num = i => <span style={{ position:"absolute", left:20, top:12, fontFamily:serif, fontWeight:700, fontSize:17, color:G.tx3 }}>{i}.</span>;
+  return (
+    <Card style={{ padding:"18px 0 14px" }}>
+      <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", gap:10 }}>
+        <Label><span style={{ color:G.red }}>●</span> Защищённая линия</Label>
+        <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}</span>
+      </div>
+      <div style={{ fontFamily:serif, fontSize:18, lineHeight:1.5, padding:"0 22px 12px" }}>{call.demand}</div>
+      {!approach && <>
+        <div style={{ padding:"0 22px 8px", fontFamily:narrow, fontSize:15, color:G.tx2 }}>Как говорить? Подсказка — в характере собеседника.</div>
+        {APPROACHES.map((a, i) => (
+          <button key={a.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => setApproach(a.id)}>
+            {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{a.text}</span>
+          </button>
+        ))}
+        <div style={{ padding:"10px 22px 0" }}>
+          <button onClick={onHang} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+            Не брать трубку
+          </button>
+        </div>
+      </>}
+      {approach && (
+        <div className="sv-fade">
+          <div style={{ padding:"8px 22px 12px", borderTop:`1px dashed ${G.bdr2}` }}>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>Вы: {APPROACHES.find(a => a.id === approach).text.toLowerCase()}</div>
+            <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.5, fontStyle:"italic", color:ok ? G.grn : G.red, marginTop:4 }}>{CALL_REPLIES[approach][ok ? "ok" : "no"]}.</div>
+          </div>
+          {CALL_ENDINGS.map((e, i) => (
+            <button key={e.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => onFinish(approach, e.id)}>
+              {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{e.text}</span>
+            </button>
+          ))}
+          {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Решено</span>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // Пресс-конференция: три вопроса подряд, на каждый — 15 секунд. Не успели — пауза станет заголовком.
 const TONE_LABEL = { honest:"честно", hard:"жёстко", evasive:"уклончиво" };
 const PRESS_SECONDS = 15;
@@ -502,7 +549,7 @@ function SpecialHeader({ gs, event }) {
       <Portrait name={fig.name} size={44}/>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, lineHeight:1.4 }}>
         <div style={{ fontFamily:serif, fontSize:15, fontWeight:700, color:G.txt }}>{fig.name}</div>
-        <div>{fig.role} · {TRAITS[traitOf(gs.seed, fig, fac.bloc)].label}</div>
+        <div>{fig.role} · {TRAITS[traitOf(gs.seed, fig, fac.bloc)].label} — {TRAIT_TIP[traitOf(gs.seed, fig, fac.bloc)]}</div>
         <div>к вам лично <b style={{ color:relColor(fig.relation) }}>{signed(fig.relation)}</b> · лагерь «{fac.name}» <b style={{ color:relColor(fac.relation) }}>{signed(fac.relation)}</b></div>
       </div>
     </div>
@@ -976,7 +1023,7 @@ function HowToPlay({ onClose }) {
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
     ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
     ["Люди — не копии своих лагерей", "У каждого свой характер. Друг во враждебном лагере станет «своим человеком», недруг среди союзников — «червоточиной». Союз с группой даёт доход и голоса, но нарушенное слово запоминают все."],
-    ["Не верьте бумагам на слово", "Трижды за правление вам принесут доклад на подпись. Сверьте его со справкой: нашли ложь — отметьте строку и уличите автора. Подписанная ложь всплывёт позже. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
+    ["Не верьте бумагам на слово", "Трижды за правление вам принесут доклад на подпись. Сверьте его со справкой: нашли ложь — отметьте строку и уличите автора. Подписанная ложь всплывёт позже. Дважды за правление звонят по защищённой линии: подход подбирайте по характеру собеседника. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
     ["У вас есть тайна", "В каждой партии развивается главная интрига. Эпизоды помечены «Главная интрига» — ваши решения в них определят развязку."],
     ...(desktop ? [["Клавиши", "1–9 — выбрать, Enter — подтвердить или дочитать, Esc — закрыть окно."]] : []),
   ];
@@ -1651,7 +1698,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     <div>Экз. № 1 · вх. № {docNumber(gs)}</div>
                   </div>
                   {(event.beat || event.isCritical) && <span className="sv-stamp is-red" style={{ fontSize:14, flexShrink:0 }}>{event.beat ? "Совершенно секретно" : "Срочно"}</span>}
-                  {event.special && !event.beat && !event.isCritical && <span className="sv-stamp" style={{ fontSize:14, flexShrink:0 }}>{{ pact:"Проект договора", inspect:"На подпись", press:"Пресс-служба" }[event.special.kind] ?? "Лично в руки"}</span>}
+                  {event.special && !event.beat && !event.isCritical && <span className="sv-stamp" style={{ fontSize:14, flexShrink:0 }}>{{ pact:"Проект договора", inspect:"На подпись", press:"Пресс-служба", call:"Без протокола" }[event.special.kind] ?? "Лично в руки"}</span>}
                 </div>
                 {(turn + 1) % 5 === 1 && (
                   <div style={{ margin:"4px 0 18px", paddingBottom:14, borderBottom:`1px solid ${G.bdr}` }}>
@@ -1674,7 +1721,16 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 )}
               </Card>
               {event.doc && <InspectDoc doc={event.doc} marked={marked} onMark={setMarked}/>}
-              {event.press ? (
+              {event.call ? (
+                <CallPanel key={`call${turn}`} call={event.call} stamping={stamping}
+                  onHang={() => choose(event.choices[1])}
+                  onFinish={(approach, ending) => {
+                    const final = callChoice(gsRef.current, approach, ending);
+                    const cur = gsRef.current.currentEvent;
+                    commit({ ...gsRef.current, currentEvent: { ...cur, choices: [final, cur.choices[1]] } });
+                    choose(final);
+                  }}/>
+              ) : event.press ? (
                 <PressPanel key={`press${turn}`} press={event.press} stamping={stamping}
                   onSkip={() => choose(event.choices[1])}
                   onFinish={picks => {

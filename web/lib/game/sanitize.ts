@@ -191,7 +191,7 @@ export function sanitizeEvent(
     randomEvent: opts.allowRandom ? sanitizeRandomEvent(raw.randomEvent) : null,
     council: opts.advisors ? sanitizeProposals(raw.council, opts.advisors, opts.crisisIds, opts.allowArc) : null,
     ...(opts.allowArc && str(raw.card, 40) ? { card: str(raw.card, 40) } : {}),
-    ...(opts.allowArc && isObj(raw.special) && ["overture", "insider", "mole", "pact", "inspect", "press"].includes(raw.special.kind as string) ? {
+    ...(opts.allowArc && isObj(raw.special) && ["overture", "insider", "mole", "pact", "inspect", "press", "call"].includes(raw.special.kind as string) ? {
       special: { kind: raw.special.kind as "overture", figure: str(raw.special.figure, 20) || null, faction: str(raw.special.faction, 20) },
     } : {}),
     beat: opts.allowArc && isObj(raw.beat) ? {

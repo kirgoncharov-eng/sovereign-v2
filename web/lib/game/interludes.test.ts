@@ -56,3 +56,20 @@ test("биография: свои решения надёжнее, одна о�
   const c: Choice = { id: "a", text: "", hint: "", tags: ["security"], resolvesCrisis: null };
   assert.ok(successChance(officer, c) > successChance(plain, c));
 });
+
+test("звонок: дважды за партию, разные собеседники, подход по характеру делает разговор дешевле", async () => {
+  const { callEvent, callChoice, approachWorks, CALL_TURNS } = await import("./classic.ts");
+  const s0 = await newGame();
+  const first = callEvent(at(s0, CALL_TURNS[0]))!;
+  assert.ok(first.call && first.special?.kind === "call");
+  const s = startEvent(at(s0, CALL_TURNS[0]), first);
+  const all = ["offer", "principle", "pressure", "numbers"] as const;
+  const good = all.find(a => approachWorks(first.call!.trait, a))!, bad = all.find(a => !approachWorks(first.call!.trait, a))!;
+  const g = callChoice(s, good, "deal"), b = callChoice(s, bad, "deal");
+  const cost = (c: Choice) => Object.values(c.deal!.res ?? {}).reduce((x, y) => x + (y ?? 0), 0);
+  assert.ok(cost(g) > cost(b), "верный подход — уступка дешевле");
+  assert.ok((g.deal!.figureRel ?? 0) > (b.deal!.figureRel ?? 0));
+  assert.ok(!/\{\w+\}/.test(g.scene!), g.scene);
+  const second = callEvent({ ...at(s, CALL_TURNS[1]), usedEvents: s.usedEvents })!;
+  assert.notEqual(second.call!.figure, first.call!.figure, "второй звонок — от другого человека");
+});
