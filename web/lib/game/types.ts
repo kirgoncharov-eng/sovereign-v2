@@ -63,7 +63,31 @@ export interface Choice {
   sceneFail?: string;     // авторская сцена на случай провала исполнения
   headline?: string;      // заголовок газеты, если решение исполнят
   headlineFail?: string;  // заголовок газеты при провале
+  deal?: Deal;            // личная сделка или пакт (особые дела)
 }
+
+// Особое дело о людях и союзах: что изменится, если решение исполнят.
+export interface Deal {
+  figure?: string;        // id ключевого игрока, о котором дело
+  figureRel?: number;     // личное отношение этого человека
+  othersRel?: number;     // остальные, кто к вам расположен, смотрят, как вы обходитесь со своими
+  factionRel?: Record<string, number>;
+  factionAppr?: Record<string, number>;
+  replace?: string;       // имя преемника: человек уходит с поста
+  res?: ResourceDelta;    // цена или выгода самой сделки
+  pact?: { faction: string; turns: number; ban: ActionTag[]; against?: string | null };
+}
+
+export interface Pact {
+  faction: string;
+  figure: string | null;  // кто вёл переговоры
+  since: number;          // ход подписания
+  until: number;          // ход, в конце которого пакт истекает
+  ban: ActionTag[];       // обязательство: чего не делать
+  against: string | null; // фракция, против которой союз
+}
+
+export interface PactNews { signed: string[]; kept: string[]; broken: string[] }
 
 export interface ArcChoice {
   flag: string;
@@ -105,6 +129,7 @@ export interface GameEvent {
   choices: Choice[];
   council?: Choice[] | null; // предложения советников, если совет собирали
   card?: string;        // авторская карточка, из которой собрано событие
+  special?: { kind: "overture" | "insider" | "mole" | "pact"; figure: string | null; faction: string } | null; // дело о людях и союзах
   beat?: { arcId: string; arcTitle: string; turn: number; episode: number; total: number } | null; // эпизод интриги
   randomEvent: RandomEvent | null;
 }
@@ -148,6 +173,7 @@ export interface TurnReport extends Narration {
   chance: number;       // шанс успеха, который видел игрок
   matured: Pending[];   // сработавшие в этом ходу отложенные последствия
   scheduled: Pending[]; // отложенные последствия этого решения
+  pacts?: PactNews;     // подписанные, выполненные и нарушенные союзы (названия фракций)
 }
 
 export interface PartyShare { id: string; name: string; share: number }
@@ -236,6 +262,8 @@ export interface GameState {
   councilCharges: number;
   pending: Pending[];
   arc: ArcState | null;
+  pacts?: Pact[];        // действующие союзы
+  betrayals?: number;    // сколько союзов вы нарушили
   currentEvent: GameEvent | null;
   lastTurn: TurnReport | null;
   ended: boolean;

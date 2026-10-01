@@ -8,9 +8,10 @@ import {
 } from "./data.ts";
 import { ARCS } from "../content/arcs.ts";
 import { NAMES } from "../content/narration.ts";
+import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE_BONUS, bondOf, breaches, pactIncome, personalDelta } from "./people.ts";
 import type {
   Advisor, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
-  Narration, NewCrisis, ResourceDelta, ResourceKey, Resources, Verdict,
+  Narration, NewCrisis, Pact, PactNews, ResourceDelta, ResourceKey, Resources, Verdict,
 } from "./types.ts";
 
 export const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
@@ -39,7 +40,7 @@ export function initFigures(
   const ideoRel = IDEOLOGY_REL[ideo] || {};
   const mod = DIFF_REL_MOD[diff] || 0;
   return (FIGURE_ROLES[country] || []).map((r, i) => {
-    const relation = clampRel((ideoRel[r.faction] || 0) + mod + (rand() * 20 - 10));
+    const relation = clampRel((ideoRel[r.faction] || 0) + mod + (rand() * 40 - 20)); // люди не копии своих групп
     return {
       id: r.id, role: r.role, faction: r.faction,
       name: names[i] || r.role,
@@ -297,29 +298,36 @@ export function seededRandom(seed: number): () => number {
 }
 
 // Шанс, что решение исполнят как задумано. Выжидание не проваливается.
-export function successChance(state: Pick<GameState, "factions" | "resources">, choice: Choice): number {
+type ChanceState = Pick<GameState, "factions" | "resources"> & Partial<Pick<GameState, "keyFigures" | "pacts">>;
+// Группы, руками которых решение исполняется: те, кому оно выгодно.
+export const executors = (factions: Faction[], choice: Pick<Choice, "tags">) => {
+  const blocs = new Set(choice.tags.flatMap(t => Object.entries(ACTIONS[t]?.rel ?? {}).filter(([, v]) => (v ?? 0) > 0).map(([b]) => b)));
+  return factions.filter(f => blocs.has(f.bloc));
+};
+
+export function successChance(state: ChanceState, choice: Choice): number {
   if (choice.tags.every(t => t === "delay")) return 1;
   let p = 0.8;
   if (choice.advisor) p += (choice.advisor.skill - 2) * 0.12;
   if (choice.resolvesCrisis) p += 0.1; // на борьбу с кризисом брошены все силы
-  // исполнителями выступают группы, которым решение выгодно: чем лучше они к вам относятся, тем надёжнее
-  const rels: number[] = [];
-  for (const tag of choice.tags) {
-    for (const [bloc, v] of Object.entries(ACTIONS[tag]?.rel ?? {})) {
-      if ((v ?? 0) > 0) for (const f of state.factions) if (f.bloc === bloc) rels.push(f.relation);
-    }
-  }
-  if (rels.length) p += rels.reduce((s, r) => s + r, 0) / rels.length / 400;
+  // чем лучше к вам относятся исполнители, тем надёжнее; а их люди могут и помочь, и саботировать
+  const exec = executors(state.factions, choice);
+  const avg = (xs: number[]) => xs.reduce((s, r) => s + r, 0) / xs.length;
+  if (exec.length) p += avg(exec.map(f => f.relation)) / 400;
+  // Человек, который относится к вам лучше своего лагеря, проталкивает решение; хуже — саботирует.
+  const people = (state.keyFigures ?? []).filter(fig => exec.some(f => f.id === fig.faction));
+  if (people.length) p += avg(people.map(fig => fig.relation - exec.find(f => f.id === fig.faction)!.relation)) / 400;
+  if (state.pacts?.some(pc => exec.some(f => f.id === pc.faction))) p += 0.05; // союзник даёт свой аппарат
   if (state.resources.politicalCapital < 25) p -= 0.1;
   if (state.resources.personalResource < 25) p -= 0.05;
   return Math.round(Math.max(0.3, Math.min(0.95, p)) * 100) / 100;
 }
 
-export function rollSuccess(state: Pick<GameState, "seed" | "turn" | "factions" | "resources">, choice: Choice): boolean {
+export function rollSuccess(state: ChanceState & Pick<GameState, "seed" | "turn">, choice: Choice): boolean {
   return seededRandom(hashSeed(state.seed ?? 0, state.turn, choice.id, choice.text))() < successChance(state, choice);
 }
 
-export function choiceEffects(state: Pick<GameState, "ideo" | "factions">, choice: Choice, failed = false) {
+export function choiceEffects(state: Pick<GameState, "ideo" | "factions"> & Partial<Pick<GameState, "pacts" | "betrayals">>, choice: Choice, failed = false) {
   const res: Record<string, number> = {};
   const rel: Record<string, number> = {};
   const appr: Record<string, number> = {};
@@ -344,11 +352,51 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions">, choic
     for (const k of Object.keys(res)) res[k] *= res[k] < 0 ? 1.15 : 0.5;
     for (const k of Object.keys(rel)) if (rel[k] > 0) rel[k] *= 0.5;
   }
+  // Сделки и союзы идут поверх обычной цены решения.
+  const relOut = limitDelta(rel, LIMITS.factionRelDelta), apprOut = limitDelta(appr, LIMITS.factionApprDelta);
+  const extra: Record<string, number> = {}, extraAppr: Record<string, number> = {};
+  const deal = choice.deal;
+  if (deal && !failed) {
+    addDelta(extra, deal.factionRel);
+    addDelta(extraAppr, deal.factionAppr);
+    if (deal.pact) {
+      addDelta(extra, { [deal.pact.faction]: PACT_SIGN.faction });
+      if (deal.pact.against) addDelta(extra, { [deal.pact.against]: PACT_SIGN.against });
+    }
+  }
+  // Нарушенный союз: обманутая группа в ярости, остальные делают выводы. Считается и при провале — важен умысел.
+  for (const p of breaches(state.pacts, choice.tags)) {
+    for (const f of state.factions) addDelta(extra, { [f.id]: f.id === p.faction ? PACT_BROKEN.faction : PACT_BROKEN.others });
+  }
+  for (const [k, v] of Object.entries(extra)) relOut[k] = (relOut[k] ?? 0) + Math.round(v);
+  for (const [k, v] of Object.entries(extraAppr)) apprOut[k] = (apprOut[k] ?? 0) + Math.round(v);
+  for (const d of [relOut, apprOut]) for (const k of Object.keys(d)) if (!d[k]) delete d[k];
+  const resOut = limitDelta(res, LIMITS.resourceDelta);
+  if (deal?.res && !failed) for (const [k, v] of Object.entries(deal.res)) if (v) resOut[k] = (resOut[k] ?? 0) + v;
   return {
-    resources: limitDelta(res, LIMITS.resourceDelta) as ResourceDelta,
-    factionRel: limitDelta(rel, LIMITS.factionRelDelta),
-    factionAppr: limitDelta(appr, LIMITS.factionApprDelta),
+    resources: resOut as ResourceDelta,
+    factionRel: relOut,
+    factionAppr: apprOut,
   };
+}
+
+// Личные перемены: доля от отношения группы, характер человека, сделки и союзы.
+export function figureDeltas(
+  state: Pick<GameState, "seed" | "keyFigures" | "pacts" | "factions">, choice: Choice, success: boolean, factionRel: Record<string, number>,
+  kept: Pact[] = [],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  const broken = breaches(state.pacts, choice.tags);
+  const deal = success ? choice.deal : undefined;
+  for (const fig of state.keyFigures) {
+    let d = Math.round((factionRel[fig.faction] ?? 0) * FACTION_PASS) + personalDelta(state.seed ?? 0, fig, state.factions.find(f => f.id === fig.faction)?.bloc, choice.tags, !success);
+    if (deal?.figure === fig.id) d += (deal.figureRel ?? 0) + (deal.pact ? PACT_SIGN.figure : 0);
+    else if (deal?.othersRel && fig.relation >= 30) d += deal.othersRel;
+    if (broken.some(p => p.figure === fig.id)) d += PACT_BROKEN.figure;
+    if (kept.some(p => p.figure === fig.id)) d += PACT_KEPT.figure;
+    if (d) out[fig.id] = d;
+  }
+  return out;
 }
 
 export interface TurnPlan {
@@ -369,6 +417,9 @@ export interface TurnPlan {
   pending: Pending[];
   newCrisisKey: ResourceKey | null; // ресурс, провал которого породил новый кризис
   endType: EndType | null;
+  pacts: Pact[];
+  pactNews: PactNews;
+  betrayals: number;
 }
 
 // Весь расчёт хода без текста. Модель потом описывает именно этот итог.
@@ -397,13 +448,35 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   const pending = [...pendingAll.filter(p => p.due > nextTurn), ...scheduled].slice(-MAX_PENDING);
   if (event.randomEvent) resources = applyDeltas(resources, event.randomEvent.resourceEffect);
 
-  const factions = applyFactionChanges(state.factions, effects.factionRel, effects.factionAppr);
-  const figureChanges: Record<string, number> = {};
-  for (const fig of state.keyFigures) {
-    const d = effects.factionRel[fig.faction];
-    if (d) figureChanges[fig.id] = Math.round(d * 0.8);
+  // Союзы: нарушенные рвутся, истёкшие засчитываются, новые вступают в силу со следующего хода.
+  const oldPacts = state.pacts ?? [];
+  const broken = breaches(oldPacts, choice.tags);
+  const kept = oldPacts.filter(p => !broken.includes(p) && p.until <= nextTurn);
+  const facName = (id: string) => state.factions.find(f => f.id === id)?.name ?? id;
+  for (const p of oldPacts) {
+    if (broken.includes(p)) continue;
+    const bloc = state.factions.find(f => f.id === p.faction)?.bloc;
+    if (bloc) resources = applyDeltas(resources, { [PACT_INCOME[bloc]]: pactIncome(p) });
   }
-  const keyFigures = applyFigureChanges(state.keyFigures, figureChanges);
+  const keptRel: Record<string, number> = {};
+  for (const p of kept) keptRel[p.faction] = PACT_KEPT.faction;
+  const signed = success && choice.deal?.pact ? [{
+    faction: choice.deal.pact.faction, figure: choice.deal.figure ?? null, since: nextTurn,
+    until: nextTurn + choice.deal.pact.turns, ban: choice.deal.pact.ban, against: choice.deal.pact.against ?? null,
+  }] : [];
+  const pacts = [...oldPacts.filter(p => !broken.includes(p) && !kept.includes(p)), ...signed];
+  const pactNews: PactNews = { signed: signed.map(p => facName(p.faction)), kept: kept.map(p => facName(p.faction)), broken: broken.map(p => facName(p.faction)) };
+
+  let factions = applyFactionChanges(state.factions, effects.factionRel, effects.factionAppr);
+  if (kept.length) factions = applyFactionChanges(factions, keptRel, {});
+  let keyFigures = applyFigureChanges(state.keyFigures, figureDeltas(state, choice, success, effects.factionRel, kept));
+  // Человек уходит с поста: преемник приходит с позицией своей группы.
+  const deal = success ? choice.deal : undefined;
+  if (deal?.replace && deal.figure) keyFigures = keyFigures.map(fig => {
+    if (fig.id !== deal.figure) return fig;
+    const relation = clampRel((factions.find(f => f.id === fig.faction)?.relation ?? 0) * 0.7);
+    return { ...fig, name: deal.replace!, relation, loyalty: loyaltyLabel(relation) };
+  });
 
   let crises = state.activeCrises;
   let resolvedCrisis: string | null = null;
@@ -427,7 +500,9 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
       [RESOURCE_KEYS[(turn + 3) % RESOURCE_KEYS.length]]: -Math.floor(pressure / 2),
     });
   }
-  const hostile = factions.filter(f => f.relation <= HOSTILE_RELATION);
+  // Враждебная группа вредит, если её не сдерживает союз или свой человек внутри.
+  const hostile = factions.filter(f => f.relation <= HOSTILE_RELATION && !pacts.some(p => p.faction === f.id)
+    && !keyFigures.some(fig => fig.faction === f.id && bondOf(fig, f) === "insider"));
   for (const f of hostile) resources = applyDeltas(resources, HOSTILE_DRAIN[f.bloc]);
 
   // Институты понемногу восстанавливаются: просевшие ресурсы подтягиваются вверх.
@@ -447,7 +522,9 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   let election: Election | null = null;
   const kind = ELECTIONS[turn];
   if (kind) {
-    const polls = computePolls(state.country, factions, resources);
+    // Союзники по пакту голосуют за своих.
+    const voters = factions.map(f => pacts.some(p => p.faction === f.id) ? { ...f, relation: clampRel(f.relation + PACT_VOTE_BONUS) } : f);
+    const polls = computePolls(state.country, voters, resources);
     const top = [...polls.parties].sort((a, b) => b.share - a.share)[0] ?? { id: "", name: "", share: 0 };
     const outcome = polls.leader > top.share ? "won" : kind === "parliament" && polls.leader < IMPEACH_RATING ? "impeached" : "lost";
     election = { turn, kind, leader: polls.leader, top, outcome };
@@ -461,6 +538,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     choice, effects, success, chance, resources, factions, keyFigures, crises, election, matured, scheduled, pending,
     resolvedCrisis, expiredCrises: tick.expired, hostileFactions: hostile.map(f => f.name), newCrisisKey,
     endType: endType as EndType | null,
+    pacts, pactNews, betrayals: (state.betrayals ?? 0) + broken.length,
   };
 }
 
@@ -512,8 +590,11 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       chance: plan.chance,
       matured: plan.matured,
       scheduled: plan.scheduled,
+      ...(plan.pactNews.signed.length + plan.pactNews.kept.length + plan.pactNews.broken.length ? { pacts: plan.pactNews } : {}),
     },
     pending: plan.pending,
+    pacts: plan.pacts,
+    betrayals: plan.betrayals,
     arc: state.arc ? {
       ...state.arc,
       flags: plan.choice.arc?.flag ? [...state.arc.flags, plan.choice.arc.flag] : state.arc.flags,

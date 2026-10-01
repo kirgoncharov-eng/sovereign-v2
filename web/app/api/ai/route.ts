@@ -8,7 +8,7 @@ import {
   validCountry, validDiff, validIdeo,
 } from "@/lib/game/sanitize.ts";
 import { generate, GenerationError } from "@/lib/server/llm.ts";
-import { beatEvent } from "@/lib/game/classic.ts";
+import { beatEvent, specialEvent } from "@/lib/game/classic.ts";
 import { checkRate, clientKey } from "@/lib/server/rateLimit.ts";
 
 // Vercel: разрешаем функции работать до 60 секунд (по умолчанию 10)
@@ -66,8 +66,9 @@ export async function POST(req: Request) {
       case "event": {
         const state = sanitizeState(body.state);
         if (!state || state.ended || state.turn >= MAX_TURNS) return fail(400, "Некорректное состояние игры");
-        const beat = beatEvent(state);
-        if (beat) return Response.json({ event: beat });
+        // Интриги и дела о людях и союзах — авторские в обоих режимах.
+        const authored = beatEvent(state) ?? specialEvent(state);
+        if (authored) return Response.json({ event: authored });
         const isCritical = warningLevel(state) === "critical";
         const withRandom = state.turn > 0 && Math.random() < RANDOM_EVENT_CHANCE;
         const factionIds = state.factions.map(f => f.id);

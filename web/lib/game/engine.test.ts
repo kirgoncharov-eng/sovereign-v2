@@ -4,6 +4,7 @@ import { ACTIONS, CRISIS_DRAIN, LIMITS, MAX_TURNS, START_RES } from "./data.ts";
 import {
   applyDeltas, choiceEffects, computePolls, createInitialState, delayedEffects, detectEnd, planTurn, resolveTurn, conveneCouncil, startEvent, tickCrises,
 } from "./engine.ts";
+import { FACTION_PASS, personalDelta } from "./people.ts";
 import type { Choice, GameEvent, GameState, Narration } from "./types.ts";
 
 const intro = {
@@ -83,11 +84,13 @@ test("planTurn и resolveTurn детерминированы: сервер и к
   assert.deepEqual(resolveTurn(s, "b", narration).resources, planTurn(s, "b").resources);
 });
 
-test("фигуры следуют за своей фракцией", () => {
+test("фигура: доля движения своего лагеря плюс личная реакция по характеру", () => {
   const s = startEvent(newGame(), event());
-  const next = resolveTurn(s, "b", narration); // repress: силовики теплеют
-  const kgb = (st: GameState) => st.keyFigures.find(f => f.id === "kgb")!.relation;
-  assert.ok(kgb(next) > kgb(s));
+  const plan = planTurn(s, "b", { assumeSuccess: true }); // repress: силовики теплеют
+  const kgb = s.keyFigures.find(f => f.id === "kgb")!;
+  const expected = Math.round((plan.effects.factionRel.siloviki ?? 0) * FACTION_PASS) + personalDelta(s.seed, kgb, "security", ["repress"], false);
+  assert.ok((plan.effects.factionRel.siloviki ?? 0) > 0);
+  assert.equal(plan.keyFigures.find(f => f.id === "kgb")!.relation - kgb.relation, expected);
 });
 
 test("отказ при неизвестном выборе или без события", () => {

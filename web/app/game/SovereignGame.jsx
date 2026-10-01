@@ -4,6 +4,7 @@ import { ACTIONS, APP_VERSION, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LAB
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api as aiApi } from "@/lib/client/api.ts";
 import { classicApi } from "@/lib/game/classic.ts";
+import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
 import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
@@ -259,7 +260,80 @@ function ChoicePreview({ gs, c }) {
         </div>
       )}
       {crisis && <div style={{ fontFamily:narrow, fontSize:15, color:G.grn, marginTop:6 }}>Закроет кризис «{crisis.title}», если исполнят</div>}
+      <DealLines gs={gs} c={c}/>
     </>
+  );
+}
+
+// Что сделка меняет в людях и союзах — и какие договоры решение нарушит.
+function DealLines({ gs, c }) {
+  const fac = id => gs.factions.find(f => f.id === id)?.name ?? id;
+  const lines = [];
+  for (const p of breaches(gs.pacts, c.tags)) {
+    lines.push([G.red, `Нарушит договор с «${fac(p.faction)}»: они ${signed(PACT_BROKEN.faction)}, остальные ${signed(PACT_BROKEN.others)}`]);
+  }
+  const d = c.deal;
+  if (d) {
+    const fig = gs.keyFigures.find(f => f.id === d.figure);
+    if (d.pact) {
+      const bloc = gs.factions.find(f => f.id === d.pact.faction)?.bloc;
+      const res = RES_CONFIG.find(r => r.key === PACT_INCOME[bloc]);
+      lines.push([G.grn, `Договор на ${plural(d.pact.turns, "ход", "хода", "ходов")}: ${SHORT[res.key].toLowerCase()} +${pactIncome(d.pact)} каждый ход, их голоса на выборах`]);
+      lines.push([G.tx3, `Нельзя: ${d.pact.ban.map(t => `«${ACTIONS[t].label}»`).join(", ")}`]);
+      if (d.pact.against) lines.push([G.red, `«${fac(d.pact.against)}» станут врагами`]);
+    }
+    if (fig && d.replace) lines.push([G.tx2, `${fig.name} уходит с поста`]);
+    else if (fig && d.figureRel) lines.push([d.figureRel > 0 ? G.grn : G.red, `${fig.name}: лично ${signed(d.figureRel)}`]);
+    for (const [id, v] of Object.entries(d.factionRel ?? {})) lines.push([v > 0 ? G.grn : G.red, `Лагерь «${fac(id)}»: ${signed(v)}`]);
+    if (d.othersRel) lines.push([G.red, `Те, кто вам верит: ${signed(d.othersRel)}`]);
+  }
+  if (!lines.length) return null;
+  return (
+    <div style={{ fontFamily:narrow, fontSize:15, marginTop:6, lineHeight:1.45 }}>
+      {lines.map(([color, t], i) => <div key={i} style={{ color }}>{t}</div>)}
+    </div>
+  );
+}
+
+// Действующие союзы — бумажки на краю стола.
+function PactSlips({ gs }) {
+  if (!gs.pacts?.length) return null;
+  return (
+    <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:10 }}>
+      {gs.pacts.map(p => {
+        const f = gs.factions.find(x => x.id === p.faction);
+        const left = p.until - gs.turn;
+        return (
+          <div key={p.faction} className="sv-paper" style={{ flex:"1 1 220px", padding:"9px 14px", borderRadius:2, borderLeft:"3px solid var(--blue)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:8, alignItems:"baseline" }}>
+              <span style={{ fontFamily:serif, fontSize:15, fontWeight:700 }}>Договор с «{f?.name}»</span>
+              <span style={{ fontFamily:mono, fontSize:12, color:G.tx3, whiteSpace:"nowrap" }}>ещё {plural(left, "ход", "хода", "ходов")}</span>
+            </div>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>
+              нельзя: {p.ban.map(t => ACTIONS[t].label.toLowerCase()).join(", ")}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Кто перед вами в особом деле: человек, его характер и расхождение с его лагерем.
+function SpecialHeader({ gs, event }) {
+  const sp = event.special;
+  const fig = gs.keyFigures.find(f => f.id === sp.figure);
+  const fac = gs.factions.find(f => f.id === sp.faction);
+  if (!fig || !fac) return null;
+  return (
+    <div style={{ display:"flex", gap:12, alignItems:"center", margin:"0 0 14px" }}>
+      <Portrait name={fig.name} size={44}/>
+      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, lineHeight:1.4 }}>
+        <div style={{ fontFamily:serif, fontSize:15, fontWeight:700, color:G.txt }}>{fig.name}</div>
+        <div>{fig.role} · {TRAITS[traitOf(gs.seed, fig, fac.bloc)].label}</div>
+        <div>к вам лично <b style={{ color:relColor(fig.relation) }}>{signed(fig.relation)}</b> · лагерь «{fac.name}» <b style={{ color:relColor(fac.relation) }}>{signed(fac.relation)}</b></div>
+      </div>
+    </div>
   );
 }
 
@@ -278,10 +352,10 @@ function CouncilPanel({ gs, onConvened, optProps, stamping }) {
   const proposals = gs.currentEvent?.council;
   const charges = gs.councilCharges ?? 0;
   const silent = proposals?.length ? (gs.advisors ?? []).filter(a => !proposals.some(p => p.advisor?.id === a.id)) : [];
-  if (gs.currentEvent?.beat) {
+  if (gs.currentEvent?.beat || gs.currentEvent?.special) {
     return (
       <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>
-        Дело засекречено: совет в него не посвящён. Решать вам одному.
+        {gs.currentEvent.beat ? "Дело засекречено: совет в него не посвящён. Решать вам одному." : "Дело личное: совет о нём не знает. Решать вам одному."}
       </div>
     );
   }
@@ -530,6 +604,7 @@ function HowToPlay({ onClose }) {
     ["Каждый ход — одно решение", `Под каждым вариантом — его цена и то, что аукнется позже. ${desktop ? "Наведите на вариант — панель сверху покажет итог." : "Первое касание покажет итог на панели сверху, второе — подпишет решение."}`],
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
     ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
+    ["Люди — не копии своих лагерей", "У каждого свой характер. Друг во враждебном лагере станет «своим человеком», недруг среди союзников — «червоточиной». Союз с группой даёт доход и голоса, но нарушенное слово запоминают все."],
     ["У вас есть тайна", "В каждой партии развивается главная интрига. Эпизоды помечены «Главная интрига» — ваши решения в них определят развязку."],
     ...(desktop ? [["Клавиши", "1–9 — выбрать, Enter — подтвердить или дочитать, Esc — закрыть окно."]] : []),
   ];
@@ -1057,9 +1132,11 @@ function Game({ gs, setGs, onEnd, onMenu }) {
               <>
                 <Label>{"КЛЮЧЕВЫЕ ИГРОКИ"}</Label>
                 {keyFigures.map(f => {
-                  const prev = prevFigures?.find(p => p.id === f.id);
+                  const prev = prevFigures?.find(p => p.id === f.id && p.name === f.name);
                   const c = relColor(f.relation);
                   const delta = prev ? f.relation - prev.relation : 0;
+                  const fac = factions.find(x => x.id === f.faction);
+                  const bond = bondOf(f, fac);
                   return (
                     <div key={f.id} style={{ display:"flex", gap:10, marginBottom:10, paddingBottom:10, borderBottom:`1px solid ${G.bdr}` }}>
                       <Portrait name={f.name} size={32}/>
@@ -1067,11 +1144,15 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                       <div style={{ display:"flex", justifyContent:"space-between" }}>
                         <span style={{ fontFamily:serif, fontSize:13, fontWeight:500 }}>{f.name}</span>
                         <span style={{ fontFamily:narrow, fontSize:15, color:c }}>
-                          {signed(f.relation)}
+                          <span style={{ color:G.tx3 }}>лично </span>{signed(f.relation)}
                           {delta!==0&&<span style={{ marginLeft:3, color:delta>0?G.grn:G.red }}>{signed(delta)}</span>}
                         </span>
                       </div>
-                      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:2 }}>{f.role}</div>
+                      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:2 }}>{f.role} · {TRAITS[traitOf(gs.seed, f, fac?.bloc)].label}</div>
+                      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>
+                        лагерь «{fac?.name}» <span style={{ color:relColor(fac?.relation ?? 0) }}>{signed(fac?.relation ?? 0)}</span>
+                        {(bond === "insider" || bond === "mole") && <b style={{ color: bond === "insider" ? G.grn : G.red }}> · {BOND_LABEL[bond]}</b>}
+                      </div>
                       <div style={{ height:2, background:G.bdr, borderRadius:2, marginTop:4 }}>
                         <div style={{ height:"100%", width:`${((f.relation+100)/200)*100}%`, background:c, borderRadius:2, transition:"all .6s" }}/>
                       </div>
@@ -1124,6 +1205,8 @@ function Game({ gs, setGs, onEnd, onMenu }) {
             </div>
           )}
 
+          {!busy && event && <PactSlips gs={gs}/>}
+
           {busy && <Loading kind={busy}/>}
 
           {!busy && event && (
@@ -1143,6 +1226,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                     <div>Экз. № 1 · вх. № {docNumber(gs)}</div>
                   </div>
                   {(event.beat || event.isCritical) && <span className="sv-stamp is-red" style={{ fontSize:14, flexShrink:0 }}>{event.beat ? "Совершенно секретно" : "Срочно"}</span>}
+                  {event.special && !event.beat && !event.isCritical && <span className="sv-stamp" style={{ fontSize:14, flexShrink:0 }}>{event.special.kind === "pact" ? "Проект договора" : "Лично в руки"}</span>}
                 </div>
                 {(turn + 1) % 5 === 1 && (
                   <div style={{ margin:"4px 0 18px", paddingBottom:14, borderBottom:`1px solid ${G.bdr}` }}>
@@ -1156,6 +1240,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
                   </div>
                 )}
                 <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:16, textWrap:"balance" }}>{event.title}</h2>
+                {event.special && <SpecialHeader gs={gs} event={event}/>}
                 <Prose text={event.description}/>
                 {event.affectedFactions?.length > 0 && (
                   <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10 }}>
@@ -1233,6 +1318,13 @@ function Game({ gs, setGs, onEnd, onMenu }) {
               </Card>
               <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
 
+              {lastTurn.pacts && [["signed", "Договор подписан", "var(--blue)"], ["kept", "Договор исполнен", G.grn], ["broken", "Договор нарушен", G.red]].flatMap(([k, label, color]) =>
+                lastTurn.pacts[k].map(name => (
+                  <div key={k + name} className="sv-paper" style={{ marginBottom:8, padding:"10px 16px", borderRadius:2, borderLeft:`3px solid ${color}` }}>
+                    <span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{label}</span>
+                    <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}> · «{name}»</span>
+                  </div>
+                )))}
               {lastTurn.matured?.map(p => (
                 <div key={p.id} className="sv-paper" style={{ marginBottom:8, padding:"12px 16px", borderRadius:2 }}>
                   <div style={{ fontFamily:serif, fontSize:16, fontWeight:700, marginBottom:2 }}>{p.label}</div>

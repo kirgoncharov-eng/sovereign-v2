@@ -7,7 +7,7 @@ import {
 import { ARCS } from "../content/arcs.ts";
 import { loyaltyLabel } from "./engine.ts";
 import type {
-  ActionTag, Advisor, ArcChoice, ArcState, Choice, Pending, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
+  ActionTag, Advisor, ArcChoice, ArcState, Choice, Deal, Pact, Pending, Election, Narration, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
   HistoryEntry, IdeologyId, Intro, NewCrisis, RandomEvent, ResourceDelta, Resources, Severity, Verdict,
 } from "./types.ts";
 
@@ -87,6 +87,49 @@ function sanitizeArcChoice(v: unknown): ArcChoice | null {
   };
 }
 
+const tagList = (v: unknown): ActionTag[] => Array.isArray(v)
+  ? [...new Set(v.filter((t): t is ActionTag => (ACTION_TAGS as string[]).includes(t as string)))].slice(0, 4) : [];
+
+// Сделка особого дела: только известные ключи и умеренные величины.
+function sanitizeDeal(v: unknown): Deal | null {
+  if (!isObj(v)) return null;
+  const id = (x: unknown) => str(x, 20).replace(/[^\w-]/g, "");
+  const pact = isObj(v.pact) && id(v.pact.faction) ? {
+    faction: id(v.pact.faction), turns: num(v.pact.turns, 2, 6, 4),
+    ban: tagList(v.pact.ban),
+    ...(id(v.pact.against) ? { against: id(v.pact.against) } : {}),
+  } : null;
+  const map = (x: unknown) => {
+    if (!isObj(x)) return undefined;
+    const out: Record<string, number> = {};
+    for (const [k, val] of Object.entries(x).slice(0, 4)) { const d = num(val, -30, 30, 0); if (d && id(k)) out[id(k)] = d; }
+    return Object.keys(out).length ? out : undefined;
+  };
+  const deal: Deal = {
+    ...(id(v.figure) ? { figure: id(v.figure) } : {}),
+    ...(num(v.figureRel, -50, 50, 0) ? { figureRel: num(v.figureRel, -50, 50, 0) } : {}),
+    ...(num(v.othersRel, -20, 20, 0) ? { othersRel: num(v.othersRel, -20, 20, 0) } : {}),
+    ...(map(v.factionRel) ? { factionRel: map(v.factionRel) } : {}),
+    ...(map(v.factionAppr) ? { factionAppr: map(v.factionAppr) } : {}),
+    ...(str(v.replace, TEXT.name) ? { replace: str(v.replace, TEXT.name) } : {}),
+    ...(isObj(v.res) ? { res: deltaMap(v.res, RESOURCE_KEYS, 10) } : {}),
+    ...(pact && pact.ban.length ? { pact } : {}),
+  };
+  return Object.keys(deal).length ? deal : null;
+}
+
+function sanitizePacts(v: unknown, factionIds: string[], turn: number): Pact[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter(isObj).filter(p => factionIds.includes(p.faction as string)).slice(0, 3).map(p => ({
+    faction: p.faction as string,
+    figure: str(p.figure, 20) || null,
+    since: num(p.since, 0, MAX_TURNS, turn),
+    until: num(p.until, turn, MAX_TURNS + 6, turn + 1),
+    ban: tagList(p.ban),
+    against: factionIds.includes(p.against as string) ? p.against as string : null,
+  }));
+}
+
 function sanitizeChoice(c: Obj, id: string, crisisIds: string[], allowArc = false): Choice | null {
   const text = str(c.text, TEXT.choice);
   const tags = sanitizeTags(c.tags);
@@ -101,6 +144,7 @@ function sanitizeChoice(c: Obj, id: string, crisisIds: string[], allowArc = fals
     ...(allowArc && str(c.sceneFail, TEXT.long) ? { sceneFail: str(c.sceneFail, TEXT.long) } : {}),
     ...(allowArc && str(c.headline, TEXT.title) ? { headline: str(c.headline, TEXT.title) } : {}),
     ...(allowArc && str(c.headlineFail, TEXT.title) ? { headlineFail: str(c.headlineFail, TEXT.title) } : {}),
+    ...(allowArc && sanitizeDeal(c.deal) ? { deal: sanitizeDeal(c.deal)! } : {}),
   };
 }
 
@@ -165,6 +209,9 @@ export function sanitizeEvent(
     randomEvent: opts.allowRandom ? sanitizeRandomEvent(raw.randomEvent) : null,
     council: opts.advisors ? sanitizeProposals(raw.council, opts.advisors, opts.crisisIds, opts.allowArc) : null,
     ...(opts.allowArc && str(raw.card, 40) ? { card: str(raw.card, 40) } : {}),
+    ...(opts.allowArc && isObj(raw.special) && ["overture", "insider", "mole", "pact"].includes(raw.special.kind as string) ? {
+      special: { kind: raw.special.kind as "overture", figure: str(raw.special.figure, 20) || null, faction: str(raw.special.faction, 20) },
+    } : {}),
     beat: opts.allowArc && isObj(raw.beat) ? {
       arcId: str(raw.beat.arcId, 20), arcTitle: str(raw.beat.arcTitle, TEXT.name),
       turn: num(raw.beat.turn, 1, MAX_TURNS, 1), episode: num(raw.beat.episode, 1, 9, 1), total: num(raw.beat.total, 1, 9, 4),
@@ -373,7 +420,7 @@ export function sanitizeState(raw: unknown): GameState | null {
     mode: raw.mode === "ai" ? "ai" : "classic",
     seed: num(raw.seed, 0, 4294967295, 0),
     daily: typeof raw.daily === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.daily) ? raw.daily : null,
-    usedEvents: [],
+    usedEvents: strList(raw.usedEvents, 40, 60),
     stats: {
       crisesResolved: num(isObj(raw.stats) ? raw.stats.crisesResolved : 0, 0, 99, 0),
       councils: num(isObj(raw.stats) ? raw.stats.councils : 0, 0, 99, 0),
@@ -381,6 +428,8 @@ export function sanitizeState(raw: unknown): GameState | null {
     },
     pending: sanitizePending(raw.pending, turn),
     arc: sanitizeArc(raw.arc),
+    pacts: sanitizePacts(raw.pacts, factionIds, turn),
+    betrayals: num(raw.betrayals, 0, 9, 0),
     currentEvent: isObj(raw.currentEvent)
       ? sanitizeEvent(raw.currentEvent, factionIds, { isCritical: raw.currentEvent.isCritical === true, allowRandom: true, advisors, allowArc: true, crisisIds: activeCrises.map(c => c.id) })
       : null,
