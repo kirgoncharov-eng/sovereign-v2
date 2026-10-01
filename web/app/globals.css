@@ -121,13 +121,14 @@ button:focus-visible {
 /* Мобильная раскладка: сайдбар уходит под основную колонку */
 @media (max-width: 760px) {
   .sv-game-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important; /* колонка не шире экрана, что бы ни было внутри */
   }
   .sv-sidebar {
     order: 2;
   }
   .sv-main {
     order: 1;
+    min-width: 0;
   }
 }
 

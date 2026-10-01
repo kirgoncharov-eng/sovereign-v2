@@ -91,3 +91,23 @@ test("контент вставок полон: доклады, вопросы �
   for (const list of Object.values(CALL_DEMANDS)) assert.ok(list.length >= 3);
   for (const r of Object.values(CALL_REPLIES)) assert.ok(r.ok.length >= 2 && r.no.length >= 2);
 });
+
+test("бюджет: на восьмом ходу, поровну — без перекосов, перекос бьёт по обделённым, долг аукнется", async () => {
+  const { budgetEvent, budgetChoice, BUDGET_TURN } = await import("./classic.ts");
+  const s0 = await newGame();
+  const ev = budgetEvent(at(s0, BUDGET_TURN))!;
+  assert.equal(ev.special?.kind, "budget");
+  const s = startEvent(at(s0, BUDGET_TURN), ev);
+  const even = budgetChoice(s, { army: 2, social: 2, economy: 2, apparatus: 2, culture: 2 }, false);
+  assert.deepEqual(even.deal!.res, {});
+  const army = budgetChoice(s, { army: 6, social: 1, economy: 1, apparatus: 1, culture: 1 }, false);
+  assert.ok((army.deal!.res!.military ?? 0) > 0 && (army.deal!.res!.internalLegitimacy ?? 0) < 0);
+  assert.ok(Object.values(army.deal!.factionRel!).some(v => v < 0), "обделённые лагеря недовольны");
+  assert.ok(army.headline!.includes("армию"));
+  const debt = budgetChoice(s, { army: 3, social: 3, economy: 3, apparatus: 2, culture: 2 }, true);
+  const total = (c: Choice) => Object.values(c.deal!.res ?? {}).reduce((a, b) => a + (b ?? 0), 0);
+  assert.ok(total(debt) > total(even), "в долг — щедрее");
+  const withFinal: GameState = { ...s, currentEvent: { ...s.currentEvent!, choices: [debt, s.currentEvent!.choices[1]] } };
+  const plan = planTurn(withFinal, "p");
+  assert.ok(plan.scheduled.some(p => p.due === s.turn + 4 && (p.res.economy ?? 0) < 0), "долги через три хода");
+});

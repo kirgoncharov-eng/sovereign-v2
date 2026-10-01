@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
-import { approachWorks, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
+import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
+import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
 import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
 import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, pactIncome as pactIncomeOf, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
@@ -362,6 +363,78 @@ function InspectDoc({ doc, marked, onMark }) {
         })}
       </Card>
     </div>
+  );
+}
+
+// Предвыборный бюджет: раскладываешь миллиарды по статьям и сразу видишь, что получится.
+function BudgetPanel({ gs, onFinish, onSkip, stamping }) {
+  const [alloc, setAlloc] = useState(() => Object.fromEntries(BUDGET_ITEMS.map(i => [i.id, 2])));
+  const [debt, setDebt] = useState(false);
+  const limit = budgetLimit(debt);
+  const used = Object.values(alloc).reduce((a, b) => a + b, 0);
+  const left = limit - used;
+  const change = (id, d) => setAlloc(a => {
+    const v = a[id] + d;
+    if (v < 0 || v > BUDGET_MAX || (d > 0 && used >= limit)) return a;
+    return { ...a, [id]: v };
+  });
+  const toggleDebt = () => {
+    if (debt) {
+      // без займа лишнее снимаем с самых дорогих статей
+      let over = used - budgetLimit(false);
+      const next = { ...alloc };
+      while (over > 0) { const k = Object.keys(next).sort((a, b) => next[b] - next[a])[0]; next[k]--; over--; }
+      setAlloc(next);
+    }
+    setDebt(!debt);
+  };
+  const plan = budgetChoice(gs, alloc, debt);
+  const btn = { width:40, height:40, border:`2px solid ${G.txt}`, background:"transparent", color:G.txt, fontFamily:pixel, fontSize:18, flexShrink:0 };
+  return (
+    <Card style={{ padding:"18px 0 16px" }}>
+      <div id="sv-resolution" style={{ padding:"0 20px", display:"flex", justifyContent:"space-between", gap:10, alignItems:"baseline" }}>
+        <Label>Роспись бюджета</Label>
+        <span style={{ fontFamily:pixel, fontSize:13, color:left === 0 ? G.grn : G.red }}>{left === 0 ? "РАСПРЕДЕЛЕНО" : `ОСТАЛОСЬ ${left} МЛРД`}</span>
+      </div>
+      {BUDGET_ITEMS.map(item => {
+        const v = alloc[item.id];
+        return (
+          <div key={item.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 20px", borderTop:`1px solid ${G.bdr}` }}>
+            <ResIcon k={item.res} value={60} size={24} color={G.txt}/>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontFamily:narrow, fontWeight:700, fontSize:18, lineHeight:1.1 }}>{item.label}</div>
+              <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3 }}>{item.desc}</div>
+              <div style={{ display:"flex", gap:3, marginTop:5 }} aria-hidden="true">
+                {Array.from({ length: BUDGET_MAX }, (_, k) => <span key={k} style={{ width:14, height:8, background:k < v ? (v <= 1 ? G.red : G.txt) : G.bdr }}/>)}
+              </div>
+            </div>
+            <button style={btn} onClick={() => change(item.id, -1)} disabled={v <= 0} aria-label={`Меньше: ${item.label}`}>−</button>
+            <span style={{ fontFamily:pixel, fontSize:18, minWidth:22, textAlign:"center" }}>{v}</span>
+            <button style={btn} onClick={() => change(item.id, 1)} disabled={v >= BUDGET_MAX || left <= 0} aria-label={`Больше: ${item.label}`}>+</button>
+          </div>
+        );
+      })}
+      <label style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"10px 20px", borderTop:`1px dashed ${G.bdr2}`, cursor:"pointer" }}>
+        <input type="checkbox" checked={debt} onChange={toggleDebt} style={{ width:20, height:20, accentColor:"var(--red)", marginTop:2 }}/>
+        <span style={{ fontFamily:narrow, fontSize:16, lineHeight:1.35 }}>
+          <b>Занять ещё 3 млрд.</b> <span style={{ color:G.tx3 }}>Красиво перед выборами — но через три хода придут долги: экономика −6, репутация −2.</span>
+        </span>
+      </label>
+      <div style={{ padding:"10px 20px 0", borderTop:`2px solid ${G.txt}` }}>
+        <div style={{ fontFamily:pixel, fontSize:12, color:G.tx3, marginBottom:6 }}>ЧТО ИЗМЕНИТСЯ</div>
+        <ResourceChips delta={plan.deal.res}/>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"0 12px", fontFamily:narrow, fontSize:15, lineHeight:1.5, marginTop:4 }}>
+          {Object.entries(plan.deal.factionRel ?? {}).map(([fid, d]) => (
+            <span key={fid} style={{ color:d > 0 ? G.grn : G.red, whiteSpace:"nowrap" }}>{gs.factions.find(f => f.id === fid)?.name} {signed(d)}</span>
+          ))}
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap", marginTop:12, position:"relative" }}>
+          <button onClick={onSkip} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>Жить по прошлогоднему бюджету</button>
+          <PrimaryBtn id="opt-1" onClick={() => onFinish(alloc, debt)} disabled={left !== 0}>УТВЕРДИТЬ БЮДЖЕТ</PrimaryBtn>
+          {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Утверждено</span>}
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -1023,7 +1096,7 @@ function HowToPlay({ onClose }) {
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
     ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
     ["Люди — не копии своих лагерей", "У каждого свой характер. Друг во враждебном лагере станет «своим человеком», недруг среди союзников — «червоточиной». Союз с группой даёт доход и голоса, но нарушенное слово запоминают все."],
-    ["Не верьте бумагам на слово", "Трижды за правление вам принесут доклад на подпись. Сверьте его со справкой: нашли ложь — отметьте строку и уличите автора. Подписанная ложь всплывёт позже. Дважды за правление звонят по защищённой линии: подход подбирайте по характеру собеседника. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
+    ["Не верьте бумагам на слово", "Трижды за правление вам принесут доклад на подпись. Сверьте его со справкой: нашли ложь — отметьте строку и уличите автора. Подписанная ложь всплывёт позже. Дважды за правление звонят по защищённой линии: подход подбирайте по характеру собеседника. Перед парламентскими выборами — бюджет: разложите 10 млрд по статьям, а можно и занять. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
     ["У вас есть тайна", "В каждой партии развивается главная интрига. Эпизоды помечены «Главная интрига» — ваши решения в них определят развязку."],
     ...(desktop ? [["Клавиши", "1–9 — выбрать, Enter — подтвердить или дочитать, Esc — закрыть окно."]] : []),
   ];
@@ -1532,7 +1605,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       {help && <HowToPlay onClose={() => setHelp(false)}/>}
       {recap && <Recap gs={gs} onClose={onRecapDone}/>}
       <div style={{ display:"flex", justifyContent:"center", padding:"14px" }}>
-      <div className="sv-game-grid" style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px 1fr", gap:14 }}>
+      <div className="sv-game-grid" style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px minmax(0, 1fr)", gap:14 }}>
 
         <div className="sv-sidebar" data-open={dossier || undefined}>
           <button className="sv-dossier-toggle" onClick={() => setDossier(v => !v)} aria-expanded={dossier}>
@@ -1698,7 +1771,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     <div>Экз. № 1 · вх. № {docNumber(gs)}</div>
                   </div>
                   {(event.beat || event.isCritical) && <span className="sv-stamp is-red" style={{ fontSize:14, flexShrink:0 }}>{event.beat ? "Совершенно секретно" : "Срочно"}</span>}
-                  {event.special && !event.beat && !event.isCritical && <span className="sv-stamp" style={{ fontSize:14, flexShrink:0 }}>{{ pact:"Проект договора", inspect:"На подпись", press:"Пресс-служба", call:"Без протокола" }[event.special.kind] ?? "Лично в руки"}</span>}
+                  {event.special && !event.beat && !event.isCritical && <span className="sv-stamp" style={{ fontSize:14, flexShrink:0 }}>{{ pact:"Проект договора", inspect:"На подпись", press:"Пресс-служба", call:"Без протокола", budget:"Финансы" }[event.special.kind] ?? "Лично в руки"}</span>}
                 </div>
                 {(turn + 1) % 5 === 1 && (
                   <div style={{ margin:"4px 0 18px", paddingBottom:14, borderBottom:`1px solid ${G.bdr}` }}>
@@ -1721,7 +1794,16 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 )}
               </Card>
               {event.doc && <InspectDoc doc={event.doc} marked={marked} onMark={setMarked}/>}
-              {event.call ? (
+              {event.budget ? (
+                <BudgetPanel key={`budget${turn}`} gs={gs} stamping={stamping}
+                  onSkip={() => choose(event.choices[1])}
+                  onFinish={(alloc, debt) => {
+                    const final = budgetChoice(gsRef.current, alloc, debt);
+                    const cur = gsRef.current.currentEvent;
+                    commit({ ...gsRef.current, currentEvent: { ...cur, choices: [final, cur.choices[1]] } });
+                    choose(final);
+                  }}/>
+              ) : event.call ? (
                 <CallPanel key={`call${turn}`} call={event.call} seed={gs.seed} stamping={stamping}
                   onHang={() => choose(event.choices[1])}
                   onFinish={(approach, ending) => {

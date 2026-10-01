@@ -17,6 +17,7 @@ import { INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, TIMES, WEATHER, WEEKD
 import { ECHOES } from "../content/echoes.ts";
 import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
 import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
+import { BUDGET_DEBT, BUDGET_ITEMS, BUDGET_MAX, BUDGET_REL, BUDGET_RES, BUDGET_TEXT, BUDGET_TOTAL } from "../content/budget.ts";
 import { APPROACH_WORKS, CALL_DEMANDS, CALL_ENDINGS, CALL_REPLIES, CALL_TEXT, type Approach } from "../content/calls.ts";
 import {
   COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
@@ -507,10 +508,76 @@ const APPROACH_SAY: Record<Approach, string> = {
   numbers: "раскладываете цифры: кто и что потеряет",
 };
 
+// ── Предвыборный бюджет ──────────────────────────────────────────────────────
+// На восьмом ходу, за два хода до парламентских выборов: 10 млрд на пять статей, можно занять ещё 3.
+export const BUDGET_TURN = 8;
+
+export function budgetEvent(state: GameState): SpecialEvent | null {
+  const turn = state.turn + 1;
+  if (turn !== BUDGET_TURN || dueBeat(state)) return null;
+  const T = BUDGET_TEXT;
+  const skip: Choice = {
+    id: "b", text: T.skip.text, hint: T.skip.hint, tags: ["delay"], resolvesCrisis: null,
+    deal: { pure: true, res: { politicalCapital: -3, internalLegitimacy: -1 } },
+    scene: T.skip.scene, sceneFail: T.skip.scene, headline: T.skip.head, headlineFail: T.skip.head,
+  };
+  return {
+    cardId: `budget:${turn}`,
+    title: T.title,
+    source: "Министерство финансов",
+    description: chapter(dateline(state), T.intro),
+    isCritical: false,
+    affectedFactions: [],
+    // Итог собирается из распределения (budgetChoice); до тех пор можно жить по прошлогоднему.
+    choices: [{ ...skip, id: "a" }, skip],
+    council: null,
+    special: { kind: "budget", figure: null, faction: "" },
+    budget: { total: BUDGET_TOTAL },
+    randomEvent: null,
+  };
+}
+
+// Бюджет по распределению: alloc — миллиарды по статьям, debt — заняты ли ещё 3 млрд.
+export function budgetChoice(state: GameState, alloc: Record<string, number>, debt: boolean): Choice {
+  const T = BUDGET_TEXT;
+  const res: Record<string, number> = {}, factionRel: Record<string, number> = {};
+  const n = (id: string) => Math.max(0, Math.min(BUDGET_MAX, Math.round(alloc[id] ?? 0)));
+  for (const item of BUDGET_ITEMS) {
+    const p = n(item.id);
+    res[item.res] = (res[item.res] ?? 0) + BUDGET_RES[p];
+    const bloc = item.blocs.find(b => state.factions.some(f => f.bloc === b));
+    if (bloc && BUDGET_REL[p]) for (const f of state.factions) if (f.bloc === bloc) factionRel[f.id] = (factionRel[f.id] ?? 0) + BUDGET_REL[p];
+  }
+  for (const k of Object.keys(res)) if (!res[k]) delete res[k];
+  const sorted = [...BUDGET_ITEMS].sort((a, b) => n(b.id) - n(a.id));
+  const top = sorted[0], low = sorted[sorted.length - 1];
+  const even = n(top.id) - n(low.id) <= 1;
+  const lines = [T.open];
+  if (even) lines.push(T.even);
+  else {
+    lines.push(fill(T.most, state, { label: top.label, n: String(n(top.id)) }), top.top);
+    lines.push(fill(T.least, state, { label: low.label, n: String(n(low.id)) }));
+    if (n(low.id) <= 1) lines.push(low.low);
+  }
+  if (debt) lines.push(T.debt);
+  const head = debt ? T.headDebt : even ? T.headEven : top.head;
+  const scene = lines.join(" ");
+  return {
+    id: "p", text: "Утвердить бюджет на год", hint: "", resolvesCrisis: null,
+    tags: [even ? "dialogue" : top.tag],
+    deal: {
+      pure: true, res, factionRel,
+      ...(debt ? { later: { turns: 3, label: T.later.label, res: { economy: -6, externalReputation: -2 }, story: T.later.story } } : {}),
+    },
+    scene, sceneFail: scene, headline: head, headlineFail: head,
+  };
+}
+export const budgetLimit = (debt: boolean) => BUDGET_TOTAL + (debt ? BUDGET_DEBT : 0);
+
 function buildEvent(state: GameState): GameEvent & { cardId?: string } {
   const beat = beatEvent(state);
   if (beat) return beat;
-  const interlude = inspectEvent(state) ?? pressEvent(state) ?? callEvent(state);
+  const interlude = inspectEvent(state) ?? pressEvent(state) ?? callEvent(state) ?? budgetEvent(state);
   if (interlude) return interlude;
   const special = specialEvent(state);
   if (special) return special;
