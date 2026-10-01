@@ -3,11 +3,12 @@
 import { dailyText, SUBS } from "@/lib/server/bot.ts";
 import { kv } from "@/lib/server/kv.ts";
 import { botApi, playButton } from "@/lib/server/telegram.ts";
+import { env } from "@/lib/server/env.ts";
 
 export const maxDuration = 60;
 
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
+  const secret = env("CRON_SECRET");
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) return new Response("forbidden", { status: 403 });
   const subs = await kv.smembers(SUBS);
   const text = dailyText();
