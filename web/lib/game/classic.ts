@@ -17,14 +17,14 @@ import { DAY_TIMES, DAYLIGHT, INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, 
 import { ECHOES } from "../content/echoes.ts";
 import { sceneOf } from "../content/scene-map.ts";
 import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OPPOSITION_SPECIAL, OUTLETS } from "../content/newspaper.ts";
-import { REACT_BY_TAG, REACT_DIPLOMAT, REACT_SPECIAL, SAY, SAY_DIPLOMAT } from "../content/reactions.ts";
+import { MEANWHILE, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT } from "../content/reactions.ts";
 import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
 import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
 import { BUDGET_DEBT, BUDGET_ITEMS, BUDGET_MAX, BUDGET_REL, BUDGET_RES, BUDGET_TEXT, BUDGET_TOTAL } from "../content/budget.ts";
 import { APPROACH_WORKS, CALL_DEMANDS, CALL_ENDINGS, CALL_REPLIES, CALL_TEXT, type Approach } from "../content/calls.ts";
 import {
   COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
-  FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, REACT_FAILED, SPEECHES, TAG_LINES, TITLES,
+  FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
 import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, DELAYED, WEAK_ADVISOR_DELAYED, ELECTIONS, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
 import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PACT, PACT_BROKEN_LINE, PACT_GIVES, PACT_KEPT_LINE, PACT_OK_VARIANTS, type SpecialChoice } from "../content/people.ts";
@@ -747,7 +747,8 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const bonded = state.turn % 3 === 2 ? cast.find(f => ["insider", "mole"].includes(bondOf(f, facOf(f)) ?? "")) : undefined;
   const intercut = bonded
     ? fill(cycle(bondOf(bonded, facOf(bonded)) === "insider" ? INSIDER_LINES : MOLE_LINES, state.seed, "bond", state.turn), state, { name: bonded.name, camp: facOf(bonded)?.name ?? "" })
-    : moved ? fill(cycle(moved.d > 0 ? INTERCUT_WARM : INTERCUT_COLD, state.seed, `ic${moved.d > 0}`, state.turn), state,
+    : moved ? fill(cycle(moved.d > 0 ? INTERCUT_WARM : INTERCUT_COLD, state.seed, `ic${moved.d > 0}`, state.turn)
+      .replace(/^Тем временем /, `${cycle(MEANWHILE, state.seed, "meanwhile", state.turn)} `).replace("{name} ({role})", "{name}, {role},"), state,
     { name: moved.f.name, role: moved.f.role.charAt(0).toLowerCase() + moved.f.role.slice(1) }) : null;
 
   // Нить интриги: между эпизодами — зловещая строка-предвестие.
@@ -770,13 +771,19 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   };
   // Говорит тот, кого решение задело сильнее всех, — и говорит о сути решения:
   // о том его аспекте, который бьёт по его лагерю или играет ему на руку. Послы — языком нот.
+  const voice = (f: (typeof cast)[number], sign: number, q: string) => {
+    const say = cycle(/посол/i.test(f.role) ? SAY_DIPLOMAT : SAY, state.seed, `say${sign}`, state.turn);
+    return fill(say, state, { name: f.name, role: lower(f.role), q }).replace(/([?!])», —/, "$1» —").replace(/([?!])»\.$/, "$1»");
+  };
   const quote = (f: (typeof cast)[number], sign: number) => {
     const bloc = facOf(f)?.bloc;
-    if (!bloc || (sign > 0 && !plan.success)) return null;
+    if (!bloc) return null;
     const side = sign > 0 ? "pro" : "con";
+    // Провал обсуждают как провал: одни злорадствуют, другие досадуют на исполнение.
+    if (!plan.success) return voice(f, sign, fresh(REACT_FAILURE[side], `qf${side}`, state.turn));
     const kind = state.currentEvent?.special?.kind;
     if (kind === "inspect" || kind === "press" || kind === "call" || kind === "budget")
-      return fill(cycle(SAY, state.seed, `say${sign}`, state.turn), state, { name: f.name, role: lower(f.role), q: fresh(REACT_SPECIAL[kind][side], `qs${kind}${side}`, state.turn) }) + ".";
+      return voice(f, sign, fresh(REACT_SPECIAL[kind][side], `qs${kind}${side}`, state.turn));
     if (kind) return null;
     // Чем решение задело: интересом лагеря или личными убеждениями говорящего.
     const trait = TRAITS[traitOf(state.seed, f, bloc)];
@@ -785,18 +792,23 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     if (!tag) return null;
     const envoy = bloc === "west" || bloc === "russia" ? bloc : null;
     const uses = state.history.filter(h => h.tags?.includes(tag)).length;
-    const q = envoy ? fresh(REACT_DIPLOMAT[envoy][side], `q${envoy}${side}`, state.turn)
-      : fresh(REACT_BY_TAG[tag][side], `q${tag}${side}`, uses);
-    const say = cycle(/посол/i.test(f.role) ? SAY_DIPLOMAT : SAY, state.seed, `say${sign}`, state.turn);
-    return fill(say, state, { name: f.name, role: lower(f.role), q }) + (/[?!]$/.test(q) ? "" : ".");
+    return voice(f, sign, envoy ? fresh(REACT_DIPLOMAT[envoy][side], `q${envoy}${side}`, state.turn)
+      : fresh(REACT_BY_TAG[tag][side], `q${tag}${side}`, uses));
+  };
+  // Если сказать по сути нечего — только поступок, без слов: так реплика не уходит мимо темы.
+  const deed = (pool: string[], sign: number, f: (typeof cast)[number]) =>
+    fill(cycle(pool.filter(l => !l.includes("«")), state.seed, `re${sign}`, state.turn).replace("{name} ({role})", "{name}, {role},"), state, { name: f.name, role: lower(f.role) });
+  // Иностранцы высказываются только о том, что задевает их столицы, — во внутренние дела они не лезут.
+  const foreignAffair = (f: (typeof cast)[number]) => {
+    const bloc = facOf(f)?.bloc;
+    return bloc !== "west" && bloc !== "russia" || plan.choice.tags.some(t => ACTIONS[t].rel[bloc]);
   };
   const react = (sign: number, pool: string[]) => cast
-    .filter(f => f !== moved?.f && f !== bonded && Math.abs(delta(f)) >= 3 && Math.sign(delta(f)) === sign)
+    .filter(f => f !== moved?.f && f !== bonded && Math.abs(delta(f)) >= 3 && Math.sign(delta(f)) === sign && foreignAffair(f))
     .sort((a, b) => Math.abs(delta(b)) - Math.abs(delta(a)))
     .slice(0, 1)
-    .map(f => quote(f, sign) ?? fill(cycle(pool, state.seed, `re${sign}`, state.turn), state, { name: f.name, role: lower(f.role) }));
-  // При провале сторонники идеи недовольны исполнением, а не хвалят «решимость».
-  const reactions = [...react(1, plan.success ? REACT_APPROVE : REACT_FAILED), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
+    .map(f => quote(f, sign) ?? deed(pool, sign, f));
+  const reactions = [...react(1, REACT_APPROVE), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
 
   // Документ хода — перехват по линии интриги, раз в четыре хода и без повторов.
   // Газета уже сама по себе итог хода, вторая подборка заголовков в ней не нужна.

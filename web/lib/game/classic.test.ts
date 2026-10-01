@@ -248,7 +248,7 @@ test("газета и реплики: у каждой карточки своя 
   assert.ok(n.scene, "сцена хода");
   assert.ok(n.press?.length && n.press.every(p => p.outlet && p.headline && !/\{\w+/.test(p.headline)), "что пишут другие");
   // цитаты без финальной точки: её ставит подача после кавычек
-  const { REACT_BY_TAG, REACT_DIPLOMAT, REACT_SPECIAL } = await import("../content/reactions.ts");
-  for (const pool of [...Object.values(REACT_BY_TAG), ...Object.values(REACT_DIPLOMAT), ...Object.values(REACT_SPECIAL)])
+  const { REACT_BY_TAG, REACT_DIPLOMAT, REACT_SPECIAL, REACT_FAILURE } = await import("../content/reactions.ts");
+  for (const pool of [...Object.values(REACT_BY_TAG), ...Object.values(REACT_DIPLOMAT), ...Object.values(REACT_SPECIAL), REACT_FAILURE])
     for (const q of [...pool.pro, ...pool.con]) assert.ok(!q.endsWith("."), q);
 });

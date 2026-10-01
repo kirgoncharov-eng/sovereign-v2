@@ -1,7 +1,7 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "5.0";
+export const APP_VERSION = "5.1";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 export const MAX_TURNS = 20;
 
@@ -60,15 +60,15 @@ export const RESOURCE_KEYS: ResourceKey[] = RES_CONFIG.map(r => r.key);
 export interface Biography { id: string; label: string; text: string; tags: ActionTag[]; res: ResourceKey; note: string }
 export const BIOGRAPHIES: Biography[] = [
   { id:"officer",   label:"Офицер",         text:"Бывший офицер, ставший депутатом на волне протестов.", tags:["security", "repress", "patriotism"], res:"military",
-    note:"силовые и патриотические решения надёжнее; силовики +8" },
+    note:"силовые и патриотические решения исполняются на 8% надёжнее · силовики +8 на старте" },
   { id:"economist", label:"Экономист",      text:"Экономист, прославившийся резкими выступлениями против коррупции.", tags:["investment", "austerity", "anticorruption"], res:"economy",
-    note:"экономические решения и антикоррупция надёжнее; экономика +8" },
+    note:"экономика и антикоррупция исполняются на 8% надёжнее · экономика +8 на старте" },
   { id:"lawyer",    label:"Правозащитник",  text:"Юрист по правам человека, неожиданно для всех выигравший праймериз.", tags:["dialogue", "reform", "social"], res:"internalLegitimacy",
-    note:"диалог, реформы и соцполитика надёжнее; легитимность +8" },
+    note:"диалог, реформы и соцполитика исполняются на 8% надёжнее · легитимность +8 на старте" },
   { id:"diplomat",  label:"Дипломат",       text:"Бывший дипломат, вернувшийся в политику после десяти лет за границей.", tags:["pro_west", "pro_russia", "dialogue"], res:"externalReputation",
-    note:"внешняя политика надёжнее; репутация +8" },
+    note:"внешняя политика и диалог исполняются на 8% надёжнее · репутация +8 на старте" },
   { id:"mayor",     label:"Мэр",            text:"Мэр промышленного города, которого называют «человеком из народа».", tags:["social", "elite_deal", "propaganda"], res:"politicalCapital",
-    note:"сделки, соцполитика и агитация надёжнее; политкапитал +8" },
+    note:"сделки, соцполитика и агитация исполняются на 8% надёжнее · политкапитал +8 на старте" },
 ];
 export const BIO_CHANCE = 0.08, BIO_RES = 8;
 
@@ -375,6 +375,25 @@ export const IDEOLOGY_ACTIONS: Record<IdeologyId, { aligned: ActionTag[]; oppose
 
 export const IDEOLOGY_BONUS: ResourceDelta = { personalResource:2, internalLegitimacy:1 };
 export const IDEOLOGY_PENALTY: ResourceDelta = { personalResource:-4, politicalCapital:-2 };
+
+// ── Пояснения для анкеты: что на самом деле меняет выбор ────────────────────
+export function difficultyEffects(id: DifficultyId): string {
+  const res = Object.values(START_RES[id]), avg = Math.round(res.reduce((a, b) => a + b, 0) / res.length);
+  const mood = DIFF_REL_MOD[id] > 0 ? "группы настроены теплее" : DIFF_REL_MOD[id] < 0 ? "группы настроены враждебнее" : "группы настроены ровно";
+  const drain = DIFF_PRESSURE[id] ? `страна сама теряет ${DIFF_PRESSURE[id]} ед. ресурсов за ход` : "без потерь за ход";
+  return `ресурсы на старте ≈${avg} из 100 · ${mood} · ${drain}`;
+}
+export function ideologyEffects(id: IdeologyId, country: string | null): string {
+  const lab = (tags: ActionTag[]) => tags.map(t => ACTIONS[t].label.toLowerCase()).join(", ");
+  const a = IDEOLOGY_ACTIONS[id];
+  const parts = [`укрепляют вас: ${lab(a.aligned)}`, a.opposed.length ? `подтачивают: ${lab(a.opposed)}` : "ни одно решение не идёт против курса"];
+  if (country) {
+    const rel = IDEOLOGY_REL[id], fac = FACTIONS_DATA[country] ?? [];
+    const sorted = [...fac].sort((x, y) => (rel[y.id] ?? 0) - (rel[x.id] ?? 0));
+    parts.push(`за вас: ${sorted.slice(0, 2).map(f => f.name).join(", ")}`, `против: ${sorted.slice(-2).reverse().map(f => f.name).join(", ")}`);
+  }
+  return parts.join(" · ");
+}
 
 // ── Отложенные последствия ───────────────────────────────────────────────────
 // Эхо решения через несколько ходов. Видно игроку заранее — это часть цены решения.

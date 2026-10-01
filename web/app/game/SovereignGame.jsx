@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
-import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
+import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
@@ -596,7 +596,7 @@ function ElectionNight({ e, party, onDone }) {
         <span style={{ fontFamily:pixel, fontSize:13, color:G.red }}>● ПРЯМОЙ ЭФИР · ЦИК</span>
         <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>ОБРАБОТАНО {Math.floor(p)}%</span>
       </div>
-      <div style={{ fontFamily:narrow, fontWeight:700, fontSize:32, lineHeight:1, color:G.txt, marginBottom:16 }}>
+      <div style={{ fontFamily:narrow, fontWeight:700, fontSize:32, lineHeight:1.12, color:G.txt, marginBottom:16 }}>
         {e.kind === "president" ? "Президентские выборы" : "Парламентские выборы"}
       </div>
       {bar(quoteName(party), me, "var(--grn)", true)}
@@ -987,7 +987,7 @@ function Hud({ gs, preview, onMenu, onHelp }) {
           </div>
           <div className="sv-hud-side" style={{ display:"flex", alignItems:"center", gap:12 }}>
             <div style={{ textAlign:"right" }}>
-              <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1 }}>рейтинг</div>
+              <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.1, marginBottom:3 }}>рейтинг</div>
               <div style={{ fontFamily:narrow, fontWeight:700, fontSize:24, color:rating >= 35 ? G.grn : rating >= 20 ? G.amb : G.red, lineHeight:1 }}>
                 {rating}%<span style={{ fontSize:16 }}>{arrow(rating, nextRating)}</span>
               </div>
@@ -1072,7 +1072,7 @@ function Recap({ gs, onClose }) {
     <div className="sv-modal" role="dialog" aria-modal="true" aria-labelledby="recap-title" onClick={onClose}>
       <div onClick={e => e.stopPropagation()} className="sv-fade sv-paper" style={{ maxWidth:520, width:"100%", maxHeight:"90vh", overflowY:"auto", padding:"22px 22px 18px" }}>
         <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>РАНЕЕ В «СУВЕРЕНЕ»</div>
-        <div id="recap-title" style={{ fontFamily:narrow, fontWeight:700, fontSize:30, lineHeight:1.05, margin:"6px 0 4px" }}>{gs.leader.name}</div>
+        <div id="recap-title" style={{ fontFamily:narrow, fontWeight:700, fontSize:30, lineHeight:1.15, margin:"6px 0 4px" }}>{gs.leader.name}</div>
         <div style={{ fontFamily:narrow, fontSize:16, color:G.tx2, marginBottom:14 }}>
           <Flag country={gs.country}/> {gs.country} · {gs.year} · позади {plural(gs.turn, "ход", "хода", "ходов")} из {MAX_TURNS}
         </div>
@@ -1257,6 +1257,17 @@ function Setup({ onStart, saved, onResume }) {
     <span aria-hidden="true" style={{ width:16, height:16, border:`2px solid ${G.txt}`, flexShrink:0, display:"inline-flex", alignItems:"center", justifyContent:"center", fontFamily:pixel, fontSize:13, lineHeight:1, color:G.red }}>{active ? "X" : ""}</span>
   );
   const scene = useMemo(() => ({ country: dailyCase().country, seed: 7, turn: 2, legitimacy: 48, rating: 44, military: 55, security: -10, crises: 0, election: false }), []);
+  const explain = text => <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx2, lineHeight:1.45, margin:"0 0 8px" }}>{text}</div>;
+  // Графа анкеты: название, суть и мелким шрифтом — что именно это меняет в игре.
+  const option = (label, desc, effects) => (
+    <span style={{ display:"flex", flexDirection:"column", gap:3, minWidth:0, flex:1, textAlign:"left" }}>
+      <span style={{ display:"flex", flexWrap:"wrap", columnGap:10, alignItems:"baseline" }}>
+        <span style={{ fontFamily:narrow, fontSize:18, fontWeight:700, lineHeight:1.15 }}>{label}</span>
+        <span style={{ fontFamily:narrow, fontSize:15, lineHeight:1.25, color:G.tx2 }}>{desc}</span>
+      </span>
+      <span style={{ fontFamily:mono, fontSize:12, lineHeight:1.45, color:G.tx3 }}>{effects}</span>
+    </span>
+  );
   const section = (n, title) => <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, margin:"18px 0 6px" }}>{n}. {title}</div>;
 
   return (
@@ -1265,7 +1276,7 @@ function Setup({ onStart, saved, onResume }) {
       <div style={{ display:"flex", justifyContent:"center", padding:"26px 16px 40px" }}>
       <div style={{ maxWidth:580, width:"100%" }}>
         <div style={{ textAlign:"center", marginBottom:26 }}>
-          <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(56px, 17vw, 88px)", lineHeight:.85, letterSpacing:".1em", color:G.gold, textShadow:"4px 4px 0 rgba(0,0,0,.45)" }}>СУВЕРЕН</h1>
+          <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(56px, 17vw, 88px)", lineHeight:1, letterSpacing:".1em", color:G.gold, textShadow:"4px 4px 0 rgba(0,0,0,.45)" }}>СУВЕРЕН</h1>
           <div style={{ fontFamily:narrow, fontSize:19, color:G.tx2, marginTop:12 }}>Двадцать решений. Одна страна. Ни одного права на ошибку.</div>
         </div>
 
@@ -1323,29 +1334,29 @@ function Setup({ onStart, saved, onResume }) {
           {country && <div className="sv-fade" style={{ fontFamily:mono, fontSize:13, color:G.tx2, lineHeight:1.6, padding:"10px 6px 2px", borderTop:`1px dashed ${G.bdr2}` }}>{COUNTRIES[country].context}</div>}
 
           {section(2, "СЛОЖНОСТЬ")}
+          {explain("С чего вы начинаете: сколько ресурсов у государства, как к вам относятся группы и сколько страна теряет каждый ход без вашего участия.")}
           {Object.entries(DIFFICULTIES).map(([id, d]) => (
             <button key={id} onClick={() => setDiff(id)} aria-pressed={diff === id} style={row(diff === id)}>
               {box(diff === id)}
-              <span style={{ fontFamily:narrow, fontSize:18, fontWeight:700, minWidth:96 }}>{d.label}</span>
-              <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{d.desc}</span>
+              {option(d.label, d.desc, difficultyEffects(id))}
             </button>
           ))}
 
           {section(3, "ПОЛИТИЧЕСКИЙ КУРС")}
+          {explain("Кто поддерживает вас с первого дня и какие решения укрепляют вас лично. Решение в духе курса добавляет личный ресурс и легитимность, решение против курса их отнимает.")}
           {IDEOLOGIES.map(i => (
             <button key={i.id} onClick={() => setIdeo(i.id)} aria-pressed={ideo === i.id} style={row(ideo === i.id)}>
               {box(ideo === i.id)}
-              <span style={{ fontFamily:narrow, fontSize:18, fontWeight:700, minWidth:96 }}>{i.label}</span>
-              <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{i.desc}</span>
+              {option(i.label, i.desc, ideologyEffects(i.id, country))}
             </button>
           ))}
 
           {section(4, "БИОГРАФИЯ — НЕОБЯЗАТЕЛЬНО")}
+          {explain("Ваше прошлое ремесло: решения по нему исполняются надёжнее, а одна из опор крепче с самого начала. Не выберете — достанется случайная.")}
           {BIOGRAPHIES.map(b => (
             <button key={b.id} onClick={() => setBio(x => x === b.id ? null : b.id)} aria-pressed={bio === b.id} style={row(bio === b.id)}>
               {box(bio === b.id)}
-              <span style={{ fontFamily:narrow, fontSize:18, fontWeight:700, minWidth:96 }}>{b.label}</span>
-              <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{b.note}</span>
+              {option(b.label, b.text, b.note)}
             </button>
           ))}
 
@@ -1385,7 +1396,7 @@ function Intro({ gs, onGo }) {
             <span>Личное дело № {docNumber(gs)}</span><span>{COUNTRIES[country].startYear}</span>
           </div>
           <Portrait name={leader.name} size={100} style={{ float:"right", margin:"0 0 10px 16px", transform:"rotate(2deg)" }}/>
-          <div style={{ fontFamily:narrow, fontSize:42, fontWeight:700, color:G.txt, lineHeight:1, marginBottom:4 }}>{leader.name}</div>
+          <div style={{ fontFamily:narrow, fontSize:42, fontWeight:700, color:G.txt, lineHeight:1.12, marginBottom:6, textWrap:"balance" }}>{leader.name}</div>
           <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginBottom:10 }}>Президент · партия {leader.party} · {ci.label.toLowerCase()}</div>
           <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic", lineHeight:1.7 }}>{leader.bio}</div>
           {BIOGRAPHIES.find(b => b.id === gs.bio) && (
@@ -1901,16 +1912,16 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   {lastTurn.chance < 1 && (
                     <span className={`sv-stamp sv-in${lastTurn.success === false ? " is-red" : " is-green"}`} style={{ fontSize:15, flexShrink:0 }}>
                       {lastTurn.success === false ? "Не исполнено" : "Исполнено"}
-                      <span style={{ display:"block", fontSize:11, fontWeight:400, letterSpacing:0, textTransform:"none" }}>шанс был {Math.round(lastTurn.chance * 100)}%</span>
+                      <span style={{ display:"block", fontSize:11, fontWeight:400, letterSpacing:0, textTransform:"none", lineHeight:1.3, marginTop:4 }}>шанс был {Math.round(lastTurn.chance * 100)}%</span>
                     </span>
                   )}
                 </div>
                 <div className="sv-paper-drop" style={{ borderTop:`4px solid ${G.txt}`, borderBottom:`2px solid ${G.txt}`, padding:"8px 0 6px", marginBottom:12, textAlign:"center" }}>
-                  <div style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(30px, 8vw, 46px)", lineHeight:.9, textTransform:"uppercase", letterSpacing:".06em" }}>Вечерний {COUNTRIES[gs.country].capital}</div>
+                  <div style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(30px, 8vw, 46px)", lineHeight:1.02, textTransform:"uppercase", letterSpacing:".06em" }}>Вечерний {COUNTRIES[gs.country].capital}</div>
                   <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:5 }}>{gs.year} · выпуск № {turn} · цена 5 коп.</div>
                 </div>
                 <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>
-                <h2 className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.02, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}>{lastTurn.headline}</h2>
+                <h2 className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.1, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}>{lastTurn.headline}</h2>
                 <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
                   <SquareView gs={gs} sceneKey={lastTurn.scene} height={36} mono still/>
                   <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>{SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции</figcaption>
