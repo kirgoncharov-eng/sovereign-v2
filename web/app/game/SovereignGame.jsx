@@ -4,7 +4,7 @@ import { ACTIONS, APP_VERSION, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LAB
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { api as aiApi } from "@/lib/client/api.ts";
 import { classicApi } from "@/lib/game/classic.ts";
-import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
+import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, pactIncome as pactIncomeOf, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
 import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
@@ -19,7 +19,7 @@ const expressApi = {
   ending: theatrical(classicApi.ending, 1500),
 };
 const apiFor = mode => (mode === "classic" ? expressApi : aiApi);
-import { cloudGet, cloudSet, initTelegram, telegramShare } from "@/lib/client/telegram.ts";
+import { cloudGet, cloudSet, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons } from "@/lib/client/telegram.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
@@ -605,8 +605,60 @@ function Flag({ country, size = 18 }) {
 // ── HUD ───────────────────────────────────────────────────────────────────────
 const SHORT = { politicalCapital:"Политкапитал", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимность", personalResource:"Личный ресурс" };
 
+// Что значит каждая опора — одной фразой, для подсказки по нажатию на значок.
+const RES_ABOUT = {
+  politicalCapital: "Влияние в парламенте и аппарате. На нём держатся сделки и реформы.",
+  economy: "Бюджет, цены, зарплаты. Проседает от раздач, санкций и кризисов.",
+  military: "Сила армии и спецслужб. Сильная армия при враждебных силовиках — риск переворота.",
+  externalReputation: "Как к вам относятся за границей: кредиты, санкции, союзники.",
+  internalLegitimacy: "Признают ли люди вашу власть. На нуле — революция.",
+  personalResource: "Ваши силы, здоровье, деньги и личные связи.",
+};
+
+// Подсказка по значку опоры: смысл, пороги и всё, что на неё повлияет в ближайшие ходы.
+function ResInfo({ gs, k, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const away = e => { if (!ref.current?.contains(e.target) && !e.target.closest?.("[data-res]")) onClose(); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [onClose]);
+  const cfg = RES_CONFIG.find(r => r.key === k);
+  const v = gs.resources[k];
+  const soon = [
+    ...(gs.pending ?? []).filter(p => p.res[k]).map(p => [p.res[k], `через ${plural(p.due - gs.turn, "ход", "хода", "ходов")}: ${p.label.toLowerCase()}`]),
+    ...(gs.activeCrises ?? []).filter(c => c.resourceDrain?.[k]).map(c => [c.resourceDrain[k], `каждый ход: кризис «${c.title}»`]),
+    ...(gs.pacts ?? []).filter(p => PACT_INCOME[gs.factions.find(f => f.id === p.faction)?.bloc] === k)
+      .map(p => [pactIncomeOf(p), `каждый ход: договор с «${gs.factions.find(f => f.id === p.faction)?.name}»`]),
+  ];
+  return (
+    <div ref={ref} className="sv-paper sv-fade" role="dialog" aria-label={cfg.prompt}
+      style={{ position:"absolute", left:0, right:0, marginLeft:"auto", marginRight:"auto", top:"100%", marginTop:6, width:"min(420px, calc(100vw - 24px))", padding:"12px 14px", zIndex:25 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+        <ResIcon k={k} value={v} size={26} color={barColor(v)} dim="var(--bdr)"/>
+        <span style={{ fontFamily:narrow, fontWeight:700, fontSize:20, flex:1 }}>{cfg.prompt}</span>
+        <span style={{ fontFamily:narrow, fontWeight:700, fontSize:22 }}>{v}<span style={{ fontSize:15, color:G.tx3 }}> / 100</span></span>
+      </div>
+      <div style={{ fontFamily:narrow, fontSize:16, color:G.txt, lineHeight:1.35 }}>{RES_ABOUT[k]}</div>
+      <div style={{ fontFamily:narrow, fontSize:15, color:v < 20 ? G.red : G.tx3, marginTop:4 }}>
+        {v <= LIMITS.endResource ? "Опора рухнула — власть падает." : v < 20 ? "Ниже 20: кризис. На 4 и ниже — падение власти." : "Ниже 20 — кризис, на 4 и ниже — падение власти."}
+      </div>
+      {soon.length > 0 && (
+        <div style={{ marginTop:8, paddingTop:6, borderTop:`1px dashed ${G.bdr2}` }}>
+          {soon.map(([d, t], i) => (
+            <div key={i} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4 }}>
+              <b style={{ color:d > 0 ? G.grn : G.red }}>{signed(d)}</b> <span style={{ color:G.tx2 }}>{t}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Постоянная панель статуса. При наведении на вариант показывает итог хода, посчитанный движком.
 function Hud({ gs, preview, onMenu, onHelp }) {
+  const [info, setInfo] = useState(null);
   const ci = IDEOLOGIES.find(i => i.id === gs.ideo);
   let plan = null;
   if (preview && gs.currentEvent) { try { plan = planTurn(gs, preview.id, { assumeSuccess: true }); } catch { plan = null; } }
@@ -618,7 +670,8 @@ function Hud({ gs, preview, onMenu, onHelp }) {
   return (
     <header className="sv-hud">
       <div style={{ maxWidth:1080, margin:"0 auto", padding:"8px 14px 6px" }}>
-        <div className="sv-hud-row">
+        <div className="sv-hud-row" style={{ position:"relative" }}>
+          {info && <ResInfo gs={gs} k={info} onClose={() => setInfo(null)}/>}
           <div className="sv-hud-who" style={{ minWidth:0 }}>
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, whiteSpace:"nowrap" }}>{gs.country} · {ci.label.toLowerCase()}<span className="sv-hud-turn"> · ход {turnNow}/{MAX_TURNS}</span></div>
             <div style={{ fontFamily:pixel, fontSize:15, color:G.gold, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", textTransform:"uppercase" }}>{gs.leader.name}</div>
@@ -631,13 +684,15 @@ function Hud({ gs, preview, onMenu, onHelp }) {
               const danger = (to ?? v) <= LIMITS.endResource;
               const dot = Math.abs(d) >= 6 ? 8 : 4;
               return (
-                <div key={r.key} title={`${r.prompt}: ${v}${d ? ` → ${to}` : ""}`} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, position:"relative" }}>
+                <button key={r.key} data-res={r.key} onClick={() => setInfo(x => x === r.key ? null : r.key)} aria-expanded={info === r.key}
+                  aria-label={`${r.prompt}: ${v}${d ? `, станет ${to}` : ""}. Подробнее`}
+                  style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, position:"relative", background:info === r.key ? G.bg3 : "transparent", border:"none", padding:"2px 0", color:"inherit" }}>
                   {d !== 0 && <span className="sv-fade" style={{ position:"absolute", top:-2, right:"calc(50% - 20px)", width:dot, height:dot, background:d > 0 ? G.grn : G.red }}/>}
                   <ResIcon k={r.key} value={v} size={28} color={danger && to !== null ? G.red : barColor(v)}/>
                   <div style={{ fontFamily:pixel, fontSize:14, lineHeight:1, color:G.tx2, whiteSpace:"nowrap" }}>
                     {v}{d !== 0 && <span style={{ color:d > 0 ? G.grn : G.red }}>→{to}</span>}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -707,6 +762,54 @@ function SoundToggle() {
   );
 }
 
+// «Ранее в Суверене»: сводка для того, кто вернулся к партии через день.
+// Последние заголовки, угрозы и обязательства — всё, что нужно, чтобы вспомнить, где вы остановились.
+function Recap({ gs, onClose }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); onClose(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const arcDef = ARCS.find(a => a.id === gs.arc?.id);
+  const next = nextElection(gs.turn);
+  const lines = [
+    ...(gs.activeCrises ?? []).map(c => [G.red, `Кризис «${c.title}» — идёт ${plural(c.turnsActive + 1, "ход", "хода", "ходов")}`]),
+    ...(gs.pacts ?? []).map(p => [G.blue, `Договор с «${gs.factions.find(f => f.id === p.faction)?.name}» — ещё ${plural(p.until - gs.turn, "ход", "хода", "ходов")}; нельзя: ${p.ban.map(t => ACTIONS[t].label.toLowerCase()).join(", ")}`]),
+    ...[...(gs.pending ?? [])].sort((a, b) => a.due - b.due).slice(0, 2).map(p => [G.tx2, `Через ${plural(p.due - gs.turn, "ход", "хода", "ходов")}: ${p.label.toLowerCase()}`]),
+    ...(arcDef && !gs.arc.epilogue ? [[G.red, `Интрига «${arcDef.title}»: эпизод ${Math.min(gs.arc.done.length + 1, arcDef.beats.length)} из ${arcDef.beats.length} впереди`]] : []),
+    ...(next ? [[G.tx2, `${next.label} ${inTurns(next.in)}`]] : []),
+  ];
+  return (
+    <div className="sv-modal" role="dialog" aria-modal="true" aria-labelledby="recap-title" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="sv-fade sv-paper" style={{ maxWidth:520, width:"100%", maxHeight:"90vh", overflowY:"auto", padding:"22px 22px 18px" }}>
+        <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>РАНЕЕ В «СУВЕРЕНЕ»</div>
+        <div id="recap-title" style={{ fontFamily:narrow, fontWeight:700, fontSize:30, lineHeight:1.05, margin:"6px 0 4px" }}>{gs.leader.name}</div>
+        <div style={{ fontFamily:narrow, fontSize:16, color:G.tx2, marginBottom:14 }}>
+          <Flag country={gs.country}/> {gs.country} · {gs.year} · позади {plural(gs.turn, "ход", "хода", "ходов")} из {MAX_TURNS}
+        </div>
+        <div style={{ borderTop:`2px solid ${G.txt}`, paddingTop:8, marginBottom:12 }}>
+          {gs.history.slice(-3).map((h, i) => (
+            <div key={i} style={{ display:"flex", gap:10, padding:"6px 0", borderBottom:`1px dashed ${G.bdr2}` }}>
+              <span style={{ fontFamily:mono, fontSize:12, color:G.tx3, paddingTop:4 }}>{h.year}</span>
+              <div>
+                <div style={{ fontFamily:narrow, fontWeight:700, fontSize:19, lineHeight:1.15 }}>{h.headline}</div>
+                <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>ваша резолюция: {h.choice}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {lines.length > 0 && (
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>НА СТОЛЕ СЕЙЧАС</div>
+            {lines.map(([c, t], i) => <div key={i} style={{ fontFamily:narrow, fontSize:16, color:c, lineHeight:1.45 }}>· {t}</div>)}
+          </div>
+        )}
+        <div style={{ textAlign:"right" }}><PrimaryBtn onClick={onClose}>ПРОДОЛЖИТЬ</PrimaryBtn></div>
+      </div>
+    </div>
+  );
+}
+
 function HowToPlay({ onClose }) {
   const close = () => { try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch { /* недоступно */ } onClose(); };
   useEffect(() => {
@@ -742,7 +845,7 @@ function HowToPlay({ onClose }) {
               </div>
             ))}
           </div>
-          <div style={{ fontFamily:serif, fontSize:14, color:G.tx2, marginTop:6, lineHeight:1.5 }}>Значок заполняется по уровню опоры. Точка над ним при выборе — опора изменится: крупная точка — сильно.</div>
+          <div style={{ fontFamily:serif, fontSize:14, color:G.tx2, marginTop:6, lineHeight:1.5 }}>Значок заполняется по уровню опоры. Точка над ним при выборе — опора изменится: крупная точка — сильно. Нажмите на значок — увидите, что повлияет на опору в ближайшие ходы.</div>
         </div>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginTop:8, flexWrap:"wrap" }}>
           <SoundToggle/>
@@ -978,6 +1081,12 @@ function Setup({ onStart, saved, onResume }) {
 
 // ── INTRO ─────────────────────────────────────────────────────────────────────
 function Intro({ gs, onGo }) {
+  const tg = useTelegramButtons();
+  useEffect(() => {
+    if (!tg) return;
+    setMainButton({ text: "Приступить к управлению →", onClick: onGo });
+    return () => setMainButton(null);
+  }, [tg, onGo]);
   const { country, ideo, leader, speech, situation, keyFigures } = gs;
   const ci = IDEOLOGIES.find(i => i.id === ideo);
   const relC = l => l === "союзник" ? G.grn : l === "враг" ? G.red : G.tx3;
@@ -1060,7 +1169,7 @@ function Intro({ gs, onGo }) {
 }
 
 // ── GAME ──────────────────────────────────────────────────────────────────────
-function Game({ gs, setGs, onEnd, onMenu }) {
+function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const needsEvent = !gs.ended && !gs.currentEvent && !gs.lastTurn;
   const [busy, setBusy]       = useState(needsEvent ? "event" : null); // "event" | "choice" | null
   const [error, setError]     = useState(null); // { message, choice? }
@@ -1206,6 +1315,7 @@ function Game({ gs, setGs, onEnd, onMenu }) {
       <div className="sv-window"><SquareView gs={gs}/></div>
       <Hud gs={gs} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => setHelp(true)}/>
       {help && <HowToPlay onClose={() => setHelp(false)}/>}
+      {recap && <Recap gs={gs} onClose={onRecapDone}/>}
       <div style={{ display:"flex", justifyContent:"center", padding:"14px" }}>
       <div className="sv-game-grid" style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px 1fr", gap:14 }}>
 
@@ -1526,21 +1636,45 @@ function Game({ gs, setGs, onEnd, onMenu }) {
       </div>
       </div>
       <ActionBar
-        mode={busy ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (typed ? (gs.ended ? "end" : "next") : "skip") : null}
+        mode={recap ? "recap" : busy ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (typed ? (gs.ended ? "end" : "next") : "skip") : null}
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}
         onJump={() => document.getElementById("opt-1")?.scrollIntoView({ behavior:"smooth", block:"center" })}
         onSkip={() => window.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter" }))}
-        onNext={nextTurn} onEnd={onEnd}/>
+        onNext={nextTurn} onEnd={onEnd} onRecap={onRecapDone}/>
     </div>
   );
 }
 
+// Готовы ли родные кнопки Telegram (SDK грузится асинхронно).
+function useTelegramButtons() {
+  const [tg, setTg] = useState(tgButtons);
+  useEffect(() => onTelegramReady(() => setTg(tgButtons())), []);
+  return tg;
+}
+
 // Нижняя панель на телефоне: главное действие хода всегда под большим пальцем.
 // Кнопки не забирают фокус — иначе выбранная резолюция успела бы сброситься.
-function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd }) {
-  if (!mode) return null;
+function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd, onRecap }) {
+  // В Telegram то же действие уходит на его родную кнопку внизу экрана, отмена — на «Назад».
+  const tg = useTelegramButtons();
+  useEffect(() => {
+    if (!tg) return;
+    const short = t => (t.length > 34 ? t.slice(0, 33).trimEnd() + "…" : t);
+    const specs = {
+      sign: { text: `Подписать: ${short(choice?.text ?? "")}`, onClick: onSign },
+      jump: { text: "К резолюции ↓", onClick: onJump },
+      skip: { text: "Показать текст сразу", onClick: onSkip },
+      next: { text: "Следующий ход →", onClick: onNext },
+      end:  { text: "Подвести итоги →", onClick: onEnd, color: "#a02f24", textColor: "#f1e9d2" },
+      recap: { text: "Продолжить правление →", onClick: onRecap },
+    };
+    setMainButton(specs[mode] ?? null);
+    setBackButton(mode === "sign" ? onCancel : null);
+  });
+  useEffect(() => () => { setMainButton(null); setBackButton(null); }, [tg]);
+  if (!mode || mode === "recap" || tg) return null; // у сводки своя кнопка
   const keep = { onPointerDown: e => e.preventDefault(), onMouseDown: e => e.preventDefault() };
   const main = { flex:1, minHeight:48, background:G.gold, color:"var(--on-gold)", border:"2px solid #000", fontFamily:pixel, fontSize:15, textTransform:"uppercase", padding:"0 14px", boxShadow:"var(--hard)" };
   return (
@@ -1854,21 +1988,23 @@ export default function App() {
   const [gs, setGs]         = useState(null);
   const savedRaw = useSyncExternalStore(subscribeSave, readSaveRaw, () => null);
   const saved = useMemo(() => parseSave(savedRaw), [savedRaw]);
-  useEffect(() => { rememberRef(); initTelegram(G.bg, () => cloudGet("meta").then(importMeta)); }, []);
+  // Telegram понимает цвет шапки только в виде #rrggbb.
+  useEffect(() => { rememberRef(); initTelegram("#2a2622", () => cloudGet("meta").then(importMeta)); }, []);
 
   // Автосохранение: после каждого изменения партии, пока игрок не в меню.
   useEffect(() => {
     if (gs && screen !== "setup") writeSave({ version: SAVE_VERSION, screen, state: gs });
   }, [gs, screen]);
 
-  const resume = () => { if (saved) { setGs(saved.state); setScreen(saved.screen); } };
+  const [recap, setRecap] = useState(false); // «Ранее в Суверене» — после возвращения к сохранённой партии
+  const resume = () => { if (saved) { setGs(saved.state); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
   const restart = () => { clearSave(); setGs(null); setScreen("setup"); };
 
   return (
     <>
       {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={d=>{setGs(d);setScreen("intro");}}/>}
       {screen==="intro"  && <Intro  gs={gs} onGo={()=>setScreen("game")}/>}
-      {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>setScreen("setup")}/>}
+      {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
     </>
   );

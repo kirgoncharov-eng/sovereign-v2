@@ -13,15 +13,22 @@ interface TgWebApp {
     getItem(key: string, cb: (err: unknown, value?: string) => void): void;
     setItem(key: string, value: string, cb?: (err: unknown, ok?: boolean) => void): void;
   };
+  setBottomBarColor?(color: string): void;
+  MainButton?: TgButton & {
+    setParams(p: { text?: string; color?: string; text_color?: string; is_active?: boolean; is_visible?: boolean }): void;
+  };
+  BackButton?: TgButton;
   HapticFeedback?: {
     impactOccurred(style: "light" | "medium" | "heavy"): void;
     notificationOccurred(type: "success" | "error" | "warning"): void;
   };
 }
+interface TgButton { show(): void; hide(): void; onClick(cb: () => void): void; offClick(cb: () => void): void }
 declare global { interface Window { Telegram?: { WebApp?: TgWebApp } } }
 
 const SDK = "https://telegram.org/js/telegram-web-app.js";
 let app: TgWebApp | null = null;
+const readyListeners = new Set<() => void>();
 
 export const inTelegram = () =>
   typeof window !== "undefined" && /tgWebApp(Data|Platform|Version)=/.test(window.location.hash + window.location.search);
@@ -38,8 +45,10 @@ export function initTelegram(bg: string, onReady?: () => void) {
     app.expand();
     app.setHeaderColor?.(bg);
     app.setBackgroundColor?.(bg);
+    app.setBottomBarColor?.(bg);
     app.disableVerticalSwipes?.(); // свайп вниз не закрывает игру посреди хода
     onReady?.();
+    readyListeners.forEach(cb => cb());
   };
   document.head.appendChild(s);
 }
@@ -74,4 +83,33 @@ export function cloudGet(key: string): Promise<string | null> {
 }
 export function cloudSet(key: string, value: string) {
   if (value.length <= 4096) app?.CloudStorage?.setItem(key, value);
+}
+
+// Родные кнопки Telegram: большая кнопка внизу экрана и «Назад» в шапке.
+export const tgButtons = () => !!app?.MainButton;
+// Подписка на готовность SDK: интерфейс переключается на родные кнопки, когда они появятся.
+export function onTelegramReady(cb: () => void): () => void {
+  readyListeners.add(cb);
+  return () => { readyListeners.delete(cb); };
+}
+
+let mainHandler: (() => void) | null = null;
+export function setMainButton(spec: { text: string; onClick: () => void; color?: string; textColor?: string } | null) {
+  const mb = app?.MainButton;
+  if (!mb) return;
+  if (mainHandler) mb.offClick(mainHandler);
+  mainHandler = null;
+  if (!spec) { mb.hide(); return; }
+  mainHandler = () => { haptic("light"); spec.onClick(); };
+  mb.onClick(mainHandler);
+  mb.setParams({ text: spec.text, color: spec.color ?? "#e2d9c2", text_color: spec.textColor ?? "#2a2622", is_active: true, is_visible: true });
+}
+
+let backHandler: (() => void) | null = null;
+export function setBackButton(onClick: (() => void) | null) {
+  const bb = app?.BackButton;
+  if (!bb) return;
+  if (backHandler) bb.offClick(backHandler);
+  backHandler = onClick;
+  if (onClick) { bb.onClick(onClick); bb.show(); } else bb.hide();
 }
