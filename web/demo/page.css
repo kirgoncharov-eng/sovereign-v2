@@ -1,0 +1,7 @@
+/* Демо-сборка: шрифты грузятся с Google Fonts, остальные стили — из app/globals.css */
+:root {
+  color-scheme: dark;
+  --font-serif: "PT Serif";
+  --font-ptmono: "PT Mono";
+  --font-hand: "Marck Script";
+}

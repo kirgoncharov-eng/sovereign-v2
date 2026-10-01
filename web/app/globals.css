@@ -1,26 +1,346 @@
 @import "tailwindcss";
 
+/* Пиксельные гарнитуры интерфейса (в духе Papers, Please). Handjet — узкий «экранный» шрифт
+   для подписей и пояснений (статичные срезы вариативного шрифта: 540 и 760), Tiny5 — жирный растровый для цифр, штампов и заголовков форм.
+   size-adjust подгоняет их к кеглям, рассчитанным на обычный шрифт. */
+@font-face { font-family: "Handjet SV"; src: url(/fonts/handjet-regular-cyrillic.woff2) format("woff2"); font-weight: 400; font-display: swap; size-adjust: 122%;
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "Handjet SV"; src: url(/fonts/handjet-regular-latin.woff2) format("woff2"); font-weight: 400; font-display: swap; size-adjust: 122%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Handjet SV"; src: url(/fonts/handjet-bold-cyrillic.woff2) format("woff2"); font-weight: 700; font-display: swap; size-adjust: 122%;
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "Handjet SV"; src: url(/fonts/handjet-bold-latin.woff2) format("woff2"); font-weight: 700; font-display: swap; size-adjust: 122%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Tiny5 SV"; src: url(/fonts/tiny5-cyrillic.woff2) format("woff2"); font-display: swap; size-adjust: 92%;
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "Tiny5 SV"; src: url(/fonts/tiny5-latin.woff2) format("woff2"); font-display: swap; size-adjust: 92%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+/* Пограничный пост, только кабинет: тёмный стол цвета мокрого дерева, жёлтая казённая бумага,
+   красный и зелёный штемпели. Плоские цвета и жёсткие тени без размытия — как в пиксельной игре.
+   Одни и те же токены значат разное на столе (:root) и на листе (.sv-paper). */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --font-narrow: "Handjet SV", "PT Sans Narrow", "Arial Narrow", sans-serif;
+  --font-pixel: "Tiny5 SV", "Handjet SV", monospace;
+  --bg:   #2a2622;               /* стол */
+  --bg-deep: #1c1a17;            /* тень под столом, панель окна */
+  --bg2:  rgba(226, 217, 194, 0.05);
+  --bg3:  rgba(226, 217, 194, 0.10);
+  --bdr:  rgba(226, 217, 194, 0.15);
+  --bdr2: rgba(226, 217, 194, 0.30);
+  --gold: #e2d9c2;               /* главный акцент на столе — цвет бумаги */
+  --gld2: #f1e9d2;
+  --on-gold: #2a2622;
+  --blue: #9fb4d8;
+  --bl2:  #bccbe6;
+  --txt:  #e6dec8;
+  --tx2:  #b9af99;
+  --tx3:  #8d8471;
+  --grn:  #a6c97f;
+  --amb:  #e6bd5c;
+  --red:  #e8735e;
+  --stamp: #e8735e;
+  --paper: #d9cfb2;
+  --paper-hi: #e6ddc3;
+  --hard: 4px 4px 0 rgba(0, 0, 0, 0.42);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.sv-paper {
+  color-scheme: light;
+  --bg2:  #d9cfb2;
+  --bg3:  #e6ddc3;
+  --bdr:  #bdb293;
+  --bdr2: #8f8468;
+  --gold: #3a3229;               /* чернила: главные кнопки на листе */
+  --gld2: #2a241d;
+  --on-gold: #ebe2c8;
+  --blue: #2c4682;               /* шариковая ручка */
+  --bl2:  #34529a;
+  --txt:  #2a241d;
+  --tx2:  #4a4236;
+  --tx3:  #74695a;
+  --grn:  #3d6a27;               /* штемпель «исполнено» */
+  --amb:  #8a5c0f;
+  --red:  #a02f24;               /* штемпель «отказ» */
+  --stamp: #a02f24;
+  color: var(--txt);
+  background-color: var(--paper);
+  /* растровое зерно бумаги: шахматка в два пикселя, едва заметная */
+  background-image:
+    linear-gradient(45deg, rgba(90, 76, 50, .045) 25%, transparent 25%, transparent 75%, rgba(90, 76, 50, .045) 75%),
+    linear-gradient(45deg, rgba(90, 76, 50, .045) 25%, transparent 25%, transparent 75%, rgba(90, 76, 50, .045) 75%);
+  background-size: 4px 4px;
+  background-position: 0 0, 2px 2px;
+  border: 2px solid #8f8468;
+  box-shadow: var(--hard);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg);
+  /* доски стола: стыки через 96 px и пиксельная фактура */
+  background-image:
+    repeating-linear-gradient(180deg, transparent 0 94px, rgba(0, 0, 0, .28) 94px 96px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .012) 0 2px, transparent 2px 6px);
+  color: var(--txt);
+  font-family: var(--font-serif), "PT Serif", Georgia, serif;
+  min-height: 100vh;
 }
+
+button {
+  cursor: pointer;
+  transition: background-color 0.1s, border-color 0.1s, filter 0.1s, transform 0.05s;
+  font-family: var(--font-narrow);
+}
+button:active:not(:disabled) { transform: translate(2px, 2px); }
+img, canvas.sv-px { image-rendering: pixelated; }
+
+button:disabled {
+  cursor: default;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bdr2);
+}
+
+/* Мобильная раскладка: сайдбар уходит под основную колонку */
+@media (max-width: 760px) {
+  .sv-game-grid {
+    grid-template-columns: minmax(0, 1fr) !important; /* колонка не шире экрана, что бы ни было внутри */
+  }
+  .sv-sidebar {
+    order: 2;
+  }
+  .sv-main {
+    order: 1;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .sv-two-col {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── HUD: планка на краю стола ──────────────────────────────────────── */
+.sv-hud {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 20;
+  background: var(--bg-deep);
+  border-top: 2px solid #000;
+  border-bottom: 2px solid #000;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+}
+/* Окно на площадь: рама из тёмного дерева над столом */
+.sv-window {
+  background: #000;
+  border-bottom: 2px solid #000;
+  line-height: 0;
+}
+.sv-hud-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 18px;
+  flex-wrap: wrap;
+}
+.sv-hud-res {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  flex: 1 1 340px;
+  max-width: 460px;
+}
+.sv-hud-turn { display: none; }
+
+/* Резолюции: строки на листе, без коробок */
+.sv-opt { position: relative; }
+.sv-opt:hover, .sv-opt:focus-visible {
+  background: var(--bg3) !important;
+  box-shadow: inset 3px 0 0 var(--gold);
+  outline: none;
+}
+.sv-key {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-family: var(--font-ptmono), monospace;
+  font-size: 11px;
+  color: var(--tx3);
+}
+
+/* Штемпель: удар печати при подписании и отметки об исполнении */
+.sv-stamp {
+  display: inline-block;
+  font-family: var(--font-pixel);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--stamp);
+  border: 3px solid currentColor;
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 0;
+  padding: 4px 10px 3px;
+  transform: rotate(-6deg);
+  opacity: 0.88;
+  mix-blend-mode: multiply;
+  line-height: 1.15;
+  text-align: center;
+}
+.sv-stamp.is-green { color: var(--grn); }
+.sv-stamp.is-red { color: var(--red); }
+.sv-stamp-hit {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  font-size: 20px;
+  animation: sv-stamp 0.38s cubic-bezier(.2, .9, .3, 1.2) both;
+  pointer-events: none;
+}
+@keyframes sv-stamp {
+  from { opacity: 0; transform: translateY(-50%) rotate(-14deg) scale(1.9); }
+  to   { opacity: 0.85; transform: translateY(-50%) rotate(-7deg) scale(1); }
+}
+
+.sv-stamp.sv-in { animation: sv-stamp-in 0.36s 0.35s cubic-bezier(.2, .9, .3, 1.25) both; }
+@keyframes sv-stamp-in {
+  from { opacity: 0; transform: rotate(-14deg) scale(1.9); }
+  to   { opacity: 0.85; transform: rotate(-7deg) scale(1); }
+}
+
+/* Рукописная резолюция */
+.sv-hand {
+  font-family: var(--font-hand), "Marck Script", cursive;
+  color: var(--blue);
+}
+
+/* Загрузка */
+.sv-progress {
+  height: 6px;
+  background: var(--bdr);
+  overflow: hidden;
+}
+.sv-progress::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 35%;
+  background: var(--gold);
+  animation: sv-slide 1.4s ease-in-out infinite;
+}
+@keyframes sv-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+/* Появление итогов хода */
+.sv-reveal {
+  animation: sv-rise 0.5s ease-out both;
+}
+@keyframes sv-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.sv-fade { animation: sv-rise 0.4s ease-out both; }
+/* Свежий номер газеты ложится на стол: чуть сверху и с поворотом */
+.sv-paper-drop { animation: sv-drop 0.55s cubic-bezier(.2, .9, .3, 1.25) both; }
+@keyframes sv-drop {
+  from { opacity: 0; transform: translateY(-18px) rotate(-2deg) scale(1.04); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Окно «Как играть» */
+.sv-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(14, 12, 10, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+@media (max-width: 760px) {
+  .sv-hud-who { flex: 1 1 0; }
+  .sv-hud-res { order: 3; flex-basis: 100%; max-width: none; gap: 4px; }
+  .sv-hud-track { display: none !important; }
+  .sv-hud-turn { display: inline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sv-reveal, .sv-fade, .sv-paper-drop, .sv-progress::after, .sv-stamp-hit, .sv-stamp.sv-in { animation: none !important; }
+}
+
+/* Курсор печатающегося текста */
+.sv-caret { color: var(--tx3); animation: sv-blink 0.9s steps(2) infinite; }
+@keyframes sv-blink { 50% { opacity: 0; } }
+
+/* Тач: выбранная резолюция ждёт второго касания */
+.sv-opt[data-armed] { background: var(--bg3) !important; box-shadow: inset 3px 0 0 var(--gold); }
+.sv-opt[data-armed]::after {
+  content: "Коснитесь ещё раз — подписать";
+  display: block; margin-top: 10px;
+  font-family: var(--font-hand), "Marck Script", cursive; font-size: 17px; color: var(--blue);
+}
+
+/* Розовый бланк-предписание: кризисы и предупреждения */
+.sv-paper.sv-citation {
+  --paper: #e7c4bb;
+  background-color: var(--paper);
+  border-color: #9c5a50;
+  border-left-width: 6px;
+}
+
+/* Ведомость: две колонки на широком экране */
+.sv-ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+@media (max-width: 620px) { .sv-ledger { grid-template-columns: 1fr; } }
+
+/* Нижняя панель действий и досье: только на телефоне */
+.sv-actionbar, .sv-dossier-toggle { display: none; }
+@media (max-width: 760px) {
+  .sv-actionbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    display: flex; gap: 8px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-deep);
+    border-top: 2px solid #000;
+    animation: sv-rise .2s ease-out both;
+  }
+  .sv-game-grid { padding-bottom: 76px; }
+  .sv-dossier-toggle {
+    display: block; width: 100%; padding: 12px 14px; margin-bottom: 8px;
+    background: var(--bg2); border: 2px solid var(--bdr2); color: var(--tx2);
+    font-size: 17px; text-align: left;
+  }
+  .sv-sidebar:not([data-open]) .sv-side-body { display: none; }
+  .sv-opt[data-armed]::after { content: "Подпишите кнопкой внизу или коснитесь ещё раз"; }
+}
+
+/* Таймер вопроса на пресс-конференции */
+.sv-timer { transform-origin: left center; animation-name: sv-timer; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes sv-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+@media (prefers-reduced-motion: reduce) { .sv-timer { animation-duration: 45s !important; } }
+
+/* Прокрутка к резолюции не прячет её под липкой шапкой */
+#sv-resolution { scroll-margin-top: 150px; }
+@media (max-width: 760px) { #sv-resolution { scroll-margin-top: 140px; } }

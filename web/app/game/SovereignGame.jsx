@@ -1,245 +1,168 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
+import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
+import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
+import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
+import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
+import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, pactIncome as pactIncomeOf, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
+import { ARCS } from "@/lib/content/arcs.ts";
+import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
+import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
-// ── СТРАНЫ ────────────────────────────────────────────────────────────────────
-const COUNTRIES = {
-  "Беларусь": { flag:"🇧🇾", context:"Постлукашенковская Беларусь. Санкции Запада, жёсткая зависимость от России, силовики привыкли к авторитаризму, оппозиция в эмиграции и подполье, общество разорвано.", startYear:2025, capital:"Минск" },
-  "Украина":  { flag:"🇺🇦", context:"Украина в послевоенной реконструкции. Кандидат ЕС. Западные союзники устают, олигархи ослаблены, общество истощено и требует победы.", startYear:2025, capital:"Киев" },
-  "Грузия":   { flag:"🇬🇪", context:"Малое государство. Абхазия и Ю.Осетия оккупированы Россией. Один олигарх контролирует правящую партию. Заявка на ЕС под угрозой. Улица против власти.", startYear:2025, capital:"Тбилиси" }
+// Весь текст — из библиотеки авторских сценариев, без сети и без модели.
+// Ответ готов мгновенно — даём сцене короткую театральную паузу.
+const theatrical = (fn, ms) => async (...args) => (await Promise.all([fn(...args), new Promise(r => setTimeout(r, ms))]))[0];
+const expressApi = {
+  setup: theatrical(classicApi.setup, 600),
+  event: theatrical(classicApi.event, 500),
+  consequence: theatrical(classicApi.consequence, 1100),
+  council: theatrical(classicApi.council, 800),
+  ending: theatrical(classicApi.ending, 1500),
 };
+const game = expressApi;
+import { cloudGet, cloudSet, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons } from "@/lib/client/telegram.ts";
+import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
+import { resultCard } from "@/lib/client/card.ts";
+import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
+import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
+import { drawFlagAt, drawSquare } from "@/lib/client/square.ts";
+import { drawScene } from "@/lib/client/scenes.ts";
+import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
+import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 
-const DIFFICULTIES = {
-  debut:     { label:"ДЕБЮТ",    emoji:"🟢", desc:"Убедительная победа. Мандат есть." },
-  coalition: { label:"КОАЛИЦИЯ", emoji:"🟡", desc:"Хрупкое правительство, экономический спад." },
-  crisis:    { label:"КРИЗИС",   emoji:"🔴", desc:"Протесты в столице. Рейтинг рушится." },
-  ruins:     { label:"ОБЛОМКИ",  emoji:"⬛", desc:"Война / коллапс. Выживание — уже победа." }
+const barColor = v => v >= 60 ? "var(--grn)" : v >= 35 ? "var(--amb)" : "var(--red)";
+const relColor = v => v >= 30 ? "var(--grn)" : v > -30 ? "var(--amb)" : "var(--red)";
+const signed = v => v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0";
+
+// Цвета — CSS-переменные: на столе и на листе бумаги (.sv-paper) они разные.
+const G = Object.fromEntries(["bg","bg2","bg3","bdr","bdr2","gold","gld2","blue","bl2","txt","tx2","tx3","grn","amb","red"].map(k => [k, `var(--${k})`]));
+const mono   = "var(--font-ptmono), 'PT Mono', 'Courier New', monospace";
+const serif  = "var(--font-serif), 'PT Serif', Georgia, serif";
+const narrow = "var(--font-narrow)";
+const pixel  = "var(--font-pixel)";
+
+// Значки опор власти в духе Reigns: силуэт заполняется снизу по уровню ресурса.
+const RES_SHAPES = {
+  politicalCapital: <path d="M2 9.5 12 3l10 6.5zM4 11h3v7H4zm4.5 0h3v7h-3zm4.5 0h3v7h-3zm4.5 0h3v7h-3zM2 19h20v2.5H2z"/>,
+  economy: <g><rect x="3" y="17.5" width="14" height="3.5" rx="1.6"/><rect x="5" y="13" width="14" height="3.5" rx="1.6"/><rect x="3.5" y="8.5" width="14" height="3.5" rx="1.6"/><rect x="6" y="4" width="14" height="3.5" rx="1.6"/></g>,
+  military: <path d="M12 2 20.5 5v6.2c0 5.2-3.6 9.6-8.5 10.8-4.9-1.2-8.5-5.6-8.5-10.8V5zm0 5.2-1.3 2.9-3.1.3 2.3 2.1-.7 3.1 2.8-1.6 2.8 1.6-.7-3.1 2.3-2.1-3.1-.3z" fillRule="evenodd"/>,
+  externalReputation: <path d="M4 2h2.2v20H4zm2.2 1.4c3-1.6 5.4 1.4 8.2 0 2.2-1.1 4-1 6 0v9.4c-2-1-3.8-1.1-6 0-2.8 1.4-5.2-1.6-8.2 0z"/>,
+  internalLegitimacy: <g><circle cx="6.5" cy="8.5" r="2.7"/><circle cx="17.5" cy="8.5" r="2.7"/><circle cx="12" cy="6.5" r="3.2"/><path d="M1.5 20.5a5 5.6 0 0 1 10 0zm11 0a5 5.6 0 0 1 10 0z"/><path d="M5.8 21.5a6.2 7.4 0 0 1 12.4 0z"/></g>,
+  personalResource: <path d="M7 7a5 5 0 1 1 0 10A5 5 0 0 1 7 7zm0 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm4.6.8H22v2.6h-2v3.2h-2.4v-3.2h-1.4v2.2h-2.4v-2.2h-2.2z" fillRule="evenodd"/>,
 };
-
-const IDEOLOGIES = [
-  { id:"liberal",     emoji:"◈", label:"Либерал",     desc:"Реформы · ЕС · Права человека" },
-  { id:"nationalist", emoji:"◆", label:"Националист", desc:"Суверенитет · Традиции · Государство" },
-  { id:"pragmatist",  emoji:"◇", label:"Прагматик",   desc:"Результат и баланс — главное" },
-  { id:"leftist",     emoji:"●", label:"Левый",        desc:"Справедливость · Антиолигархия" }
-];
-
-const RES_CONFIG = [
-  { key:"politicalCapital",   label:"ПОЛИТКАПИТАЛ" },
-  { key:"economy",            label:"ЭКОНОМИКА"    },
-  { key:"military",           label:"СИЛОВИКИ"     },
-  { key:"externalReputation", label:"РЕПУТАЦИЯ"    },
-  { key:"internalLegitimacy", label:"ЛЕГИТИМНОСТЬ" },
-  { key:"personalResource",   label:"ЛИЧНЫЙ РЕС."  }
-];
-
-const START_RES = {
-  debut:     { politicalCapital:72, economy:65, military:62, externalReputation:58, internalLegitimacy:70, personalResource:82 },
-  coalition: { politicalCapital:50, economy:44, military:56, externalReputation:50, internalLegitimacy:46, personalResource:65 },
-  crisis:    { politicalCapital:33, economy:36, military:50, externalReputation:38, internalLegitimacy:28, personalResource:55 },
-  ruins:     { politicalCapital:18, economy:20, military:32, externalReputation:22, internalLegitimacy:15, personalResource:40 }
-};
-
-const FACTIONS_DATA = {
-  "Беларусь": [
-    { id:"siloviki",   name:"Силовые структуры", desc:"КГБ, МВД, ОМОН",             emoji:"🛡️", baseApproval:32 },
-    { id:"gossektor",  name:"Гос. предприятия",   desc:"Директорат заводов",          emoji:"🏭", baseApproval:38 },
-    { id:"church",     name:"Православная церковь",desc:"Патриархат и приходы",      emoji:"⛪", baseApproval:52 },
-    { id:"opposition", name:"Демоппозиция",       desc:"Подполье и эмиграция",       emoji:"✊", baseApproval:58 },
-    { id:"youth",      name:"Молодёжь",           desc:"Активисты и студенты",       emoji:"🔥", baseApproval:65 },
-    { id:"west",       name:"Запад",               desc:"ЕС, США, НАТО",             emoji:"🌍", baseApproval:50 },
-    { id:"russia",     name:"Кремль",              desc:"Москва и пророссийские",     emoji:"🦅", baseApproval:22 },
-    { id:"media",      name:"Независимые СМИ",    desc:"Журналисты и блогеры",       emoji:"📰", baseApproval:60 },
-  ],
-  "Украина": [
-    { id:"military",     name:"ЗСУ",               desc:"Вооружённые силы",           emoji:"⚔️", baseApproval:75 },
-    { id:"oligarchs",    name:"Олигархат",          desc:"Крупный капитал",            emoji:"💼", baseApproval:18 },
-    { id:"nationalists", name:"Националисты",      desc:"Радикальные движения",       emoji:"🔱", baseApproval:55 },
-    { id:"west",         name:"Западные союзники", desc:"США, ЕС, НАТО",              emoji:"🌍", baseApproval:68 },
-    { id:"civil",        name:"Гражданское общество",desc:"Волонтёры и НКО",         emoji:"🤝", baseApproval:70 },
-    { id:"regions",      name:"Местные элиты",     desc:"Мэры и губернаторы",         emoji:"🏛️", baseApproval:40 },
-    { id:"church",       name:"Церковь (ПЦУ)",     desc:"Православная церковь Украины",emoji:"⛪", baseApproval:60 },
-    { id:"media",        name:"Медиа",             desc:"Телеканалы и пресса",         emoji:"📰", baseApproval:55 },
-  ],
-  "Грузия": [
-    { id:"gdream",     name:"Грузинская мечта",    desc:"Партия Иванишвили",          emoji:"👑", baseApproval:35 },
-    { id:"opposition", name:"Проевропейская оппозиция",desc:"Нацдвижение и др.",     emoji:"🌍", baseApproval:48 },
-    { id:"church",     name:"Православная церковь",desc:"Патриарх и духовенство",    emoji:"⛪", baseApproval:72 },
-    { id:"business",   name:"Бизнес-элиты",       desc:"Предприниматели и банки",    emoji:"💼", baseApproval:44 },
-    { id:"civil",      name:"Гражданское общество",desc:"НКО и активисты",           emoji:"✊", baseApproval:62 },
-    { id:"russia",     name:"Кремль",              desc:"Москва и пророссийские",     emoji:"🦅", baseApproval:20 },
-    { id:"west",       name:"Западные партнёры",  desc:"ЕС, США, НАТО",              emoji:"🌍", baseApproval:58 },
-    { id:"diaspora",   name:"Диаспора",            desc:"Эмигранты и зарубежная Грузия",emoji:"✈️", baseApproval:55 },
-  ],
-};
-
-const IDEOLOGY_REL = {
-  liberal:     { siloviki:-45,gossektor:-25,church:-15,opposition:+55,youth:+45,west:+65,russia:-70,media:+40, military:+10,oligarchs:-15,nationalists:-35,civil:+55,regions:+10, gdream:-55,business:+20,diaspora:+60 },
-  nationalist: { siloviki:+20,gossektor:-5, church:+50,opposition:-40,youth:+15,west:-50,russia:-20,media:+10, military:+60,oligarchs:-25,nationalists:+65,civil:-20,regions:+20, gdream:-20,business:-10,diaspora:+30 },
-  pragmatist:  { siloviki:+5, gossektor:+10,church:+10,opposition:-20,youth:+5, west:+15,russia:-15,media:+0,  military:+20,oligarchs:+30,nationalists:-15,civil:+10,regions:+20, gdream:+5, business:+30,diaspora:+10 },
-  leftist:     { siloviki:-30,gossektor:+50,church:-35,opposition:+20,youth:+35,west:+10,russia:-20,media:+30, military:-10,oligarchs:-60,nationalists:-30,civil:+65,regions:+15, gdream:-45,business:-45,diaspora:+20 },
-};
-const DIFF_REL_MOD = { debut:+15, coalition:0, crisis:-20, ruins:-35 };
-
-const FIGURE_ROLES = {
-  "Беларусь": [
-    { id:"interior",   role:"Министр внутренних дел", faction:"siloviki",   baseMood:"враг"    },
-    { id:"kgb",        role:"Директор КГБ",            faction:"siloviki",   baseMood:"враг"    },
-    { id:"amb_russia", role:"Посол России",            faction:"russia",     baseMood:"нейтрал" },
-    { id:"amb_eu",     role:"Посол ЕС",                faction:"west",       baseMood:"союзник" },
-    { id:"opp_leader", role:"Лидер оппозиции",         faction:"opposition", baseMood:"союзник" },
-    { id:"oligarch",   role:"Главный директор заводов",faction:"gossektor",  baseMood:"нейтрал" },
-    { id:"patriarch",  role:"Митрополит",              faction:"church",     baseMood:"нейтрал" },
-    { id:"journalist", role:"Главный редактор",        faction:"media",      baseMood:"союзник" },
-  ],
-  "Украина": [
-    { id:"general",    role:"Командующий ЗСУ",         faction:"military",     baseMood:"нейтрал" },
-    { id:"oligarch",   role:"Главный олигарх",          faction:"oligarchs",    baseMood:"нейтрал" },
-    { id:"nat_leader", role:"Лидер националистов",     faction:"nationalists", baseMood:"нейтрал" },
-    { id:"amb_usa",    role:"Посол США",                faction:"west",         baseMood:"союзник" },
-    { id:"amb_eu",     role:"Посол ЕС",                 faction:"west",         baseMood:"союзник" },
-    { id:"speaker",    role:"Спикер парламента",        faction:"regions",      baseMood:"нейтрал" },
-    { id:"sbu",        role:"Глава СБУ",               faction:"military",     baseMood:"нейтрал" },
-    { id:"mayor",      role:"Мэр Киева",                faction:"civil",        baseMood:"союзник" },
-  ],
-  "Грузия": [
-    { id:"shadow",     role:"Иванишвили (тень власти)", faction:"gdream",     baseMood:"враг"    },
-    { id:"opp_leader", role:"Лидер оппозиции",          faction:"opposition", baseMood:"нейтрал" },
-    { id:"patriarch",  role:"Католикос-Патриарх",       faction:"church",     baseMood:"нейтрал" },
-    { id:"amb_usa",    role:"Посол США",                 faction:"west",       baseMood:"союзник" },
-    { id:"amb_russia", role:"Посол России",              faction:"russia",     baseMood:"нейтрал" },
-    { id:"oligarch",   role:"Главный бизнесмен",        faction:"business",   baseMood:"нейтрал" },
-    { id:"parliament", role:"Председатель парламента",  faction:"gdream",     baseMood:"враг"    },
-    { id:"security",   role:"Глава спецслужб",          faction:"gdream",     baseMood:"враг"    },
-  ],
-};
-
-function initFactions(country, ideo, diff) {
-  const base = FACTIONS_DATA[country] || [];
-  const ideoRel = IDEOLOGY_REL[ideo] || {};
-  const mod = DIFF_REL_MOD[diff] || 0;
-  return base.map(f => ({
-    ...f,
-    approval: f.baseApproval,
-    relation: Math.max(-100, Math.min(100, (ideoRel[f.id] || 0) + mod)),
-  }));
-}
-function initFigures(country, ideo, diff, aiPlayers) {
-  const roles = FIGURE_ROLES[country] || [];
-  const ideoRel = IDEOLOGY_REL[ideo] || {};
-  const mod = DIFF_REL_MOD[diff] || 0;
-  return roles.map((r, i) => {
-    const aiPlayer = aiPlayers?.[i];
-    const baseRel = (ideoRel[r.faction] || 0) + mod + (Math.random() * 20 - 10);
-    return {
-      id: r.id, role: r.role, faction: r.faction,
-      name: aiPlayer?.name || r.role,
-      loyalty: r.baseMood,
-      relation: Math.max(-100, Math.min(100, Math.round(baseRel))),
-    };
-  });
-}
-function computePublicApproval(factions) {
-  if (!factions?.length) return 50;
-  return Math.round(factions.reduce((s, f) => s + f.approval, 0) / factions.length);
-}
-
-async function ai(prompt, task = "event") {
-  const r = await fetch("/api/ai", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, task })
-  });
-  if (!r.ok) throw new Error(`API ${r.status}`);
-  const { text } = await r.json();
-  try { return JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim()); }
-  catch (e) { console.error("JSON parse error:", e, text); return {}; }
-}
-
-const clamp = v => Math.max(0, Math.min(100, Math.round(v)));
-const clampRel = v => Math.max(-100, Math.min(100, Math.round(v)));
-const barColor = v => v >= 60 ? "#5cb87a" : v >= 35 ? "#c9a04a" : "#b85252";
-const relColor = v => v >= 20 ? "#5cb87a" : v >= -20 ? "#c9a04a" : "#b85252";
-const loyaltyLabel = r => r >= 30 ? "союзник" : r <= -30 ? "враг" : "нейтрал";
-
-function applyDeltas(res, d) {
-  const n = { ...res };
-  Object.entries(d || {}).forEach(([k, v]) => { if (n[k] !== undefined) n[k] = clamp(n[k] + (v || 0)); });
-  return n;
-}
-// ПЛОСКАЯ структура: factionRelChanges и factionApprChanges — отдельные объекты
-function applyFactionChanges(factions, relChanges, apprChanges) {
-  return factions.map(f => ({
-    ...f,
-    approval: clamp(f.approval + (apprChanges?.[f.id] || 0)),
-    relation: clampRel(f.relation + (relChanges?.[f.id] || 0)),
-  }));
-}
-function applyFigureChanges(figures, changes) {
-  return figures.map(fig => {
-    const delta = (changes || {})[fig.id] || 0;
-    const newRel = clampRel(fig.relation + delta);
-    return { ...fig, relation: newRel, loyalty: loyaltyLabel(newRel) };
-  });
-}
-
-function warningLevel(gs) {
-  const minRes = Math.min(...Object.values(gs.resources || {}));
-  const pa = computePublicApproval(gs.factions || []);
-  const minFacRel = Math.min(...(gs.factions || []).map(f => f.relation));
-  if (minRes <= 10 || pa <= 15 || minFacRel <= -80) return "critical";
-  if (minRes <= 22 || pa <= 25 || minFacRel <= -65) return "warning";
-  return "none";
-}
-
-const G = {
-  bg:"#07090e", bg2:"#0c1120", bg3:"#111b2e",
-  bdr:"#1a2438", bdr2:"#243452",
-  gold:"#c8a86c", gld2:"#e0c488",
-  blue:"#4a7aaa", bl2:"#6a9aca",
-  txt:"#ccc8be", tx2:"#8a8778", tx3:"#50504e",
-  grn:"#5cb87a", amb:"#c9a04a", red:"#b85252",
-};
-const mono  = "'Share Tech Mono','Courier New',monospace";
-const serif = "'Cormorant Garamond','Georgia',serif";
-const hov = (active) => ({
-  onMouseOver: e => { if (!active) { e.currentTarget.style.background = G.bg3; e.currentTarget.style.borderColor = G.gold; } },
-  onMouseOut:  e => { if (!active) { e.currentTarget.style.background = G.bg2; e.currentTarget.style.borderColor = G.bdr; } }
-});
-const hovChoice = () => ({
-  onMouseOver: e => { e.currentTarget.style.background=G.bg3;e.currentTarget.style.borderColor=G.gold;e.currentTarget.style.color=G.gld2; },
-  onMouseOut:  e => { e.currentTarget.style.background="rgba(255,255,255,0.02)";e.currentTarget.style.borderColor=G.bdr;e.currentTarget.style.color=G.txt; }
-});
-
-function Fonts() {
-  return <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Share+Tech+Mono&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:${G.bg};font-family:${serif};color:${G.txt}}button{cursor:pointer;transition:all .15s;font-family:${mono}}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:${G.bdr2}}`}</style>;
-}
-function Divider() { return <div style={{ height:1, background:`linear-gradient(to right,transparent,${G.bdr2},transparent)`, margin:"0 0 24px" }}/>; }
-function Label({ children }) { return <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".18em", color:G.tx3, marginBottom:12 }}>{children}</div>; }
-function Card({ children, style, accent }) {
-  return <div style={{ background:G.bg2, border:`1px solid ${G.bdr}`, borderRadius:6, padding:"18px 20px", ...(accent?{borderLeft:`3px solid ${accent}`}:{}), ...style }}>{children}</div>;
-}
-function PrimaryBtn({ children, onClick, disabled, danger }) {
+function ResIcon({ k, value = 100, size = 24, color = "currentColor", dim = "var(--bdr2)" }) {
+  const id = useId();
+  const shape = RES_SHAPES[k];
   return (
-    <button onClick={onClick} disabled={disabled}
-      onMouseOver={e=>{e.currentTarget.style.background=G.bg3;}} onMouseOut={e=>{e.currentTarget.style.background="transparent";}}
-      style={{ background:"transparent", border:`1px solid ${danger?G.red:G.gold}`, color:disabled?G.tx3:danger?G.red:G.gold, padding:"12px 36px", borderRadius:4, fontSize:13, letterSpacing:".2em", opacity:disabled?.5:1 }}>
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" style={{ display:"block", flexShrink:0 }}>
+      <defs><clipPath id={id}><rect x="0" y={24 * (1 - Math.max(0, Math.min(100, value)) / 100)} width="24" height="24"/></clipPath></defs>
+      <g fill={dim}>{shape}</g>
+      <g fill={color} clipPath={`url(#${id})`}>{shape}</g>
+    </svg>
+  );
+}
+
+// Фото на документ: карандашный портрет, переснятый в низком разрешении
+// и отпечатанный пятью тонами с растровой сеткой — как карточки в Papers, Please.
+const PHOTO_W = 40, PHOTO_H = 50;
+const PHOTO_TONES = [[42, 36, 29], [84, 74, 60], [133, 122, 98], [184, 172, 142], [226, 218, 192]];
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const photoCache = new Map();
+function photoCanvas(name) {
+  let c = photoCache.get(name);
+  if (c) return c;
+  c = document.createElement("canvas");
+  c.width = PHOTO_W; c.height = PHOTO_H;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.fillStyle = "#e2d9c0"; ctx.fillRect(0, 0, PHOTO_W, PHOTO_H);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(portraitCanvas(name, isFemaleName(name)), 0, 0, PORTRAIT_W, PORTRAIT_H, 0, 0, PHOTO_W, PHOTO_H);
+  const img = ctx.getImageData(0, 0, PHOTO_W, PHOTO_H), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const p = i / 4, x = p % PHOTO_W, y = Math.floor(p / PHOTO_W);
+    const lum = (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11) / 255;
+    // контраст посильнее: штрихи после уменьшения становятся серыми
+    const v = Math.max(0, Math.min(1, (lum - 0.5) * 1.7 + 0.55));
+    const t = Math.max(0, Math.min(4, Math.floor(v * 4 + BAYER[(y % 4) * 4 + (x % 4)] / 16)));
+    [d[i], d[i + 1], d[i + 2]] = PHOTO_TONES[t];
+  }
+  ctx.putImageData(img, 0, 0);
+  photoCache.set(name, c);
+  return c;
+}
+function Portrait({ name, size = 44, style }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c || !name) return;
+    c.getContext("2d").drawImage(photoCanvas(name), 0, 0);
+  }, [name]);
+  return <canvas ref={ref} width={PHOTO_W} height={PHOTO_H} aria-hidden="true" className="sv-px"
+    style={{ width:size, height:Math.round(size * 1.25), border:"2px solid #2a241d", flexShrink:0, ...style }}/>;
+}
+// Кто из известных людей произносит реплику: имя стоит в её начале.
+const speakerOf = (gs, text) => [...(gs.keyFigures ?? []), ...(gs.advisors ?? [])].find(p => String(text).includes(p.name));
+
+function Divider() { return <div style={{ height:1, background:G.bdr, margin:"0 0 24px" }}/>; }
+function Label({ children }) { return <div style={{ fontFamily:pixel, fontSize:13, letterSpacing:".04em", textTransform:"uppercase", color:G.tx3, marginBottom:10 }}>{children}</div>; }
+// Лист бумаги на столе. accent оставлен для совместимости вызовов и не рисуется.
+function Card({ children, style, className = "" }) {
+  return <div className={`sv-paper ${className}`} style={{ borderRadius:0, padding:"20px 22px", ...style }}>{children}</div>;
+}
+function PrimaryBtn({ children, onClick, disabled, danger, id }) {
+  return (
+    <button id={id} onClick={onClick} disabled={disabled}
+      onMouseOver={e=>{ if (!disabled) e.currentTarget.style.filter="brightness(1.08)"; }} onMouseOut={e=>{e.currentTarget.style.filter="none";}}
+      style={{ background:danger?G.red:G.gold, border:"2px solid rgba(0,0,0,.55)", color:"var(--on-gold)", padding:"11px 28px", borderRadius:0, fontFamily:pixel, fontSize:15, letterSpacing:".04em", textTransform:"uppercase", opacity:disabled?.45:1, boxShadow:"var(--hard)" }}>
       {children}
     </button>
   );
 }
+function IconDelta({ k, value }) {
+  const pos = value > 0;
+  return (
+    <span title={`${RES_CONFIG.find(r => r.key === k)?.prompt}: ${signed(value)}`} style={{ display:"inline-flex", alignItems:"center", gap:4, fontFamily:narrow, fontSize:16, fontWeight:700, color:pos?G.grn:G.red, whiteSpace:"nowrap" }}>
+      <ResIcon k={k} size={17} color={pos?G.grn:G.red}/>{signed(value)}
+      <span style={{ position:"absolute", width:1, height:1, overflow:"hidden", clip:"rect(0 0 0 0)" }}>{SHORT[k]}</span>
+    </span>
+  );
+}
+function ResourceChips({ delta }) {
+  const items = RES_CONFIG.filter(r => delta?.[r.key]);
+  if (!items.length) return null;
+  return (
+    <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 16px" }}>
+      {items.map(r => <IconDelta key={r.key} k={r.key} value={delta[r.key]}/>)}
+    </div>
+  );
+}
+function ErrorBanner({ message, onRetry }) {
+  return (
+    <div style={{ marginBottom:10, padding:"12px 16px", borderRadius:0, background:"rgba(184,82,82,0.12)", border:`1px solid ${G.red}`, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+      <span style={{ fontFamily:narrow, fontSize:15, color:G.red, letterSpacing:".06em" }}>✖ {message}</span>
+      {onRetry && (
+        <button onClick={onRetry} style={{ background:"transparent", border:`1px solid ${G.red}`, color:G.red, padding:"6px 16px", borderRadius:0, fontSize:15, letterSpacing:".05em" }}>
+          ПОВТОРИТЬ
+        </button>
+      )}
+    </div>
+  );
+}
 
-function ResBar({ label, val, prev }) {
+function ResBar({ k, label, val, prev }) {
   const c = barColor(val);
   const delta = prev !== undefined ? val - prev : 0;
   return (
     <div style={{ marginBottom:9 }}>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-        <span style={{ fontFamily:mono, fontSize:11, color:G.tx2 }}>{label}</span>
-        <span style={{ fontFamily:mono, fontSize:11, color:c, fontWeight:"bold" }}>
-          {val}{delta!==0&&<span style={{ color:delta>0?G.grn:G.red, fontSize:10, marginLeft:2 }}>{delta>0?`+${delta}`:delta}</span>}
+        <span style={{ display:"inline-flex", alignItems:"center", gap:7, fontFamily:narrow, fontSize:15, color:G.tx2 }}><ResIcon k={k} size={16} color={G.tx2}/>{label}</span>
+        <span style={{ fontFamily:narrow, fontSize:15, color:c, fontWeight:"bold" }}>
+          {val}{delta!==0&&<span style={{ color:delta>0?G.grn:G.red, marginLeft:3 }}>{signed(delta)}</span>}
         </span>
       </div>
-      <div style={{ height:2, background:G.bdr, borderRadius:2 }}>
-        <div style={{ height:"100%", width:`${val}%`, background:c, borderRadius:2, transition:"all .7s ease" }}/>
+      <div style={{ height:2, background:G.bdr, borderRadius:0 }}>
+        <div style={{ height:"100%", width:`${val}%`, background:c, borderRadius:0, transition:"all .7s ease" }}/>
       </div>
     </div>
   );
@@ -252,139 +175,1199 @@ function RelBar({ label, val, prevVal }) {
   return (
     <div style={{ marginBottom:8 }}>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-        <span style={{ fontFamily:mono, fontSize:10, color:G.tx2 }}>{label}</span>
-        <span style={{ fontFamily:mono, fontSize:10, color:c }}>
-          {val > 0 ? `+${val}` : val}
-          {delta !== 0 && <span style={{ color:delta>0?G.grn:G.red, fontSize:9, marginLeft:2 }}>{delta>0?`+${delta}`:delta}</span>}
+        <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{label}</span>
+        <span style={{ fontFamily:narrow, fontSize:15, color:c }}>
+          {signed(val)}
+          {delta !== 0 && <span style={{ color:delta>0?G.grn:G.red, marginLeft:3 }}>{signed(delta)}</span>}
         </span>
       </div>
-      <div style={{ height:2, background:G.bdr, borderRadius:2, position:"relative" }}>
+      <div style={{ height:2, background:G.bdr, borderRadius:0, position:"relative" }}>
         <div style={{ position:"absolute", left:"50%", top:-1, width:1, height:4, background:G.bdr2 }}/>
-        <div style={{ height:"100%", width:`${pct}%`, background:c, borderRadius:2, transition:"all .6s ease" }}/>
+        <div style={{ height:"100%", width:`${pct}%`, background:c, borderRadius:0, transition:"all .6s ease" }}/>
       </div>
     </div>
   );
 }
 
-function PublicApprovalWidget({ value }) {
-  const c = value >= 50 ? G.grn : value >= 30 ? G.amb : G.red;
-  const label = value >= 60 ? "ВЫСОКИЙ" : value >= 40 ? "СРЕДНИЙ" : value >= 25 ? "НИЗКИЙ" : "КРИТИЧЕСКИЙ";
+function nextElection(turn) {
+  const t = Object.keys(ELECTIONS).map(Number).find(x => x > turn);
+  return t ? { label: ELECTION_LABEL[ELECTIONS[t]], in: t - turn } : null;
+}
+// Партия делится на четыре главы по пять ходов: у каждой своё название.
+const CHAPTERS = ["Первые сто дней", "Накануне выборов", "Второе дыхание", "Развязка"];
+const chapterOf = turn => Math.min(3, Math.floor((turn - 1) / 5));
+const ROMAN = ["I", "II", "III", "IV"];
+
+// Подпись под резолюцией: «А. Шевчик».
+const signature = name => { const [f, ...rest] = String(name).split(" "); return rest.length ? `${f[0]}. ${rest.join(" ")}` : name; };
+// Входящий номер документа: стабилен для хода партии, выглядит как настоящий.
+const docNumber = gs => `${(gs.seed % 700) + 101 + gs.turn * 13}-с`;
+const inTurns = n => n === 1 ? "после этого хода" : `через ${plural(n, "ход", "хода", "ходов")}`;
+
+function PollWidget({ gs }) {
+  const [info, setInfo] = useState(false);
+  const polls = computePolls(gs.country, gs.factions, gs.resources);
+  const prev = gs.prevFactions && gs.prevResources ? computePolls(gs.country, gs.prevFactions, gs.prevResources) : null;
+  const next = nextElection(gs.turn);
+  const top = Math.max(...polls.parties.map(p => p.share));
+  const rows = [
+    { id:"me", name:gs.leader.party || "Ваша партия", share:polls.leader, prev:prev?.leader, me:true },
+    ...polls.parties.map(p => ({ ...p, prev:prev?.parties.find(x => x.id === p.id)?.share })),
+    { id:"und", name:"Не определились", share:polls.undecided, muted:true },
+  ];
+  const leading = polls.leader > top;
   return (
-    <div style={{ textAlign:"center", padding:"12px 0" }}>
-      <div style={{ fontFamily:mono, fontSize:9, color:G.tx3, letterSpacing:".15em", marginBottom:6 }}>РЕЙТИНГ НАРОДА</div>
-      <div style={{ fontFamily:serif, fontSize:32, fontWeight:600, color:c, lineHeight:1 }}>{value}%</div>
-      <div style={{ fontFamily:mono, fontSize:9, color:c, letterSpacing:".15em", marginTop:4 }}>{label}</div>
-      <div style={{ height:3, background:G.bdr, borderRadius:2, marginTop:8 }}>
-        <div style={{ height:"100%", width:`${value}%`, background:c, borderRadius:2, transition:"all .7s ease" }}/>
+    <Card style={{ marginBottom:10 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+        <span style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3 }}>ОПРОС</span>
+        <button onClick={()=>setInfo(v=>!v)} aria-expanded={info} title="Как считается рейтинг"
+          style={{ background:"transparent", border:`1px solid ${G.bdr}`, color:G.tx3, borderRadius:0, width:18, height:18, fontSize:10, lineHeight:"16px", padding:0 }}>?</button>
+      </div>
+      {info && (
+        <div style={{ fontFamily:serif, fontSize:12, color:G.tx2, lineHeight:1.5, marginBottom:10, padding:"8px 10px", background:G.bg3, borderRadius:0 }}>
+          Голосуют группы общества — по своему весу. Группа поддерживает вас тем сильнее, чем лучше её отношение к вам и чем выше легитимность и экономика. Недовольные уходят к партии-конкуренту своего лагеря. Запад и Кремль не голосуют. Рейтинг ≤ {LIMITS.endRating}% — революция.
+        </div>
+      )}
+      {rows.map(r => {
+        const d = r.prev !== undefined ? r.share - r.prev : 0;
+        const c = r.me ? G.gold : r.muted ? G.tx3 : G.bl2;
+        return (
+          <div key={r.id} style={{ marginBottom:7 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:6, marginBottom:2 }}>
+              <span style={{ fontFamily:narrow, fontSize:15, color:r.me?G.gld2:G.tx2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.me ? "★ " : ""}{r.name}</span>
+              <span style={{ fontFamily:narrow, fontSize:15, color:c, whiteSpace:"nowrap" }}>
+                {r.share}%{d !== 0 && <span style={{ color:d>0?G.grn:G.red, marginLeft:3 }}>{signed(d)}</span>}
+              </span>
+            </div>
+            <div style={{ height:r.me?4:2, background:G.bdr, borderRadius:0 }}>
+              <div style={{ height:"100%", width:`${r.share}%`, background:c, borderRadius:0, transition:"all .7s ease" }}/>
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ fontFamily:narrow, fontSize:15, color:leading?G.grn:G.amb, marginTop:8, letterSpacing:".06em" }}>
+        {leading ? "▲ ВЫ ЛИДИРУЕТЕ" : "▼ КОНКУРЕНТ ВПЕРЕДИ"}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
+      </div>
+    </Card>
+  );
+}
+
+function ChoicePreview({ gs, c }) {
+  const fx = choiceEffects(gs, c);
+  const crisis = c.resolvesCrisis && gs.activeCrises.find(x => x.id === c.resolvesCrisis);
+  const later = delayedEffects(c);
+  return (
+    <>
+      {c.advisor && (
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+          <Portrait name={c.advisor.name} size={30}/>
+          <span className="sv-hand" style={{ fontSize:18, lineHeight:1.2 }}>предлагает {c.advisor.name}, {c.advisor.role.toLowerCase()} {stars(c.advisor.skill)}</span>
+        </div>
+      )}
+      <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
+      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:8 }}>
+        {c.deal?.pure ? <i style={{ fontFamily:serif }}>{c.hint}</i> : <>{c.tags.map(t => ACTIONS[t].label).join(" · ")} · <ChanceBadge p={successChance(gs, c)}/> · <i style={{ fontFamily:serif }}>{c.hint}</i></>}
+      </div>
+      <ResourceChips delta={fx.resources}/>
+      {later.length > 0 && (
+        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6, lineHeight:1.45 }}>
+          Позже: {later.map((d, k) => {
+            const fx = RES_CONFIG.filter(r => d.res[r.key]).map(r => `${SHORT[r.key].toLowerCase()} ${signed(d.res[r.key])}`).join(", ");
+            const good = Object.values(d.res).reduce((a, b) => a + (b ?? 0), 0) >= 0;
+            return <span key={d.label} style={{ color:good ? G.grn : G.red }}>{k ? "; " : ""}{d.label} ({fx}) через {plural(d.turns, "ход", "хода", "ходов")}</span>;
+          })}
+        </div>
+      )}
+      {crisis && <div style={{ fontFamily:narrow, fontSize:15, color:G.grn, marginTop:6 }}>Закроет кризис «{crisis.title}», если исполнят</div>}
+      <DealLines gs={gs} c={c}/>
+    </>
+  );
+}
+
+// Что сделка меняет в людях и союзах — и какие договоры решение нарушит.
+function DealLines({ gs, c }) {
+  const fac = id => gs.factions.find(f => f.id === id)?.name ?? id;
+  const lines = [];
+  for (const p of breaches(gs.pacts, c.tags)) {
+    lines.push([G.red, `Нарушит договор с «${fac(p.faction)}»: они ${signed(PACT_BROKEN.faction)}, остальные ${signed(PACT_BROKEN.others)}`]);
+  }
+  const d = c.deal;
+  if (d) {
+    const fig = gs.keyFigures.find(f => f.id === d.figure);
+    if (d.pact) {
+      const bloc = gs.factions.find(f => f.id === d.pact.faction)?.bloc;
+      const res = RES_CONFIG.find(r => r.key === PACT_INCOME[bloc]);
+      lines.push([G.grn, `Договор на ${plural(d.pact.turns, "ход", "хода", "ходов")}: ${SHORT[res.key].toLowerCase()} +${pactIncome(d.pact)} каждый ход, их голоса на выборах`]);
+      lines.push([G.tx3, `Нельзя: ${d.pact.ban.map(t => `«${ACTIONS[t].label}»`).join(", ")}`]);
+      if (d.pact.against) lines.push([G.red, `«${fac(d.pact.against)}» станут врагами`]);
+    }
+    if (fig && d.replace) lines.push([G.tx2, `${fig.name} уходит с поста`]);
+    else if (fig && d.figureRel) lines.push([d.figureRel > 0 ? G.grn : G.red, `${fig.name}: лично ${signed(d.figureRel)}`]);
+    for (const [id, v] of Object.entries(d.factionRel ?? {})) lines.push([v > 0 ? G.grn : G.red, `Лагерь «${fac(id)}»: ${signed(v)}`]);
+    if (d.othersRel) lines.push([G.red, `Те, кто вам верит: ${signed(d.othersRel)}`]);
+  }
+  if (!lines.length) return null;
+  return (
+    <div style={{ fontFamily:narrow, fontSize:15, marginTop:6, lineHeight:1.45 }}>
+      {lines.map(([color, t], i) => <div key={i} style={{ color }}>{t}</div>)}
+    </div>
+  );
+}
+
+// Действующие союзы — бумажки на краю стола.
+function PactSlips({ gs }) {
+  if (!gs.pacts?.length) return null;
+  return (
+    <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:10 }}>
+      {gs.pacts.map(p => {
+        const f = gs.factions.find(x => x.id === p.faction);
+        const left = p.until - gs.turn;
+        return (
+          <div key={p.faction} className="sv-paper" style={{ flex:"1 1 220px", padding:"9px 14px", borderRadius:0, borderLeft:"3px solid var(--blue)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:8, alignItems:"baseline" }}>
+              <span style={{ fontFamily:serif, fontSize:15, fontWeight:700 }}>Договор с «{f?.name}»</span>
+              <span style={{ fontFamily:mono, fontSize:12, color:G.tx3, whiteSpace:"nowrap" }}>ещё {plural(left, "ход", "хода", "ходов")}</span>
+            </div>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>
+              нельзя: {p.ban.map(t => ACTIONS[t].label.toLowerCase()).join(", ")}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Проверка документа: справка и доклад, строку можно отметить как ложную — красным кругом, как в Papers, Please.
+function InspectDoc({ doc, marked, onMark }) {
+  return (
+    <div className="sv-inspect">
+      <div className="sv-paper" style={{ padding:"14px 18px", borderLeft:"6px solid var(--blue)", marginBottom:12, transform:"rotate(-.4deg)" }}>
+        <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>СПРАВКА</div>
+        {doc.facts.map((f, i) => <div key={i} style={{ fontFamily:mono, fontSize:14, lineHeight:1.55, color:G.txt, marginBottom:4 }}>{f}</div>)}
+      </div>
+      <Card style={{ padding:"16px 0 10px", marginBottom:14, transform:"rotate(.3deg)" }}>
+        <div style={{ padding:"0 20px 6px", display:"flex", justifyContent:"space-between", gap:10, alignItems:"baseline", flexWrap:"wrap" }}>
+          <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>ДОКЛАД</span>
+          <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>исп.: {doc.author}</span>
+        </div>
+        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, padding:"0 20px 8px" }}>{INSPECT_TEXT.hint}</div>
+        {doc.lines.map((l, i) => {
+          const on = marked === i;
+          return (
+            <button key={i} onClick={() => onMark(on ? null : i)} aria-pressed={on} className="sv-docline"
+              style={{ display:"flex", gap:10, width:"100%", textAlign:"left", padding:on ? "9px 86px 9px 20px" : "9px 20px", background:on ? "rgba(160,47,36,.08)" : "transparent", border:"none", borderTop:`1px dashed ${G.bdr}`, color:G.txt, position:"relative" }}>
+              <span style={{ fontFamily:mono, fontSize:13, color:G.tx3, minWidth:16, paddingTop:2 }}>{i + 1}</span>
+              <span style={{ fontFamily:mono, fontSize:14, lineHeight:1.55, textDecoration:on ? "underline wavy var(--red)" : "none", textUnderlineOffset:4 }}>{l}</span>
+              {on && <span className="sv-stamp is-red sv-in" style={{ position:"absolute", right:12, top:"50%", marginTop:-14, fontSize:12, animationDelay:"0s" }}>ложь?</span>}
+            </button>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
+// Предвыборный бюджет: раскладываешь миллиарды по статьям и сразу видишь, что получится.
+function BudgetPanel({ gs, onFinish, onSkip, stamping }) {
+  const [alloc, setAlloc] = useState(() => Object.fromEntries(BUDGET_ITEMS.map(i => [i.id, 2])));
+  const [debt, setDebt] = useState(false);
+  const limit = budgetLimit(debt);
+  const used = Object.values(alloc).reduce((a, b) => a + b, 0);
+  const left = limit - used;
+  const change = (id, d) => setAlloc(a => {
+    const v = a[id] + d;
+    if (v < 0 || v > BUDGET_MAX || (d > 0 && used >= limit)) return a;
+    return { ...a, [id]: v };
+  });
+  const toggleDebt = () => {
+    if (debt) {
+      // без займа лишнее снимаем с самых дорогих статей
+      let over = used - budgetLimit(false);
+      const next = { ...alloc };
+      while (over > 0) { const k = Object.keys(next).sort((a, b) => next[b] - next[a])[0]; next[k]--; over--; }
+      setAlloc(next);
+    }
+    setDebt(!debt);
+  };
+  const plan = budgetChoice(gs, alloc, debt);
+  const btn = { width:40, height:40, border:`2px solid ${G.txt}`, background:"transparent", color:G.txt, fontFamily:pixel, fontSize:18, flexShrink:0 };
+  return (
+    <Card style={{ padding:"18px 0 16px" }}>
+      <div id="sv-resolution" style={{ padding:"0 20px", display:"flex", justifyContent:"space-between", gap:10, alignItems:"baseline" }}>
+        <Label>Роспись бюджета</Label>
+        <span style={{ fontFamily:pixel, fontSize:13, color:left === 0 ? G.grn : G.red }}>{left === 0 ? "РАСПРЕДЕЛЕНО" : `ОСТАЛОСЬ ${left} МЛРД`}</span>
+      </div>
+      {BUDGET_ITEMS.map(item => {
+        const v = alloc[item.id];
+        return (
+          <div key={item.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 20px", borderTop:`1px solid ${G.bdr}` }}>
+            <ResIcon k={item.res} value={60} size={24} color={G.txt}/>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontFamily:narrow, fontWeight:700, fontSize:18, lineHeight:1.1 }}>{item.label}</div>
+              <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3 }}>{item.desc}</div>
+              <div style={{ display:"flex", gap:3, marginTop:5 }} aria-hidden="true">
+                {Array.from({ length: BUDGET_MAX }, (_, k) => <span key={k} style={{ width:14, height:8, background:k < v ? (v <= 1 ? G.red : G.txt) : G.bdr }}/>)}
+              </div>
+            </div>
+            <button style={btn} onClick={() => change(item.id, -1)} disabled={v <= 0} aria-label={`Меньше: ${item.label}`}>−</button>
+            <span style={{ fontFamily:pixel, fontSize:18, minWidth:22, textAlign:"center" }}>{v}</span>
+            <button style={btn} onClick={() => change(item.id, 1)} disabled={v >= BUDGET_MAX || left <= 0} aria-label={`Больше: ${item.label}`}>+</button>
+          </div>
+        );
+      })}
+      <label style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"10px 20px", borderTop:`1px dashed ${G.bdr2}`, cursor:"pointer" }}>
+        <input type="checkbox" checked={debt} onChange={toggleDebt} style={{ width:20, height:20, accentColor:"var(--red)", marginTop:2 }}/>
+        <span style={{ fontFamily:narrow, fontSize:16, lineHeight:1.35 }}>
+          <b>Занять ещё 3 млрд.</b> <span style={{ color:G.tx3 }}>Красиво перед выборами — но через три хода придут долги: экономика −6, репутация −2.</span>
+        </span>
+      </label>
+      <div style={{ padding:"10px 20px 0", borderTop:`2px solid ${G.txt}` }}>
+        <div style={{ fontFamily:pixel, fontSize:12, color:G.tx3, marginBottom:6 }}>ЧТО ИЗМЕНИТСЯ</div>
+        <ResourceChips delta={plan.deal.res}/>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"0 12px", fontFamily:narrow, fontSize:15, lineHeight:1.5, marginTop:4 }}>
+          {Object.entries(plan.deal.factionRel ?? {}).map(([fid, d]) => (
+            <span key={fid} style={{ color:d > 0 ? G.grn : G.red, whiteSpace:"nowrap" }}>{gs.factions.find(f => f.id === fid)?.name} {signed(d)}</span>
+          ))}
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap", marginTop:12, position:"relative" }}>
+          <button onClick={onSkip} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>Жить по прошлогоднему бюджету</button>
+          <PrimaryBtn id="opt-1" onClick={() => onFinish(alloc, debt)} disabled={left !== 0}>УТВЕРДИТЬ БЮДЖЕТ</PrimaryBtn>
+          {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Утверждено</span>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// Звонок по защищённой линии: сначала подход, потом развязка. Как ответят — решает характер собеседника.
+function CallPanel({ call, seed, onFinish, onHang, stamping }) {
+  const [approach, setApproach] = useState(null);
+  const [secs, setSecs] = useState(0);
+  useEffect(() => { const t = setInterval(() => setSecs(x => x + 1), 1000); return () => clearInterval(t); }, []);
+  const ok = approach && approachWorks(call.trait, approach);
+  const row = { display:"block", width:"100%", textAlign:"left", padding:"12px 22px 12px 48px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" };
+  const num = i => <span style={{ position:"absolute", left:20, top:12, fontFamily:serif, fontWeight:700, fontSize:17, color:G.tx3 }}>{i}.</span>;
+  return (
+    <Card style={{ padding:"18px 0 14px" }}>
+      <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", gap:10 }}>
+        <Label><span style={{ color:G.red }}>●</span> Защищённая линия</Label>
+        <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}</span>
+      </div>
+      <div style={{ fontFamily:serif, fontSize:18, lineHeight:1.5, padding:"0 22px 12px" }}>{call.demand}</div>
+      {!approach && <>
+        <div style={{ padding:"0 22px 8px", fontFamily:narrow, fontSize:15, color:G.tx2 }}>Как говорить? Подсказка — в характере собеседника.</div>
+        {APPROACHES.map((a, i) => (
+          <button key={a.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => setApproach(a.id)}>
+            {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{a.text}</span>
+          </button>
+        ))}
+        <div style={{ padding:"10px 22px 0" }}>
+          <button onClick={onHang} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+            Не брать трубку
+          </button>
+        </div>
+      </>}
+      {approach && (
+        <div className="sv-fade">
+          <div style={{ padding:"8px 22px 12px", borderTop:`1px dashed ${G.bdr2}` }}>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>Вы: {APPROACHES.find(a => a.id === approach).text.toLowerCase()}</div>
+            <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.5, fontStyle:"italic", color:ok ? G.grn : G.red, marginTop:4 }}>{callReply(seed, call, approach, ok)}.</div>
+          </div>
+          {CALL_ENDINGS.map((e, i) => (
+            <button key={e.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => onFinish(approach, e.id)}>
+              {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{e.text}</span>
+            </button>
+          ))}
+          {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Решено</span>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Пресс-конференция: три вопроса подряд, на каждый — 15 секунд. Не успели — пауза станет заголовком.
+const TONE_LABEL = { honest:"честно", hard:"жёстко", evasive:"уклончиво" };
+const PRESS_SECONDS = 15;
+function PressPanel({ press, onFinish, onSkip, stamping }) {
+  const [picks, setPicks] = useState([]);
+  const [live, setLive] = useState(false); // время идёт только после выхода к журналистам
+  const step = picks.length, q = press.questions[step];
+  const done = step >= press.questions.length;
+  const answer = i => setPicks(p => (p.length === step ? [...p, i] : p));
+  return (
+    <Card style={{ padding:"18px 0 14px" }}>
+      <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", gap:10 }}>
+        <Label>{done ? "Пресс-конференция окончена" : live ? `Вопрос ${step + 1} из ${press.questions.length}` : "Пресс-конференция"}</Label>
+        {!done && <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{PRESS_SECONDS} СЕК НА ОТВЕТ</span>}
+      </div>
+      {!live && (
+        <div style={{ padding:"0 22px" }}>
+          <div style={{ fontFamily:narrow, fontSize:16, color:G.tx2, lineHeight:1.4, marginBottom:12 }}>
+            Три вопроса подряд. На каждый — {PRESS_SECONDS} секунд: отвечайте честно, жёстко или уклончиво. Промолчите — пауза станет новостью.
+          </div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+            <button onClick={onSkip} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+              Отменить — зал решит, что вы испугались
+            </button>
+            <PrimaryBtn id="opt-1" onClick={() => { setLive(true); requestAnimationFrame(() => document.getElementById("sv-resolution")?.scrollIntoView({ block:"start", behavior:"smooth" })); }}>ВЫЙТИ К ЖУРНАЛИСТАМ</PrimaryBtn>
+          </div>
+        </div>
+      )}
+      {live && !done && (
+        <div key={step} className="sv-fade">
+          <div style={{ height:6, margin:"0 22px 14px", background:G.bdr }}>
+            <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${PRESS_SECONDS}s` }} onAnimationEnd={() => answer(-1)}/>
+          </div>
+          <div style={{ display:"flex", gap:12, padding:"0 22px 12px" }}>
+            <Portrait name={q.who} size={44}/>
+            <div>
+              <div style={{ fontFamily:narrow, fontWeight:700, fontSize:16, color:G.tx2 }}>{q.who}</div>
+              <div style={{ fontFamily:serif, fontSize:18, lineHeight:1.45, color:G.txt }}>«{q.text}»</div>
+            </div>
+          </div>
+          {q.answers.map((a, i) => (
+            <button key={i} id={`opt-${i + 1}`} className="sv-opt" onClick={() => answer(i)}
+              style={{ display:"block", width:"100%", textAlign:"left", padding:"12px 22px 12px 48px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
+              <span style={{ position:"absolute", left:20, top:12, fontFamily:serif, fontWeight:700, fontSize:17, color:G.tx3 }}>{i + 1}.</span>
+              <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.4, marginBottom:4 }}>{a.text}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                <span style={{ fontFamily:pixel, fontSize:12, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
+                <ResourceChips delta={a.res}/>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {done && (
+        <div className="sv-fade" style={{ padding:"0 22px", position:"relative" }}>
+          {press.questions.map((qq, i) => (
+            <div key={qq.id} style={{ fontFamily:narrow, fontSize:16, lineHeight:1.4, padding:"6px 0", borderTop:`1px dashed ${G.bdr2}` }}>
+              <span style={{ color:G.tx3 }}>{qq.who}: </span>
+              {picks[i] >= 0 ? <span>{qq.answers[picks[i]].text}</span> : <span style={{ color:G.red }}>молчание</span>}
+            </div>
+          ))}
+          <div style={{ textAlign:"right", marginTop:12 }}>
+            <PrimaryBtn id="opt-1" onClick={() => onFinish(picks)}>ЗАКОНЧИТЬ И ВЫЙТИ К МАШИНЕ</PrimaryBtn>
+          </div>
+          {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Сказано</span>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const quoteName = n => (String(n).includes("«") ? n : `«${n}»`);
+
+// Ночь выборов: протоколы приходят один за другим. Первыми считают города — и они тянут цифры
+// в сторону соперника; к концу ночи подтягиваются регионы, и проценты сходятся к итогу.
+function ElectionNight({ e, party, onDone }) {
+  const [p, setP] = useState(0);
+  const doneRef = useRef(onDone);
+  useEffect(() => { doneRef.current = onDone; }, [onDone]);
+  useEffect(() => {
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    let x = reduce ? 100 : 0, t2 = 0;
+    const t = setInterval(() => {
+      x = Math.min(100, x + 2 + Math.random() * 3);
+      setP(x);
+      if (x >= 100) { clearInterval(t); t2 = setTimeout(() => doneRef.current(), 1800); }
+    }, 110);
+    const onKey = ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); doneRef.current(); } };
+    window.addEventListener("keydown", onKey);
+    return () => { clearInterval(t); clearTimeout(t2); window.removeEventListener("keydown", onKey); };
+  }, []);
+  const k = p / 100, swing = (1 - k) * (1 - k) * 9; // ранние участки — в пользу соперника
+  const me = Math.max(0, Math.round(e.leader - swing)), them = Math.round(e.top.share + swing * .8);
+  const won = e.outcome === "won", over = p >= 100;
+  const bar = (label, v, color, bold) => (
+    <div style={{ marginBottom:12 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", fontFamily:narrow, fontSize:18, fontWeight:bold ? 700 : 400, marginBottom:4 }}>
+        <span>{label}</span><span style={{ fontFamily:pixel, fontSize:20 }}>{v}%</span>
+      </div>
+      <div style={{ height:14, background:"rgba(0,0,0,.35)", border:"2px solid #000" }}>
+        <div style={{ height:"100%", width:`${Math.min(100, v * 1.4)}%`, background:color, transition:"width .1s linear" }}/>
       </div>
     </div>
+  );
+  return (
+    <div onClick={() => onDone()} style={{ background:"var(--bg-deep)", border:"2px solid #000", boxShadow:"var(--hard)", padding:"18px 20px 20px", marginBottom:12, cursor:"pointer", position:"relative" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", gap:10, marginBottom:14 }}>
+        <span style={{ fontFamily:pixel, fontSize:13, color:G.red }}>● ПРЯМОЙ ЭФИР · ЦИК</span>
+        <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>ОБРАБОТАНО {Math.floor(p)}%</span>
+      </div>
+      <div style={{ fontFamily:narrow, fontWeight:700, fontSize:32, lineHeight:1.12, color:G.txt, marginBottom:16 }}>
+        {e.kind === "president" ? "Президентские выборы" : "Парламентские выборы"}
+      </div>
+      {bar(quoteName(party), me, "var(--grn)", true)}
+      {bar(quoteName(e.top.name), them, "var(--red)", false)}
+      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>
+        {k < .35 ? "Первыми приходят протоколы крупных городов…" : k < .8 ? "Подтягиваются регионы. В штабе никто не садится." : over ? "Подсчёт окончен." : "Последние участки. Тишина в эфире."}
+      </div>
+      {over && (
+        <span className={`sv-stamp sv-in ${won ? "is-green" : "is-red"}`} style={{ position:"absolute", right:20, bottom:16, fontSize:22, animationDelay:"0s", mixBlendMode:"normal" }}>
+          {won ? "Победа" : e.outcome === "impeached" ? "Разгром" : "Поражение"}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Кто перед вами в особом деле: человек, его характер и расхождение с его лагерем.
+function SpecialHeader({ gs, event }) {
+  const sp = event.special;
+  const fig = gs.keyFigures.find(f => f.id === sp.figure);
+  const fac = gs.factions.find(f => f.id === sp.faction);
+  if (!fig || !fac) return null;
+  return (
+    <div style={{ display:"flex", gap:12, alignItems:"center", margin:"0 0 14px" }}>
+      <Portrait name={fig.name} size={44}/>
+      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, lineHeight:1.4 }}>
+        <div style={{ fontFamily:serif, fontSize:15, fontWeight:700, color:G.txt }}>{fig.name}</div>
+        <div>{fig.role} · {TRAITS[traitOf(gs.seed, fig, fac.bloc)].label} — {TRAIT_TIP[traitOf(gs.seed, fig, fac.bloc)]}</div>
+        <div>к вам лично <b style={{ color:relColor(fig.relation) }}>{signed(fig.relation)}</b> · лагерь «{fac.name}» <b style={{ color:relColor(fac.relation) }}>{signed(fac.relation)}</b></div>
+      </div>
+    </div>
+  );
+}
+
+function ChanceBadge({ p }) {
+  const pct = Math.round(p * 100);
+  const c = pct >= 75 ? G.grn : pct >= 55 ? G.amb : G.red;
+  return <span title="Шанс, что решение исполнят как задумано. Зависит от советника, отношения исполнителей и ресурсов." style={{ color:c, fontWeight:700 }}>исполнят с шансом {pct}%</span>;
+}
+
+const stars = n => "★".repeat(n) + "☆".repeat(3 - n);
+
+// Совет: ограниченное число раз за мандат советники предлагают свои решения.
+function CouncilPanel({ gs, onConvened, optProps, stamping }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState(null);
+  const proposals = gs.currentEvent?.council;
+  const charges = gs.councilCharges ?? 0;
+  const silent = proposals?.length ? (gs.advisors ?? []).filter(a => !proposals.some(p => p.advisor?.id === a.id)) : [];
+  if (gs.currentEvent?.beat || gs.currentEvent?.special) {
+    return (
+      <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>
+        {gs.currentEvent.beat ? "Дело засекречено: совет в него не посвящён. Решать вам одному." : gs.currentEvent.special?.kind === "inspect" ? "Проверку не перепоручишь: сверяйте сами." : "Дело личное: совет о нём не знает. Решать вам одному."}
+      </div>
+    );
+  }
+
+  const convene = async () => {
+    if (busy || charges <= 0) return;
+    setBusy(true); setErr(null);
+    try { onConvened(await game.council(gs)); }
+    catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}` }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+        <span style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>Совет</span>
+        <span style={{ fontFamily:narrow, fontSize:15, color:charges?G.gold:G.tx3 }}>{charges ? `можно собрать ещё ${plural(charges, "раз", "раза", "раз")}` : "больше не соберётся"}</span>
+      </div>
+      {Array.isArray(proposals) && !proposals.length && (
+        <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, marginBottom:4 }}>
+          Советники выслушали и развели руками: по этому делу им нечего добавить. Сбор не засчитан.
+        </div>
+      )}
+      {silent.length > 0 && (
+        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:8 }}>
+          Без предложений по этому делу: {silent.map(a => a.name).join(", ")}
+        </div>
+      )}
+      {proposals?.length ? proposals.map((c, i) => (
+        <button key={c.id} {...optProps(c, i)}
+          style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 16px", marginBottom:6, borderRadius:0, background:"transparent", border:`1px dashed ${G.bdr2}`, color:G.txt, position:"relative" }}>
+          <ChoicePreview gs={gs} c={c}/>
+          {stamping === c.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
+        </button>
+      )) : (
+        <>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:"8px 18px", marginBottom:10 }}>
+            {(gs.advisors ?? []).map(a => (
+              <span key={a.id} title={`${a.role} · ${ADVISOR_SKILL[a.skill].label}`}
+                style={{ display:"inline-flex", alignItems:"center", gap:8, fontFamily:narrow, fontSize:15, color:G.tx2 }}>
+                <Portrait name={a.name} size={26}/>
+                <span>{a.name} <span style={{ color:G.gold }}>{stars(a.skill)}</span></span>
+              </span>
+            ))}
+          </div>
+          <div style={{ fontFamily:serif, fontSize:14, color:G.tx3, fontStyle:"italic", marginBottom:10 }}>
+            Каждый советник предложит своё решение из своей области. Сильный советник предлагает ходы дешевле и выгоднее.
+          </div>
+          <button onClick={convene} disabled={busy || charges <= 0 || Array.isArray(proposals)}
+            style={{ background:"transparent", border:`1.5px solid ${charges?G.gold:G.bdr}`, color:charges?G.gold:G.tx3, padding:"8px 18px", borderRadius:0, fontSize:15, fontWeight:700, opacity:charges && !Array.isArray(proposals)?1:.5 }}>
+            {busy ? "Советники собираются…" : charges ? "Собрать совет" : "Совет исчерпан"}
+          </button>
+          {err && <div style={{ fontFamily:narrow, fontSize:15, color:G.amb, marginTop:8 }}>✖ {err}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+const DATELINE = /^[А-Я][а-я]+, \d\d:\d\d\. /;
+
+// Текст главы: абзацы; первый абзац-шапка (день, время, место) — в стиле сводки.
+function Prose({ text }) {
+  const paras = String(text).split(/\n\n+/);
+  return (
+    <div>
+      {paras.map((p, i) => DATELINE.test(p)
+        ? <div key={i} style={{ fontFamily:mono, fontSize:12.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}>{p}</div>
+        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch" }}>{p}</p>)}
+    </div>
+  );
+}
+
+// Документ хода: вырезка из газет или перехват спецслужб.
+function DocumentCard({ doc }) {
+  const secret = doc.kind === "intercept";
+  return (
+    <div style={{ margin:"18px 0", padding:"16px 18px", background:G.bg3, border:`2px solid ${G.bdr2}`, boxShadow:"3px 3px 0 rgba(0,0,0,.18)", transform:`rotate(${secret ? -0.5 : 0.4}deg)` }}>
+      <div style={{ marginBottom:10 }}>
+        {secret
+          ? <span className="sv-stamp is-red" style={{ fontSize:13, transform:"rotate(-3deg)" }}>{doc.title}</span>
+          : <span style={{ fontFamily:narrow, fontWeight:700, fontSize:14, color:G.tx3 }}>{doc.title}</span>}
+      </div>
+      {doc.lines.map((l, i) => (
+        <div key={i} style={{ fontFamily:secret ? mono : serif, fontSize:secret ? 13 : 17, fontWeight:secret ? 400 : 700, fontStyle:secret && i > 0 ? "italic" : "normal", color:secret && i > 0 ? G.tx3 : G.txt, lineHeight:1.5, padding:"5px 0", borderTop:!secret && i ? `1px solid ${G.bdr}` : "none" }}>{l}</div>
+      ))}
+    </div>
+  );
+}
+
+// Итог хода печатается как телеграмма; клик, Enter или пробел — показать сразу.
+function Typewriter({ text, onDone }) {
+  const [n, setN] = useState(0);
+  const doneRef = useRef(false);
+  const onDoneRef = useRef(onDone);
+  useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
+  const finish = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    setN(text.length);
+    onDoneRef.current();
+  }, [text]);
+  useEffect(() => {
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const t = setInterval(() => {
+      setN(x => {
+        const next = x + 6;
+        if (next >= text.length) { clearInterval(t); setTimeout(finish, 0); }
+        return next;
+      });
+    }, reduce ? 1 : 25);
+    const onKey = e => {
+      if (doneRef.current || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      finish();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => { clearInterval(t); window.removeEventListener("keydown", onKey); };
+  }, [text, finish]);
+  const typing = n < text.length;
+  return (
+    <div onClick={finish} title={typing ? "Показать сразу" : undefined}
+      style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:14, cursor:typing ? "pointer" : "default" }}>
+      {text.slice(0, n).split(/\n\n+/).map((p, i, arr) => (
+        <p key={i} style={{ marginBottom:i < arr.length - 1 ? 12 : 0 }}>{p}{typing && i === arr.length - 1 && <span className="sv-caret">▍</span>}</p>
+      ))}
+    </div>
+  );
+}
+
+// ── Окно на площадь ──────────────────────────────────────────────────────────
+// Пиксельная сцена над столом: площадь перед резиденцией живёт состоянием страны.
+// scale — сколько экранных пикселей в одном пикселе сцены; mono — газетное фото.
+// Время суток за окном — по часам в шапке дела («Вторник, 04:50. …»).
+const phaseMemo = { v: undefined };
+function dayPhase(text) {
+  const m = /^[^\n]*?(\d{1,2}):\d{2}/.exec(text ?? "");
+  if (!m) return undefined;
+  const h = Number(m[1]);
+  return h >= 5 && h < 10 ? 0 : h >= 10 && h < 17 ? 1 : h >= 17 && h < 21 ? 2 : 3;
+}
+function squareState(gs) {
+  const sec = gs.factions.filter(f => f.bloc === "security");
+  return {
+    country: gs.country, seed: gs.seed ?? 0, turn: gs.turn,
+    legitimacy: gs.resources.internalLegitimacy, military: gs.resources.military,
+    rating: computePolls(gs.country, gs.factions, gs.resources).leader,
+    security: sec.length ? sec.reduce((a, f) => a + f.relation, 0) / sec.length : 0,
+    crises: gs.activeCrises?.length ?? 0, election: !!ELECTIONS[gs.turn],
+    phase: dayPhase(gs.currentEvent?.description),
+  };
+}
+// Рубрика над заголовком газеты — по сути решения.
+const RUBRICS = {
+  repress:"Порядок", security:"Безопасность", reform:"Политика", pro_west:"Внешняя политика", pro_russia:"Внешняя политика",
+  social:"Общество", austerity:"Экономика", investment:"Экономика", anticorruption:"Расследования", elite_deal:"Кулуары",
+  dialogue:"Общество", patriotism:"Страна", propaganda:"Медиа", delay:"Политика",
+};
+function rubricOf(t) {
+  if (t.election) return t.election.kind === "president" ? "Президентские выборы" : "Парламентские выборы";
+  if (t.success === false) return "Провал";
+  const tag = (t.tags || []).find(x => x !== "delay") || (t.tags || [])[0];
+  return RUBRICS[tag] || "Политика";
+}
+
+function SquareView({ gs, scene, sceneKey, partner, height = 48, mono = false, still = false, style }) {
+  const wrap = useRef(null), ref = useRef(null);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const scale = w < 560 ? 2 : 3;
+  const lw = Math.max(80, Math.round(w / scale));
+  // После решения дела уже нет — время суток остаётся тем же, что было в его шапке.
+  const st0 = scene ?? squareState(gs);
+  const key = JSON.stringify({ ...st0, phase: st0.phase ?? phaseMemo.v, sceneKey, partner });
+  useEffect(() => { if (st0.phase !== undefined) phaseMemo.v = st0.phase; }, [st0.phase]);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c || !w) return;
+    const st = JSON.parse(key);
+    const ctx = c.getContext("2d");
+    let frame = 0;
+    // Сцена события или сама площадь — один и тот же растр и палитра.
+    const draw = () => st.sceneKey && st.sceneKey !== "square" ? drawScene(ctx, lw, height, st.sceneKey, st, frame++, st.partner) : drawSquare(ctx, lw, height, st, frame++);
+    draw();
+    const reduce = still || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reduce) return;
+    const t = setInterval(() => { if (!document.hidden) draw(); }, st.sceneKey && st.sceneKey !== "square" ? 260 : 420);
+    return () => clearInterval(t);
+  }, [key, lw, height, w, still]);
+  return (
+    <div ref={wrap} style={{ width:"100%", ...style }}>
+      {w > 0 && <canvas ref={ref} width={lw} height={height} className="sv-px" aria-label="Площадь перед резиденцией"
+        style={{ display:"block", width:"100%", height:height * (w / lw), filter: mono ? "grayscale(1) contrast(1.15) sepia(.25)" : "none" }}/>}
+    </div>
+  );
+}
+
+// Ведомость за ход: строка за строкой, с отточиями — как вечерний расчёт в Papers, Please.
+function Ledger({ rows: all }) {
+  const [full, setFull] = useState(false);
+  if (!all.length) return null;
+  // Ресурсы — всегда; группы — четыре самые заметные перемены, остальные по нажатию.
+  const res = all.filter(r => !r.rel), rel = [...all.filter(r => r.rel)].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const rows = full ? [...res, ...rel] : [...res, ...rel.slice(0, 4)];
+  const hidden = rel.length - 4;
+  return (
+    <div style={{ marginTop:16, paddingTop:10, borderTop:`2px solid ${G.txt}` }}>
+      <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>ВЕДОМОСТЬ ЗА ХОД</div>
+      <div className="sv-ledger">
+        {rows.map(r => (
+          <div key={r.k} style={{ display:"flex", alignItems:"baseline", gap:6, fontFamily:narrow, fontSize:16, lineHeight:1.5 }}>
+            <span style={{ color:r.rel ? G.tx2 : G.txt, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"60%" }}>{r.label}</span>
+            <span style={{ flex:1, borderBottom:`2px dotted ${G.bdr2}`, transform:"translateY(-4px)" }}/>
+            <span style={{ fontWeight:700, color:G.tx2 }}>{r.rel ? signed(r.value) : r.value}</span>
+            <span style={{ fontWeight:700, minWidth:34, textAlign:"right", color:r.delta > 0 ? G.grn : G.red }}>{signed(r.delta)}</span>
+          </div>
+        ))}
+      </div>
+      {!full && hidden > 0 && (
+        <button onClick={() => setFull(true)} style={{ marginTop:6, background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+          ещё {plural(hidden, "группа", "группы", "групп")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Флажок страны — пиксельные полосы вместо эмодзи.
+function Flag({ country, size = 18 }) {
+  const ref = useRef(null);
+  useEffect(() => { const c = ref.current; if (c) drawFlagAt(c.getContext("2d"), country, 9, 6); }, [country]);
+  return <canvas ref={ref} width={9} height={6} className="sv-px" aria-hidden="true"
+    style={{ width:size, height:Math.round(size * 2 / 3), border:"1px solid rgba(0,0,0,.6)", flexShrink:0, verticalAlign:"middle" }}/>;
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────────────
+const SHORT = { politicalCapital:"Политкапитал", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимность", personalResource:"Личный ресурс" };
+
+// Что значит каждая опора — одной фразой, для подсказки по нажатию на значок.
+const RES_ABOUT = {
+  politicalCapital: "Влияние в парламенте и аппарате. На нём держатся сделки и реформы.",
+  economy: "Бюджет, цены, зарплаты. Проседает от раздач, санкций и кризисов.",
+  military: "Сила армии и спецслужб. Сильная армия при враждебных силовиках — риск переворота.",
+  externalReputation: "Как к вам относятся за границей: кредиты, санкции, союзники.",
+  internalLegitimacy: "Признают ли люди вашу власть. На нуле — революция.",
+  personalResource: "Ваши силы, здоровье, деньги и личные связи.",
+};
+
+// Подсказка по значку опоры: смысл, пороги и всё, что на неё повлияет в ближайшие ходы.
+function ResInfo({ gs, k, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const away = e => { if (!ref.current?.contains(e.target) && !e.target.closest?.("[data-res]")) onClose(); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [onClose]);
+  const cfg = RES_CONFIG.find(r => r.key === k);
+  const v = gs.resources[k];
+  const soon = [
+    ...(gs.pending ?? []).filter(p => p.res[k]).map(p => [p.res[k], `через ${plural(p.due - gs.turn, "ход", "хода", "ходов")}: ${p.label.toLowerCase()}`]),
+    ...(gs.activeCrises ?? []).filter(c => c.resourceDrain?.[k]).map(c => [c.resourceDrain[k], `каждый ход: кризис «${c.title}»`]),
+    ...(gs.pacts ?? []).filter(p => PACT_INCOME[gs.factions.find(f => f.id === p.faction)?.bloc] === k)
+      .map(p => [pactIncomeOf(p), `каждый ход: договор с «${gs.factions.find(f => f.id === p.faction)?.name}»`]),
+  ];
+  return (
+    <div ref={ref} className="sv-paper sv-fade" role="dialog" aria-label={cfg.prompt}
+      style={{ position:"absolute", left:0, right:0, marginLeft:"auto", marginRight:"auto", top:"100%", marginTop:6, width:"min(420px, calc(100vw - 24px))", padding:"12px 14px", zIndex:25 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+        <ResIcon k={k} value={v} size={26} color={barColor(v)} dim="var(--bdr)"/>
+        <span style={{ fontFamily:narrow, fontWeight:700, fontSize:20, flex:1 }}>{cfg.prompt}</span>
+        <span style={{ fontFamily:narrow, fontWeight:700, fontSize:22 }}>{v}<span style={{ fontSize:15, color:G.tx3 }}> / 100</span></span>
+      </div>
+      <div style={{ fontFamily:narrow, fontSize:16, color:G.txt, lineHeight:1.35 }}>{RES_ABOUT[k]}</div>
+      <div style={{ fontFamily:narrow, fontSize:15, color:v < 20 ? G.red : G.tx3, marginTop:4 }}>
+        {v <= LIMITS.endResource ? "Опора рухнула — власть падает." : v < 20 ? "Ниже 20: кризис. На 4 и ниже — падение власти." : "Ниже 20 — кризис, на 4 и ниже — падение власти."}
+      </div>
+      {soon.length > 0 && (
+        <div style={{ marginTop:8, paddingTop:6, borderTop:`1px dashed ${G.bdr2}` }}>
+          {soon.map(([d, t], i) => (
+            <div key={i} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4 }}>
+              <b style={{ color:d > 0 ? G.grn : G.red }}>{signed(d)}</b> <span style={{ color:G.tx2 }}>{t}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Постоянная панель статуса. При наведении на вариант показывает итог хода, посчитанный движком.
+function Hud({ gs, preview, onMenu, onHelp }) {
+  const [info, setInfo] = useState(null);
+  const ci = IDEOLOGIES.find(i => i.id === gs.ideo);
+  let plan = null;
+  if (preview && gs.currentEvent) { try { plan = planTurn(gs, preview.id, { assumeSuccess: true }); } catch { plan = null; } }
+  const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
+  const nextRating = plan ? computePolls(gs.country, plan.factions, plan.resources).leader : null;
+  const next = nextElection(gs.turn);
+  const arrow = (a, b) => b === null || b === a ? null : <span style={{ color:b > a ? G.grn : G.red }}> → {b}</span>;
+  const turnNow = Math.min(gs.turn + 1, MAX_TURNS);
+  return (
+    <header className="sv-hud">
+      <div style={{ maxWidth:1080, margin:"0 auto", padding:"8px 14px 6px" }}>
+        <div className="sv-hud-row" style={{ position:"relative" }}>
+          {info && <ResInfo gs={gs} k={info} onClose={() => setInfo(null)}/>}
+          <div className="sv-hud-who" style={{ minWidth:0 }}>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, whiteSpace:"nowrap" }}>{gs.country} · {ci.label.toLowerCase()}<span className="sv-hud-turn"> · ход {turnNow}/{MAX_TURNS}</span></div>
+            <div style={{ fontFamily:pixel, fontSize:15, color:G.gold, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", textTransform:"uppercase" }}>{gs.leader.name}</div>
+          </div>
+          <div className="sv-hud-res">
+            {RES_CONFIG.map(r => {
+              const v = gs.resources[r.key];
+              const to = plan ? plan.resources[r.key] : null;
+              const d = to === null ? 0 : to - v;
+              const danger = (to ?? v) <= LIMITS.endResource;
+              const dot = Math.abs(d) >= 6 ? 8 : 4;
+              return (
+                <button key={r.key} data-res={r.key} onClick={() => setInfo(x => x === r.key ? null : r.key)} aria-expanded={info === r.key}
+                  aria-label={`${r.prompt}: ${v}${d ? `, станет ${to}` : ""}. Подробнее`}
+                  style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, position:"relative", background:info === r.key ? G.bg3 : "transparent", border:"none", padding:"2px 0", color:"inherit" }}>
+                  {d !== 0 && <span className="sv-fade" style={{ position:"absolute", top:-2, right:"calc(50% - 20px)", width:dot, height:dot, background:d > 0 ? G.grn : G.red }}/>}
+                  <ResIcon k={r.key} value={v} size={28} color={danger && to !== null ? G.red : barColor(v)}/>
+                  <div style={{ fontFamily:pixel, fontSize:14, lineHeight:1, color:G.tx2, whiteSpace:"nowrap" }}>
+                    {v}{d !== 0 && <span style={{ color:d > 0 ? G.grn : G.red }}>→{to}</span>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="sv-hud-side" style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.1, marginBottom:3 }}>рейтинг</div>
+              <div style={{ fontFamily:narrow, fontWeight:700, fontSize:24, color:rating >= 35 ? G.grn : rating >= 20 ? G.amb : G.red, lineHeight:1 }}>
+                {rating}%<span style={{ fontSize:16 }}>{arrow(rating, nextRating)}</span>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              <button onClick={onHelp} title="Как играть" aria-label="Как играть"
+                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, width:30, height:30, borderRadius:0, fontSize:16 }}>?</button>
+              <button onClick={onMenu} title="В меню (партия сохранится)"
+                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, padding:"0 12px", height:30, borderRadius:0, fontSize:16 }}>Меню</button>
+            </div>
+          </div>
+        </div>
+        <div className="sv-hud-track" style={{ display:"flex", alignItems:"center", gap:12, marginTop:6 }}>
+          <div style={{ display:"flex", gap:2, flex:"0 0 260px" }} aria-label={`Ход ${gs.turn} из ${MAX_TURNS}`}>
+            {Array.from({ length: MAX_TURNS }, (_, i) => {
+              const t = i + 1;
+              const done = t <= gs.turn, now = t === gs.turn + 1, vote = !!ELECTIONS[t];
+              return <div key={t} title={vote ? `${t} ход — ${ELECTION_LABEL[ELECTIONS[t]].toLowerCase()}` : `${t} ход`}
+                style={{ flex:1, marginLeft:t > 1 && (t - 1) % 5 === 0 ? 5 : 0, height:vote ? 8 : 5, alignSelf:"flex-end", background: done ? G.gold : now ? G.gld2 : vote ? G.bdr2 : G.bdr, opacity: done ? .75 : 1, outline: now ? `1px solid ${G.gld2}` : "none" }}/>;
+            })}
+          </div>
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+            {gs.year} · глава {ROMAN[chapterOf(turnNow)]} · ход {turnNow}/{MAX_TURNS}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+const LOADING_LINES = {
+  event:   ["Разведка сводит донесения…", "Пресс-служба мониторит ленты…", "В приёмной ждут министры…", "Аналитики считают сценарии…", "Ситуационный центр на связи…"],
+  choice:  ["Указ уходит на подпись…", "Министерства получают распоряжения…", "Корреспонденты уже звонят…", "Новость расходится по улицам…", "Оппоненты готовят ответ…"],
+};
+
+function Loading({ kind }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI(x => x + 1), 2200);
+    return () => clearInterval(t);
+  }, []);
+  const lines = LOADING_LINES[kind] ?? LOADING_LINES.event;
+  return (
+    <Card style={{ padding:"64px 24px", textAlign:"center" }}>
+      <div className="sv-progress" style={{ maxWidth:260, margin:"0 auto 18px" }}/>
+      <div key={i} className="sv-fade" style={{ fontFamily:serif, fontSize:17, fontStyle:"italic", color:G.tx2 }}>{lines[i % lines.length]}</div>
+    </Card>
+  );
+}
+
+const TUTORIAL_KEY = "sovereign.tutorial.seen";
+const tutorialSeen = () => { try { return localStorage.getItem(TUTORIAL_KEY) === "1"; } catch { return true; } };
+
+function SoundToggle() {
+  const [on, setOn] = useState(soundOn);
+  return (
+    <button onClick={() => { setSound(!on); setOn(!on); }} aria-pressed={on}
+      style={{ background:"transparent", border:`1px solid ${G.bdr2}`, color:G.tx2, padding:"8px 14px", borderRadius:0, fontSize:15 }}>
+      Звук: {on ? "включён" : "выключен"}
+    </button>
+  );
+}
+
+// «Ранее в Суверене»: сводка для того, кто вернулся к партии через день.
+// Последние заголовки, угрозы и обязательства — всё, что нужно, чтобы вспомнить, где вы остановились.
+function Recap({ gs, onClose }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); onClose(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const arcDef = ARCS.find(a => a.id === gs.arc?.id);
+  const next = nextElection(gs.turn);
+  const lines = [
+    ...(gs.activeCrises ?? []).map(c => [G.red, `Кризис «${c.title}» — идёт ${plural(c.turnsActive + 1, "ход", "хода", "ходов")}`]),
+    ...(gs.pacts ?? []).map(p => [G.blue, `Договор с «${gs.factions.find(f => f.id === p.faction)?.name}» — ещё ${plural(p.until - gs.turn, "ход", "хода", "ходов")}; нельзя: ${p.ban.map(t => ACTIONS[t].label.toLowerCase()).join(", ")}`]),
+    ...[...(gs.pending ?? [])].sort((a, b) => a.due - b.due).slice(0, 2).map(p => [G.tx2, `Через ${plural(p.due - gs.turn, "ход", "хода", "ходов")}: ${p.label.toLowerCase()}`]),
+    ...(arcDef && !gs.arc.epilogue ? [[G.red, `Интрига «${arcDef.title}»: эпизод ${Math.min(gs.arc.done.length + 1, arcDef.beats.length)} из ${arcDef.beats.length} впереди`]] : []),
+    ...(next ? [[G.tx2, `${next.label} ${inTurns(next.in)}`]] : []),
+  ];
+  return (
+    <div className="sv-modal" role="dialog" aria-modal="true" aria-labelledby="recap-title" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="sv-fade sv-paper" style={{ maxWidth:520, width:"100%", maxHeight:"90vh", overflowY:"auto", padding:"22px 22px 18px" }}>
+        <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>РАНЕЕ В «СУВЕРЕНЕ»</div>
+        <div id="recap-title" style={{ fontFamily:narrow, fontWeight:700, fontSize:30, lineHeight:1.15, margin:"6px 0 4px" }}>{gs.leader.name}</div>
+        <div style={{ fontFamily:narrow, fontSize:16, color:G.tx2, marginBottom:14 }}>
+          <Flag country={gs.country}/> {gs.country} · {gs.year} · позади {plural(gs.turn, "ход", "хода", "ходов")} из {MAX_TURNS}
+        </div>
+        <div style={{ borderTop:`2px solid ${G.txt}`, paddingTop:8, marginBottom:12 }}>
+          {gs.history.slice(-3).map((h, i) => (
+            <div key={i} style={{ display:"flex", gap:10, padding:"6px 0", borderBottom:`1px dashed ${G.bdr2}` }}>
+              <span style={{ fontFamily:mono, fontSize:12, color:G.tx3, paddingTop:4 }}>{h.year}</span>
+              <div>
+                <div style={{ fontFamily:narrow, fontWeight:700, fontSize:19, lineHeight:1.15 }}>{h.headline}</div>
+                <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>ваша резолюция: {h.choice}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {lines.length > 0 && (
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>НА СТОЛЕ СЕЙЧАС</div>
+            {lines.map(([c, t], i) => <div key={i} style={{ fontFamily:narrow, fontSize:16, color:c, lineHeight:1.45 }}>· {t}</div>)}
+          </div>
+        )}
+        <div style={{ textAlign:"right" }}><PrimaryBtn onClick={onClose}>ПРОДОЛЖИТЬ</PrimaryBtn></div>
+      </div>
+    </div>
+  );
+}
+
+function HowToPlay({ onClose }) {
+  const close = () => { try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch { /* недоступно */ } onClose(); };
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const desktop = typeof matchMedia === "function" && matchMedia("(pointer:fine)").matches;
+  const items = [
+    ["Каждый ход — одно решение", `Под каждым вариантом — его цена и то, что аукнется позже. ${desktop ? "Наведите на вариант — панель сверху покажет итог." : "Первое касание покажет итог на панели сверху, второе — подпишет решение."}`],
+    ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
+    ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
+    ["Люди — не копии своих лагерей", "У каждого свой характер. Друг во враждебном лагере станет «своим человеком», недруг среди союзников — «червоточиной». Союз с группой даёт доход и голоса, но нарушенное слово запоминают все."],
+    ["Не верьте бумагам на слово", "Трижды за правление вам принесут доклад на подпись. Сверьте его со справкой: нашли ложь — отметьте строку и уличите автора. Подписанная ложь всплывёт позже. Дважды за правление звонят по защищённой линии: подход подбирайте по характеру собеседника. Перед парламентскими выборами — бюджет: разложите 10 млрд по статьям, а можно и занять. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
+    ["У вас есть тайна", "В каждой партии развивается главная интрига. Эпизоды помечены «Главная интрига» — ваши решения в них определят развязку."],
+    ...(desktop ? [["Клавиши", "1–9 — выбрать, Enter — подтвердить или дочитать, Esc — закрыть окно."]] : []),
+  ];
+  return (
+    <div className="sv-modal" role="dialog" aria-modal="true" aria-labelledby="howto-title" onClick={close}>
+      <div onClick={e => e.stopPropagation()} className="sv-fade sv-paper" style={{ maxWidth:560, width:"100%", maxHeight:"90vh", overflowY:"auto", borderRadius:0, padding:"24px 24px 20px" }}>
+        <div id="howto-title" style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, marginBottom:16 }}>Как править</div>
+        {items.map(([h, t]) => (
+          <div key={h} style={{ marginBottom:14 }}>
+            <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, letterSpacing:".05em", color:G.gld2, marginBottom:3 }}>{h.toUpperCase()}</div>
+            <div style={{ fontFamily:serif, fontSize:15, color:G.txt, lineHeight:1.55 }}>{t}</div>
+          </div>
+        ))}
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, letterSpacing:".05em", color:G.gld2, marginBottom:6 }}>ШЕСТЬ ОПОР ВЛАСТИ</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))", gap:"6px 14px" }}>
+            {RES_CONFIG.map(r => (
+              <div key={r.key} style={{ display:"flex", alignItems:"center", gap:8, fontFamily:narrow, fontSize:15, color:G.txt }}>
+                <ResIcon k={r.key} size={22} value={60} color={G.txt}/>{r.prompt}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontFamily:serif, fontSize:14, color:G.tx2, marginTop:6, lineHeight:1.5 }}>Значок заполняется по уровню опоры. Точка над ним при выборе — опора изменится: крупная точка — сильно. Нажмите на значок — увидите, что повлияет на опору в ближайшие ходы.</div>
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginTop:8, flexWrap:"wrap" }}>
+          <SoundToggle/>
+          <PrimaryBtn onClick={close}>ПОНЯТНО</PrimaryBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DailyCard({ meta, disabled, onPlay }) {
+  const d = useMemo(() => dailyCase(), []);
+  const done = meta.runs.find(r => r.daily === d.date);
+  const [, mm, dd] = d.date.split("-");
+  const [place, setPlace] = useState(null);
+  useEffect(() => {
+    if (!done) return;
+    let live = true;
+    fetchBoard(d.date).then(b => { if (live && b?.me) setPlace(b); });
+    return () => { live = false; };
+  }, [done, d.date]);
+  return (
+    <Card accent={done ? undefined : G.gold} style={{ marginBottom:22, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+      <div>
+        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, letterSpacing:".05em", marginBottom:4 }}>ДЕЛО ДНЯ · {dd}.{mm}</div>
+        <div style={{ fontFamily:serif, fontSize:17, color:G.txt }}>
+          <Flag country={d.country}/> {d.country} · {DIFFICULTIES[d.diff].label.toLowerCase()} · {IDEOLOGIES.find(i => i.id === d.ideo)?.label.toLowerCase()}
+        </div>
+        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginTop:3 }}>
+          {done ? `ваш итог: «${done.title}» · ${END_TYPES[done.endType]}${place ? ` · ${place.me.rank}-е место из ${place.total}` : ""}` : "одна партия на всех — сравните итог с друзьями"}
+        </div>
+      </div>
+      {done
+        ? <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>новое дело завтра</span>
+        : <PrimaryBtn onClick={() => onPlay(d)} disabled={disabled}>ВЗЯТЬСЯ</PrimaryBtn>}
+    </Card>
+  );
+}
+
+function Archive({ meta }) {
+  const [openList, setOpenList] = useState(false);
+  const endings = new Set(Object.values(meta.endings).flat()).size;
+  return (
+    <Card style={{ marginBottom:22 }}>
+      <button onClick={() => setOpenList(v => !v)} aria-expanded={openList}
+        style={{ width:"100%", display:"flex", flexWrap:"wrap", gap:"4px 12px", justifyContent:"space-between", alignItems:"center", background:"transparent", border:"none", color:G.txt, padding:0, textAlign:"left" }}>
+        <span style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx2, whiteSpace:"nowrap" }}>АРХИВ ПРАВИТЕЛЕЙ</span>
+        <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }}>
+          партий {meta.runs.length} · концовок {endings}/{ALL_ENDINGS.length} · достижений {meta.achievements.length}/{ACHIEVEMENTS.length} {openList ? "▴" : "▾"}
+        </span>
+      </button>
+      {openList && (
+        <div className="sv-fade" style={{ marginTop:14 }}>
+          {ACHIEVEMENTS.map(a => {
+            const got = meta.achievements.includes(a.id);
+            return (
+              <div key={a.id} style={{ display:"flex", gap:10, marginBottom:6, opacity:got ? 1 : .5 }}>
+                <span style={{ fontFamily:narrow, fontSize:15, color:got ? G.gold : G.tx3, minWidth:14 }}>{got ? "●" : "○"}</span>
+                <span style={{ fontFamily:narrow, fontSize:15, color:got ? G.gld2 : G.tx2 }}>{a.title}</span>
+                <span style={{ fontFamily:serif, fontSize:13, color:G.tx2 }}>{a.desc}</span>
+              </div>
+            );
+          })}
+          <div style={{ borderTop:`1px solid ${G.bdr}`, marginTop:10, paddingTop:10 }}>
+            {meta.runs.slice(0, 6).map(r => (
+              <div key={r.seed} style={{ display:"flex", justifyContent:"space-between", gap:8, fontFamily:narrow, fontSize:15, color:G.tx2, marginBottom:4 }}>
+                <span>{r.leader} — «{r.title}»{r.daily && <span style={{ color:G.gold }}> · дело дня</span>}</span>
+                <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>{END_TYPES[r.endType]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
 // ── SETUP ─────────────────────────────────────────────────────────────────────
-function Setup({ onStart }) {
+function Setup({ onStart, saved, onResume }) {
   const [country, setCountry] = useState(null);
   const [diff, setDiff]       = useState(null);
   const [ideo, setIdeo]       = useState(null);
+  const [bio, setBio]         = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState(null);
+  const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
+  const meta = useMemo(() => parseMeta(metaRaw), [metaRaw]);
+  const open = unlockedCountries(meta);
   const ready = country && diff && ideo;
 
-  const go = async () => {
-    if (!ready || loading) return;
+  const go = async (c = country, d = diff, i = ideo, daily = null, b = bio) => {
+    if (!(c && d && i) || loading) return;
     setLoading(true); setErr(null);
     try {
-      const ci = IDEOLOGIES.find(i => i.id === ideo);
-      const roles = FIGURE_ROLES[country] || [];
-      const rolesList = roles.map(r => `${r.role}(${r.faction})`).join(", ");
-      const data = await ai(
-        `Страна: ${country}\nКонтекст: ${COUNTRIES[country].context}\nСложность: ${DIFFICULTIES[diff].label} — ${DIFFICULTIES[diff].desc}\nИдеология: ${ci.label}\n\nСгенерируй стартовые данные лидера и имена ключевых игроков. Все имена культурно соответствуют стране. Лидер — мужчина.\n\nКлючевые игроки которым нужны имена (в таком же порядке): ${rolesList}\n\nJSON:\n{"leader":{"name":"...","party":"...","bio":"2 предложения"},"speech":"4-5 предложений вступительной речи","situation":"4 напряжённых предложения о ситуации в стране","players":[{"name":"...","role":"...","mood":"союзник|нейтрал|враг"}]}`,
-        "event"
-      );
-      const factions = initFactions(country, ideo, diff);
-      const figures  = initFigures(country, ideo, diff, data.players);
-      onStart({
-        country, diff, ideo,
-        leader: data,
-        resources: { ...START_RES[diff] }, prevResources: null,
-        factions, prevFactions: null,
-        keyFigures: figures, prevFigures: null,
-        activeCrises: [],
-        year: COUNTRIES[country].startYear,
-        turn: 0, history: [], ended: false, endType: null,
-      });
-    } catch (e) { setErr("Ошибка API. Проверьте ключи и попробуйте снова."); console.error(e); }
-    setLoading(false);
+      // Биография: выбранная в анкете, у дела дня — общая для всех, иначе случайная.
+      const B = daily ? BIOGRAPHIES[daily.seed % BIOGRAPHIES.length] : BIOGRAPHIES.find(x => x.id === b) ?? BIOGRAPHIES[Math.floor(Math.random() * BIOGRAPHIES.length)];
+      const raw = await game.setup(c, d, i, daily?.seed);
+      const intro = { ...raw, leader: { ...raw.leader, bio: B.text } };
+      const st = createInitialState(c, d, i, intro, daily ? seededRandom(daily.seed) : Math.random, "classic", B.id);
+      onStart(daily ? { ...st, daily: daily.date } : st);
+    } catch (e) {
+      console.error(e);
+      setErr(e.message || "Ошибка API. Попробуйте снова.");
+      setLoading(false);
+    }
   };
 
-  const btnS = (active) => ({
-    display:"block", width:"100%", textAlign:"left", padding:"11px 14px", marginBottom:7, borderRadius:4,
-    background:active?G.bg3:G.bg2, border:`1px solid ${active?G.gold:G.bdr}`, color:active?G.gld2:G.txt
+  const quick = () => {
+    const pickOne = list => list[Math.floor(Math.random() * list.length)];
+    go(pickOne(open), "coalition", pickOne(IDEOLOGIES).id, null, null);
+  };
+
+  // Строка анкеты: клетка для отметки, как в казённом бланке.
+  const row = (active, locked = false) => ({
+    display:"flex", alignItems:"center", gap:10, width:"100%", textAlign:"left", padding:"9px 6px", borderRadius:0,
+    background:active ? G.bg3 : "transparent", border:"none", borderTop:`1px dashed ${G.bdr2}`, color:G.txt, opacity:locked ? .45 : 1,
   });
+  const box = active => (
+    <span aria-hidden="true" style={{ width:16, height:16, border:`2px solid ${G.txt}`, flexShrink:0, display:"inline-flex", alignItems:"center", justifyContent:"center", fontFamily:pixel, fontSize:13, lineHeight:1, color:G.red }}>{active ? "X" : ""}</span>
+  );
+  const scene = useMemo(() => ({ country: dailyCase().country, seed: 7, turn: 2, legitimacy: 48, rating: 44, military: 55, security: -10, crises: 0, election: false }), []);
+  const explain = text => <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx2, lineHeight:1.45, margin:"0 0 8px" }}>{text}</div>;
+  // Графа анкеты: название, суть и мелким шрифтом — что именно это меняет в игре.
+  const option = (label, desc, effects) => (
+    <span style={{ display:"flex", flexDirection:"column", gap:3, minWidth:0, flex:1, textAlign:"left" }}>
+      <span style={{ display:"flex", flexWrap:"wrap", columnGap:10, alignItems:"baseline" }}>
+        <span style={{ fontFamily:narrow, fontSize:18, fontWeight:700, lineHeight:1.15 }}>{label}</span>
+        <span style={{ fontFamily:narrow, fontSize:15, lineHeight:1.25, color:G.tx2 }}>{desc}</span>
+      </span>
+      <span style={{ fontFamily:mono, fontSize:12, lineHeight:1.45, color:G.tx3 }}>{effects}</span>
+    </span>
+  );
+  const section = (n, title) => <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, margin:"18px 0 6px" }}>{n}. {title}</div>;
 
   return (
-    <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"36px 16px" }}>
+    <div style={{ minHeight:"100vh" }}>
+      <div className="sv-window"><SquareView scene={scene} height={56}/></div>
+      <div style={{ display:"flex", justifyContent:"center", padding:"26px 16px 40px" }}>
       <div style={{ maxWidth:580, width:"100%" }}>
-        <div style={{ textAlign:"center", marginBottom:36 }}>
-          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".26em", color:G.tx3, marginBottom:16 }}>
-            // СУВЕРЕН · ПОЛИТИЧЕСКАЯ СИМУЛЯЦИЯ //
-            <span style={{ marginLeft:12, padding:"2px 8px", borderRadius:3, border:`1px solid ${G.bdr2}`, fontSize:10, color:G.bdr2 }}>v2.1</span>
-          </div>
-          <h1 style={{ fontFamily:serif, fontSize:42, fontWeight:600, color:G.gold }}>Конфигурация</h1>
-          <div style={{ fontFamily:serif, fontSize:17, color:G.tx2, fontStyle:"italic", marginTop:10, marginBottom:20 }}>Ваши решения определят судьбу страны</div>
-          <Divider/>
+        <div style={{ textAlign:"center", marginBottom:26 }}>
+          <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(56px, 17vw, 88px)", lineHeight:1, letterSpacing:".1em", color:G.gold, textShadow:"4px 4px 0 rgba(0,0,0,.45)" }}>СУВЕРЕН</h1>
+          <div style={{ fontFamily:narrow, fontSize:19, color:G.tx2, marginTop:12 }}>Двадцать решений. Одна страна. Ни одного права на ошибку.</div>
         </div>
 
-        <div style={{ marginBottom:22 }}>
-          <Label>СТРАНА</Label>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:country?10:0 }}>
-            {Object.entries(COUNTRIES).map(([name]) => {
-              const active = country === name;
-              return (
-                <button key={name} onClick={()=>setCountry(name)} {...hov(active)}
-                  style={{ padding:"14px 6px", borderRadius:4, textAlign:"center", background:active?G.bg3:G.bg2, border:`1px solid ${active?G.gold:G.bdr}`, color:active?G.gld2:G.txt }}>
-                  <div style={{ fontSize:26, marginBottom:6 }}>{COUNTRIES[name].flag}</div>
-                  <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".1em" }}>{name.toUpperCase()}</div>
-                </button>
-              );
-            })}
-          </div>
-          {country && <div style={{ padding:"11px 14px", background:G.bg2, border:`1px solid ${G.bdr}`, borderRadius:4, fontSize:14, color:G.tx2, fontStyle:"italic", lineHeight:1.6, fontFamily:serif }}>{COUNTRIES[country].context}</div>}
+        {saved && (
+          <Card style={{ marginBottom:18, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <div>
+              <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>СОХРАНЁННАЯ ПАРТИЯ</div>
+              <div style={{ fontFamily:serif, fontSize:17, color:G.txt }}>
+                <Flag country={saved.state.country}/> {saved.state.leader.name}
+              </div>
+              <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginTop:2 }}>
+                {saved.state.ended ? "правление завершено" : `ход ${saved.state.turn}/${MAX_TURNS} · ${saved.state.year}`}
+              </div>
+            </div>
+            <PrimaryBtn onClick={onResume}>ПРОДОЛЖИТЬ</PrimaryBtn>
+          </Card>
+        )}
+
+
+        <div style={{ textAlign:"center", marginBottom:22 }}>
+          <PrimaryBtn onClick={quick} disabled={loading}>БЫСТРАЯ ПАРТИЯ</PrimaryBtn>
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:8 }}>случайная страна и курс · сложность «Коалиция»</div>
         </div>
 
-        <div style={{ marginBottom:22 }}>
-          <Label>СЛОЖНОСТЬ</Label>
-          {Object.entries(DIFFICULTIES).map(([id, d]) => {
-            const active = diff === id;
+        <DailyCard meta={meta} disabled={loading} onPlay={d => go(d.country, d.diff, d.ideo, d)}/>
+
+        {meta.runs.length > 0 && <Archive meta={meta}/>}
+
+        <Card style={{ padding:"18px 20px 22px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10 }}>
+            <div>
+              <div style={{ fontFamily:mono, fontSize:12, color:G.tx3 }}>Форма № 1-П · ЦИК</div>
+              <div style={{ fontFamily:narrow, fontWeight:700, fontSize:26, lineHeight:1.1, marginTop:4 }}>Анкета кандидата</div>
+            </div>
+            <span className="sv-stamp" style={{ fontSize:12, transform:"rotate(4deg)" }}>своя партия</span>
+          </div>
+
+          {section(1, "СТРАНА")}
+          {Object.keys(COUNTRIES).map(name => {
+            const active = country === name;
+            const locked = !open.includes(name);
+            const endings = meta.endings[name]?.length ?? 0;
             return (
-              <button key={id} onClick={()=>setDiff(id)} {...hov(active)} style={btnS(active)}>
-                <span style={{ fontFamily:mono, fontSize:12, letterSpacing:".08em" }}>{d.emoji} {d.label}</span>
-                <span style={{ fontFamily:serif, fontSize:14, color:active?G.gld2:G.tx2, marginLeft:10, fontStyle:"italic" }}>{d.desc}</span>
+              <button key={name} onClick={() => !locked && setCountry(name)} disabled={locked} aria-pressed={active} style={row(active, locked)}
+                title={locked ? "Откроется после первой завершённой партии" : `Открыто концовок: ${endings}/${ALL_ENDINGS.length}`}>
+                {box(active)}
+                <Flag country={name} size={21}/>
+                <span style={{ fontFamily:narrow, fontSize:18, fontWeight:700, flex:1 }}>{name}</span>
+                <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>
+                  {locked ? "закрыто" : endings > 0 ? `концовок ${endings}/${ALL_ENDINGS.length}` : ""}
+                </span>
               </button>
             );
           })}
-        </div>
+          {country && <div className="sv-fade" style={{ fontFamily:mono, fontSize:13, color:G.tx2, lineHeight:1.6, padding:"10px 6px 2px", borderTop:`1px dashed ${G.bdr2}` }}>{COUNTRIES[country].context}</div>}
 
-        <div style={{ marginBottom:28 }}>
-          <Label>ИДЕОЛОГИЯ</Label>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-            {IDEOLOGIES.map(i => {
-              const active = ideo === i.id;
-              return (
-                <button key={i.id} onClick={()=>setIdeo(i.id)} {...hov(active)}
-                  style={{ textAlign:"left", padding:"12px 14px", borderRadius:4, background:active?G.bg3:G.bg2, border:`1px solid ${active?G.gold:G.bdr}`, color:active?G.gld2:G.txt }}>
-                  <div style={{ fontFamily:mono, fontSize:12, marginBottom:4 }}>{i.emoji} {i.label.toUpperCase()}</div>
-                  <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>{i.desc}</div>
-                </button>
-              );
-            })}
+          {section(2, "СЛОЖНОСТЬ")}
+          {explain("С чего вы начинаете: сколько ресурсов у государства, как к вам относятся группы и сколько страна теряет каждый ход без вашего участия.")}
+          {Object.entries(DIFFICULTIES).map(([id, d]) => (
+            <button key={id} onClick={() => setDiff(id)} aria-pressed={diff === id} style={row(diff === id)}>
+              {box(diff === id)}
+              {option(d.label, d.desc, difficultyEffects(id))}
+            </button>
+          ))}
+
+          {section(3, "ПОЛИТИЧЕСКИЙ КУРС")}
+          {explain("Кто поддерживает вас с первого дня и какие решения укрепляют вас лично. Решение в духе курса добавляет личный ресурс и легитимность, решение против курса их отнимает.")}
+          {IDEOLOGIES.map(i => (
+            <button key={i.id} onClick={() => setIdeo(i.id)} aria-pressed={ideo === i.id} style={row(ideo === i.id)}>
+              {box(ideo === i.id)}
+              {option(i.label, i.desc, ideologyEffects(i.id, country))}
+            </button>
+          ))}
+
+          {section(4, "БИОГРАФИЯ — НЕОБЯЗАТЕЛЬНО")}
+          {explain("Ваше прошлое ремесло: решения по нему исполняются надёжнее, а одна из опор крепче с самого начала. Не выберете — достанется случайная.")}
+          {BIOGRAPHIES.map(b => (
+            <button key={b.id} onClick={() => setBio(x => x === b.id ? null : b.id)} aria-pressed={bio === b.id} style={row(bio === b.id)}>
+              {box(bio === b.id)}
+              {option(b.label, b.text, b.note)}
+            </button>
+          ))}
+
+          {err && <div style={{ fontFamily:mono, color:G.red, fontSize:12, margin:"12px 0 0" }}>{err}</div>}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap", marginTop:18, paddingTop:14, borderTop:`2px solid ${G.txt}` }}>
+            <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{saved ? "Новая партия заменит сохранённую" : ready ? "Документы в порядке" : "Отметьте по одной графе в каждом разделе"}</span>
+            <PrimaryBtn onClick={() => go()} disabled={!ready || loading}>{loading ? "ОФОРМЛЯЕМ…" : "ПОДАТЬ ДОКУМЕНТЫ"}</PrimaryBtn>
           </div>
-        </div>
-
-        {err && <div style={{ fontFamily:mono, color:G.red, fontSize:12, textAlign:"center", marginBottom:12 }}>{err}</div>}
-        <div style={{ textAlign:"center" }}>
-          <PrimaryBtn onClick={go} disabled={!ready||loading}>{loading?"СОЗДАНИЕ МИРА...":"▶  НАЧАТЬ"}</PrimaryBtn>
-        </div>
+        </Card>
+        <div style={{ fontFamily:mono, fontSize:11, color:G.tx3, textAlign:"center", marginTop:18 }}>v{APP_VERSION}</div>
+      </div>
       </div>
     </div>
   );
@@ -392,41 +1375,90 @@ function Setup({ onStart }) {
 
 // ── INTRO ─────────────────────────────────────────────────────────────────────
 function Intro({ gs, onGo }) {
-  const { country, ideo, leader, keyFigures } = gs;
+  const tg = useTelegramButtons();
+  useEffect(() => {
+    if (!tg) return;
+    setMainButton({ text: "Приступить к управлению →", onClick: onGo });
+    return () => setMainButton(null);
+  }, [tg, onGo]);
+  const { country, ideo, leader, speech, situation, keyFigures } = gs;
   const ci = IDEOLOGIES.find(i => i.id === ideo);
-  const relC = r => r >= 20 ? G.grn : r <= -20 ? G.red : G.tx3;
+  const relC = l => l === "союзник" ? G.grn : l === "враг" ? G.red : G.tx3;
   return (
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"28px 16px" }}>
       <div style={{ maxWidth:660, width:"100%" }}>
         <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".22em", color:G.tx3, marginBottom:12 }}>{COUNTRIES[country].flag} {country.toUpperCase()} · НОВОЕ РУКОВОДСТВО</div>
+          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:12 }}><Flag country={country}/> {country.toUpperCase()} · НОВОЕ РУКОВОДСТВО</div>
           <Divider/>
         </div>
-        <Card style={{ marginBottom:12, borderColor:G.bdr2 }}>
-          <div style={{ fontFamily:serif, fontSize:32, fontWeight:600, color:G.gold, marginBottom:4 }}>{leader.leader?.name}</div>
-          <div style={{ fontFamily:mono, fontSize:11, color:G.bl2, letterSpacing:".1em", marginBottom:10 }}>{leader.leader?.party} · {ci.emoji} {ci.label.toUpperCase()}</div>
-          <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic", lineHeight:1.7 }}>{leader.leader?.bio}</div>
+        <Card style={{ marginBottom:12 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", gap:12, fontFamily:mono, fontSize:12, color:G.tx3, marginBottom:12, flexWrap:"wrap" }}>
+            <span>Личное дело № {docNumber(gs)}</span><span>{COUNTRIES[country].startYear}</span>
+          </div>
+          <Portrait name={leader.name} size={100} style={{ float:"right", margin:"0 0 10px 16px", transform:"rotate(2deg)" }}/>
+          <div style={{ fontFamily:narrow, fontSize:42, fontWeight:700, color:G.txt, lineHeight:1.12, marginBottom:6, textWrap:"balance" }}>{leader.name}</div>
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginBottom:10 }}>Президент · партия {leader.party} · {ci.label.toLowerCase()}</div>
+          <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic", lineHeight:1.7 }}>{leader.bio}</div>
+          {BIOGRAPHIES.find(b => b.id === gs.bio) && (
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.grn, marginTop:4 }}>
+              {BIOGRAPHIES.find(b => b.id === gs.bio).label}: {BIOGRAPHIES.find(b => b.id === gs.bio).note}
+            </div>
+          )}
+          <div style={{ clear:"both" }}/>
         </Card>
-        <Card accent={G.blue} style={{ marginBottom:12 }}>
-          <Label>// ОБРАЩЕНИЕ К НАЦИИ</Label>
-          <div style={{ fontFamily:serif, fontSize:16, fontStyle:"italic", lineHeight:1.8, color:G.txt }}>«{leader.speech}»</div>
-        </Card>
-        <Card accent={G.red} style={{ marginBottom:12 }}>
-          <Label>// ОПЕРАТИВНАЯ ОБСТАНОВКА</Label>
-          <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.75, color:G.txt }}>{leader.situation}</div>
-        </Card>
+        {speech && (
+          <Card accent={G.blue} style={{ marginBottom:12 }}>
+            <Label>{"ОБРАЩЕНИЕ К НАЦИИ"}</Label>
+            <div style={{ fontFamily:serif, fontSize:16, fontStyle:"italic", lineHeight:1.8, color:G.txt }}>«{speech}»</div>
+          </Card>
+        )}
+        {gs.arc && (
+          <Card style={{ marginBottom:12, transform:"rotate(-0.4deg)" }}>
+            <span className="sv-stamp is-red" style={{ fontSize:14, marginBottom:12 }}>Совершенно секретно</span>
+            <div className="sv-hand" style={{ fontSize:24, lineHeight:1.35 }}>{ARCS.find(a => a.id === gs.arc.id)?.teaser}</div>
+          </Card>
+        )}
+        {situation && (
+          <Card accent={G.red} style={{ marginBottom:12 }}>
+            <Label>{"ОПЕРАТИВНАЯ ОБСТАНОВКА"}</Label>
+            <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.75, color:G.txt }}>{situation}</div>
+          </Card>
+        )}
         {keyFigures?.length > 0 && (
           <Card style={{ marginBottom:22 }}>
-            <Label>// КЛЮЧЕВЫЕ ИГРОКИ</Label>
+            <Label>{"КЛЮЧЕВЫЕ ИГРОКИ"}</Label>
             {keyFigures.map((f, i) => (
-              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderBottom:i<keyFigures.length-1?`1px solid ${G.bdr}`:"none" }}>
-                <div>
-                  <span style={{ fontFamily:serif, fontSize:16, fontWeight:500 }}>{f.name}</span>
-                  <span style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginLeft:10 }}>{f.role}</span>
+              <div key={f.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, padding:"7px 0", borderBottom:i<keyFigures.length-1?`1px solid ${G.bdr}`:"none" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
+                  <Portrait name={f.name} size={38}/>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{f.name}</div>
+                    <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{f.role}</div>
+                  </div>
                 </div>
-                <span style={{ fontFamily:mono, fontSize:10, color:relC(f.relation), letterSpacing:".1em" }}>{f.loyalty?.toUpperCase()}</span>
+                <span style={{ fontFamily:narrow, fontSize:15, color:relC(f.loyalty), letterSpacing:".05em" }}>{f.loyalty?.toUpperCase()}</span>
               </div>
             ))}
+          </Card>
+        )}
+        {gs.advisors?.length > 0 && (
+          <Card style={{ marginBottom:22 }}>
+            <Label>{"ВАШ СОВЕТ"}</Label>
+            {gs.advisors.map((a, i) => (
+              <div key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, padding:"7px 0", borderBottom:i<gs.advisors.length-1?`1px solid ${G.bdr}`:"none" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
+                  <Portrait name={a.name} size={38}/>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{a.name}</div>
+                    <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{a.role}</div>
+                  </div>
+                </div>
+                <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }} title={ADVISOR_SKILL[a.skill].label}>{stars(a.skill)}</span>
+              </div>
+            ))}
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10 }}>
+              Совет можно собрать {plural(gs.councilCharges, "раз", "раза", "раз")} за мандат · победа на парламентских выборах даёт ещё один
+            </div>
           </Card>
         )}
         <div style={{ textAlign:"center" }}><PrimaryBtn onClick={onGo}>ПРИСТУПИТЬ К УПРАВЛЕНИЮ →</PrimaryBtn></div>
@@ -436,214 +1468,183 @@ function Intro({ gs, onGo }) {
 }
 
 // ── GAME ──────────────────────────────────────────────────────────────────────
-function Game({ gs, setGs, onEnd }) {
-  const [event, setEvent]               = useState(null);
-  const [consequence, setConsequence]   = useState(null);
-  const [randomEvent, setRandomEvent]   = useState(null);
-  const [phase, setPhase]               = useState("loading");
-  const [loading, setLoading]           = useState(false);
-  const [sideTab, setSideTab]           = useState("res");
+function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
+  const needsEvent = !gs.ended && !gs.currentEvent && !gs.lastTurn;
+  const [busy, setBusy]       = useState(needsEvent ? "event" : null); // "event" | "choice" | null
+  const [error, setError]     = useState(null); // { message, choice? }
+  const [sideTab, setSideTab] = useState("res");
+  const [preview, setPreview] = useState(null); // вариант под курсором/фокусом
+  const [armed, setArmed]     = useState(null); // тач: первое касание выбирает, второе — подписывает
+  const [help, setHelp]       = useState(() => !tutorialSeen());
   const gsRef = useRef(gs);
+  const inFlight = useRef(false);
+  const [stamping, setStamping] = useState(null); // резолюция, на которую опускается печать
+  const [dossier, setDossier] = useState(false);   // телефон: досье под игрой свёрнуто
+  const [marked, setMarked] = useState(null);       // проверка документа: отмеченная строка
+  const [resolutionInView, setResolutionInView] = useState(false);
   useEffect(() => { gsRef.current = gs; }, [gs]);
 
-  // БОГАТЫЙ контекст для AI — имена, истории, конкретика
-  const buildContext = (state) => {
-    const ci = IDEOLOGIES.find(i => i.id === state.ideo);
-    const last = state.history.slice(-5).map(h => `[${h.year}] "${h.title}" → выбор: «${h.choice}» → итог: «${h.headline}»`).join("\n");
-    const factionLines = state.factions.map(f =>
-      `${f.emoji} ${f.name}: одобрение народом ${f.approval}%, отношение к ${state.leader.leader.name} ${f.relation>0?'+':''}${f.relation}`
-    ).join("\n");
-    const figureLines = state.keyFigures.map(f =>
-      `${f.name} (${f.role}, ${f.loyalty}): отношение ${f.relation>0?'+':''}${f.relation}`
-    ).join("\n");
-    const crisisLines = state.activeCrises?.length
-      ? state.activeCrises.map(c => `КРИЗИС "${c.title}" (${c.severity}, ${c.turnsActive} ход) — ${c.description}`).join("\n")
-      : "Нет активных кризисов";
+  const [attempt, setAttempt] = useState(0);
+  const [typedTurn, setTypedTurn] = useState(null);
+  const typed = typedTurn === gs.turn;
+  const [countedTurn, setCountedTurn] = useState(null); // ночь выборов: подсчёт перед газетой
+  const [urgentTurn, setUrgentTurn] = useState(null);   // срочное дело: отсчёт пошёл
+  const [autoTurn, setAutoTurn] = useState(null);       // срочное дело: решили за вас
+  const counted = !gs.lastTurn?.election || countedTurn === gs.turn;
+  // Новое дело и газета открываются сверху: с окна на площадь, а не с середины листа.
+  const sheet = gs.currentEvent ? `e${gs.turn}` : gs.lastTurn ? `r${gs.turn}` : "";
+  useEffect(() => { if (sheet) window.scrollTo({ top: 0 }); }, [sheet]);
+  const prefetch = useRef(null); // следующее событие грузится, пока игрок читает итог
+  const commit = useCallback(next => { gsRef.current = next; setGs(next); }, [setGs]);
 
-    return `СТРАНА: ${state.country} (столица — ${COUNTRIES[state.country].capital})
-КОНТЕКСТ СТРАНЫ: ${COUNTRIES[state.country].context}
-ЛИДЕР: ${state.leader.leader.name} (${ci.label}), партия "${state.leader.leader.party}"
-ГОД: ${state.year}, ход ${state.turn+1} из 20
-РЕЙТИНГ НАРОДА: ${computePublicApproval(state.factions)}%
+  // Новое событие запрашивается, когда его нет и отчёт о прошлом ходе уже закрыт.
+  useEffect(() => {
+    if (!needsEvent) return;
+    let cancelled = false;
+    const pf = prefetch.current;
+    prefetch.current = null;
+    const request = pf && pf.turn === gsRef.current.turn ? pf.promise : game.event(gsRef.current);
+    request.then(
+      event => {
+        if (cancelled) return;
+        commit(startEvent(gsRef.current, event));
+        setError(null);
+        setBusy(null);
+      },
+      e => {
+        if (cancelled) return;
+        console.error(e);
+        setError({ message: e.message });
+        setBusy(null);
+      },
+    );
+    return () => { cancelled = true; };
+  }, [needsEvent, attempt, commit]);
 
-РЕСУРСЫ (0-100):
-- Политический капитал: ${state.resources.politicalCapital}
-- Экономика: ${state.resources.economy}
-- Силовики: ${state.resources.military}
-- Внешняя репутация: ${state.resources.externalReputation}
-- Внутренняя легитимность: ${state.resources.internalLegitimacy}
-- Личный ресурс лидера: ${state.resources.personalResource}
+  const retryEvent = () => { setBusy("event"); setError(null); setAttempt(a => a + 1); };
 
-ФРАКЦИИ (с ID для возврата изменений):
-${factionLines}
-
-КЛЮЧЕВЫЕ ИГРОКИ (используй имена в нарративе):
-${figureLines}
-
-АКТИВНЫЕ КРИЗИСЫ:
-${crisisLines}
-
-ИСТОРИЯ ПРАВЛЕНИЯ (последние 5 ходов):
-${last || `Стартовая ситуация: ${state.leader.situation}`}`;
-  };
-
-  const fetchEvent = useCallback(async () => {
-    const state = gsRef.current;
-    setLoading(true); setPhase("loading"); setConsequence(null); setRandomEvent(null);
-
-    // Drain от активных кризисов
-    if (state.activeCrises?.length > 0) {
-      const drainRes = { ...state.resources };
-      state.activeCrises.forEach(c => {
-        Object.entries(c.resourceDrain || {}).forEach(([k, v]) => {
-          if (drainRes[k] !== undefined) drainRes[k] = clamp(drainRes[k] + v);
-        });
-      });
-      const updatedCrises = state.activeCrises.map(c => ({ ...c, turnsActive: c.turnsActive + 1 }));
-      const updatedGs = { ...state, resources: drainRes, activeCrises: updatedCrises };
-      gsRef.current = updatedGs;
-      setGs(updatedGs);
+  const choose = async (choice) => {
+    if (busy || inFlight.current) return;
+    inFlight.current = true;
+    setStamping(choice.id);
+    stampFx();
+    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) await new Promise(r => setTimeout(r, 480));
+    setStamping(null);
+    setBusy("choice"); setError(null);
+    try {
+      const consequence = await game.consequence(gsRef.current, choice.id);
+      const next = resolveTurn(gsRef.current, choice.id, consequence);
+      commit(next);
+      if (next.lastTurn && next.lastTurn.chance < 1) outcomeFx(next.lastTurn.success !== false);
+      if (!next.ended) {
+        const promise = game.event(next);
+        promise.catch(() => {}); // ошибку покажет обычная загрузка события
+        prefetch.current = { turn: next.turn, promise };
+      }
+    } catch (e) {
+      console.error(e);
+      setError({ message: e.message, choice });
+    } finally {
+      inFlight.current = false;
+      setBusy(null);
     }
-
-    const wl = warningLevel(gsRef.current);
-    const isNearEnd = wl === "critical";
-    const factionIds = gsRef.current.factions.map(f => f.id).join("|");
-
-    try {
-      const ctx = buildContext(gsRef.current);
-      const randomTrigger = gsRef.current.turn > 0 && Math.random() < 0.28;
-      const data = await ai(
-        `${ctx}\n\n${isNearEnd ? "⚠️ КРИТИЧЕСКИЙ МОМЕНТ: Власть лидера под угрозой. Создай событие отражающее нарастающую нестабильность.\n\n" : ""}Создай напряжённое политическое событие реалистичное для ${gsRef.current.country}. Используй имена реальных персонажей из списка игроков где возможно. Если есть активные кризисы — событие связано с ними или их последствиями. Если ресурс ниже 20 — создай кризис связанный с ним. 3-4 варианта решения.${randomTrigger ? "\n\nТакже сгенерируй случайное событие которое уже произошло без выбора (скандал/утечка/стихия/протест)." : ""}\n\nID фракций для affectedFactions: ${factionIds}\n\nJSON:\n{"title":"яркий заголовок события","source":"МИД|Разведка|Кабинет|Улица|Кремль|Брюссель|Пресса|Олигарх|Армия|Оппозиция","description":"4-5 предложений с конкретикой: имена, время, место","isCritical":${isNearEnd},"affectedFactions":["id1","id2"],"choices":[{"id":"a","text":"конкретное действие","hint":"риск/выигрыш"},{"id":"b","text":"...","hint":"..."},{"id":"c","text":"...","hint":"..."}]${randomTrigger ? ',"randomEvent":{"title":"...","description":"2 предложения","resourceEffect":{"politicalCapital":0}}' : ''}}`,
-        "event"
-      );
-      if (data.randomEvent) setRandomEvent(data.randomEvent);
-      setEvent(data); setPhase("event");
-    } catch (e) { console.error(e); setPhase("event"); }
-    setLoading(false);
-  }, []); // eslint-disable-line
-
-  useEffect(() => { fetchEvent(); }, []); // eslint-disable-line
-
-  // ГЛАВНОЕ обновление: handleChoice теперь использует Sonnet через task='consequence',
-  // ПЛОСКИЙ JSON и литературные инструкции
-  const handleChoice = async (choice) => {
-    const state = gsRef.current;
-    setLoading(true);
-    try {
-      const ctx = buildContext(state);
-      const minRes = Math.min(...Object.values(state.resources));
-      const pa    = computePublicApproval(state.factions);
-      const willEnd = minRes <= 4 || pa <= 5;
-      const factionIds = state.factions.map(f => f.id).join("|");
-      const figureIds = state.keyFigures.map(f => `${f.id}(${f.name})`).join(", ");
-
-      const data = await ai(
-        `${ctx}
-
-СОБЫТИЕ: "${event.title}"
-${event.description}
-
-РЕШЕНИЕ ЛИДЕРА: "${choice.text}"
-(подсказка к решению: ${choice.hint})
-
-${willEnd ? "⚠️ ЭТО РЕШЕНИЕ ПРИВОДИТ К ПАДЕНИЮ ВЛАСТИ. Опиши в narrative И в powerLoss КАК ИМЕННО произошла потеря: переворот силовиков? Народная революция? Импичмент в парламенте? Бегство в эмиграцию? Конкретные сцены — кто, где, когда. Это драматическая развязка, не «ресурсы закончились».\n\n" : ""}ТРЕБОВАНИЯ К ПОВЕСТВОВАНИЮ:
-1. Стиль политического триллера — конкретика, не абстракции
-2. ОБЯЗАТЕЛЬНО упомяни 2-3 ключевых игроков ПО ИМЕНАМ из списка (${figureIds})
-3. Конкретные сцены: время суток, место, жесты, реакции
-4. Цифры где уместно: проценты, суммы, число протестующих, курс валюты
-5. Прямая речь хотя бы один раз
-6. Реакции должны быть от конкретных персонажей с именами
-7. narrative — 6-8 насыщенных предложений (это главный момент игры)
-
-ID фракций: ${factionIds}
-ID игроков для figureRelChanges: ${state.keyFigures.map(f=>f.id).join("|")}
-
-Верни JSON со ВСЕМИ полями. Структура плоская:
-{
-  "headline": "газетный заголовок (5-8 слов)",
-  "narrative": "6-8 предложений политического триллера с именами и сценами",
-  "resourceChanges": {"politicalCapital":0,"economy":0,"military":0,"externalReputation":0,"internalLegitimacy":0,"personalResource":0},
-  "factionRelChanges": {"siloviki":0,"opposition":0},
-  "factionApprChanges": {"siloviki":0,"opposition":0},
-  "figureRelChanges": {"id1":0,"id2":0},
-  "reactions": ["Реакция конкретного персонажа с именем", "Реакция от другого персонажа"],
-  "historianNote": "одна меткая фраза будущего историка",
-  "newCrisis": null или {"title":"...","description":"...","severity":"low|medium|high|critical","resourceDrain":{"economy":-2}},
-  "crisisResolved": null или "точное название разрешённого кризиса",
-  "powerLoss": ${willEnd ? '"3-4 предложения о том как произошёл финал — конкретно, кинематографично"' : 'null'}
-}`,
-        "consequence" // → SONNET (главный нарративный момент)
-      );
-
-      const prevRes  = { ...state.resources };
-      const prevFac  = state.factions.map(f => ({...f}));
-      const prevFig  = state.keyFigures.map(f => ({...f}));
-
-      let newRes = applyDeltas(state.resources, data.resourceChanges);
-      if (randomEvent?.resourceEffect) newRes = applyDeltas(newRes, randomEvent.resourceEffect);
-
-      // ПЛОСКАЯ структура изменений
-      let newFactions = applyFactionChanges(state.factions, data.factionRelChanges, data.factionApprChanges);
-      const newFigures = applyFigureChanges(state.keyFigures, data.figureRelChanges);
-
-      const newTurn     = state.turn + 1;
-      const newYear     = state.year + (newTurn % 4 === 0 ? 1 : 0);
-      const newHistory  = [...state.history, { year:state.year, title:event.title, choice:choice.text, headline:data.headline, historianNote:data.historianNote }];
-
-      let newCrises = state.activeCrises || [];
-      if (data.crisisResolved) newCrises = newCrises.filter(c => c.title !== data.crisisResolved);
-      if (data.newCrisis) newCrises = [...newCrises, { ...data.newCrisis, turnsActive:0, id: Date.now() }];
-
-      const newPA   = computePublicApproval(newFactions);
-      const isOver  = Object.values(newRes).some(v => v <= 4) || newPA <= 5 || newTurn >= 20;
-      const endType = newTurn >= 20 ? "mandate" : newPA <= 5 ? "revolution" : Object.values(newRes).some(v => v <= 4) ? "collapse" : null;
-
-      const newGs = {
-        ...state,
-        resources: newRes, prevResources: prevRes,
-        factions: newFactions, prevFactions: prevFac,
-        keyFigures: newFigures, prevFigures: prevFig,
-        activeCrises: newCrises,
-        turn: newTurn, year: newYear, history: newHistory,
-        ended: isOver, endType, powerLoss: data.powerLoss,
-      };
-      gsRef.current = newGs;
-      setGs(newGs);
-      setConsequence(data); setPhase("consequence");
-    } catch (e) { console.error("Choice error:", e); }
-    setLoading(false);
   };
 
-  const { resources, prevResources, factions, prevFactions, keyFigures, prevFigures, leader, country, year, turn, history, ideo, activeCrises } = gs;
-  const ci = IDEOLOGIES.find(i => i.id === ideo);
-  const publicApproval = computePublicApproval(factions);
+  const nextTurn = () => {
+    setBusy("event"); setError(null); setPreview(null); setArmed(null); setMarked(null);
+    pageFx();
+    commit({ ...gsRef.current, lastTurn: null });
+  };
+
+  // Клавиши: 1–9 — фокус на вариант (с предпросмотром), Enter — подтвердить / следующий ход.
+  useEffect(() => {
+    const onKey = e => {
+      if (e.target.closest?.("input, textarea") || document.querySelector(".sv-modal")) return;
+      if (/^[1-9]$/.test(e.key)) {
+        const el = document.getElementById(`opt-${e.key}`);
+        if (el) { el.focus(); e.preventDefault(); }
+      } else if (e.key === "Enter" && document.activeElement?.tagName !== "BUTTON") {
+        document.getElementById("next-turn")?.click();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Выбор резолюции: на касании первое нажатие выбирает (с предпросмотром), второе — подписывает.
+  const pick = (c, preview = true) => {
+    if (armed !== c.id && matchMedia("(pointer:coarse)").matches) { setArmed(c.id); setPreview(preview ? c : null); return; }
+    setArmed(null); choose(c);
+  };
+  const optProps = (c, n) => ({
+    id: `opt-${n}`,
+    className: "sv-opt",
+    "data-armed": armed === c.id || undefined,
+    onClick: () => pick(c),
+    // Наведение — только для мыши: на касании браузер шлёт «уход курсора» сразу после выбора.
+    onPointerEnter: e => { if (e.pointerType === "mouse") setPreview(c); },
+    onPointerLeave: e => { if (e.pointerType === "mouse") setPreview(null); },
+    onFocus: () => setPreview(c), onBlur: () => { setPreview(null); setArmed(null); },
+  });
+
+  const { resources, prevResources, factions, prevFactions, keyFigures, prevFigures, turn, history, activeCrises, currentEvent: event, lastTurn } = gs;
+  // Видна ли резолюция на экране — тогда нижней кнопке «К резолюции» показываться незачем.
+  // Проверяем при прокрутке: резолюция уже на экране или проскроллена выше.
+  useEffect(() => {
+    let raf = 0;
+    const check = () => {
+      raf = 0;
+      const el = document.getElementById("sv-resolution");
+      setResolutionInView(!!el && el.getBoundingClientRect().top < window.innerHeight * 0.65);
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
+    check();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [event, busy]);
+  // Срочное дело: власть под угрозой — на резолюцию 25 секунд с момента, как варианты на экране.
+  const urgent = !!event && event.isCritical && !event.beat && !event.special && !recap && !busy;
+  if (urgent && resolutionInView && urgentTurn !== gs.turn) setUrgentTurn(gs.turn);
+  const timeUp = () => {
+    const ev = gsRef.current.currentEvent;
+    if (!ev || inFlight.current) return;
+    setAutoTurn(gsRef.current.turn + 1);
+    choose(ev.choices.find(c => c.tags.includes("delay")) ?? ev.choices[ev.choices.length - 1]);
+  };
+  const armedChoice = armed && event ? [...event.choices, ...(event.council ?? [])].find(c => c.id === armed) : null;
   const warnLevel = warningLevel(gs);
+  const turnDelta = lastTurn && prevResources
+    ? Object.fromEntries(RES_CONFIG.map(r => [r.key, resources[r.key] - prevResources[r.key]]))
+    : null;
 
   const tabs = [
-    { id:"res", label:"📊" },
-    { id:"fac", label:"🏛️" },
-    { id:"fig", label:"👥" },
-    { id:"log", label:"📜" },
+    { id:"res", label:"Ресурсы", title:"Ресурсы государства" },
+    { id:"fac", label:"Силы", title:"Фракции и группы общества" },
+    { id:"fig", label:"Люди", title:"Ключевые игроки" },
+    { id:"log", label:"Хроника", title:"Хроника правления" },
   ];
 
   return (
-    <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"14px" }}>
-      <div style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px 1fr", gap:14 }}>
+    <div style={{ minHeight:"100vh", background:G.bg }}>
+      <div className="sv-window"><SquareView gs={gs}/></div>
+      <Hud gs={gs} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => setHelp(true)}/>
+      {help && <HowToPlay onClose={() => setHelp(false)}/>}
+      {recap && <Recap gs={gs} onClose={onRecapDone}/>}
+      <div style={{ display:"flex", justifyContent:"center", padding:"14px" }}>
+      <div className="sv-game-grid" style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px minmax(0, 1fr)", gap:14 }}>
 
-        <div>
-          <Card style={{ marginBottom:10 }}>
-            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".13em", color:G.bl2, marginBottom:6 }}>{COUNTRIES[country].flag} {country.toUpperCase()}</div>
-            <div style={{ fontFamily:serif, fontSize:18, fontWeight:600, color:G.gold, lineHeight:1.2, marginBottom:4 }}>{leader.leader?.name}</div>
-            <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:8 }}>{ci.emoji} {ci.label.toUpperCase()}</div>
-            <div style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>◷ {year} · ход {turn}/20</div>
-          </Card>
-
-          <PublicApprovalWidget value={publicApproval}/>
+        <div className="sv-sidebar" data-open={dossier || undefined}>
+          <button className="sv-dossier-toggle" onClick={() => setDossier(v => !v)} aria-expanded={dossier}>
+            {dossier ? "Свернуть досье ▴" : "Досье ▾ опрос, ресурсы, люди, хроника"}
+          </button>
+          <div className="sv-side-body">
+          <PollWidget gs={gs}/>
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:4, margin:"10px 0 6px" }}>
             {tabs.map(t => (
-              <button key={t.id} onClick={()=>setSideTab(t.id)}
-                style={{ padding:"6px 0", borderRadius:4, border:`1px solid ${sideTab===t.id?G.gold:G.bdr}`, background:sideTab===t.id?G.bg3:G.bg2, color:sideTab===t.id?G.gold:G.tx3, fontSize:14 }}>
+              <button key={t.id} onClick={()=>setSideTab(t.id)} title={t.title} aria-label={t.title}
+                style={{ padding:"7px 0", borderRadius:0, border:`1px solid ${sideTab===t.id?G.gold:G.bdr}`, background:sideTab===t.id?G.bg3:G.bg2, color:sideTab===t.id?G.gold:G.tx3, fontSize:15 }}>
                 {t.label}
               </button>
             ))}
@@ -652,44 +1653,79 @@ ID игроков для figureRelChanges: ${state.keyFigures.map(f=>f.id).join(
           <Card style={{ minHeight:200 }}>
             {sideTab === "res" && (
               <>
-                <Label>// РЕСУРСЫ</Label>
-                {RES_CONFIG.map(r => <ResBar key={r.key} label={r.label} val={resources[r.key]} prev={prevResources?prevResources[r.key]:undefined}/>)}
+                <Label>{"РЕСУРСЫ"}</Label>
+                {RES_CONFIG.map(r => <ResBar key={r.key} k={r.key} label={SHORT[r.key]} val={resources[r.key]} prev={prevResources?prevResources[r.key]:undefined}/>)}
+                <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10, lineHeight:1.6 }}>
+                  ниже 20 — кризис · ≤ {LIMITS.endResource} — падение власти<br/>ниже 30 — понемногу восстанавливается
+                </div>
+                {gs.pending?.length > 0 && (
+                  <div style={{ marginTop:14, paddingTop:10, borderTop:`1px solid ${G.bdr}` }}>
+                    <Label>{"ОЖИДАЕТСЯ"}</Label>
+                    {[...gs.pending].sort((a, b) => a.due - b.due).map(p => {
+                      const good = Object.values(p.res).reduce((a, b) => a + (b ?? 0), 0) >= 0;
+                      const fx = RES_CONFIG.filter(r => p.res[r.key]).map(r => `${SHORT[r.key].toLowerCase()} ${signed(p.res[r.key])}`).join(", ");
+                      return (
+                        <div key={p.id} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.5, marginBottom:7, color:G.tx2 }}>
+                          <span style={{ color:G.tx3 }}>через {p.due - turn} · </span>{p.label}
+                          <div style={{ color:good ? G.grn : G.red }}>{fx}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </>
             )}
             {sideTab === "fac" && (
               <>
-                <Label>// ФРАКЦИИ</Label>
-                {factions.map(f => {
-                  const prev = prevFactions?.find(p => p.id === f.id);
-                  return (
-                    <div key={f.id} style={{ marginBottom:10 }}>
-                      <div style={{ fontFamily:mono, fontSize:10, color:G.tx2, marginBottom:3 }}>{f.emoji} {f.name}</div>
-                      <RelBar label="нар." val={f.approval} prevVal={prev?.approval}/>
-                      <RelBar label="к вам" val={f.relation} prevVal={prev?.relation}/>
-                    </div>
-                  );
-                })}
+                <Label>{"ОТНОШЕНИЕ К ВАМ"}</Label>
+                {(() => {
+                  const voters = factions.filter(f => !NON_VOTING_BLOCS.includes(f.bloc));
+                  const total = voters.reduce((s, f) => s + f.approval, 0) || 1;
+                  return factions.map(f => {
+                    const prev = prevFactions?.find(p => p.id === f.id);
+                    const foreign = NON_VOTING_BLOCS.includes(f.bloc);
+                    return (
+                      <div key={f.id} style={{ marginBottom:10 }}>
+                        <RelBar label={f.name} val={f.relation} prevVal={prev?.relation}/>
+                        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:-4 }}>
+                          {foreign ? "внешняя сила · не голосует" : `${Math.round(f.approval / total * 100)}% избирателей`}
+                          {f.relation <= -60 && <span style={{ color:G.red }}> · враждебна, вредит</span>}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+                <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6, lineHeight:1.6 }}>шкала −100…+100 · ≤ −60 — вредит каждый ход</div>
               </>
             )}
             {sideTab === "fig" && (
               <>
-                <Label>// КЛЮЧЕВЫЕ ИГРОКИ</Label>
+                <Label>{"КЛЮЧЕВЫЕ ИГРОКИ"}</Label>
                 {keyFigures.map(f => {
-                  const prev = prevFigures?.find(p => p.id === f.id);
+                  const prev = prevFigures?.find(p => p.id === f.id && p.name === f.name);
                   const c = relColor(f.relation);
                   const delta = prev ? f.relation - prev.relation : 0;
+                  const fac = factions.find(x => x.id === f.faction);
+                  const bond = bondOf(f, fac);
                   return (
-                    <div key={f.id} style={{ marginBottom:10, paddingBottom:10, borderBottom:`1px solid ${G.bdr}` }}>
+                    <div key={f.id} style={{ display:"flex", gap:10, marginBottom:10, paddingBottom:10, borderBottom:`1px solid ${G.bdr}` }}>
+                      <Portrait name={f.name} size={32}/>
+                      <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:"flex", justifyContent:"space-between" }}>
                         <span style={{ fontFamily:serif, fontSize:13, fontWeight:500 }}>{f.name}</span>
-                        <span style={{ fontFamily:mono, fontSize:10, color:c }}>
-                          {f.relation>0?"+":""}{f.relation}
-                          {delta!==0&&<span style={{ fontSize:9, marginLeft:2, color:delta>0?G.grn:G.red }}>{delta>0?`+${delta}`:delta}</span>}
+                        <span style={{ fontFamily:narrow, fontSize:15, color:c }}>
+                          <span style={{ color:G.tx3 }}>лично </span>{signed(f.relation)}
+                          {delta!==0&&<span style={{ marginLeft:3, color:delta>0?G.grn:G.red }}>{signed(delta)}</span>}
                         </span>
                       </div>
-                      <div style={{ fontFamily:mono, fontSize:9, color:G.tx3, marginTop:2 }}>{f.role}</div>
-                      <div style={{ height:2, background:G.bdr, borderRadius:2, marginTop:4 }}>
-                        <div style={{ height:"100%", width:`${((f.relation+100)/200)*100}%`, background:c, borderRadius:2, transition:"all .6s" }}/>
+                      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:2 }}>{f.role} · {TRAITS[traitOf(gs.seed, f, fac?.bloc)].label}</div>
+                      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>
+                        лагерь «{fac?.name}» <span style={{ color:relColor(fac?.relation ?? 0) }}>{signed(fac?.relation ?? 0)}</span>
+                        {(bond === "insider" || bond === "mole") && <b style={{ color: bond === "insider" ? G.grn : G.red }}> · {BOND_LABEL[bond]}</b>}
+                      </div>
+                      <div style={{ height:2, background:G.bdr, borderRadius:0, marginTop:4 }}>
+                        <div style={{ height:"100%", width:`${((f.relation+100)/200)*100}%`, background:c, borderRadius:0, transition:"all .6s" }}/>
+                      </div>
                       </div>
                     </div>
                   );
@@ -698,230 +1734,589 @@ ID игроков для figureRelChanges: ${state.keyFigures.map(f=>f.id).join(
             )}
             {sideTab === "log" && (
               <>
-                <Label>// ХРОНИКА</Label>
-                {history.length === 0 && <div style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>История пуста</div>}
+                <Label>{"ХРОНИКА"}</Label>
+                {history.length === 0 && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>История пуста</div>}
                 {[...history].reverse().slice(0,6).map((h, i) => (
                   <div key={i} style={{ marginBottom:8, paddingBottom:8, borderBottom:i<5?`1px solid ${G.bdr}`:"none" }}>
-                    <div style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>{h.year}</div>
+                    <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{h.year}</div>
                     <div style={{ fontFamily:serif, fontSize:12, color:G.tx2, fontStyle:"italic", lineHeight:1.4 }}>«{h.headline}»</div>
                   </div>
                 ))}
               </>
             )}
           </Card>
+          </div>
         </div>
 
-        <div>
-          {warnLevel !== "none" && !loading && (
-            <div style={{ marginBottom:10, padding:"10px 16px", borderRadius:4, background:warnLevel==="critical"?"rgba(184,82,82,0.15)":"rgba(201,160,74,0.12)", border:`1px solid ${warnLevel==="critical"?G.red:G.amb}` }}>
-              <span style={{ fontFamily:mono, fontSize:11, color:warnLevel==="critical"?G.red:G.amb, letterSpacing:".1em" }}>
-                {warnLevel==="critical" ? "🚨 КРИТИЧЕСКИЙ МОМЕНТ: Власть под серьёзной угрозой. Следующее решение может стать последним." : "⚠️ НЕСТАБИЛЬНОСТЬ: Ваше положение ослаблено. Действуйте осторожно."}
+        <div className="sv-main">
+          {warnLevel !== "none" && !busy && !gs.ended && (
+            <div className="sv-paper sv-citation" style={{ marginBottom:10, padding:"9px 16px" }}>
+              <span style={{ fontFamily:pixel, fontSize:13, color:"var(--red)", marginRight:8 }}>{warnLevel==="critical" ? "ПРЕДУПРЕЖДЕНИЕ" : "ЗАМЕЧАНИЕ"}</span>
+              <span style={{ fontFamily:narrow, fontSize:15, color:G.txt }}>
+                {warnLevel==="critical" ? "Власть под серьёзной угрозой. Следующее решение может стать последним." : "Положение ослаблено. Действуйте осторожно."}
               </span>
             </div>
           )}
 
-          {activeCrises?.length > 0 && !loading && (
+          {error && !busy && (
+            <ErrorBanner message={error.message} onRetry={error.choice ? () => choose(error.choice) : retryEvent}/>
+          )}
+
+          {activeCrises?.length > 0 && !busy && (
             <div style={{ marginBottom:10 }}>
               {activeCrises.map(c => (
-                <div key={c.id} style={{ marginBottom:6, padding:"10px 14px", borderRadius:4, background:"rgba(184,82,82,0.1)", border:`1px solid ${G.red}` }}>
-                  <div style={{ display:"flex", justifyContent:"space-between" }}>
-                    <span style={{ fontFamily:mono, fontSize:11, color:G.red, letterSpacing:".08em" }}>⚠️ КРИЗИС: {c.title.toUpperCase()}</span>
-                    <span style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>{c.severity} · {c.turnsActive} ход</span>
+                <div key={c.id} className="sv-paper sv-citation" style={{ marginBottom:6, padding:"10px 16px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", gap:8 }}>
+                    <span style={{ fontFamily:pixel, fontSize:13, color:G.red }}>КРИЗИС · {c.title.toUpperCase()}</span>
+                    <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3, whiteSpace:"nowrap" }}>{c.severity} · {plural(c.turnsActive, "ход", "хода", "ходов")}</span>
                   </div>
                   <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, marginTop:4, fontStyle:"italic" }}>{c.description}</div>
+                  {Object.keys(c.resourceDrain||{}).length > 0 && <div style={{ marginTop:6 }}><ResourceChips delta={c.resourceDrain}/></div>}
                 </div>
               ))}
             </div>
           )}
 
-          {randomEvent && !loading && (
-            <div style={{ marginBottom:10, padding:"10px 14px", borderRadius:4, background:"rgba(74,122,170,0.1)", border:`1px solid ${G.blue}` }}>
-              <div style={{ fontFamily:mono, fontSize:10, color:G.bl2, letterSpacing:".1em", marginBottom:4 }}>⚡ СЛУЧАЙНОЕ СОБЫТИЕ</div>
-              <div style={{ fontFamily:serif, fontSize:14, fontWeight:500, color:G.txt, marginBottom:3 }}>{randomEvent.title}</div>
-              <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>{randomEvent.description}</div>
-            </div>
-          )}
+          {!busy && event && <PactSlips gs={gs}/>}
 
-          {loading && (
-            <Card style={{ textAlign:"center", padding:"80px 20px" }}>
-              <div style={{ fontFamily:mono, fontSize:13, color:G.tx3, letterSpacing:".1em" }}>
-                {phase==="loading"?"// СИТУАЦИОННЫЙ ЦЕНТР АНАЛИЗИРУЕТ ДАННЫЕ...":"// ОБРАБОТКА ПОСЛЕДСТВИЙ..."}
-              </div>
-            </Card>
-          )}
+          {busy && <Loading kind={busy}/>}
 
-          {!loading && phase==="event" && event && (
+          {!busy && event && (
             <div>
-              <Card style={{ marginBottom:12 }}>
-                <div style={{ fontFamily:mono, fontSize:11, color:G.bl2, letterSpacing:".12em", marginBottom:12 }}>
-                  📡 {event.source?.toUpperCase()}
-                  {event.isCritical && <span style={{ marginLeft:12, color:G.red }}>🚨 КРИТИЧЕСКОЕ</span>}
+              {event.randomEvent && (
+                <div style={{ marginBottom:10, padding:"10px 14px", borderRadius:0, background:"rgba(74,122,170,0.1)", border:`1px solid ${G.blue}` }}>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.bl2, letterSpacing:".05em", marginBottom:4 }}>ВНЕЗАПНО</div>
+                  <div style={{ fontFamily:serif, fontSize:14, fontWeight:500, color:G.txt, marginBottom:3 }}>{event.randomEvent.title}</div>
+                  <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic", marginBottom:6 }}>{event.randomEvent.description}</div>
+                  <ResourceChips delta={event.randomEvent.resourceEffect}/>
                 </div>
-                <div style={{ fontFamily:serif, fontSize:26, fontWeight:600, color:G.txt, lineHeight:1.25, marginBottom:14 }}>{event.title}</div>
-                <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.8, color:G.tx2 }}>{event.description}</div>
+              )}
+              <Card style={{ marginBottom:14, padding:"20px 24px 22px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"8px 12px", marginBottom:14, flexWrap:"wrap" }}>
+                  <div style={{ fontFamily:mono, fontSize:12, color:G.tx3, lineHeight:1.6, whiteSpace:"nowrap" }}>
+                    <div>{event.source || "Служебная записка"}</div>
+                    <div>Экз. № 1 · вх. № {docNumber(gs)}</div>
+                  </div>
+                  {(event.beat || event.isCritical) && <span className="sv-stamp is-red" style={{ fontSize:14, flexShrink:0 }}>{event.beat ? "Совершенно секретно" : "Срочно"}</span>}
+                  {event.special && !event.beat && !event.isCritical && <span className="sv-stamp" style={{ fontSize:14, flexShrink:0 }}>{{ pact:"Проект договора", inspect:"На подпись", press:"Пресс-служба", call:"Без протокола", budget:"Финансы" }[event.special.kind] ?? "Лично в руки"}</span>}
+                </div>
+                {(turn + 1) % 5 === 1 && (
+                  <div style={{ margin:"4px 0 18px", paddingBottom:14, borderBottom:`1px solid ${G.bdr}` }}>
+                    <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>Глава {ROMAN[chapterOf(turn + 1)]}</div>
+                    <div style={{ fontFamily:serif, fontSize:22, fontStyle:"italic", color:G.tx2 }}>{CHAPTERS[chapterOf(turn + 1)]}</div>
+                  </div>
+                )}
+                {event.beat && (
+                  <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, color:G.red, marginBottom:4 }}>
+                    Главная интрига «{event.beat.arcTitle}» · эпизод {event.beat.episode} из {event.beat.total}
+                  </div>
+                )}
+                <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
+                {sceneOf(event) !== "square" && (
+                  <figure className="sv-scene" style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
+                    <SquareView gs={gs} sceneKey={sceneOf(event)} partner={event.source === "Кремль" ? "ru" : "eu"} height={44}/>
+                  </figure>
+                )}
+                {event.special && <SpecialHeader gs={gs} event={event}/>}
+                <Prose text={event.description}/>
                 {event.affectedFactions?.length > 0 && (
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:12 }}>
-                    <span style={{ fontFamily:mono, fontSize:10, color:G.tx3 }}>Затронуто:</span>
-                    {event.affectedFactions.map(fid => {
-                      const f = factions.find(x => x.id === fid);
-                      return f ? <span key={fid} style={{ fontFamily:mono, fontSize:10, padding:"2px 7px", borderRadius:3, background:"rgba(74,122,170,0.15)", color:G.bl2, border:`1px solid rgba(74,122,170,0.3)` }}>{f.emoji}{f.name}</span> : null;
-                    })}
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10 }}>
+                    Касается: {event.affectedFactions.map(fid => factions.find(x => x.id === fid)?.name).filter(Boolean).join(", ")}
                   </div>
                 )}
               </Card>
-              <Card>
-                <Label>// ВАШЕ РЕШЕНИЕ</Label>
-                {(event.choices||[]).map(c => (
-                  <button key={c.id} onClick={()=>handleChoice(c)} {...hovChoice()}
-                    style={{ display:"block", width:"100%", textAlign:"left", padding:"13px 16px", marginBottom:8, borderRadius:4, background:"rgba(255,255,255,0.02)", border:`1px solid ${G.bdr}`, color:G.txt }}>
-                    <div style={{ fontFamily:serif, fontSize:16, fontWeight:500, marginBottom:4 }}>{c.text}</div>
-                    <div style={{ fontFamily:mono, fontSize:11, color:G.tx3 }}>{c.hint}</div>
-                  </button>
-                ))}
-              </Card>
-            </div>
-          )}
-
-          {!loading && phase==="consequence" && consequence && (
-            <div>
-              <Card accent={G.amb} style={{ marginBottom:12 }}>
-                <Label>// ПОСЛЕДСТВИЯ</Label>
-                <div style={{ fontFamily:serif, fontSize:24, fontWeight:600, color:G.gld2, marginBottom:14, lineHeight:1.25 }}>«{consequence.headline}»</div>
-                <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{consequence.narrative}</div>
-
-                <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
-                  {Object.entries(consequence.resourceChanges||{}).filter(([,v])=>v!==0).map(([k,v])=>{
-                    const cfg=RES_CONFIG.find(r=>r.key===k);
-                    return cfg?<span key={k} style={{ fontFamily:mono, fontSize:10, padding:"3px 8px", borderRadius:3, background:v>0?"rgba(92,184,122,0.1)":"rgba(184,82,82,0.1)", color:v>0?G.grn:G.red, border:`1px solid ${v>0?"rgba(92,184,122,0.25)":"rgba(184,82,82,0.25)"}` }}>{cfg.label} {v>0?`+${v}`:v}</span>:null;
-                  })}
-                </div>
-
-                {consequence.factionRelChanges && Object.keys(consequence.factionRelChanges).length > 0 && (
-                  <div style={{ marginBottom:12 }}>
-                    <div style={{ fontFamily:mono, fontSize:10, color:G.tx3, marginBottom:5 }}>ФРАКЦИИ (отношение):</div>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                      {Object.entries(consequence.factionRelChanges).filter(([,v])=>v!==0).map(([fid,v])=>{
-                        const f=factions.find(x=>x.id===fid);
-                        return f?<span key={fid} style={{ fontFamily:mono, fontSize:10, padding:"2px 7px", borderRadius:3, background:v>0?"rgba(92,184,122,0.1)":"rgba(184,82,82,0.1)", color:v>0?G.grn:G.red, border:`1px solid ${v>0?"rgba(92,184,122,0.25)":"rgba(184,82,82,0.25)"}` }}>{f.emoji}{f.name} {v>0?`+${v}`:v}</span>:null;
-                      })}
+              {event.doc && <InspectDoc doc={event.doc} marked={marked} onMark={setMarked}/>}
+              {event.budget ? (
+                <BudgetPanel key={`budget${turn}`} gs={gs} stamping={stamping}
+                  onSkip={() => choose(event.choices[1])}
+                  onFinish={(alloc, debt) => {
+                    const final = budgetChoice(gsRef.current, alloc, debt);
+                    const cur = gsRef.current.currentEvent;
+                    commit({ ...gsRef.current, currentEvent: { ...cur, choices: [final, cur.choices[1]] } });
+                    choose(final);
+                  }}/>
+              ) : event.call ? (
+                <CallPanel key={`call${turn}`} call={event.call} seed={gs.seed} stamping={stamping}
+                  onHang={() => choose(event.choices[1])}
+                  onFinish={(approach, ending) => {
+                    const final = callChoice(gsRef.current, approach, ending);
+                    const cur = gsRef.current.currentEvent;
+                    commit({ ...gsRef.current, currentEvent: { ...cur, choices: [final, cur.choices[1]] } });
+                    choose(final);
+                  }}/>
+              ) : event.press ? (
+                <PressPanel key={`press${turn}`} press={event.press} stamping={stamping}
+                  onSkip={() => choose(event.choices[1])}
+                  onFinish={picks => {
+                    const final = pressChoice(gsRef.current, picks);
+                    const cur = gsRef.current.currentEvent;
+                    commit({ ...gsRef.current, currentEvent: { ...cur, choices: [final, cur.choices[1]] } });
+                    choose(final);
+                  }}/>
+              ) : (
+              <Card style={{ padding:"18px 0 8px" }}>
+                <div id="sv-resolution" style={{ padding:"0 24px" }}><Label>{"Резолюция"}</Label></div>
+                {urgent && (
+                  <div style={{ padding:"0 24px 12px" }}>
+                    <div style={{ fontFamily:pixel, fontSize:13, color:G.red, marginBottom:6 }}>СРОЧНО: 25 СЕКУНД — ИНАЧЕ РЕШАТ ЗА ВАС</div>
+                    <div style={{ height:6, background:G.bdr }}>
+                      {urgentTurn === turn && <div key={`u${turn}`} className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:"25s" }} onAnimationEnd={timeUp}/>}
                     </div>
                   </div>
                 )}
-
-                {(consequence.reactions||[]).map((r,i)=>(
-                  <div key={i} style={{ fontFamily:serif, fontSize:14, color:G.tx2, fontStyle:"italic", padding:"6px 0", borderTop:`1px solid ${G.bdr}` }}>▸ {r}</div>
+                {(event.doc ? event.choices.slice(0, 2) : event.choices).map((c, i) => (
+                  <button key={c.id} {...optProps(c, i + 1)}
+                    style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
+                    <span style={{ position:"absolute", left:22, top:13, fontFamily:serif, fontWeight:700, fontSize:18, color:G.tx3 }}>{i + 1}.</span>
+                    <ChoicePreview gs={gs} c={c}/>
+                    {stamping === c.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
+                  </button>
                 ))}
-                {consequence.historianNote && (
-                  <div style={{ marginTop:12, padding:"10px 14px", background:G.bg3, borderRadius:4, fontFamily:mono, fontSize:11, color:G.tx3 }}>📜 {consequence.historianNote}</div>
-                )}
+                {event.doc && (() => {
+                  // Обвинение: какой исход — решает отмеченная строка; предпросмотр не подсказывает ответ.
+                  const verdict = event.choices.find(c => c.id === (marked !== null && marked === event.doc.key ? "c" : "d"));
+                  const on = armed === "c" || armed === "d";
+                  return (
+                    <button id="opt-3" className="sv-opt" data-armed={on || undefined} disabled={marked === null}
+                      onClick={() => pick(verdict, false)} onBlur={() => setArmed(null)}
+                      style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative", opacity:marked === null ? .55 : 1 }}>
+                      <span style={{ position:"absolute", left:22, top:13, fontFamily:serif, fontWeight:700, fontSize:18, color:G.tx3 }}>3.</span>
+                      <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{INSPECT_TEXT.accuse.text}</div>
+                      <div style={{ fontFamily:narrow, fontSize:15, color:marked === null ? G.tx3 : G.red }}>
+                        {marked === null ? "Сначала отметьте в докладе строку, которая не сходится со справкой" : `Отмечена строка ${marked + 1}. ${INSPECT_TEXT.accuse.hint}`}
+                      </div>
+                      {(stamping === "c" || stamping === "d") && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
+                    </button>
+                  );
+                })()}
+                <div style={{ padding:"0 24px 12px" }}>
+                <CouncilPanel gs={gs} stamping={stamping} onConvened={list => commit(conveneCouncil(gsRef.current, list))} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
+                </div>
               </Card>
+              )}
+            </div>
+          )}
 
-              {consequence.newCrisis && (
-                <div style={{ marginBottom:12, padding:"10px 14px", borderRadius:4, background:"rgba(184,82,82,0.1)", border:`1px solid ${G.red}` }}>
-                  <div style={{ fontFamily:mono, fontSize:11, color:G.red, marginBottom:4 }}>🔥 НОВЫЙ КРИЗИС: {consequence.newCrisis.title?.toUpperCase()}</div>
-                  <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>{consequence.newCrisis.description}</div>
+          {!busy && !event && lastTurn && !counted && (
+            <ElectionNight key={`el${turn}`} e={lastTurn.election} party={gs.leader.party} onDone={() => setCountedTurn(turn)}/>
+          )}
+          {!busy && !event && lastTurn && counted && (
+            <div>
+              <Card style={{ marginBottom:12, padding:"20px 24px 22px" }}>
+                <div className="sv-reveal">
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px 14px", marginBottom:18, flexWrap:"wrap" }}>
+                  <div style={{ minWidth:0, flex:"1 1 240px" }}>
+                    <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:autoTurn === turn ? G.red : G.tx3, marginBottom:2 }}>{autoTurn === turn ? "Пока вы медлили, аппарат решил за вас" : "Ваша резолюция"}</div>
+                    <div className="sv-hand" style={{ fontSize:21, lineHeight:1.25 }}>{lastTurn.choiceText}. — {signature(gs.leader.name)}</div>
+                  </div>
+                  {lastTurn.chance < 1 && (
+                    <span className={`sv-stamp sv-in${lastTurn.success === false ? " is-red" : " is-green"}`} style={{ fontSize:15, flexShrink:0 }}>
+                      {lastTurn.success === false ? "Не исполнено" : "Исполнено"}
+                      <span style={{ display:"block", fontSize:11, fontWeight:400, letterSpacing:0, textTransform:"none", lineHeight:1.3, marginTop:4 }}>шанс был {Math.round(lastTurn.chance * 100)}%</span>
+                    </span>
+                  )}
+                </div>
+                <div className="sv-paper-drop" style={{ borderTop:`4px solid ${G.txt}`, borderBottom:`2px solid ${G.txt}`, padding:"8px 0 6px", marginBottom:12, textAlign:"center" }}>
+                  <div style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(30px, 8vw, 46px)", lineHeight:1.02, textTransform:"uppercase", letterSpacing:".06em" }}>Вечерний {COUNTRIES[gs.country].capital}</div>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:5 }}>{gs.year} · выпуск № {turn} · цена 5 коп.</div>
+                </div>
+                <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>
+                <h2 className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.1, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}>{lastTurn.headline}</h2>
+                <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
+                  <SquareView gs={gs} sceneKey={lastTurn.scene} height={36} mono still/>
+                  <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>{SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции</figcaption>
+                </figure>
+                <Typewriter key={`t${turn}`} text={lastTurn.narrative} onDone={() => setTypedTurn(turn)}/>
+                <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
+
+                {lastTurn.document && <DocumentCard doc={lastTurn.document}/>}
+                {(lastTurn.reactions||[]).slice(0, 2).map((r,i) => {
+                  const who = speakerOf(gs, r);
+                  return (
+                    <div key={i} style={{ display:"flex", gap:12, alignItems:"center", padding:"9px 0", borderTop:`1px solid ${G.bdr}` }}>
+                      {who && <Portrait name={who.name} size={36}/>}
+                      <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic" }}>{r}</div>
+                    </div>
+                  );
+                })}
+                {lastTurn.press?.length > 0 && (
+                  <div style={{ margin:"10px 0 4px", padding:"10px 12px", border:`1px solid ${G.bdr2}`, background:G.bg2 }}>
+                    <div style={{ fontFamily:narrow, fontWeight:700, fontSize:12, letterSpacing:".1em", textTransform:"uppercase", color:G.tx3, marginBottom:6 }}>Что пишут другие</div>
+                    {lastTurn.press.map((p, i) => (
+                      <div key={i} className="sv-fade" style={{ padding:"5px 0", borderTop: i ? `1px dashed ${G.bdr}` : "none", animationDelay:`${0.2 + i * 0.25}s` }}>
+                        <div style={{ fontFamily:narrow, fontSize:13, color:G.tx3 }}>{p.outlet}</div>
+                        <div style={{ fontFamily:serif, fontWeight:700, fontSize:16, lineHeight:1.25, color:G.txt }}>{p.headline}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Историк подводит черту только в конце главы — иначе его реплики приедаются */}
+                {lastTurn.historianNote && (turn % 5 === 0 || gs.ended) && (
+                  <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>— {lastTurn.historianNote}</div>
+                )}
+
+                {(turnDelta || Object.keys(lastTurn.factionRelChanges||{}).length > 0) && (
+                  <Ledger rows={[
+                    ...(turnDelta ? RES_CONFIG.filter(r => turnDelta[r.key]).map(r => ({ k:r.key, label:SHORT[r.key], value:resources[r.key], delta:turnDelta[r.key] })) : []),
+                    ...Object.entries(lastTurn.factionRelChanges||{}).flatMap(([fid, v]) => {
+                      const f = factions.find(x => x.id === fid);
+                      return f ? [{ k:fid, label:f.name, value:f.relation, delta:v, rel:true }] : [];
+                    }),
+                  ]}/>
+                )}
+                </div>
+                </div>
+              </Card>
+              <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
+
+              {lastTurn.pacts && [["signed", "Договор подписан", "var(--blue)"], ["kept", "Договор исполнен", G.grn], ["broken", "Договор нарушен", G.red]].flatMap(([k, label, color]) =>
+                lastTurn.pacts[k].map(name => (
+                  <div key={k + name} className="sv-paper" style={{ marginBottom:8, padding:"10px 16px", borderRadius:0, borderLeft:`3px solid ${color}` }}>
+                    <span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{label}</span>
+                    <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}> · «{name}»</span>
+                  </div>
+                )))}
+              {lastTurn.matured?.map(p => (
+                <div key={p.id} className="sv-paper" style={{ marginBottom:8, padding:"12px 16px", borderRadius:0 }}>
+                  <div style={{ fontFamily:serif, fontSize:16, fontWeight:700, marginBottom:2 }}>{p.label}</div>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:6 }}>эхо решения {p.event ? `по делу «${p.event}»` : `«${p.source}»`}</div>
+                  <ResourceChips delta={p.res}/>
+                </div>
+              ))}
+              {lastTurn.election && (
+                <div style={{ marginBottom:8, padding:"12px 14px", borderRadius:0, background:G.bg2, border:`1px solid ${lastTurn.election.outcome==="won"?G.grn:G.red}` }}>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:lastTurn.election.outcome==="won"?G.grn:G.red, letterSpacing:".05em", marginBottom:4 }}>
+                    {ELECTION_LABEL[lastTurn.election.kind].toUpperCase()}: {lastTurn.election.outcome==="won" ? "ПОБЕДА" : lastTurn.election.outcome==="impeached" ? "РАЗГРОМ И ИМПИЧМЕНТ" : "ПОРАЖЕНИЕ"}
+                  </div>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>
+                    ваша партия {lastTurn.election.leader}% · {lastTurn.election.top.name} {lastTurn.election.top.share}%
+                  </div>
+                </div>
+              )}
+              {lastTurn.resolvedCrisis && (
+                <div style={{ marginBottom:8, padding:"10px 14px", borderRadius:0, background:"rgba(92,184,122,0.08)", border:`1px solid ${G.grn}` }}>
+                  <span style={{ fontFamily:narrow, fontSize:15, color:G.grn }}>КРИЗИС ПРЕОДОЛЁН · {lastTurn.resolvedCrisis.toUpperCase()}</span>
+                </div>
+              )}
+              {lastTurn.expiredCrises?.map(t => (
+                <div key={t} style={{ marginBottom:8, padding:"10px 14px", borderRadius:0, background:G.bg2, border:`1px solid ${G.bdr2}` }}>
+                  <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>КРИЗИС ЗАТИХ · {t.toUpperCase()}</span>
+                </div>
+              ))}
+              {lastTurn.newCrisis && (
+                <div style={{ marginBottom:12, padding:"10px 14px", borderRadius:0, background:"rgba(184,82,82,0.1)", border:`1px solid ${G.red}` }}>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.red, marginBottom:4 }}>НОВЫЙ КРИЗИС · {lastTurn.newCrisis.title.toUpperCase()}</div>
+                  <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>{lastTurn.newCrisis.description}</div>
                 </div>
               )}
 
-              <div style={{ textAlign:"right" }}>
-                {gs.ended
-                  ? <PrimaryBtn onClick={onEnd} danger>ПОДВЕСТИ ИТОГИ →</PrimaryBtn>
-                  : <PrimaryBtn onClick={fetchEvent}>СЛЕДУЮЩИЙ ХОД →</PrimaryBtn>}
               </div>
+              {typed && <div style={{ textAlign:"right" }}>
+                {gs.ended
+                  ? <PrimaryBtn id="next-turn" onClick={onEnd} danger>ПОДВЕСТИ ИТОГИ ⏎</PrimaryBtn>
+                  : <PrimaryBtn id="next-turn" onClick={nextTurn}>СЛЕДУЮЩИЙ ХОД ⏎</PrimaryBtn>}
+              </div>}
             </div>
+          )}
+
+          {!busy && !event && !lastTurn && gs.ended && (
+            <div style={{ textAlign:"right" }}><PrimaryBtn onClick={onEnd} danger>ПОДВЕСТИ ИТОГИ →</PrimaryBtn></div>
           )}
         </div>
       </div>
+      </div>
+      <ActionBar
+        mode={recap ? "recap" : busy ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
+        choice={armedChoice}
+        onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
+        onCancel={() => { setArmed(null); setPreview(null); }}
+        onJump={() => document.getElementById("opt-1")?.scrollIntoView({ behavior:"smooth", block:"center" })}
+        onSkip={() => window.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter" }))}
+        onCount={() => setCountedTurn(turn)}
+        onNext={nextTurn} onEnd={onEnd} onRecap={onRecapDone}/>
     </div>
   );
 }
 
-// ── ENDING ────────────────────────────────────────────────────────────────────
-function Ending({ gs, onRestart }) {
-  const [verdict, setVerdict] = useState(null);
-  const [loading, setLoading] = useState(true);
+// Готовы ли родные кнопки Telegram (SDK грузится асинхронно).
+function useTelegramButtons() {
+  const [tg, setTg] = useState(tgButtons);
+  useEffect(() => onTelegramReady(() => setTg(tgButtons())), []);
+  return tg;
+}
 
+// Нижняя панель на телефоне: главное действие хода всегда под большим пальцем.
+// Кнопки не забирают фокус — иначе выбранная резолюция успела бы сброситься.
+function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd, onRecap, onCount }) {
+  // В Telegram то же действие уходит на его родную кнопку внизу экрана, отмена — на «Назад».
+  const tg = useTelegramButtons();
   useEffect(() => {
-    const gen = async () => {
-      try {
-        const ci       = IDEOLOGIES.find(i => i.id === gs.ideo);
-        const hist     = gs.history.map(h=>`${h.year}: "${h.title}" → выбор: «${h.choice}» → результат: «${h.headline}»`).join("\n");
-        const pa       = computePublicApproval(gs.factions);
-        const endTypes = { mandate:"Завершение мандата (20 ходов)", revolution:"Народная революция", collapse:"Коллапс государства" };
-        const endDesc  = endTypes[gs.endType] || "Потеря власти";
-
-        const data = await ai(
-          `ИТОГОВАЯ ОЦЕНКА ПРАВЛЕНИЯ\n\nСтрана: ${gs.country}\nЛидер: ${gs.leader.leader.name} (${ci.label}), партия "${gs.leader.leader.party}"\nПериод правления: ${COUNTRIES[gs.country].startYear}–${gs.year}\nКоличество ходов: ${gs.history.length} из 20\nПричина завершения: ${endDesc}\nРейтинг народа в конце: ${pa}%\nФинальные ресурсы: ${JSON.stringify(gs.resources)}\nФинальные отношения фракций: ${gs.factions.map(f=>`${f.name}:${f.relation}`).join(", ")}\nКлючевые игроки в конце: ${gs.keyFigures.map(f=>`${f.name}(${f.role}):${f.relation}`).join(", ")}\n${gs.powerLoss ? `\nПодробности потери власти: ${gs.powerLoss}` : ""}\n\nХроника решений:\n${hist}\n\nНапиши историческую оценку через 20 лет после событий. Стиль: серьёзный политический анализ. ${gs.endType !== "mandate" ? "Обязательно начни fallNarrative с конкретной сцены — кто, где, когда — как именно закончилось правление." : ""}\n\nJSON (плоская структура):\n{"verdict":"4-5 предложений общей оценки","title":"исторический титул лидера (например: «Реформатор-неудачник», «Тиран-прагматик»)","epitaph":"одна меткая фраза для учебников","rating":"Провал|Слабое правление|Противоречивое наследие|Стабильность|Успех|Историческое достижение","fallNarrative":${gs.endType !== "mandate" ? '"3-4 предложения конкретной сцены конца правления"' : 'null'}}`,
-          "ending"
-        );
-        setVerdict(data);
-      } catch (e) { console.error(e); }
-      setLoading(false);
+    if (!tg) return;
+    const short = t => (t.length > 34 ? t.slice(0, 33).trimEnd() + "…" : t);
+    const specs = {
+      sign: { text: `Подписать: ${short(choice?.text ?? "")}`, onClick: onSign },
+      jump: { text: "К резолюции ↓", onClick: onJump },
+      skip: { text: "Показать текст сразу", onClick: onSkip },
+      next: { text: "Следующий ход →", onClick: onNext },
+      end:  { text: "Подвести итоги →", onClick: onEnd, color: "#a02f24", textColor: "#f1e9d2" },
+      recap: { text: "Продолжить правление →", onClick: onRecap },
+      count: { text: "Сразу к итогам", onClick: onCount },
     };
-    gen();
-  }, []); // eslint-disable-line
+    setMainButton(specs[mode] ?? null);
+    setBackButton(mode === "sign" ? onCancel : null);
+  });
+  useEffect(() => () => { setMainButton(null); setBackButton(null); }, [tg]);
+  if (!mode || mode === "recap" || tg) return null; // у сводки своя кнопка
+  const keep = { onPointerDown: e => e.preventDefault(), onMouseDown: e => e.preventDefault() };
+  const main = { flex:1, minHeight:48, background:G.gold, color:"var(--on-gold)", border:"2px solid #000", fontFamily:pixel, fontSize:15, textTransform:"uppercase", padding:"0 14px", boxShadow:"var(--hard)" };
+  return (
+    <div className="sv-actionbar">
+      {mode === "sign" && <>
+        <button {...keep} onClick={onCancel} aria-label="Отменить выбор"
+          style={{ width:48, minHeight:48, background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, fontSize:20 }}>×</button>
+        <button {...keep} onClick={onSign} style={{ ...main, display:"flex", flexDirection:"column", alignItems:"flex-start", justifyContent:"center", textAlign:"left", gap:2, minWidth:0 }}>
+          <span>Подписать</span>
+          <span style={{ fontFamily:narrow, fontSize:14, textTransform:"none", opacity:.8, maxWidth:"100%", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{choice?.text}</span>
+        </button>
+      </>}
+      {mode === "jump" && <button {...keep} onClick={onJump} style={main}>К резолюции ↓</button>}
+      {mode === "count" && <button {...keep} onClick={onCount} style={{ ...main, background:"transparent", color:G.txt, border:`2px solid ${G.bdr2}`, boxShadow:"none" }}>Сразу к итогам</button>}
+      {mode === "skip" && <button {...keep} onClick={onSkip} style={{ ...main, background:"transparent", color:G.txt, border:`2px solid ${G.bdr2}`, boxShadow:"none" }}>Показать текст сразу</button>}
+      {mode === "next" && <button {...keep} onClick={onNext} style={main}>Следующий ход →</button>}
+      {mode === "end" && <button {...keep} onClick={onEnd} style={{ ...main, background:G.red }}>Подвести итоги →</button>}
+    </div>
+  );
+}
 
-  const avgRes = Math.round(Object.values(gs.resources).reduce((a,b)=>a+b,0)/6);
-  const pa = computePublicApproval(gs.factions);
-  const isLoss = gs.endType !== "mandate";
+// Прогресс коллекции — повод сыграть ещё.
+function Collection() {
+  const raw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
+  const meta = useMemo(() => parseMeta(raw), [raw]);
+  const endings = new Set(Object.values(meta.endings).flat()).size;
+  const items = [
+    ["ИНТРИГИ", `${meta.arcs?.length ?? 0}/${ARCS.length}`],
+    ["КОНЦОВКИ", `${endings}/${ALL_ENDINGS.length}`],
+    ["ДОСТИЖЕНИЯ", `${meta.achievements.length}/${ACHIEVEMENTS.length}`],
+  ];
+  return (
+    <div style={{ display:"flex", justifyContent:"center", gap:24, flexWrap:"wrap", margin:"4px 0 18px", order:7 }}>
+      {items.map(([k, v]) => (
+        <div key={k} style={{ textAlign:"center" }}>
+          <div style={{ fontFamily:serif, fontSize:24, fontWeight:600, color:G.gold, lineHeight:1 }}>{v}</div>
+          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginTop:4 }}>{k}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Итог правления одним сообщением — чтобы поделиться в мессенджере.
+function shareText(gs) {
+  const v = gs.verdict;
+  const c = COUNTRIES[gs.country];
+  const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
+  return [
+    `${c.flag} СУВЕРЕН · ${gs.daily ? `дело дня ${gs.daily.split("-").reverse().slice(0, 2).join(".")} · ` : ""}${gs.country}`,
+    `${gs.leader.name} — «${v.title}»`,
+    `${c.startYear}–${gs.year} · ${plural(gs.history.length, "решение", "решения", "решений")} · ${END_TYPES[gs.endType] ?? ""}`,
+    `Оценка истории: ${v.rating} · рейтинг ${rating}%`,
+    gs.arc ? `Интрига «${ARCS.find(a => a.id === gs.arc.id)?.title}»: ${gs.arc.epilogue ? "раскрыта" : "так и осталась тайной"}` : "",
+    v.epitaph ? `«${v.epitaph}»` : "",
+    "",
+    isSurvival(gs.endType) ? "Сможешь лучше?" : `Мой президент продержался ${plural(gs.history.length, "ход", "хода", "ходов")}. А твой?`,
+    shareUrl(),
+  ].filter((l, i, a) => l || (i > 0 && a[i - 1])).join("\n").trim();
+}
+
+const shareUrl = () => process.env.NEXT_PUBLIC_SHARE_URL || (/^https?:/.test(location.href) ? location.href.split("#")[0] : "");
+
+function ShareButton({ gs }) {
+  const [state, setState] = useState(null); // "ok" | "manual"
+  const text = shareText(gs);
+  const saveCard = async () => {
+    const blob = await resultCard(gs).catch(() => null);
+    if (!blob) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `suveren-${gs.leader.name.replace(/\s+/g, "-")}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
+  const copy = async () => {
+    const blob = matchMedia("(pointer:coarse)").matches ? await resultCard(gs).catch(() => null) : null;
+    const file = blob && new File([blob], "suveren.png", { type:"image/png" });
+    if (file && navigator.canShare?.({ files:[file] })) {
+      try { await navigator.share({ files:[file], text }); return; } catch (e) { if (e?.name === "AbortError") return; }
+    }
+    if (telegramShare(text.replace(shareUrl(), "").trim(), shareUrl())) return;
+    if (navigator.share && matchMedia("(pointer:coarse)").matches) {
+      try { await navigator.share({ text }); return; } catch (e) { if (e?.name === "AbortError") return; }
+    }
+    try { await navigator.clipboard.writeText(text); setState("ok"); }
+    catch { setState("manual"); }
+  };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
+      <PrimaryBtn onClick={copy}>{state === "ok" ? "✓ СКОПИРОВАНО" : "ПОДЕЛИТЬСЯ ИТОГОМ"}</PrimaryBtn>
+      {window.self === window.top && <button onClick={saveCard} style={{ background:"transparent", border:"none", color:G.tx2, fontSize:15, textDecoration:"underline", textUnderlineOffset:3 }}>Сохранить карточку итога</button>}
+      {state === "manual" && (
+        <textarea readOnly value={text} rows={5} onFocus={e => e.target.select()} aria-label="Итог правления"
+          style={{ width:280, background:G.bg, color:G.txt, border:`1px solid ${G.bdr2}`, borderRadius:0, padding:8, fontFamily:narrow, fontSize:15 }}/>
+      )}
+    </div>
+  );
+}
+
+// Таблица «Дела дня»: место среди всех и среди друзей, приглашение друга.
+function DailyBoard({ gs }) {
+  const [board, setBoard] = useState(null);
+  const [tab, setTab] = useState("all");
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    let live = true;
+    submitDaily(gs).then(b => { if (live) setBoard(b); });
+    return () => { live = false; };
+  }, [gs]);
+  if (!board) return null;
+  const friends = board.friends.length > 1;
+  const rows = tab === "friends" && friends ? board.friends : board.top;
+  const invite = async () => {
+    const url = inviteUrl(board.uid, shareUrl());
+    const msg = "Сыграй сегодняшнее дело в «Суверене» — посмотрим, кто продержится дольше.";
+    if (telegramShare(msg, url)) return;
+    if (navigator.share && matchMedia("(pointer:coarse)").matches) { try { await navigator.share({ text:msg, url }); return; } catch { /* отменено */ } }
+    try { await navigator.clipboard.writeText(`${msg} ${url}`); setCopied(true); } catch { /* нет доступа */ }
+  };
+  const tabBtn = (id, label) => (
+    <button onClick={() => setTab(id)} aria-pressed={tab === id}
+      style={{ background:"transparent", border:"none", borderBottom:`2px solid ${tab === id ? G.gold : "transparent"}`, color:tab === id ? G.txt : G.tx3, fontSize:15, padding:"2px 0" }}>{label}</button>
+  );
+  return (
+    <Card style={{ marginBottom:12, order:6 }}>
+      <Label>{"Дело дня · таблица"}</Label>
+      {board.me && (
+        <div style={{ fontFamily:serif, fontSize:20, marginBottom:12 }}>
+          Вы <b>{board.me.rank}-й</b> из {board.total} · {plural(board.me.score, "очко", "очка", "очков")}
+        </div>
+      )}
+      {friends && <div style={{ display:"flex", gap:16, marginBottom:8 }}>{tabBtn("all", "Все")}{tabBtn("friends", "Друзья")}</div>}
+      {rows.map((row, i) => (
+        <div key={i} style={{ display:"flex", justifyContent:"space-between", gap:10, padding:"6px 0", borderTop:`1px solid ${G.bdr}`, fontFamily:narrow, fontSize:16, color:row.me ? G.gold : G.txt, fontWeight:row.me ? 700 : 400 }}>
+          <span style={{ minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{i + 1}. {row.name}{row.title && <span style={{ color:G.tx3, fontWeight:400 }}> · {row.title}</span>}</span>
+          <span style={{ fontVariantNumeric:"tabular-nums" }}>{row.score}</span>
+        </div>
+      ))}
+      <button onClick={invite} style={{ marginTop:12, background:"transparent", border:`1.5px solid ${G.gold}`, color:G.gold, padding:"8px 16px", borderRadius:0, fontSize:15, fontWeight:700 }}>
+        {copied ? "Ссылка скопирована" : "Позвать друга в таблицу"}
+      </button>
+    </Card>
+  );
+}
+
+// ── ENDING ────────────────────────────────────────────────────────────────────
+function Ending({ gs, setGs, onRestart }) {
+  const verdict = gs.verdict;
+  const [newAch, setNewAch] = useState([]);
+  const [loading, setLoading] = useState(!verdict);
+  const [error, setError]     = useState(null);
+  const gsRef = useRef(gs);
+  useEffect(() => { gsRef.current = gs; }, [gs]);
+
+  const [attempt, setAttempt] = useState(0);
+  const needsVerdict = !verdict;
+  useEffect(() => {
+    if (!needsVerdict) return;
+    let cancelled = false;
+    game.ending(gsRef.current).then(
+      v => {
+        if (cancelled) return;
+        const next = setVerdict(gsRef.current, v);
+        gsRef.current = next;
+        setGs(next);
+        const run = recordRun(next);
+        setNewAch(run.unlocked);
+        cloudSet("meta", compactMeta(run.meta));
+        setError(null);
+        setLoading(false);
+      },
+      e => {
+        if (cancelled) return;
+        console.error(e);
+        setError(e.message);
+        setLoading(false);
+      },
+    );
+    return () => { cancelled = true; };
+  }, [needsVerdict, attempt, setGs]);
+
+  const retry = () => { setLoading(true); setError(null); setAttempt(a => a + 1); };
+
+  const avgRes = Math.round(RES_CONFIG.reduce((s, r) => s + gs.resources[r.key], 0) / RES_CONFIG.length);
+  const pa = computePolls(gs.country, gs.factions, gs.resources).leader;
+  const isLoss = !isSurvival(gs.endType);
+  const startYear = COUNTRIES[gs.country].startYear;
 
   return (
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"32px 16px" }}>
-      <div style={{ maxWidth:660, width:"100%" }}>
+      <div style={{ maxWidth:660, width:"100%", display:"flex", flexDirection:"column" }}>
         <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".22em", color:G.tx3, marginBottom:12 }}>{COUNTRIES[gs.country].flag} {gs.country.toUpperCase()} · {isLoss?"КОНЕЦ ПРАВЛЕНИЯ":"КОНЕЦ МАНДАТА"}</div>
+          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:12 }}><Flag country={gs.country}/> {gs.country.toUpperCase()} · {gs.endType ? END_TYPES[gs.endType].toUpperCase() : "КОНЕЦ ПРАВЛЕНИЯ"}</div>
           <Divider/>
         </div>
 
-        <Card style={{ marginBottom:12, borderColor:isLoss?G.red:G.bdr2, textAlign:"center", borderLeft:isLoss?`3px solid ${G.red}`:undefined }}>
-          <div style={{ fontFamily:serif, fontSize:34, fontWeight:600, color:isLoss?G.red:G.gold, marginBottom:6 }}>{gs.leader.leader.name}</div>
-          {!loading && verdict && <div style={{ fontFamily:mono, fontSize:12, color:G.amb, letterSpacing:".1em", marginBottom:6 }}>{verdict.title?.toUpperCase()}</div>}
-          <div style={{ fontFamily:mono, fontSize:11, color:G.tx3 }}>{COUNTRIES[gs.country].startYear}–{gs.year} · {gs.history.length} решений · ресурсы {avgRes}/100 · рейтинг {pa}%</div>
+        <Card style={{ marginBottom:12, textAlign:"center" }}>
+          <Portrait name={gs.leader.name} size={96} style={{ display:"block", margin:"0 auto 12px", transform:"rotate(-1.5deg)", filter:isLoss ? "grayscale(1) contrast(.9)" : "none" }}/>
+          <div style={{ fontFamily:narrow, fontSize:42, fontWeight:700, color:G.txt, marginBottom:6 }}>{gs.leader.name}</div>
+          {verdict?.title && <div style={{ margin:"10px 0 20px" }}><span className={`sv-stamp${isLoss ? " is-red" : ""}`} style={{ fontSize:17 }}>{verdict.title}</span></div>}
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{startYear}–{gs.year} · {plural(gs.history.length, "решение", "решения", "решений")} · ресурсы {avgRes}/100 · рейтинг {pa}%</div>
         </Card>
 
-        {loading && <Card style={{ padding:"50px 20px", textAlign:"center" }}><div style={{ fontFamily:mono, fontSize:13, color:G.tx3, letterSpacing:".1em" }}>// ИСТОРИКИ ПИШУТ ХРОНИКИ...</div></Card>}
+        {loading && <Card style={{ padding:"50px 20px", textAlign:"center" }}><div style={{ fontFamily:mono, fontSize:13, color:G.tx3, letterSpacing:".05em" }}>{"Историки пишут хронику…"}</div></Card>}
+        {!loading && error && <ErrorBanner message={error} onRetry={retry}/>}
 
-        {!loading && verdict && (
-          <div>
-            {isLoss && verdict.fallNarrative && verdict.fallNarrative !== "null" && (
-              <Card accent={G.red} style={{ marginBottom:12 }}>
-                <Label>// КАК ЭТО ПРОИЗОШЛО</Label>
-                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt }}>{verdict.fallNarrative}</div>
+        {!loading && (
+          <div style={{ display:"contents" }}>
+            {isLoss && (verdict?.fallNarrative || gs.powerLoss) && (
+              <Card accent={G.red} style={{ marginBottom:12, order:3 }}>
+                <Label>{"КАК ЭТО ПРОИЗОШЛО"}</Label>
+                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt }}>{verdict?.fallNarrative || gs.powerLoss}</div>
+                {endCause(gs) && <div style={{ fontFamily:narrow, fontSize:15, lineHeight:1.6, color:G.red, marginTop:10, paddingTop:10, borderTop:`1px solid ${G.bdr}` }}>{endCause(gs)}</div>}
               </Card>
             )}
 
-            <Card accent={G.amb} style={{ marginBottom:12 }}>
-              <Label>// ВЕРДИКТ ИСТОРИИ</Label>
-              <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{verdict.verdict}</div>
-              <div style={{ fontFamily:serif, fontSize:15, fontStyle:"italic", color:G.tx2, padding:"12px 0", borderTop:`1px solid ${G.bdr}`, borderBottom:`1px solid ${G.bdr}` }}>«{verdict.epitaph}»</div>
-              {verdict.rating && <div style={{ marginTop:12, fontFamily:mono, fontSize:12, color:G.amb, letterSpacing:".1em" }}>ОЦЕНКА: {verdict.rating?.toUpperCase()}</div>}
-            </Card>
+            {verdict && (
+              <Card accent={G.amb} style={{ marginBottom:12, order:5 }}>
+                <Label>{"ВЕРДИКТ ИСТОРИИ"}</Label>
+                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{verdict.verdict}</div>
+                {verdict.epitaph && <div style={{ fontFamily:serif, fontSize:15, fontStyle:"italic", color:G.tx2, padding:"12px 0", borderTop:`1px solid ${G.bdr}`, borderBottom:`1px solid ${G.bdr}` }}>«{verdict.epitaph}»</div>}
+                <div style={{ marginTop:12, fontFamily:narrow, fontSize:15, color:G.amb, letterSpacing:".05em" }}>ОЦЕНКА: {verdict.rating.toUpperCase()}</div>
+              </Card>
+            )}
 
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
+            <div className="sv-two-col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12, order:10 }}>
               <Card>
-                <Label>// РЕСУРСЫ</Label>
+                <Label>{"РЕСУРСЫ"}</Label>
                 {RES_CONFIG.map(r => {
                   const v=gs.resources[r.key]; const c=barColor(v);
                   return <div key={r.key} style={{ marginBottom:8 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                      <span style={{ fontFamily:mono, fontSize:10, color:G.tx2 }}>{r.label}</span>
-                      <span style={{ fontFamily:mono, fontSize:10, color:c }}>{v}</span>
+                      <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{r.label}</span>
+                      <span style={{ fontFamily:narrow, fontSize:15, color:c }}>{v}</span>
                     </div>
-                    <div style={{ height:2, background:G.bdr, borderRadius:2 }}><div style={{ height:"100%", width:`${v}%`, background:c, borderRadius:2 }}/></div>
+                    <div style={{ height:2, background:G.bdr, borderRadius:0 }}><div style={{ height:"100%", width:`${v}%`, background:c, borderRadius:0 }}/></div>
                   </div>;
                 })}
               </Card>
               <Card>
-                <Label>// ФРАКЦИИ (итог)</Label>
+                <Label>{"ФРАКЦИИ (итог)"}</Label>
                 {gs.factions.map(f => {
                   const c=relColor(f.relation);
                   return <div key={f.id} style={{ marginBottom:7 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                      <span style={{ fontFamily:mono, fontSize:10, color:G.tx2 }}>{f.emoji}{f.name}</span>
-                      <span style={{ fontFamily:mono, fontSize:10, color:c }}>{f.relation>0?"+":""}{f.relation}</span>
+                      <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>{f.name}</span>
+                      <span style={{ fontFamily:narrow, fontSize:15, color:c }}>{signed(f.relation)}</span>
                     </div>
-                    <div style={{ height:2, background:G.bdr, borderRadius:2 }}>
-                      <div style={{ height:"100%", width:`${((f.relation+100)/200)*100}%`, background:c, borderRadius:2 }}/>
+                    <div style={{ height:2, background:G.bdr, borderRadius:0 }}>
+                      <div style={{ height:"100%", width:`${((f.relation+100)/200)*100}%`, background:c, borderRadius:0 }}/>
                     </div>
                   </div>;
                 })}
@@ -929,12 +2324,15 @@ function Ending({ gs, onRestart }) {
             </div>
 
             {gs.history.length > 0 && (
-              <Card style={{ marginBottom:24 }}>
-                <Label>// ХРОНИКА ПРАВЛЕНИЯ</Label>
+              <Card style={{ marginBottom:24, order:11 }}>
+                <Label>{"ХРОНИКА ПРАВЛЕНИЯ"}</Label>
                 {gs.history.map((h,i)=>(
-                  <div key={i} style={{ display:"flex", gap:12, padding:"6px 0", borderBottom:i<gs.history.length-1?`1px solid ${G.bdr}`:"none" }}>
-                    <span style={{ fontFamily:mono, fontSize:11, color:G.tx3, minWidth:36 }}>{h.year}</span>
-                    <span style={{ fontFamily:serif, fontSize:13, color:G.tx2, fontStyle:"italic" }}>«{h.headline}»</span>
+                  <div key={i} style={{ display:"flex", gap:12, padding:"7px 0", borderBottom:i<gs.history.length-1?`1px solid ${G.bdr}`:"none" }}>
+                    <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3, minWidth:36 }}>{h.year}</span>
+                    <span style={{ minWidth:0 }}>
+                      <span style={{ fontFamily:serif, fontSize:14, color:G.txt }}>{h.title}</span>
+                      <span style={{ display:"block", fontFamily:narrow, fontSize:15, color:h.success === false ? G.red : G.tx2, marginTop:2 }}>{h.success === false ? "✖ " : "→ "}{h.choice}</span>
+                    </span>
                   </div>
                 ))}
               </Card>
@@ -942,7 +2340,35 @@ function Ending({ gs, onRestart }) {
           </div>
         )}
 
-        <div style={{ textAlign:"center" }}><PrimaryBtn onClick={onRestart}>↺ НОВАЯ ПАРТИЯ</PrimaryBtn></div>
+        {verdict && gs.arc && (() => {
+          const def = ARCS.find(a => a.id === gs.arc.id);
+          const solved = !!gs.arc.epilogue;
+          return (
+            <Card style={{ marginBottom:12, order:4 }}>
+              <Label>{`ГЛАВНАЯ ИНТРИГА · «${def?.title.toUpperCase()}»`}</Label>
+              <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.6, color:G.txt, fontStyle:solved ? "normal" : "italic" }}>
+                {solved ? gs.arc.epilogue : `Осталась нераскрытой. ${def?.teaser} Правда о человеке по имени ${gs.arc.target}${gs.arc.targetRole ? ` (${gs.arc.targetRole[0].toLowerCase() + gs.arc.targetRole.slice(1)})` : ""} так и не вышла наружу.`}
+              </div>
+            </Card>
+          );
+        })()}
+        {verdict && <Collection/>}
+        {verdict && gs.daily && <DailyBoard gs={gs}/>}
+        {newAch.length > 0 && (
+          <Card accent={G.gold} style={{ marginBottom:16, order:6 }}>
+            <Label>{"НОВЫЕ ДОСТИЖЕНИЯ"}</Label>
+            {newAch.map(a => (
+              <div key={a.id} className="sv-fade" style={{ marginBottom:8 }}>
+                <span style={{ fontFamily:narrow, fontSize:15, color:G.gld2 }}>{a.title.toUpperCase()}</span>
+                <span style={{ fontFamily:serif, fontSize:14, color:G.tx2, marginLeft:10 }}>{a.desc}</span>
+              </div>
+            ))}
+          </Card>
+        )}
+        <div style={{ display:"flex", justifyContent:"center", gap:10, flexWrap:"wrap", order:8, marginBottom:28 }}>
+          {verdict && <ShareButton gs={gs}/>}
+          <PrimaryBtn onClick={onRestart}>НОВАЯ ПАРТИЯ</PrimaryBtn>
+        </div>
       </div>
     </div>
   );
@@ -951,14 +2377,28 @@ function Ending({ gs, onRestart }) {
 // ── APP ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [screen, setScreen] = useState("setup");
+  useEffect(() => { window.scrollTo({ top: 0 }); }, [screen]);
   const [gs, setGs]         = useState(null);
+  const savedRaw = useSyncExternalStore(subscribeSave, readSaveRaw, () => null);
+  const saved = useMemo(() => parseSave(savedRaw), [savedRaw]);
+  // Telegram понимает цвет шапки только в виде #rrggbb.
+  useEffect(() => { rememberRef(); initTelegram("#2a2622", () => cloudGet("meta").then(importMeta)); }, []);
+
+  // Автосохранение: после каждого изменения партии, пока игрок не в меню.
+  useEffect(() => {
+    if (gs && screen !== "setup") writeSave({ version: SAVE_VERSION, screen, state: gs });
+  }, [gs, screen]);
+
+  const [recap, setRecap] = useState(false); // «Ранее в Суверене» — после возвращения к сохранённой партии
+  const resume = () => { if (saved) { setGs(saved.state); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
+  const restart = () => { clearSave(); setGs(null); setScreen("setup"); };
+
   return (
     <>
-      <Fonts/>
-      {screen==="setup"  && <Setup  onStart={d=>{setGs(d);setScreen("intro");}}/>}
+      {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={d=>{setGs(d);setScreen("intro");}}/>}
       {screen==="intro"  && <Intro  gs={gs} onGo={()=>setScreen("game")}/>}
-      {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")}/>}
-      {screen==="ending" && <Ending gs={gs} onRestart={()=>setScreen("setup")}/>}
+      {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
+      {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
     </>
   );
 }
