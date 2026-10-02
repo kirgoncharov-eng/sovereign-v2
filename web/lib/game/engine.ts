@@ -1,7 +1,7 @@
 // Игровой движок: чистые функции без сети и без React.
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
 import {
-  ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, MAX_PENDING, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, CRISIS_DRAIN, DIFF_PRESSURE, ELECTIONS,
+  ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, MAX_PENDING, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, COSTS, CRISIS_DRAIN, pressureAt, ELECTIONS,
   ELECTION_LOSS_PENALTY, ELECTION_WIN_BONUS, HOSTILE_DRAIN, HOSTILE_RELATION, IMPEACH_RATING, NON_VOTING_BLOCS, PARTIES, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, MAX_TURNS, RECOVERY_BELOW, RECOVERY_RATE,
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES,
@@ -349,6 +349,7 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions"> & Part
       addDelta(appr, { [f.id]: a.appr?.[f.bloc] });
     }
   }
+  for (const k of Object.keys(res)) if (res[k] < 0) res[k] *= COSTS.weight;
   // Качество советника: потери умножаются на cost, выгода — на gain.
   const skill = choice.advisor ? ADVISOR_SKILL[choice.advisor.skill] : null;
   if (skill) for (const k of Object.keys(res)) res[k] *= res[k] < 0 ? skill.cost : skill.gain;
@@ -502,7 +503,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 
   // Давление обстоятельств (по сложности) и вредительство враждебных фракций.
   const turn = state.turn + 1;
-  const pressure = DIFF_PRESSURE[state.diff] ?? 0;
+  const pressure = pressureAt(state.diff, turn);
   if (pressure) {
     resources = applyDeltas(resources, {
       [RESOURCE_KEYS[turn % RESOURCE_KEYS.length]]: -Math.ceil(pressure / 2),

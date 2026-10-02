@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ACTIONS, CRISIS_DRAIN, LIMITS, MAX_TURNS, START_RES } from "./data.ts";
+import { ACTIONS, COSTS, CRISIS_DRAIN, LIMITS, MAX_TURNS, START_RES } from "./data.ts";
 import {
   applyDeltas, choiceEffects, computePolls, createInitialState, delayedEffects, detectEnd, planTurn, resolveTurn, conveneCouncil, startEvent, tickCrises,
 } from "./engine.ts";
@@ -48,7 +48,10 @@ test("applyDeltas держит ресурсы в 0..100", () => {
 test("choiceEffects: цена решения берётся из каталога действий и блоков фракций", () => {
   const s = newGame();
   const fx = choiceEffects(s, choice("a", ["repress"]));
-  assert.deepEqual(fx.resources, ACTIONS.repress.res);
+  // Потери весят больше выгод: бесплатных решений почти не бывает.
+  const priced = Object.fromEntries(Object.entries(ACTIONS.repress.res).map(([k, v]) => [k, v < 0 ? Math.round(v * COSTS.weight) : v]));
+  assert.deepEqual(fx.resources, priced);
+  assert.ok((fx.resources.internalLegitimacy ?? 0) < (ACTIONS.repress.res.internalLegitimacy ?? 0));
   assert.equal(fx.factionRel.siloviki, ACTIONS.repress.rel.security);
   assert.equal(fx.factionRel.opposition, ACTIONS.repress.rel.liberal);
   assert.equal(fx.factionRel.church, undefined);
@@ -71,7 +74,8 @@ test("resolveTurn применяет посчитанный движком ит�
   const s = startEvent(newGame(), event());
   const next = resolveTurn(s, "a", narration);
   assert.equal(next.turn, 1);
-  assert.equal(next.resources.economy, START_RES.debut.economy + (ACTIONS.social.res.economy ?? 0));
+  assert.deepEqual(next.resources, planTurn(s, "a").resources);
+  assert.ok(next.resources.economy <= START_RES.debut.economy + Math.round((ACTIONS.social.res.economy ?? 0) * COSTS.weight));
   assert.equal(next.history[0].choice, "Вариант a");
   assert.equal(next.currentEvent, null);
   assert.deepEqual(next.lastTurn?.tags, ["social"]);
