@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   let sent = 0, dropped = 0;
   for (const chat of subs) {
     try {
-      const res = await botApi("sendMessage", { chat_id: Number(chat), text, reply_markup: playButton("Взяться за дело") }) as { ok?: boolean; error_code?: number };
+      const res = await botApi("sendMessage", { chat_id: Number(chat), text, parse_mode: "HTML", reply_markup: playButton("Взяться за дело") }) as { ok?: boolean; error_code?: number };
       if (res.ok) sent++;
       else if (res.error_code === 403) { await kv.srem(SUBS, chat); dropped++; } // бот заблокирован
     } catch (e) {
