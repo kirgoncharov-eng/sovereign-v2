@@ -107,7 +107,7 @@ export function dateline(state: GameState): string {
   return fill(`${WEEKDAYS[(t + state.seed) % 7]}, ${time}. ${weather} ${place}`, state);
 }
 
-const chapter = (...parts: (string | undefined | null)[]) => parts.filter(Boolean).join("\n\n");
+const chapter = (...parts: (string | undefined | null | false)[]) => parts.filter(Boolean).join("\n\n");
 
 // ── Выбор карточки ───────────────────────────────────────────────────────────
 const neededBlocs = (card: EventCard) =>
@@ -157,7 +157,8 @@ export function beatEvent(state: GameState): GameEvent | null {
   return {
     title: fill(variant.title, state),
     source: "Секретно",
-    description: chapter(dateline(state), fill(variant.description, state), BEAT_EXT[variant.title] && fill(BEAT_EXT[variant.title], state)),
+    // Первый ход — короткий: игрок только вошёл в кабинет, второй абзац подождёт до следующих эпизодов.
+    description: chapter(dateline(state), fill(variant.description, state), state.turn > 0 && BEAT_EXT[variant.title] && fill(BEAT_EXT[variant.title], state)),
     isCritical: episode === total,
     affectedFactions: [],
     choices: variant.choices.map((c, i) => ({
@@ -626,7 +627,7 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
     cardId: card.id,
     title: fill(card.title, state),
     source: card.source,
-    description: chapter(dateline(state), fill(card.description, state), EVENT_EXT[card.id] && fill(EVENT_EXT[card.id], state)),
+    description: chapter(dateline(state), fill(card.description, state), state.turn > 0 && EVENT_EXT[card.id] && fill(EVENT_EXT[card.id], state)),
     isCritical: warningLevel(state) === "critical",
     affectedFactions: state.factions.filter(f => blocs.has(f.bloc)).slice(0, 4).map(f => f.id),
     choices: card.choices.map((c, i) => ({

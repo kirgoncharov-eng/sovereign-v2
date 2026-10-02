@@ -24,7 +24,7 @@ const expressApi = {
 };
 const game = expressApi;
 import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons } from "@/lib/client/telegram.ts";
-import { track, feedbackEnabled, sendFeedback } from "@/lib/client/analytics.ts";
+import { track, feedbackEnabled, sendFeedback, isTester, toggleTester } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
@@ -1066,6 +1066,13 @@ function Loading({ kind }) {
 }
 
 const TUTORIAL_KEY = "sovereign.tutorial.seen";
+const nowMs = () => Date.now();
+// Вместо окна правил на старте — по одной подсказке на первых ходах, прямо над вариантами.
+const TIP_TURNS = [
+  "Под вариантами — куда решение потянет опоры власти: ▲ вырастет, ▼▼ сильно упадёт. Точную цену знает только совет.",
+  "✔ под вариантом — шаг к вашему предвыборному обещанию, ✖ — его нарушение. Обещания и опоры — в досье.",
+  "Опора ниже 20 — кризис, 4 и ниже — падение власти. Совет можно собрать несколько раз за правление: он назовёт точные цифры. Все правила — под «?» наверху.",
+];
 const tutorialSeen = () => { try { return localStorage.getItem(TUTORIAL_KEY) === "1"; } catch { return true; } };
 
 function SoundToggle() {
@@ -1243,6 +1250,26 @@ function Archive({ meta }) {
 }
 
 // ── SETUP ─────────────────────────────────────────────────────────────────────
+// Пять касаний по номеру версии помечают устройство как тестовое: его действия не попадают в статистику.
+function VersionLabel() {
+  const taps = useRef(0);
+  const [tester, setTester] = useState(() => isTester());
+  const [note, setNote] = useState("");
+  const tap = () => {
+    taps.current += 1;
+    if (taps.current < 5) return;
+    taps.current = 0;
+    const on = toggleTester();
+    setTester(on);
+    setNote(on ? "Тестовое устройство: партии не попадают в статистику" : "Статистика снова считает это устройство");
+  };
+  return (
+    <div onClick={tap} style={{ fontFamily:mono, fontSize:11, color:G.tx3, textAlign:"center", marginTop:18, userSelect:"none" }}>
+      v{APP_VERSION}{tester ? " · тест" : ""}{note && <div style={{ marginTop:4 }}>{note}</div>}
+    </div>
+  );
+}
+
 function Setup({ onStart, saved, onResume }) {
   const [country, setCountry] = useState(null);
   const [diff, setDiff]       = useState(null);
@@ -1255,7 +1282,7 @@ function Setup({ onStart, saved, onResume }) {
   const open = unlockedCountries(meta);
   const ready = country && diff && ideo;
 
-  const go = async (c = country, d = diff, i = ideo, daily = null, b = bio) => {
+  const go = async (c = country, d = diff, i = ideo, daily = null, b = bio, quick = false) => {
     if (!(c && d && i) || loading) return;
     setLoading(true); setErr(null);
     try {
@@ -1264,7 +1291,7 @@ function Setup({ onStart, saved, onResume }) {
       const raw = await game.setup(c, d, i, daily?.seed);
       const intro = { ...raw, leader: { ...raw.leader, bio: B.text } };
       const st = createInitialState(c, d, i, intro, daily ? seededRandom(daily.seed) : Math.random, "classic", B.id);
-      onStart(daily ? { ...st, daily: daily.date } : st);
+      onStart(daily ? { ...st, daily: daily.date } : st, quick || !!daily);
     } catch (e) {
       console.error(e);
       setErr(e.message || "Ошибка API. Попробуйте снова.");
@@ -1274,7 +1301,7 @@ function Setup({ onStart, saved, onResume }) {
 
   const quick = () => {
     const pickOne = list => list[Math.floor(Math.random() * list.length)];
-    go(pickOne(open), "coalition", pickOne(IDEOLOGIES).id, null, null);
+    go(pickOne(open), "coalition", pickOne(IDEOLOGIES).id, null, null, true);
   };
 
   // Строка анкеты: клетка для отметки, как в казённом бланке.
@@ -1395,7 +1422,7 @@ function Setup({ onStart, saved, onResume }) {
             <PrimaryBtn onClick={() => go()} disabled={!ready || loading}>{loading ? "ОФОРМЛЯЕМ…" : "ПОДАТЬ ДОКУМЕНТЫ"}</PrimaryBtn>
           </div>
         </Card>
-        <div style={{ fontFamily:mono, fontSize:11, color:G.tx3, textAlign:"center", marginTop:18 }}>v{APP_VERSION}</div>
+        <VersionLabel/>
       </div>
       </div>
     </div>
@@ -1405,6 +1432,24 @@ function Setup({ onStart, saved, onResume }) {
 // ── INTRO ─────────────────────────────────────────────────────────────────────
 // Кому дано обещание: группы этого блока в стране.
 const promisedTo = (gs, def) => gs.factions.filter(f => f.bloc === def.bloc).map(f => `«${f.name}»`).join(", ");
+
+// Первый день в кабинете: кто вы и что обещали — вместо длинного досье перед игрой.
+function BriefCard({ gs }) {
+  const ci = IDEOLOGIES.find(i => i.id === gs.ideo);
+  const titles = (gs.promises ?? []).map(p => promiseDef(p.id)?.title).filter(Boolean);
+  return (
+    <div className="sv-paper sv-fade" style={{ marginBottom:10, padding:"12px 16px", display:"flex", gap:12, alignItems:"center" }}>
+      <Portrait name={gs.leader.name} size={44}/>
+      <div style={{ minWidth:0 }}>
+        <div style={{ fontFamily:pixel, fontSize:12, color:G.tx3, marginBottom:3 }}>ПЕРВЫЙ ДЕНЬ В КАБИНЕТЕ</div>
+        <div style={{ fontFamily:serif, fontSize:15, color:G.txt, lineHeight:1.5 }}>
+          Вы — <b>{gs.leader.name}</b>, президент. <Flag country={gs.country}/> {gs.country}, курс — {ci?.label.toLowerCase()}.
+          {titles.length > 0 && <> Вы обещали избирателям: {titles.map(t => `«${t}»`).join(", ")}.</>}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Предвыборная программа: из пяти обещаний лидер берёт три. Подсказанные — в духе курса.
 function PromisePicker({ gs, offered, picked, setPicked }) {
@@ -1563,8 +1608,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [sideTab, setSideTab] = useState("res");
   const [preview, setPreview] = useState(null); // вариант под курсором/фокусом
   const [armed, setArmed]     = useState(null); // тач: первое касание выбирает, второе — подписывает
-  const [help, setHelp]       = useState(() => !tutorialSeen());
+  const [help, setHelp]       = useState(false);
+  const [tips] = useState(() => !tutorialSeen()); // подсказки на первых ходах — пока правила не прочитаны
   const gsRef = useRef(gs);
+  const startedAt = useRef(0); // когда открылся первый ход — для времени до первого решения
+  useEffect(() => { if (gsRef.current?.turn === 0) startedAt.current = nowMs(); }, []);
   const inFlight = useRef(false);
   const [stamping, setStamping] = useState(null); // резолюция, на которую опускается печать
   const [dossier, setDossier] = useState(false);   // телефон: досье под игрой свёрнуто
@@ -1624,6 +1672,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       const next = resolveTurn(gsRef.current, choice.id, consequence);
       commit(next);
       track("turn", { n: next.turn });
+      if (next.turn === 1 && startedAt.current) {
+        const sec = (nowMs() - startedAt.current) / 1000;
+        track("first", { sec: sec < 30 ? "до 30 с" : sec < 60 ? "30–60 с" : sec < 120 ? "1–2 мин" : sec < 300 ? "2–5 мин" : "больше 5 мин" });
+      }
+      if (next.turn >= TIP_TURNS.length) { try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch { /* недоступно */ } }
       if (next.lastTurn && next.lastTurn.chance < 1) outcomeFx(next.lastTurn.success !== false);
       if (!next.ended) {
         const promise = game.event(next);
@@ -1717,7 +1770,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   return (
     <div style={{ minHeight:"100vh", background:G.bg }}>
       <div className="sv-window"><SquareView gs={gs}/></div>
-      <Hud gs={gs} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => setHelp(true)}/>
+      <Hud gs={gs} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => { setHelp(true); track("help"); }}/>
       {help && <HowToPlay onClose={() => setHelp(false)}/>}
       {recap && <Recap gs={gs} onClose={onRecapDone}/>}
       <div style={{ display:"flex", justifyContent:"center", padding:"14px" }}>
@@ -1839,6 +1892,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         </div>
 
         <div className="sv-main">
+          {gs.turn === 0 && !busy && <BriefCard gs={gs}/>}
           {warnLevel !== "none" && !busy && !gs.ended && (
             <div className="sv-paper sv-citation" style={{ marginBottom:10, padding:"9px 16px" }}>
               <span style={{ fontFamily:pixel, fontSize:13, color:"var(--red)", marginRight:8 }}>{warnLevel==="critical" ? "ПРЕДУПРЕЖДЕНИЕ" : "ЗАМЕЧАНИЕ"}</span>
@@ -1946,6 +2000,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               ) : (
               <Card style={{ padding:"18px 0 8px" }}>
                 <div id="sv-resolution" style={{ padding:"0 24px" }}><Label>{"Резолюция"}</Label></div>
+                {tips && TIP_TURNS[gs.turn] && (
+                  <div className="sv-fade" style={{ margin:"-4px 24px 12px", padding:"8px 12px", borderLeft:`3px solid var(--blue)`, background:G.bg3, fontFamily:narrow, fontSize:15, color:G.tx2, lineHeight:1.45 }}>
+                    {TIP_TURNS[gs.turn]}
+                  </div>
+                )}
                 {urgent && (
                   <div style={{ padding:"0 24px 12px" }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.red, marginBottom:6 }}>СРОЧНО: 25 СЕКУНД — ИНАЧЕ РЕШАТ ЗА ВАС</div>
@@ -2543,7 +2602,12 @@ export default function App() {
 
   return (
     <>
-      {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={d=>{ track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily }); setGs(d); setScreen("intro"); }}/>}
+      {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={(d, quick)=>{
+        track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily, quick:!!quick });
+        // Быстрая партия и дело дня — сразу в кабинет: обещания берутся подсказанные, досье открывается в игре.
+        if (quick) { setGs({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) }); setScreen("game"); }
+        else { setGs(d); setScreen("intro"); track("intro"); }
+      }}/>}
       {screen==="intro"  && <Intro  gs={gs} onGo={picks=>{ setGs(g => ({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>}
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
