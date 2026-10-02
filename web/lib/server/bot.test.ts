@@ -41,3 +41,30 @@ test("бот: приветствие с обложкой и кнопками, к
   await setupProfile();
   assert.deepEqual(calls.map(c => c.method), ["setMyShortDescription", "setMyDescription", "setMyCommands", "setChatMenuButton"]);
 });
+
+test("бот: если Telegram не принял обложку или разметку, приветствие уходит простым текстом", async () => {
+  const reject = new Set(["sendPhoto"]);
+  const real = globalThis.fetch;
+  globalThis.fetch = (async (url: string, init?: { body?: string }) => {
+    const method = String(url).split("/").pop()!, body = JSON.parse(init?.body ?? "{}");
+    calls.push({ method, body });
+    const bad = reject.has(method) || (reject.has("html") && body.parse_mode);
+    return new Response(JSON.stringify(bad ? { ok: false, description: "Bad Request" } : { ok: true }));
+  }) as typeof fetch;
+  try {
+    calls.length = 0;
+    await handleUpdate({ message: { chat: { id: 7 }, text: "/start" } });
+    assert.deepEqual(calls.map(c => c.method), ["sendPhoto", "sendMessage"]);
+    assert.equal(last().body.text, WELCOME);
+
+    reject.add("html");
+    calls.length = 0;
+    await handleUpdate({ message: { chat: { id: 7 }, text: "/start" } });
+    assert.deepEqual(calls.map(c => c.method), ["sendPhoto", "sendMessage", "sendMessage"]);
+    assert.equal(last().body.parse_mode, undefined);
+    assert.ok(!String(last().body.text).includes("<b>"), "без разметки");
+    assert.ok(last().body.reply_markup, "кнопки остаются");
+  } finally {
+    globalThis.fetch = real;
+  }
+});

@@ -67,14 +67,29 @@ export interface Update {
   callback_query?: { id?: string; data?: string; message?: { chat?: { id?: number } } };
 }
 
-// null — сообщение без кнопок.
-const send = (chat: number, text: string, reply_markup: unknown = playButton()) =>
-  botApi("sendMessage", { chat_id: chat, text, parse_mode: "HTML", link_preview_options: { is_disabled: true }, ...(reply_markup ? { reply_markup } : {}) });
+// Диагностика: когда последний раз писал Telegram и что он последним отклонил. Видно на GET /api/telegram.
+export const DIAG = "tg:diag";
+interface ApiResult { ok?: boolean; description?: string }
+async function call(method: string, body: Record<string, unknown>): Promise<boolean> {
+  const res = await botApi(method, body) as ApiResult;
+  if (res?.ok) return true;
+  console.error("telegram api", method, res?.description);
+  await kv.hset(DIAG, "lastError", JSON.stringify({ at: new Date().toISOString(), method, error: res?.description ?? "нет ответа" })).catch(() => {});
+  return false;
+}
+
+// null — сообщение без кнопок. Если Telegram не принял разметку, отправляем тот же текст без неё.
+async function send(chat: number, text: string, reply_markup: unknown = playButton()) {
+  const markup = reply_markup ? { reply_markup } : {};
+  if (await call("sendMessage", { chat_id: chat, text, parse_mode: "HTML", link_preview_options: { is_disabled: true }, ...markup })) return;
+  await call("sendMessage", { chat_id: chat, text: text.replace(/<\/?b>/g, ""), ...markup });
+}
 
 export async function handleUpdate(update: Update) {
+  await kv.hset(DIAG, "lastUpdate", new Date().toISOString()).catch(() => {});
   const cb = update.callback_query;
   if (cb?.id) {
-    await botApi("answerCallbackQuery", { callback_query_id: cb.id });
+    await call("answerCallbackQuery", { callback_query_id: cb.id });
     const chat = cb.message?.chat?.id;
     if (!chat) return;
     if (cb.data === "daily") await send(chat, dailyText(), playButton("Взяться за дело"));
@@ -89,8 +104,9 @@ export async function handleUpdate(update: Update) {
     // Подписка не должна мешать ответу: без хранилища бот всё равно здоровается.
     await kv.sadd(SUBS, String(chat)).catch(e => console.error("subscribe", e));
     const cover = appUrl() ? `${appUrl().replace(/\/$/, "")}/telegram-cover.png` : "";
-    if (cover) await botApi("sendPhoto", { chat_id: chat, photo: cover, caption: WELCOME, parse_mode: "HTML", reply_markup: menu() });
-    else await send(chat, WELCOME, menu());
+    // Обложку Telegram скачивает сам; не смог — приветствие уходит текстом, бот не молчит.
+    const sent = cover && await call("sendPhoto", { chat_id: chat, photo: cover, caption: WELCOME, parse_mode: "HTML", reply_markup: menu() });
+    if (!sent) await send(chat, WELCOME, menu());
   } else if (cmd === "/stop") {
     await kv.srem(SUBS, String(chat));
     await send(chat, STOPPED, null);
