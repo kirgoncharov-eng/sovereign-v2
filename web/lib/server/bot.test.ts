@@ -38,8 +38,11 @@ test("бот: приветствие с обложкой и кнопками, к
   assert.ok(!/[<>&](?!\/?b>)/.test(dailyText().replace(/<\/?b>/g, "")), "в HTML нет неэкранированных символов");
 
   calls.length = 0;
+  process.env.TELEGRAM_WEBHOOK_SECRET = " s3cret_-X\n";
   await setupProfile();
-  assert.deepEqual(calls.map(c => c.method), ["setMyShortDescription", "setMyDescription", "setMyCommands", "setChatMenuButton"]);
+  assert.deepEqual(calls.map(c => c.method), ["setWebhook", "setMyShortDescription", "setMyDescription", "setMyCommands", "setChatMenuButton"]);
+  assert.equal(calls[0].body.url, "https://example.test/api/telegram");
+  assert.equal(calls[0].body.secret_token, "s3cret_-X", "секрет вебхука тот же, что проверяет сервер");
 });
 
 test("бот: если Telegram не принял обложку или разметку, приветствие уходит простым текстом", async () => {

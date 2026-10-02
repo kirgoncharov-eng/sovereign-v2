@@ -23,6 +23,7 @@ export async function GET() {
     } : "нет токена",
     lastUpdateFromTelegram: diag.at(0) ?? "ещё не было",
     lastRejectedByTelegram: diag.at(1) ? JSON.parse(diag.at(1)!) : "нет",
+    ...(hook?.last_error_message?.includes("403") ? { fix: "Секрет вебхука не совпадает с TELEGRAM_WEBHOOK_SECRET. Откройте /api/telegram/setup?key=<STATS_SECRET> — вебхук переподключится с секретом сервера." } : {}),
   });
 }
 
