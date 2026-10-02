@@ -9,7 +9,7 @@ export interface Board { uid: string; total: number; me: { rank: number; score: 
 const UID_KEY = "sovereign.uid";
 const REF_KEY = "sovereign.ref";
 
-function webUid(): string {
+export function webUid(): string {
   try {
     let id = localStorage.getItem(UID_KEY);
     if (!id) { id = Array.from(crypto.getRandomValues(new Uint8Array(10)), b => (b % 36).toString(36)).join(""); localStorage.setItem(UID_KEY, id); }
