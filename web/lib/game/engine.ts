@@ -9,9 +9,10 @@ import {
 import { ARCS } from "../content/arcs.ts";
 import { NAMES } from "../content/narration.ts";
 import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE_BONUS, bondOf, breaches, pactIncome, personalDelta } from "./people.ts";
+import { stepPromises } from "./promises.ts";
 import type {
   Advisor, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
-  Narration, NewCrisis, Pact, PactNews, ResourceDelta, ResourceKey, Resources, Verdict,
+  Narration, NewCrisis, Pact, PactNews, PromiseNews, PromiseState, ResourceDelta, ResourceKey, Resources, Verdict,
 } from "./types.ts";
 
 export const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
@@ -426,6 +427,8 @@ export interface TurnPlan {
   pacts: Pact[];
   pactNews: PactNews;
   betrayals: number;
+  promises: PromiseState[];
+  promiseNews: PromiseNews;
 }
 
 // Весь расчёт хода без текста. Модель потом описывает именно этот итог.
@@ -528,6 +531,11 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
       !crises.some(c => c.resourceDrain[k])) ?? null;
   }
 
+  // Обещания: решение продвигает или нарушает их; в срок проверяется всё остальное.
+  const promiseStep = stepPromises(state.promises, choice.deal?.pure ? [] : choice.tags, success, turn, resources, factions);
+  resources = applyDeltas(resources, promiseStep.res);
+  factions = applyFactionChanges(factions, promiseStep.rel, {});
+
   // Выборы: по итогам хода считается опрос, он же — результат голосования.
   let election: Election | null = null;
   const kind = ELECTIONS[turn];
@@ -549,6 +557,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     resolvedCrisis, expiredCrises: tick.expired, hostileFactions: hostile.map(f => f.name), newCrisisKey,
     endType: endType as EndType | null,
     pacts, pactNews, betrayals: (state.betrayals ?? 0) + broken.length,
+    promises: promiseStep.promises, promiseNews: promiseStep.news,
   };
 }
 
@@ -602,10 +611,12 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       matured: plan.matured,
       scheduled: plan.scheduled,
       ...(plan.pactNews.signed.length + plan.pactNews.kept.length + plan.pactNews.broken.length ? { pacts: plan.pactNews } : {}),
+      ...(plan.promiseNews.kept.length + plan.promiseNews.broken.length + plan.promiseNews.advanced.length ? { promises: plan.promiseNews } : {}),
     },
     pending: plan.pending,
     pacts: plan.pacts,
     betrayals: plan.betrayals,
+    promises: plan.promises,
     former: [...(state.former ?? []), ...state.keyFigures.filter(f => !plan.keyFigures.some(g => g.name === f.name)).map(f => f.name)],
     echoes: plan.matured.reduce((acc, m) => ({ ...acc, [m.label]: (acc[m.label] ?? 0) + 1 }), { ...(state.echoes ?? {}) }),
     arc: state.arc ? {

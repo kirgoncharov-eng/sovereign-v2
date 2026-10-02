@@ -1,5 +1,6 @@
 // Режим «Сценарии»: та же игра без обращения к модели. Событие выбирается из библиотеки
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
+import { promisesBroken, promisesKept } from "./promises.ts";
 import { ARCS } from "../content/arcs.ts";
 import { COUNCIL_A } from "../content/council-a.ts";
 import { FAIL_A } from "../content/fail-a.ts";
@@ -939,7 +940,8 @@ function buildVerdict(state: GameState): Verdict {
   const end = state.endType ?? "collapse";
   const rating = computePolls(state.country, state.factions, state.resources).leader;
   const avg = RES_CONFIG.reduce((s, c) => s + state.resources[c.key], 0) / RES_CONFIG.length;
-  const score = avg + rating / 2 + (end === "reelected" ? 25 : end === "mandate" ? 12 : 0) - (state.stats?.failures ?? 0) * 2;
+  const kept = promisesKept(state.promises), broke = promisesBroken(state.promises), given = state.promises?.length ?? 0;
+  const score = avg + rating / 2 + (end === "reelected" ? 25 : end === "mandate" ? 12 : 0) - (state.stats?.failures ?? 0) * 2 + kept * 5 - broke * 4;
   const ratingLabel = RATINGS[Math.max(0, Math.min(RATINGS.length - 1, Math.floor((score - 20) / 14)))];
   const band = score >= 75 ? "good" : score >= 50 ? "mixed" : "bad";
 
@@ -955,6 +957,9 @@ function buildVerdict(state: GameState): Verdict {
     topCount ? `Главный инструмент правления — «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему лидер прибегал ${plural(topCount, "раз", "раза", "раз")}.` : "",
     elections ? `Выборы: ${elections}.` : "",
     state.stats?.crisesResolved ? `Кризисов преодолено: ${state.stats.crisesResolved}.` : "",
+    given ? (kept === given ? `Все ${plural(given, "обещание", "обещания", "обещаний")} избирателям исполнены — редкость для любой столицы.`
+      : kept ? `Из ${given} предвыборных обещаний исполнено ${kept}${broke ? `, нарушено ${broke}` : ""}.`
+      : broke ? `Ни одно из предвыборных обещаний не исполнено${broke === given ? " — все нарушены" : ""}.` : "") : "",
     `К концу правления партия власти имела ${rating}% поддержки.`,
   ].filter(Boolean).join(" ");
 
