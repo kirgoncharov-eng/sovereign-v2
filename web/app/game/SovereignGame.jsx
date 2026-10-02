@@ -21,7 +21,8 @@ const expressApi = {
   ending: theatrical(classicApi.ending, 1500),
 };
 const game = expressApi;
-import { cloudGet, cloudSet, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons } from "@/lib/client/telegram.ts";
+import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons } from "@/lib/client/telegram.ts";
+import { track } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
@@ -1535,6 +1536,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       const consequence = await game.consequence(gsRef.current, choice.id);
       const next = resolveTurn(gsRef.current, choice.id, consequence);
       commit(next);
+      track("turn", { n: next.turn });
       if (next.lastTurn && next.lastTurn.chance < 1) outcomeFx(next.lastTurn.success !== false);
       if (!next.ended) {
         const promise = game.event(next);
@@ -2134,6 +2136,7 @@ function ShareButton({ gs }) {
   const [state, setState] = useState(null); // "ok" | "manual"
   const text = shareText(gs);
   const saveCard = async () => {
+    track("share");
     const blob = await resultCard(gs).catch(() => null);
     if (!blob) return;
     const a = document.createElement("a");
@@ -2142,6 +2145,7 @@ function ShareButton({ gs }) {
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   };
   const copy = async () => {
+    track("share");
     const blob = matchMedia("(pointer:coarse)").matches ? await resultCard(gs).catch(() => null) : null;
     const file = blob && new File([blob], "suveren.png", { type:"image/png" });
     if (file && navigator.canShare?.({ files:[file] })) {
@@ -2174,12 +2178,14 @@ function DailyBoard({ gs }) {
   useEffect(() => {
     let live = true;
     submitDaily(gs).then(b => { if (live) setBoard(b); });
+    track("daily");
     return () => { live = false; };
   }, [gs]);
   if (!board) return null;
   const friends = board.friends.length > 1;
   const rows = tab === "friends" && friends ? board.friends : board.top;
   const invite = async () => {
+    track("invite");
     const url = inviteUrl(board.uid, shareUrl());
     const msg = "Сыграй сегодняшнее дело в «Суверене» — посмотрим, кто продержится дольше.";
     if (telegramShare(msg, url)) return;
@@ -2233,6 +2239,7 @@ function Ending({ gs, setGs, onRestart }) {
         gsRef.current = next;
         setGs(next);
         const run = recordRun(next);
+        track("end", { type: next.endType ?? "", turns: next.turn });
         setNewAch(run.unlocked);
         cloudSet("meta", compactMeta(run.meta));
         setError(null);
@@ -2382,7 +2389,7 @@ export default function App() {
   const savedRaw = useSyncExternalStore(subscribeSave, readSaveRaw, () => null);
   const saved = useMemo(() => parseSave(savedRaw), [savedRaw]);
   // Telegram понимает цвет шапки только в виде #rrggbb.
-  useEffect(() => { rememberRef(); initTelegram("#2a2622", () => cloudGet("meta").then(importMeta)); }, []);
+  useEffect(() => { rememberRef(); initTelegram("#2a2622", () => cloudGet("meta").then(importMeta)); track("open", { src: inTelegram() ? "tg" : "web" }); }, []);
 
   // Автосохранение: после каждого изменения партии, пока игрок не в меню.
   useEffect(() => {
@@ -2390,12 +2397,12 @@ export default function App() {
   }, [gs, screen]);
 
   const [recap, setRecap] = useState(false); // «Ранее в Суверене» — после возвращения к сохранённой партии
-  const resume = () => { if (saved) { setGs(saved.state); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
+  const resume = () => { if (saved) { track("resume", { turn: saved.state.turn }); setGs(saved.state); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
   const restart = () => { clearSave(); setGs(null); setScreen("setup"); };
 
   return (
     <>
-      {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={d=>{setGs(d);setScreen("intro");}}/>}
+      {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={d=>{ track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily }); setGs(d); setScreen("intro"); }}/>}
       {screen==="intro"  && <Intro  gs={gs} onGo={()=>setScreen("game")}/>}
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}

@@ -24,7 +24,7 @@ const result = await build({
   target: "es2020",
   jsx: "automatic",
   write: false,
-  define: { "process.env.NODE_ENV": '"production"', "process.env.NEXT_PUBLIC_SHARE_URL": '""' },
+  define: { "process.env.NODE_ENV": '"production"', "process.env.NEXT_PUBLIC_SHARE_URL": '""', "process.env.NEXT_PUBLIC_ANALYTICS": '"off"' },
   plugins: [demoAliases],
   logLevel: "warning",
 });

@@ -68,9 +68,38 @@ export const kv = {
     const h = bucket(hashes, key);
     return fields.map(f => h.get(f) ?? null);
   },
-  async sadd(key: string, member: string) {
-    if (kvConfigured()) return void await redis(["SADD", key, member]);
-    setOf(key).add(member);
+  // true — элемент добавлен впервые.
+  async sadd(key: string, member: string): Promise<boolean> {
+    if (kvConfigured()) return (await redis<number>(["SADD", key, member])) === 1;
+    const set = setOf(key), had = set.has(member);
+    set.add(member);
+    return !had;
+  },
+  async hincrby(key: string, field: string, by = 1) {
+    if (kvConfigured()) return void await redis(["HINCRBY", key, field, by]);
+    const h = bucket(hashes, key);
+    h.set(field, String((Number(h.get(field)) || 0) + by));
+  },
+  // true — поле записано (его ещё не было).
+  async hsetnx(key: string, field: string, value: string): Promise<boolean> {
+    if (kvConfigured()) return (await redis<number>(["HSETNX", key, field, value])) === 1;
+    const h = bucket(hashes, key);
+    if (h.has(field)) return false;
+    h.set(field, value);
+    return true;
+  },
+  async hget(key: string, field: string): Promise<string | null> {
+    if (kvConfigured()) return redis<string | null>(["HGET", key, field]);
+    return bucket(hashes, key).get(field) ?? null;
+  },
+  async hgetall(key: string): Promise<Record<string, string>> {
+    if (kvConfigured()) {
+      const flat = await redis<string[]>(["HGETALL", key]);
+      const out: Record<string, string> = {};
+      for (let i = 0; i < flat.length; i += 2) out[flat.at(i)!] = flat.at(i + 1)!;
+      return out;
+    }
+    return Object.fromEntries(bucket(hashes, key));
   },
   async srem(key: string, member: string) {
     if (kvConfigured()) return void await redis(["SREM", key, member]);

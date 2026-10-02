@@ -1,5 +1,6 @@
 // Telegram: проверка подписи initData мини-приложения и вызовы Bot API.
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { env } from "./env.ts";
 
 export interface TgUser { id: number; first_name?: string; username?: string }
 
@@ -25,7 +26,7 @@ export function verifyInitData(initData: string, botToken: string, maxAgeSec = 8
 }
 
 export async function botApi(method: string, body: Record<string, unknown>): Promise<unknown> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = env("TELEGRAM_BOT_TOKEN");
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN не задан");
   const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
@@ -35,7 +36,7 @@ export async function botApi(method: string, body: Record<string, unknown>): Pro
   return r.json();
 }
 
-export const appUrl = () => process.env.APP_URL || "";
+export const appUrl = () => env("APP_URL");
 
 // Кнопка, открывающая игру внутри Telegram.
 export const playButton = (text = "Открыть кабинет") =>

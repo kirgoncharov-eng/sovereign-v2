@@ -4,6 +4,7 @@ import { isObj } from "@/lib/game/sanitize.ts";
 import { kv } from "@/lib/server/kv.ts";
 import { checkRate, clientKey } from "@/lib/server/rateLimit.ts";
 import { verifyInitData } from "@/lib/server/telegram.ts";
+import { env } from "@/lib/server/env.ts";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UID = /^(tg\d{1,15}|w[a-z0-9]{8,24})$/;
@@ -19,7 +20,7 @@ function freshDate(date: string, now = Date.now()) {
 }
 
 function identify(body: Record<string, unknown>): { uid: string; name: string } | null {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = env("TELEGRAM_BOT_TOKEN");
   if (typeof body.initData === "string" && body.initData && token) {
     const user = verifyInitData(body.initData, token);
     if (!user) return null;
