@@ -4,13 +4,13 @@
 import { END_TYPES } from "../game/data.ts";
 import { kv } from "./kv.ts";
 
-export const TRACK_EVENTS = ["open", "start", "resume", "turn", "end", "share", "invite", "daily"] as const;
+export const TRACK_EVENTS = ["open", "start", "resume", "turn", "end", "share", "invite", "daily", "intro", "first", "help"] as const;
 export type TrackEventName = (typeof TRACK_EVENTS)[number];
 
 // По каким свойствам события считаем разрезы.
 const DIMS: Record<TrackEventName, string[]> = {
-  open: ["src"], start: ["country", "diff", "ideo", "bio", "daily"], resume: [], turn: ["n"],
-  end: ["type", "kept"], share: [], invite: [], daily: [],
+  open: ["src"], start: ["country", "diff", "ideo", "bio", "daily", "quick"], resume: [], turn: ["n"],
+  end: ["type", "kept"], share: [], invite: [], daily: [], intro: [], first: ["sec"], help: [],
 };
 export const COHORT_DAYS = [1, 3, 7, 14, 30];
 const TTL = 60 * 60 * 24 * 120;
@@ -113,7 +113,7 @@ export function digestText(s: Stats, link = ""): string {
   const back = s.cohorts.at(-3);
   return [
     `<b>Суверен · сводка за ${dd}.${mm}</b>`,
-    `Игроков: ${n("players")} (новых ${n("new")}) · партий начато ${n("start")}, до финала ${n("end")}`,
+    `Игроков: ${n("players")} (новых ${n("new")}) · партий начато ${n("start")}, первое решение ${n("turn|n=1")}, до финала ${n("end")}`,
     `За 7 дней: партий ${wStarts}, доиграли ${pct(sum(week, "end"), wStarts)}, поделились ${sum(week, "share") + sum(week, "invite")}`,
     drop ? `Где бросают: ${drop}` : "",
     ends ? `Чем кончаются: ${ends}` : "",
@@ -173,6 +173,8 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 <div class="paper">${section("Чем заканчиваются партии", "end|type=", ends)}</div>
 <div class="paper">${section("Сколько обещаний исполнено", "end|kept=", ends)}</div>
 <div class="paper">${section("Откуда запускают", "open|src=", sum(s, "open"))}</div>
+<div class="paper">${section("Быстрая партия или анкета", "start|quick=", starts)}</div>
+<div class="paper">${section("Время до первого решения", "first|sec=", sum(s, "first"))}</div>
 </div>
 <div class="paper"><h2>Отзывы</h2>${feedback.length ? feedback.map(f => `<div class="fb"><div class="muted">${esc(f.at.slice(0, 16).replace("T", " "))} · ${f.src === "bot" ? "бот" : "игра"}${f.rating ? ` · ${"★".repeat(f.rating)}${"☆".repeat(5 - f.rating)}` : ""}${f.who ? ` · ${esc(f.who)}` : ""}${f.ctx ? ` · ${esc(Object.values(f.ctx).join(", "))}` : ""}</div>${f.text ? `<div>${esc(f.text).replace(/\n/g, "<br>")}</div>` : ""}</div>`).join("") : `<p class="muted">Пока нет отзывов</p>`}</div>
 <div class="paper"><h2>По дням</h2><div class="scroll"><table><tr><th>День</th><th>Игроков</th><th>Новых</th><th>Партий</th><th>Финалов</th><th>Доиграли</th><th>Поделились</th><th>Дело дня</th></tr>${dayRows}</table></div></div>

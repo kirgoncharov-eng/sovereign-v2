@@ -3,7 +3,7 @@
 // События копятся и уходят пачкой; без сервера (демо, офлайн) отправка тихо ничего не делает.
 import { webUid } from "./daily.ts";
 
-export type TrackEvent = "open" | "start" | "resume" | "turn" | "end" | "share" | "invite" | "daily";
+export type TrackEvent = "open" | "start" | "resume" | "turn" | "end" | "share" | "invite" | "daily" | "intro" | "first" | "help";
 type Props = Record<string, string | number | boolean>;
 
 const queue: { e: TrackEvent; p?: Props }[] = [];
@@ -24,9 +24,18 @@ function flush() {
   if (queue.length) flush();
 }
 
+// Тестовое устройство (автор игры проверяет функции) в статистику не попадает.
+const TESTER_KEY = "sovereign.tester";
+export const isTester = () => { try { return localStorage.getItem(TESTER_KEY) === "1"; } catch { return false; } };
+export function toggleTester(): boolean {
+  const on = !isTester();
+  try { if (on) localStorage.setItem(TESTER_KEY, "1"); else localStorage.removeItem(TESTER_KEY); } catch { /* недоступно */ }
+  return on;
+}
+
 export function track(e: TrackEvent, p?: Props) {
-  // В демо-сборке сервера нет — события не отправляются.
-  if (typeof window === "undefined" || process.env.NEXT_PUBLIC_ANALYTICS === "off") return;
+  // В демо-сборке сервера нет — события не отправляются; тестовое устройство не считается.
+  if (typeof window === "undefined" || process.env.NEXT_PUBLIC_ANALYTICS === "off" || isTester()) return;
   queue.push(p ? { e, p } : { e });
   if (!hooked) {
     hooked = true;
