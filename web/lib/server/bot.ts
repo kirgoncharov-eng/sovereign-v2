@@ -3,6 +3,7 @@
 import { dailyCase } from "../game/daily.ts";
 import { COUNTRIES, DIFFICULTIES, IDEOLOGIES } from "../game/data.ts";
 import { appUrl, botApi, playButton } from "./telegram.ts";
+import { env } from "./env.ts";
 import { kv } from "./kv.ts";
 
 export const SUBS = "tg:subs";
@@ -119,10 +120,13 @@ export async function handleUpdate(update: Update) {
   }
 }
 
-// Профиль: описание, команды и кнопка «Играть» рядом с полем ввода.
+// Профиль: вебхук, описание, команды и кнопка «Играть» рядом с полем ввода.
+// Вебхук ставится с тем же секретом, что лежит на сервере, — вручную рассинхронизировать их больше нельзя.
+// Старые неотвеченные сообщения сбрасываются, чтобы бот не засыпал чат приветствиями.
 export async function setupProfile() {
-  const url = appUrl();
+  const url = appUrl().replace(/\/$/, ""), secret = env("TELEGRAM_WEBHOOK_SECRET");
   const calls: [string, Record<string, unknown>][] = [
+    ...(url && secret ? [["setWebhook", { url: `${url}/api/telegram`, secret_token: secret, allowed_updates: ["message", "callback_query"], drop_pending_updates: true }] as [string, Record<string, unknown>]] : []),
     ["setMyShortDescription", { short_description: SHORT_DESCRIPTION }],
     ["setMyDescription", { description: DESCRIPTION }],
     ["setMyCommands", { commands: COMMANDS }],

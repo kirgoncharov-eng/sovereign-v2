@@ -21,13 +21,14 @@ Telegram Mini App и бот — пошагово:
    `NEXT_PUBLIC_SHARE_URL` — ссылка вида `https://t.me/<бот>/<приложение>`: по ней друзья
    попадают в таблицу друзей (параметр `startapp=ref_…`).
 2. Заведите Redis (Upstash или Vercel KV) и пропишите переменные из `.env.example`.
-3. Подключите вебхук:
-   `curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook?url=$APP_URL/api/telegram&secret_token=$TELEGRAM_WEBHOOK_SECRET"`
+3. Подключите вебхук и оформите профиль: откройте `$APP_URL/api/telegram/setup?key=$STATS_SECRET`.
+   Вебхук ставится с тем же `TELEGRAM_WEBHOOK_SECRET`, что проверяет сервер; после смены секрета
+   откройте ссылку ещё раз. Состояние вебхука видно на `$APP_URL/api/telegram`.
 4. Утренняя рассылка «Дела дня» (`/api/cron/daily`) запускается Vercel Cron из `vercel.json`
    в 05:00 UTC (08:00 МСК); задайте `CRON_SECRET`.
 
 Команды бота: `/start` — приветствие с обложкой, подписка и кнопки, `/daily` — дело дня, `/help` — правила,
-`/stop` — отписка; на любой другой текст бот отвечает кнопкой игры. Профиль бота (описание, команды,
+`/stop` — отписка; на любой другой текст бот отвечает кнопкой игры. Профиль бота (вебхук, описание, команды,
 кнопка «Играть») ставится одним запросом `/api/telegram/setup?key=<STATS_SECRET>`. Аватар и картинка
 описания загружаются вручную в BotFather: `public/telegram-avatar.png`, `public/telegram-cover.png`.
 
