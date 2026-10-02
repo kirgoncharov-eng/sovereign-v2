@@ -454,7 +454,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   // Сюжет храним только у сделок: эхо из таблицы DELAYED рассказчик берёт сам, с вариантами.
   const tagged = delayedEffects(choice).filter(d => success || net(d) < 0).map(d => ({ ...d, story: "" }));
   const scheduled: Pending[] = [...tagged, ...later].map((d, i) => ({
-    id: `p${nextTurn}_${i}`, due: nextTurn + d.turns, label: d.label, res: d.res, source: choice.text,
+    id: `p${nextTurn}_${i}`, due: nextTurn + d.turns, from: state.turn, label: d.label, res: d.res, source: choice.text,
     ...(state.currentEvent?.title ? { event: state.currentEvent.title } : {}),
     ...(d.story ? { story: d.story } : {}),
   }));
@@ -594,6 +594,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       headline: narration.headline, historianNote: narration.historianNote,
       tags: plan.choice.tags, success: plan.success,
       ...(narration.heard?.length ? { heard: narration.heard } : {}),
+      ...(narration.cast?.length ? { cast: narration.cast } : {}),
     }],
     currentEvent: null,
     lastTurn: {

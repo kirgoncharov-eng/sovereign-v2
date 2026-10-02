@@ -164,6 +164,7 @@ export interface Narration {
   press?: { outlet: string; headline: string }[]; // что пишут другие издания о том же решении
   scene?: SceneKey;       // картинка события: она же фото в газете
   heard?: string[];       // реплики и заголовки этого хода — чтобы не повторять их в партии
+  cast?: string[];        // кто появился в главе — следующие две главы он отдыхает
 }
 
 export interface TurnDocument {
@@ -208,6 +209,7 @@ export interface Election {
 export interface Pending {
   id: string;
   due: number;          // ход, в конце которого сработает
+  from?: number;        // ход, на котором принято решение (для даты в газете)
   label: string;
   res: ResourceDelta;
   source: string;       // решение, которое его вызвало
@@ -224,6 +226,7 @@ export interface HistoryEntry {
   tags?: ActionTag[];
   success?: boolean;
   heard?: string[];       // уже прозвучавшие реплики и заголовки
+  cast?: string[];        // кто появлялся в главе
 }
 
 export interface GameStats {

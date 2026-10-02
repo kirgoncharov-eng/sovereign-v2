@@ -9,6 +9,7 @@ import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, pactIncome as pactIncomeO
 import { ARCS } from "@/lib/content/arcs.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
+import { monthYear, turnDate } from "@/lib/game/calendar.ts";
 import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
 import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
@@ -1037,7 +1038,7 @@ function Hud({ gs, preview, onMenu, onHelp }) {
             })}
           </div>
           <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-            {gs.year} · глава {ROMAN[chapterOf(turnNow)]} · ход {turnNow}/{MAX_TURNS}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
+            {monthYear(turnDate(gs.seed, COUNTRIES[gs.country].startYear, Math.min(gs.turn, MAX_TURNS - 1)))} · глава {ROMAN[chapterOf(turnNow)]} · ход {turnNow}/{MAX_TURNS}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
           </div>
         </div>
       </div>
@@ -2135,7 +2136,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               {lastTurn.matured?.map(p => (
                 <div key={p.id} className="sv-paper" style={{ marginBottom:8, padding:"12px 16px", borderRadius:0 }}>
                   <div style={{ fontFamily:serif, fontSize:16, fontWeight:700, marginBottom:2 }}>{p.label}</div>
-                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:6 }}>эхо решения {p.event ? `по делу «${p.event}»` : `«${p.source}»`}</div>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:6 }}>эхо решения {p.event ? `по делу «${p.event}»` : `«${p.source}»`}{p.from !== undefined ? ` · ${monthYear(turnDate(gs.seed, COUNTRIES[gs.country].startYear, p.from))}` : ""}</div>
                   <ResourceChips delta={p.res}/>
                 </div>
               ))}

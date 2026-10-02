@@ -252,3 +252,26 @@ test("газета и реплики: у каждой карточки своя 
   for (const pool of [...Object.values(REACT_BY_TAG), ...Object.values(REACT_DIPLOMAT), ...Object.values(REACT_SPECIAL), REACT_FAILURE])
     for (const q of [...pool.pro, ...pool.con]) assert.ok(!q.endsWith("."), q);
 });
+
+test("особые дела: реплики и газета пишут о том, что случилось — отказ не хвалят как проведённое дело", async () => {
+  const { OPPOSITION_SPECIAL } = await import("../content/newspaper.ts");
+  const { REACT_SPECIAL } = await import("../content/reactions.ts");
+  const { BUDGET_TURN, PRESS_TURNS, inspectTurns, specialAct } = await import("./classic.ts");
+  const intro = await classicApi.setup("Грузия", "coalition", "liberal", 5);
+  const base = createInitialState("Грузия", "coalition", "liberal", intro, () => 0.42);
+  const at = (turn: number): GameState => ({ ...base, turn, arc: base.arc ? { ...base.arc, done: [1, 3, 7, 12, 16] } : null });
+  const quotes = (n: Awaited<ReturnType<typeof classicApi.consequence>>) => n.reactions.join(" ");
+  const cases: [number, "budget" | "press" | "inspect", string, "budget_skip" | "press_skip" | "inspect_sign"][] = [
+    [BUDGET_TURN - 1, "budget", "a", "budget_skip"],
+    [PRESS_TURNS[0] - 1, "press", "a", "press_skip"],
+    [inspectTurns(base.seed)[0] - 1, "inspect", "a", "inspect_sign"],
+  ];
+  for (const [turn, kind, id, act] of cases) {
+    const s = startEvent(at(turn), await classicApi.event(at(turn)));
+    assert.equal(s.currentEvent?.special?.kind, kind, `ход ${turn + 1}: ${kind}`);
+    assert.equal(specialAct(s, s.currentEvent!.choices.find(c => c.id === id)!), act);
+    const n = await classicApi.consequence(s, id);
+    assert.ok(OPPOSITION_SPECIAL[act].includes(n.press![0].headline), `${act}: ${n.press![0].headline}`);
+    for (const q of [...REACT_SPECIAL[kind].pro, ...REACT_SPECIAL[kind].con]) assert.ok(!quotes(n).includes(q), `${act}: «${q}» — реплика о проведённом деле`);
+  }
+});

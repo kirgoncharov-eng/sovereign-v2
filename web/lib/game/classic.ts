@@ -14,11 +14,12 @@ import { CRISIS_ESCALATE, EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../
 import { SCENES } from "../content/scenes.ts";
 import { EVENT_EXT } from "../content/events-ext.ts";
 import { BEAT_EXT } from "../content/beats-ext.ts";
-import { DAY_TIMES, DAYLIGHT, INTERCEPTS, INTERCUT_COLD, INTERCUT_WARM, PLACES, TIMES, WEATHER, WEEKDAYS } from "../content/frame.ts";
+import { DAY_TIMES, DAYLIGHT, INTERCEPTS, INTERCUT_CHURCH, INTERCUT_COLD, INTERCUT_ENVOY, INTERCUT_WARM, PLACES, TIMES, WEATHER_ANY, WEATHER_BY_SEASON } from "../content/frame.ts";
+import { MONTHS_GEN, turnDate } from "./calendar.ts";
 import { ECHOES } from "../content/echoes.ts";
 import { sceneOf } from "../content/scene-map.ts";
 import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OPPOSITION_SPECIAL, OUTLETS } from "../content/newspaper.ts";
-import { MEANWHILE, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT } from "../content/reactions.ts";
+import { MEANWHILE, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
 import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
 import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
 import { BUDGET_DEBT, BUDGET_ITEMS, BUDGET_MAX, BUDGET_REL, BUDGET_RES, BUDGET_TEXT, BUDGET_TOTAL } from "../content/budget.ts";
@@ -76,7 +77,12 @@ const faithOf = (country: string) => FAITH[country === "Казахстан" ? "m
 
 // Подстановка слотов {capital} {fig:security} и т.п.
 export function fill(tpl: string, state: GameState, extra: Record<string, string> = {}): string {
-  return tpl.replace(/\{(\w+)(?::(\w+))?\}/g, (m, key: string, arg?: string) => {
+  // Род по персонажу: {g:west:он|она} — форма для того, кто стоит за {fig:west}.
+  const gendered = tpl.replace(/\{g:(\w+):([^|{}]*)\|([^{}]*)\}/g, (_m, bloc: string, he: string, she: string) => {
+    const name = figureOf(state, bloc)?.name;
+    return name && isFemaleName(name) ? she : he;
+  });
+  return gendered.replace(/\{(\w+)(?::(\w+))?\}/g, (m, key: string, arg?: string) => {
     switch (key) {
       case "capital": {
         const cap = COUNTRIES[state.country].capital;
@@ -102,9 +108,10 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
 export function dateline(state: GameState): string {
   const r = seededRandom(hashSeed(state.seed, "dateline", state.turn));
   const t = state.turn;
-  const weather = cycle(WEATHER, state.seed, "weather", t), place = cycle(PLACES, state.seed, "place", t);
+  const d = turnDate(state.seed, COUNTRIES[state.country].startYear, t);
+  const weather = cycle([...WEATHER_BY_SEASON[d.season], ...WEATHER_ANY], state.seed, "weather", t), place = cycle(PLACES, state.seed, "place", t);
   const time = pick(r, DAYLIGHT.has(weather) || DAYLIGHT.has(place) ? DAY_TIMES : TIMES);
-  return fill(`${WEEKDAYS[(t + state.seed) % 7]}, ${time}. ${weather} ${place}`, state);
+  return fill(`${d.day} ${MONTHS_GEN[d.month]} ${d.year}, ${d.weekday}, ${time}. ${weather} ${place}`, state);
 }
 
 const chapter = (...parts: (string | undefined | null | false)[]) => parts.filter(Boolean).join("\n\n");
@@ -688,6 +695,18 @@ const POLLS_DOWN = [
 ];
 
 // ── Итог хода ────────────────────────────────────────────────────────────────
+// Что игрок сделал с особым делом: провёл его или отказался. Реплики и газета пишут о том, что случилось.
+// Пресс-конференция, звонок и бюджет проходят вариантом «p», остальные варианты — отказ; у доклада «a» — подпись не глядя.
+export function specialAct(state: GameState, choice: Choice): SpecialAct | null {
+  const kind = state.currentEvent?.special?.kind;
+  if (kind === "inspect") return choice.id === "a" ? "inspect_sign" : "inspect";
+  if (kind === "press" || kind === "call" || kind === "budget") return choice.id === "p" ? kind : `${kind}_skip`;
+  return null;
+}
+
+// Деловая газета пишет о деньгах, только когда решение и было о деньгах.
+const MONEY_TAGS: ActionTag[] = ["social", "austerity", "investment", "elite_deal", "anticorruption", "pro_russia", "pro_west"];
+
 function buildNarration(state: GameState, choiceId: string): Narration {
   const plan = planTurn(state, choiceId);
   const r = seededRandom(hashSeed(state.seed, "narr", state.turn, choiceId));
@@ -735,7 +754,9 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // Антагонист интриги и герой особого дела не комментируют собственные эпизоды — они в них участники.
   const subject = state.currentEvent?.special?.figure;
   // Антагонист интриги живёт своей линией: в репликах и параллельных сценах его нет.
-  const cast = state.keyFigures.filter(f => f.name !== state.arc?.target && f.id !== subject);
+  // Кто появлялся в двух прошлых главах, в этой отдыхает: один и тот же человек каждый ход надоедает.
+  const recent = new Set(state.history.slice(-2).flatMap(h => h.cast ?? []));
+  const cast = state.keyFigures.filter(f => f.name !== state.arc?.target && f.id !== subject && !recent.has(f.name));
   const delta = (f: (typeof cast)[number]) => {
     const next = plan.keyFigures.find(x => x.id === f.id);
     return next && next.name === f.name ? next.relation - f.relation : 0;
@@ -747,9 +768,12 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // Свой человек или червоточина иногда напоминают о себе вместо обычной реплики.
   const facOf = (f: (typeof cast)[number]) => state.factions.find(x => x.id === f.faction);
   const bonded = state.turn % 3 === 2 ? cast.find(f => ["insider", "mole"].includes(bondOf(f, facOf(f)) ?? "")) : undefined;
+  const movedBloc = moved && facOf(moved.f)?.bloc;
+  const intercutPool = !moved ? [] : movedBloc === "west" || movedBloc === "russia" ? INTERCUT_ENVOY[moved.d > 0 ? "warm" : "cold"]
+    : movedBloc === "church" ? INTERCUT_CHURCH[moved.d > 0 ? "warm" : "cold"] : moved.d > 0 ? INTERCUT_WARM : INTERCUT_COLD;
   const intercut = bonded
     ? fill(cycle(bondOf(bonded, facOf(bonded)) === "insider" ? INSIDER_LINES : MOLE_LINES, state.seed, "bond", state.turn), state, { name: bonded.name, camp: facOf(bonded)?.name ?? "" })
-    : moved ? fill(cycle(moved.d > 0 ? INTERCUT_WARM : INTERCUT_COLD, state.seed, `ic${moved.d > 0}`, state.turn)
+    : moved ? fill(cycle(intercutPool, state.seed, `ic${moved.d > 0}${movedBloc}`, state.turn)
       .replace(/^Тем временем /, `${cycle(MEANWHILE, state.seed, "meanwhile", state.turn)} `).replace("{name} ({role})", "{name}, {role},"), state,
     { name: moved.f.name, role: moved.f.role.charAt(0).toLowerCase() + moved.f.role.slice(1) }) : null;
 
@@ -783,14 +807,14 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     const side = sign > 0 ? "pro" : "con";
     // Провал обсуждают как провал: одни злорадствуют, другие досадуют на исполнение.
     if (!plan.success) return voice(f, sign, fresh(REACT_FAILURE[side], `qf${side}`, state.turn));
-    const kind = state.currentEvent?.special?.kind;
-    if (kind === "inspect" || kind === "press" || kind === "call" || kind === "budget")
-      return voice(f, sign, fresh(REACT_SPECIAL[kind][side], `qs${kind}${side}`, state.turn));
-    if (kind) return null;
+    const act = specialAct(state, plan.choice);
+    if (act) return voice(f, sign, fresh(REACT_SPECIAL[act][side], `qs${act}${side}`, state.turn));
+    if (state.currentEvent?.special?.kind) return null;
     // Чем решение задело: интересом лагеря или личными убеждениями говорящего.
     const trait = TRAITS[traitOf(state.seed, f, bloc)];
     const weight = (t: ActionTag) => sign * ((ACTIONS[t].rel[bloc] ?? 0) / 4 + (trait.like.includes(t) ? 7 : 0) - (trait.dislike.includes(t) ? 7 : 0));
-    const tag = plan.choice.tags.filter(t => weight(t) > 0).sort((a, b) => weight(b) - weight(a))[0];
+    // Высказываются о том, что задевает их лагерь: патриарх не рецензирует кредит МВФ.
+    const tag = plan.choice.tags.filter(t => weight(t) > 0 && (ACTIONS[t].rel[bloc] ?? 0) !== 0).sort((a, b) => weight(b) - weight(a))[0];
     if (!tag) return null;
     const envoy = bloc === "west" || bloc === "russia" ? bloc : null;
     const uses = state.history.filter(h => h.tags?.includes(tag)).length;
@@ -805,12 +829,15 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     const bloc = facOf(f)?.bloc;
     return bloc !== "west" && bloc !== "russia" || plan.choice.tags.some(t => ACTIONS[t].rel[bloc]);
   };
+  const speakers: string[] = [];
   const react = (sign: number, pool: string[]) => cast
     .filter(f => f !== moved?.f && f !== bonded && Math.abs(delta(f)) >= 3 && Math.sign(delta(f)) === sign && foreignAffair(f))
     .sort((a, b) => Math.abs(delta(b)) - Math.abs(delta(a)))
     .slice(0, 1)
-    .map(f => quote(f, sign) ?? deed(pool, sign, f));
+    .map(f => { speakers.push(f.name); return quote(f, sign) ?? deed(pool, sign, f); });
   const reactions = [...react(1, REACT_APPROVE), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
+  // Кто появился в этой главе: в следующих двух он уступит место другим.
+  const appeared = [...(bonded ? [bonded.name] : moved && intercut ? [moved.f.name] : []), ...speakers];
 
   // Документ хода — перехват по линии интриги, раз в четыре хода и без повторов.
   // Газета уже сама по себе итог хода, вторая подборка заголовков в ней не нужна.
@@ -821,22 +848,24 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     : null;
 
   // Что пишут другие: оппозиция — о сути решения, деловая или иностранная пресса — о том, что сильнее сдвинулось.
-  const kind = state.currentEvent?.special?.kind;
+  const act = specialAct(state, plan.choice);
   const lead = plan.choice.tags.find(t => t !== "delay") ?? plan.choice.tags[0] ?? "delay";
   const opposition = plan.election ? fresh(OPPOSITION_ELECTION[plan.election.outcome === "won" ? "won" : "lost"], "opel", state.turn)
     : !plan.success ? fresh(OPPOSITION_FAIL, "opfail", state.turn)
-    : kind === "inspect" || kind === "press" || kind === "call" || kind === "budget" ? fresh(OPPOSITION_SPECIAL[kind], `op${kind}`, state.turn)
+    : act ? fresh(OPPOSITION_SPECIAL[act], `op${act}`, state.turn)
     : fresh(OPPOSITION[lead], `op${lead}`, state.history.filter(h => h.tags?.includes(lead)).length);
   const econ = plan.resources.economy - state.resources.economy, ext = plan.resources.externalReputation - state.resources.externalReputation;
   const second = Math.abs(ext) >= 3 && Math.abs(ext) >= Math.abs(econ)
     ? { outlet: OUTLETS.foreign, headline: fill(fresh(FOREIGN[ext > 0 ? "up" : "down"], `fp${ext > 0}`, state.turn), state) }
-    : Math.abs(econ) >= 3 ? { outlet: OUTLETS.business, headline: fresh(BUSINESS[econ > 0 ? "up" : "down"], `bz${econ > 0}`, state.turn) } : null;
+    : Math.abs(econ) >= 3 && (act === "budget" || plan.choice.tags.some(t => MONEY_TAGS.includes(t)))
+      ? { outlet: OUTLETS.business, headline: fresh(BUSINESS[econ > 0 ? "up" : "down"], `bz${econ > 0}`, state.turn) } : null;
   const press = [{ outlet: OUTLETS.opposition, headline: fill(opposition, state) }, ...(second ? [second] : [])];
 
   const key = plan.newCrisisKey;
   return {
     press,
     heard: said,
+    ...(appeared.length ? { cast: appeared } : {}),
     scene: state.currentEvent ? sceneOf(state.currentEvent) : "square",
     headline: plan.election ? electionHeadline(plan.election)
       : (plan.success ? plan.choice.headline : plan.choice.headlineFail) ?? fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state),
