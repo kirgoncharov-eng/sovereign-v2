@@ -83,6 +83,8 @@ const LABELS: Record<string, string> = {
   officer: "Офицер", economist: "Экономист", lawyer: "Правозащитник", diplomat: "Дипломат", mayor: "Мэр",
   ...END_TYPES,
   tg: "Telegram", web: "Браузер", true: "Да", false: "Нет",
+  // первые замеры шли с длинным тире, и сервер его вырезал
+  "3060 с": "30-60 с", "12 мин": "1-2 мин", "25 мин": "2-5 мин",
 };
 
 function bars(rows: [string, number][], total: number) {

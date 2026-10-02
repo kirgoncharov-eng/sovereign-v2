@@ -1674,7 +1674,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       track("turn", { n: next.turn });
       if (next.turn === 1 && startedAt.current) {
         const sec = (nowMs() - startedAt.current) / 1000;
-        track("first", { sec: sec < 30 ? "до 30 с" : sec < 60 ? "30–60 с" : sec < 120 ? "1–2 мин" : sec < 300 ? "2–5 мин" : "больше 5 мин" });
+        track("first", { sec: sec < 30 ? "до 30 с" : sec < 60 ? "30-60 с" : sec < 120 ? "1-2 мин" : sec < 300 ? "2-5 мин" : "больше 5 мин" });
       }
       if (next.turn >= TIP_TURNS.length) { try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch { /* недоступно */ } }
       if (next.lastTurn && next.lastTurn.chance < 1) outcomeFx(next.lastTurn.success !== false);
