@@ -35,3 +35,14 @@ export function track(e: TrackEvent, p?: Props) {
   }
   if (!timer) timer = setTimeout(flush, 3000);
 }
+
+// Отзыв с экрана итогов: оценка 1–5 и пара слов. В демо-сборке сервера нет — форма скрыта.
+export const feedbackEnabled = () => typeof window !== "undefined" && process.env.NEXT_PUBLIC_ANALYTICS !== "off";
+export async function sendFeedback(rating: number, text: string, ctx: Record<string, string | number>): Promise<boolean> {
+  const pid = webUid();
+  if (!pid) return false;
+  try {
+    const r = await fetch("/api/feedback", { method: "POST", body: JSON.stringify({ pid, rating, text, ctx }) });
+    return r.ok;
+  } catch { return false; }
+}

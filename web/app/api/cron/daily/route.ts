@@ -1,6 +1,7 @@
-// Утренняя рассылка «Дела дня» подписчикам бота. Вызывает Vercel Cron (vercel.json)
+// Утренняя рассылка «Дела дня» подписчикам бота и сводка автору игры. Вызывает Vercel Cron (vercel.json)
 // с заголовком Authorization: Bearer CRON_SECRET.
-import { dailyText, SUBS } from "@/lib/server/bot.ts";
+import { adminDigest, dailyText, SUBS } from "@/lib/server/bot.ts";
+import { notifyAdmin } from "@/lib/server/feedback.ts";
 import { kv } from "@/lib/server/kv.ts";
 import { botApi, playButton } from "@/lib/server/telegram.ts";
 import { env } from "@/lib/server/env.ts";
@@ -23,5 +24,7 @@ export async function GET(req: Request) {
     }
     await new Promise(r => setTimeout(r, 40)); // не больше ~25 сообщений в секунду
   }
+  // Автору игры — сводка за вчера (если он подключил её командой /admin).
+  await notifyAdmin(await adminDigest()).catch(e => console.error("digest", e));
   return Response.json({ sent, dropped, total: subs.length });
 }
