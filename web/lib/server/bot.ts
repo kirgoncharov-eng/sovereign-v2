@@ -5,6 +5,8 @@ import { COUNTRIES, DIFFICULTIES, IDEOLOGIES } from "../game/data.ts";
 import { appUrl, botApi, playButton } from "./telegram.ts";
 import { env } from "./env.ts";
 import { kv } from "./kv.ts";
+import { ADMIN, saveFeedback } from "./feedback.ts";
+import { digestText, readStats } from "./analytics.ts";
 
 export const SUBS = "tg:subs";
 
@@ -25,6 +27,7 @@ export const COMMANDS = [
   { command: "start", description: "Войти в кабинет" },
   { command: "daily", description: "Дело дня" },
   { command: "help", description: "Как играть" },
+  { command: "feedback", description: "Рассказать, что понравилось и что нет" },
   { command: "stop", description: "Не присылать дело дня по утрам" },
 ];
 
@@ -50,9 +53,47 @@ export const HELP = `<b>Как играть</b>
 4. Берегите шесть опор власти. Ниже 20 — кризис, 4 и ниже — падение власти.
 5. На 10-м и 20-м ходу — выборы.
 
-Партия сохраняется сама: закройте игру и вернитесь, когда удобно.`;
+Партия сохраняется сама: закройте игру и вернитесь, когда удобно.
 
-export const FALLBACK = "Я не веду переписку — только дела. Кабинет открывается кнопкой ниже, «Дело дня» — по команде /daily.";
+Нашли скуку, нечестное решение или ошибку — /feedback, три коротких вопроса. Я читаю каждый ответ.`;
+
+export const FALLBACK = "Я не веду переписку — только дела. Кабинет открывается кнопкой ниже, «Дело дня» — по команде /daily, а рассказать, что понравилось и что нет, — /feedback.";
+
+// ── Отзыв: три вопроса подряд. Состояние — в хранилище, по чату. ───────────────
+export const FB_STATE = "tg:fb";
+export const FB_QUESTIONS = [
+  "<b>1 из 3.</b> Чем закончилась ваша партия — и на каком ходу стало скучно или непонятно? Пишите как есть, можно коротко.",
+  "<b>2 из 3.</b> Какое решение или событие показалось нечестным, бессмысленным или странным?",
+  "<b>3 из 3.</b> Насколько хочется сыграть ещё? 1 — не хочется совсем, 5 — уже открываю.",
+];
+export const FB_THANKS = "Спасибо. Отзыв ушёл автору игры — он читает каждое слово, и следующие версии строятся на таких ответах.";
+const rateKeyboard = () => ({ inline_keyboard: [[1, 2, 3, 4, 5].map(n => ({ text: String(n), callback_data: `fbr:${n}` }))] });
+const skipKeyboard = () => ({ inline_keyboard: [[{ text: "Пропустить вопрос", callback_data: "fbskip" }]] });
+
+interface FbState { step: number; a: string[] }
+async function fbState(chat: number): Promise<FbState | null> {
+  const raw = await kv.hget(FB_STATE, String(chat)).catch(() => null);
+  try { return raw ? JSON.parse(raw) as FbState : null; } catch { return null; }
+}
+async function askFeedback(chat: number, st: FbState) {
+  await kv.hset(FB_STATE, String(chat), JSON.stringify(st));
+  await send(chat, FB_QUESTIONS[st.step], st.step === 2 ? rateKeyboard() : skipKeyboard());
+}
+async function answerFeedback(chat: number, st: FbState, answer: string, who: string) {
+  if (st.step < 2) return askFeedback(chat, { step: st.step + 1, a: [...st.a, answer] });
+  const rating = Number(answer.match(/[1-5]/)?.[0]) || undefined;
+  await kv.hdel(FB_STATE, String(chat));
+  const [ending, unfair] = st.a;
+  const text = [ending && `Как закончилась, где скучно: ${ending}`, unfair && `Нечестно или странно: ${unfair}`].filter(Boolean).join("\n");
+  await saveFeedback({ at: new Date().toISOString(), src: "bot", rating, text, who });
+  await send(chat, FB_THANKS, playButton("Сыграть ещё"));
+}
+
+// Сводка для автора: вчерашний день, неделя и ссылка на страницу с цифрами.
+export async function adminDigest(): Promise<string> {
+  const key = env("STATS_SECRET"), url = appUrl().replace(/\/$/, "");
+  return digestText(await readStats(9), key && url ? `${url}/api/stats?key=${key}` : "");
+}
 export const STOPPED = "Больше не присылаю «Дело дня» по утрам. Вернуть рассылку — /start.";
 
 const menu = () => ({
@@ -64,9 +105,10 @@ const menu = () => ({
 
 // ── Ответ на обновление от Telegram ─────────────────────────────────────────
 export interface Update {
-  message?: { chat?: { id?: number }; text?: string };
-  callback_query?: { id?: string; data?: string; message?: { chat?: { id?: number } } };
+  message?: { chat?: { id?: number }; text?: string; from?: { username?: string; first_name?: string } };
+  callback_query?: { id?: string; data?: string; message?: { chat?: { id?: number } }; from?: { username?: string; first_name?: string } };
 }
+const whoOf = (from?: { username?: string; first_name?: string }) => (from?.username ? `@${from.username}` : from?.first_name ?? "");
 
 // Диагностика: когда последний раз писал Telegram и что он последним отклонил. Видно на GET /api/telegram.
 export const DIAG = "tg:diag";
@@ -95,13 +137,38 @@ export async function handleUpdate(update: Update) {
     if (!chat) return;
     if (cb.data === "daily") await send(chat, dailyText(), playButton("Взяться за дело"));
     else if (cb.data === "help") await send(chat, HELP, playButton("Войти в кабинет"));
+    else if (cb.data === "feedback") await askFeedback(chat, { step: 0, a: [] });
+    else if (cb.data === "fbskip" || cb.data?.startsWith("fbr:")) {
+      const st = await fbState(chat);
+      if (st) await answerFeedback(chat, st, cb.data === "fbskip" ? "" : cb.data.slice(4), whoOf(cb.from));
+    }
     return;
   }
   const chat = update.message?.chat?.id;
   const text = update.message?.text?.trim() ?? "";
   if (!chat) return;
   const cmd = text.startsWith("/") ? text.split(/[\s@]/)[0] : "";
-  if (cmd === "/start") {
+  const arg = cmd ? text.slice(text.indexOf(cmd) + cmd.length).replace(/^@\S+/, "").trim() : "";
+  // Идёт опрос: обычный текст — это ответ; любая команда опрос прерывает.
+  if (!cmd) {
+    const st = await fbState(chat);
+    if (st) return answerFeedback(chat, st, text.slice(0, 1000), whoOf(update.message?.from));
+  } else await kv.hdel(FB_STATE, String(chat)).catch(() => {});
+  if (cmd === "/start" && arg === "feedback") {
+    await askFeedback(chat, { step: 0, a: [] });
+  } else if (cmd === "/feedback") {
+    await askFeedback(chat, { step: 0, a: [] });
+  } else if (cmd === "/admin") {
+    // Автор игры подключает себе отзывы и сводку: /admin <STATS_SECRET>.
+    const key = env("STATS_SECRET");
+    if (key && arg === key) {
+      await kv.hset(ADMIN, "chat", String(chat));
+      await send(chat, "Готово: сюда будут приходить отзывы игроков и утренняя сводка. Сводка по запросу — /stats.", null);
+    } else await send(chat, FALLBACK);
+  } else if (cmd === "/stats") {
+    if (String(chat) === await kv.hget(ADMIN, "chat")) await send(chat, await adminDigest(), null);
+    else await send(chat, FALLBACK);
+  } else if (cmd === "/start") {
     // Подписка не должна мешать ответу: без хранилища бот всё равно здоровается.
     await kv.sadd(SUBS, String(chat)).catch(e => console.error("subscribe", e));
     const cover = appUrl() ? `${appUrl().replace(/\/$/, "")}/telegram-cover.png` : "";

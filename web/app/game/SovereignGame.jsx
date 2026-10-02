@@ -24,7 +24,7 @@ const expressApi = {
 };
 const game = expressApi;
 import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons } from "@/lib/client/telegram.ts";
-import { track } from "@/lib/client/analytics.ts";
+import { track, feedbackEnabled, sendFeedback } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
@@ -2314,6 +2314,50 @@ function DailyBoard({ gs }) {
 }
 
 // ── ENDING ────────────────────────────────────────────────────────────────────
+// Отзыв после партии: оценка и пара слов уходят автору игры. Одна партия — один отзыв.
+const FEEDBACK_LABELS = ["", "скучно", "так себе", "неплохо", "интересно", "затянуло"];
+function FeedbackBox({ gs, style }) {
+  const key = `sv-fb-${gs.seed}`;
+  const [rating, setRating] = useState(0);
+  const [text, setText] = useState("");
+  const [state, setState] = useState(() => { try { return localStorage.getItem(key) ? "sent" : "idle"; } catch { return "idle"; } });
+  const submit = async () => {
+    setState("busy");
+    const kept = (gs.promises ?? []).filter(p => p.status === "kept").length;
+    const ok = await sendFeedback(rating, text, { финал: END_TYPES[gs.endType] ?? gs.endType ?? "", ход: gs.turn, страна: gs.country, сложность: DIFFICULTIES[gs.diff]?.label ?? gs.diff, обещаний: kept });
+    if (ok) { try { localStorage.setItem(key, "1"); } catch { /* недоступно */ } }
+    setState(ok ? "sent" : "error");
+  };
+  return (
+    <Card style={{ marginBottom:12, ...style }}>
+      <Label>{"КАК ВАМ ПАРТИЯ?"}</Label>
+      {state === "sent" ? (
+        <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, lineHeight:1.6 }}>Спасибо. Отзыв ушёл автору игры — он читает каждый.</div>
+      ) : (
+        <>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
+            {[1, 2, 3, 4, 5].map(n => (
+              <button key={n} onClick={() => setRating(n)} aria-pressed={rating === n} aria-label={`${n} — ${FEEDBACK_LABELS[n]}`}
+                style={{ width:44, height:40, borderRadius:0, border:`2px solid ${rating === n ? G.txt : G.bdr2}`, background:rating === n ? G.gold : "transparent", color:rating === n ? "var(--on-gold)" : G.txt, fontFamily:pixel, fontSize:16 }}>{n}</button>
+            ))}
+          </div>
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:10, minHeight:20 }}>{rating ? FEEDBACK_LABELS[rating] : "1 — скучно, 5 — затянуло"}</div>
+          {rating > 0 && (
+            <>
+              <textarea value={text} onChange={e => setText(e.target.value.slice(0, 1000))} rows={3} placeholder="Что было скучно, непонятно или нечестно? Необязательно, но очень помогает."
+                style={{ width:"100%", boxSizing:"border-box", padding:"8px 10px", borderRadius:0, border:`1px solid ${G.bdr2}`, background:G.bg3, color:G.txt, fontFamily:serif, fontSize:15, lineHeight:1.5, resize:"vertical", marginBottom:10 }}/>
+              <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                <PrimaryBtn onClick={submit} disabled={state === "busy"}>{state === "busy" ? "ОТПРАВЛЯЮ…" : "ОТПРАВИТЬ"}</PrimaryBtn>
+                {state === "error" && <span style={{ fontFamily:narrow, fontSize:15, color:G.red }}>Не ушло — попробуйте ещё раз</span>}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
 function Ending({ gs, setGs, onRestart }) {
   const verdict = gs.verdict;
   const [newAch, setNewAch] = useState([]);
@@ -2394,6 +2438,7 @@ function Ending({ gs, setGs, onRestart }) {
               </Card>
             )}
             {verdict && <PromisesCard gs={gs} final style={{ marginTop:0, marginBottom:12, order:5 }}/>}
+            {verdict && feedbackEnabled() && <FeedbackBox gs={gs} style={{ order:5 }}/>}
 
             <div className="sv-two-col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12, order:10 }}>
               <Card>

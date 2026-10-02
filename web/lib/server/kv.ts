@@ -23,6 +23,7 @@ async function redis<T>(cmd: Cmd): Promise<T> {
 const zsets = new Map<string, Map<string, number>>();
 const hashes = new Map<string, Map<string, string>>();
 const sets = new Map<string, Set<string>>();
+const lists = new Map<string, string[]>();
 const bucket = <K, V>(m: Map<string, Map<K, V>>, k: string) => { let b = m.get(k); if (!b) m.set(k, b = new Map()); return b; };
 const setOf = (k: string) => { let b = sets.get(k); if (!b) sets.set(k, b = new Set()); return b; };
 
@@ -108,6 +109,20 @@ export const kv = {
   async smembers(key: string): Promise<string[]> {
     if (kvConfigured()) return redis<string[]>(["SMEMBERS", key]);
     return [...setOf(key)];
+  },
+  // Новые — в начало списка; длина ограничена max.
+  async lpush(key: string, value: string, max: number) {
+    if (kvConfigured()) { await redis(["LPUSH", key, value]); await redis(["LTRIM", key, 0, max - 1]); return; }
+    const l = lists.get(key) ?? [];
+    lists.set(key, [value, ...l].slice(0, max));
+  },
+  async lrange(key: string, n: number): Promise<string[]> {
+    if (kvConfigured()) return redis<string[]>(["LRANGE", key, 0, n - 1]);
+    return (lists.get(key) ?? []).slice(0, n);
+  },
+  async hdel(key: string, field: string) {
+    if (kvConfigured()) return void await redis(["HDEL", key, field]);
+    bucket(hashes, key).delete(field);
   },
   async expire(key: string, seconds: number) {
     if (kvConfigured()) await redis(["EXPIRE", key, seconds]);

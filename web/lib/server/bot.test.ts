@@ -71,3 +71,41 @@ test("бот: если Telegram не принял обложку или разм
     globalThis.fetch = real;
   }
 });
+
+test("бот: опрос из трёх вопросов сохраняет отзыв и пересылает его автору, /admin и /stats — только по ключу", async () => {
+  const { FB_QUESTIONS, FB_THANKS } = await import("./bot.ts");
+  const { readFeedback, ADMIN } = await import("./feedback.ts");
+  const { kv } = await import("./kv.ts");
+  process.env.STATS_SECRET = "s3";
+  calls.length = 0;
+  await handleUpdate({ message: { chat: { id: 99 }, text: "/admin wrong" } });
+  assert.equal(await kv.hget(ADMIN, "chat"), null, "чужой ключ не подключает");
+  await handleUpdate({ message: { chat: { id: 99 }, text: "/admin s3" } });
+  assert.equal(await kv.hget(ADMIN, "chat"), "99");
+  await handleUpdate({ message: { chat: { id: 5 }, text: "/stats" } });
+  assert.doesNotMatch(String(last().body.text), /сводка/, "сводка — только автору");
+  await handleUpdate({ message: { chat: { id: 99 }, text: "/stats" } });
+  assert.match(String(last().body.text), /Суверен · сводка/);
+
+  await handleUpdate({ message: { chat: { id: 7 }, text: "/start feedback" } });
+  assert.equal(last().body.text, FB_QUESTIONS[0]);
+  await handleUpdate({ message: { chat: { id: 7 }, text: "Переворот на 12-м ходу, скучно с 8-го", from: { username: "tester" } } });
+  assert.equal(last().body.text, FB_QUESTIONS[1]);
+  await handleUpdate({ callback_query: { id: "q2", data: "fbskip", message: { chat: { id: 7 } } } });
+  assert.equal(last().body.text, FB_QUESTIONS[2]);
+  await handleUpdate({ callback_query: { id: "q3", data: "fbr:4", message: { chat: { id: 7 } }, from: { username: "tester" } } });
+  assert.equal(last().body.text, FB_THANKS);
+  const toAdmin = calls.find(c => c.body.chat_id === 99 && /Отзыв в боте/.test(String(c.body.text)));
+  assert.ok(toAdmin, "отзыв переслан автору");
+  assert.match(String(toAdmin.body.text), /★★★★☆/);
+  const [fb] = await readFeedback(1);
+  assert.equal(fb.rating, 4);
+  assert.equal(fb.who, "@tester");
+  assert.match(fb.text, /Переворот на 12-м ходу/);
+
+  // любая команда прерывает опрос, после него обычный текст — снова просто ответ бота
+  await handleUpdate({ message: { chat: { id: 7 }, text: "/feedback" } });
+  await handleUpdate({ message: { chat: { id: 7 }, text: "/help" } });
+  await handleUpdate({ message: { chat: { id: 7 }, text: "привет" } });
+  assert.match(String(last().body.text), /не веду переписку/);
+});
