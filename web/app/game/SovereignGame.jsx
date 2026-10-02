@@ -120,21 +120,25 @@ function PrimaryBtn({ children, onClick, disabled, danger, id }) {
     </button>
   );
 }
-function IconDelta({ k, value }) {
+// Без точных цифр: стрелка — направление, две стрелки — сильная перемена.
+const BIG_DELTA = 6;
+const arrows = v => (v > 0 ? "▲" : "▼").repeat(Math.abs(v) >= BIG_DELTA ? 2 : 1);
+function IconDelta({ k, value, exact = true }) {
   const pos = value > 0;
+  const name = RES_CONFIG.find(r => r.key === k)?.prompt;
   return (
-    <span title={`${RES_CONFIG.find(r => r.key === k)?.prompt}: ${signed(value)}`} style={{ display:"inline-flex", alignItems:"center", gap:4, fontFamily:narrow, fontSize:16, fontWeight:700, color:pos?G.grn:G.red, whiteSpace:"nowrap" }}>
-      <ResIcon k={k} size={17} color={pos?G.grn:G.red}/>{signed(value)}
+    <span title={exact ? `${name}: ${signed(value)}` : `${name}: ${pos ? "вырастет" : "упадёт"}${Math.abs(value) >= BIG_DELTA ? " сильно" : ""}`} style={{ display:"inline-flex", alignItems:"center", gap:4, fontFamily:narrow, fontSize:16, fontWeight:700, color:pos?G.grn:G.red, whiteSpace:"nowrap" }}>
+      <ResIcon k={k} size={17} color={pos?G.grn:G.red}/>{exact ? signed(value) : <span style={{ fontSize:13, letterSpacing:"-.05em" }}>{arrows(value)}</span>}
       <span style={{ position:"absolute", width:1, height:1, overflow:"hidden", clip:"rect(0 0 0 0)" }}>{SHORT[k]}</span>
     </span>
   );
 }
-function ResourceChips({ delta }) {
+function ResourceChips({ delta, exact = true }) {
   const items = RES_CONFIG.filter(r => delta?.[r.key]);
   if (!items.length) return null;
   return (
     <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 16px" }}>
-      {items.map(r => <IconDelta key={r.key} k={r.key} value={delta[r.key]}/>)}
+      {items.map(r => <IconDelta key={r.key} k={r.key} value={delta[r.key]} exact={exact}/>)}
     </div>
   );
 }
@@ -253,7 +257,9 @@ function PollWidget({ gs }) {
   );
 }
 
+// Точный расклад знают только советники: вариант от совета показан в цифрах, остальные — стрелками.
 function ChoicePreview({ gs, c }) {
+  const exact = !!c.advisor;
   const fx = choiceEffects(gs, c);
   const crisis = c.resolvesCrisis && gs.activeCrises.find(x => x.id === c.resolvesCrisis);
   const later = delayedEffects(c);
@@ -267,10 +273,11 @@ function ChoicePreview({ gs, c }) {
       )}
       <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:8 }}>
-        {c.deal?.pure ? <i style={{ fontFamily:serif }}>{c.hint}</i> : <>{c.tags.map(t => ACTIONS[t].label).join(" · ")} · <ChanceBadge p={successChance(gs, c)}/> · <i style={{ fontFamily:serif }}>{c.hint}</i></>}
+        {c.deal?.pure ? <i style={{ fontFamily:serif }}>{c.hint}</i> : <>{c.tags.map(t => ACTIONS[t].label).join(" · ")} · <ChanceBadge p={successChance(gs, c)} exact={exact}/> · <i style={{ fontFamily:serif }}>{c.hint}</i></>}
       </div>
-      <ResourceChips delta={fx.resources}/>
-      {later.length > 0 && (
+      <ResourceChips delta={fx.resources} exact={exact}/>
+      {later.length > 0 && !exact && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6 }}>⧗ Аукнется позже — как, знают советники</div>}
+      {later.length > 0 && exact && (
         <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6, lineHeight:1.45 }}>
           Позже: {later.map((d, k) => {
             const fx = RES_CONFIG.filter(r => d.res[r.key]).map(r => `${SHORT[r.key].toLowerCase()} ${signed(d.res[r.key])}`).join(", ");
@@ -280,17 +287,18 @@ function ChoicePreview({ gs, c }) {
         </div>
       )}
       {crisis && <div style={{ fontFamily:narrow, fontSize:15, color:G.grn, marginTop:6 }}>Закроет кризис «{crisis.title}», если исполнят</div>}
-      <DealLines gs={gs} c={c}/>
+      <DealLines gs={gs} c={c} exact={exact}/>
     </>
   );
 }
 
 // Что сделка меняет в людях и союзах — и какие договоры решение нарушит.
-function DealLines({ gs, c }) {
+function DealLines({ gs, c, exact = true }) {
   const fac = id => gs.factions.find(f => f.id === id)?.name ?? id;
+  const sg = v => (exact ? signed(v) : arrows(v));
   const lines = [];
   for (const p of breaches(gs.pacts, c.tags)) {
-    lines.push([G.red, `Нарушит договор с «${fac(p.faction)}»: они ${signed(PACT_BROKEN.faction)}, остальные ${signed(PACT_BROKEN.others)}`]);
+    lines.push([G.red, `Нарушит договор с «${fac(p.faction)}»: они ${sg(PACT_BROKEN.faction)}, остальные ${sg(PACT_BROKEN.others)}`]);
   }
   const d = c.deal;
   if (d) {
@@ -298,14 +306,14 @@ function DealLines({ gs, c }) {
     if (d.pact) {
       const bloc = gs.factions.find(f => f.id === d.pact.faction)?.bloc;
       const res = RES_CONFIG.find(r => r.key === PACT_INCOME[bloc]);
-      lines.push([G.grn, `Договор на ${plural(d.pact.turns, "ход", "хода", "ходов")}: ${SHORT[res.key].toLowerCase()} +${pactIncome(d.pact)} каждый ход, их голоса на выборах`]);
+      lines.push([G.grn, `Договор на ${plural(d.pact.turns, "ход", "хода", "ходов")}: ${SHORT[res.key].toLowerCase()} ${exact ? `+${pactIncome(d.pact)}` : "растёт"} каждый ход, их голоса на выборах`]);
       lines.push([G.tx3, `Нельзя: ${d.pact.ban.map(t => `«${ACTIONS[t].label}»`).join(", ")}`]);
       if (d.pact.against) lines.push([G.red, `«${fac(d.pact.against)}» станут врагами`]);
     }
     if (fig && d.replace) lines.push([G.tx2, `${fig.name} уходит с поста`]);
-    else if (fig && d.figureRel) lines.push([d.figureRel > 0 ? G.grn : G.red, `${fig.name}: лично ${signed(d.figureRel)}`]);
-    for (const [id, v] of Object.entries(d.factionRel ?? {})) lines.push([v > 0 ? G.grn : G.red, `Лагерь «${fac(id)}»: ${signed(v)}`]);
-    if (d.othersRel) lines.push([G.red, `Те, кто вам верит: ${signed(d.othersRel)}`]);
+    else if (fig && d.figureRel) lines.push([d.figureRel > 0 ? G.grn : G.red, `${fig.name}: лично ${sg(d.figureRel)}`]);
+    for (const [id, v] of Object.entries(d.factionRel ?? {})) lines.push([v > 0 ? G.grn : G.red, `Лагерь «${fac(id)}»: ${sg(v)}`]);
+    if (d.othersRel) lines.push([G.red, `Те, кто вам верит: ${sg(d.othersRel)}`]);
   }
   if (!lines.length) return null;
   return (
@@ -534,7 +542,7 @@ function PressPanel({ press, onFinish, onSkip, stamping }) {
               <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.4, marginBottom:4 }}>{a.text}</div>
               <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
                 <span style={{ fontFamily:pixel, fontSize:12, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
-                <ResourceChips delta={a.res}/>
+                <ResourceChips delta={a.res} exact={false}/>
               </div>
             </button>
           ))}
@@ -632,10 +640,12 @@ function SpecialHeader({ gs, event }) {
   );
 }
 
-function ChanceBadge({ p }) {
+// Без совета шанс назван словами: «надёжно», «как повезёт», — точный процент знает советник.
+const chanceWord = pct => (pct >= 85 ? "исполнят надёжно" : pct >= 70 ? "скорее исполнят" : pct >= 55 ? "как повезёт" : "скорее сорвут");
+function ChanceBadge({ p, exact = true }) {
   const pct = Math.round(p * 100);
   const c = pct >= 75 ? G.grn : pct >= 55 ? G.amb : G.red;
-  return <span title="Шанс, что решение исполнят как задумано. Зависит от советника, отношения исполнителей и ресурсов." style={{ color:c, fontWeight:700 }}>исполнят с шансом {pct}%</span>;
+  return <span title="Насколько надёжно решение исполнят. Зависит от советника, отношения исполнителей и ресурсов." style={{ color:c, fontWeight:700 }}>{exact ? `исполнят с шансом ${pct}%` : chanceWord(pct)}</span>;
 }
 
 const stars = n => "★".repeat(n) + "☆".repeat(3 - n);
@@ -952,10 +962,11 @@ function Hud({ gs, preview, onMenu, onHelp }) {
   const ci = IDEOLOGIES.find(i => i.id === gs.ideo);
   let plan = null;
   if (preview && gs.currentEvent) { try { plan = planTurn(gs, preview.id, { assumeSuccess: true }); } catch { plan = null; } }
+  const exact = !!preview?.advisor; // итог в цифрах — только для варианта от совета
   const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
   const nextRating = plan ? computePolls(gs.country, plan.factions, plan.resources).leader : null;
   const next = nextElection(gs.turn);
-  const arrow = (a, b) => b === null || b === a ? null : <span style={{ color:b > a ? G.grn : G.red }}> → {b}</span>;
+  const arrow = (a, b) => b === null || b === a ? null : <span style={{ color:b > a ? G.grn : G.red }}>{exact ? ` → ${b}` : ` ${b > a ? "▲" : "▼"}`}</span>;
   const turnNow = Math.min(gs.turn + 1, MAX_TURNS);
   return (
     <header className="sv-hud">
@@ -975,12 +986,12 @@ function Hud({ gs, preview, onMenu, onHelp }) {
               const dot = Math.abs(d) >= 6 ? 8 : 4;
               return (
                 <button key={r.key} data-res={r.key} onClick={() => setInfo(x => x === r.key ? null : r.key)} aria-expanded={info === r.key}
-                  aria-label={`${r.prompt}: ${v}${d ? `, станет ${to}` : ""}. Подробнее`}
+                  aria-label={`${r.prompt}: ${v}${d ? (exact ? `, станет ${to}` : d > 0 ? ", вырастет" : ", упадёт") : ""}. Подробнее`}
                   style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, position:"relative", background:info === r.key ? G.bg3 : "transparent", border:"none", padding:"2px 0", color:"inherit" }}>
                   {d !== 0 && <span className="sv-fade" style={{ position:"absolute", top:-2, right:"calc(50% - 20px)", width:dot, height:dot, background:d > 0 ? G.grn : G.red }}/>}
                   <ResIcon k={r.key} value={v} size={28} color={danger && to !== null ? G.red : barColor(v)}/>
                   <div style={{ fontFamily:pixel, fontSize:14, lineHeight:1, color:G.tx2, whiteSpace:"nowrap" }}>
-                    {v}{d !== 0 && <span style={{ color:d > 0 ? G.grn : G.red }}>→{to}</span>}
+                    {v}{d !== 0 && exact && <span style={{ color:d > 0 ? G.grn : G.red }}>→{to}</span>}
                   </div>
                 </button>
               );
@@ -1109,7 +1120,8 @@ function HowToPlay({ onClose }) {
   }, [onClose]);
   const desktop = typeof matchMedia === "function" && matchMedia("(pointer:fine)").matches;
   const items = [
-    ["Каждый ход — одно решение", `Под каждым вариантом — его цена и то, что аукнется позже. ${desktop ? "Наведите на вариант — панель сверху покажет итог." : "Первое касание покажет итог на панели сверху, второе — подпишет решение."}`],
+    ["Каждый ход — одно решение", `Под каждым вариантом — куда он потянет опоры: ▲ вырастет, ▼▼ сильно упадёт, — и насколько надёжно его исполнят. ${desktop ? "Наведите на вариант — точки на панели сверху покажут, что изменится." : "Первое касание покажет на панели сверху, что изменится, второе — подпишет решение."}`],
+    ["Точные цифры — у советников", "Сколько именно стоит решение, каков шанс и что аукнется позже, знают только советники. Совет можно собрать несколько раз за правление — берегите его для трудных дел."],
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
     ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
     ["Люди — не копии своих лагерей", "У каждого свой характер. Друг во враждебном лагере станет «своим человеком», недруг среди союзников — «червоточиной». Союз с группой даёт доход и голоса, но нарушенное слово запоминают все."],

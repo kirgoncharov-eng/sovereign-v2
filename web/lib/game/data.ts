@@ -1,7 +1,7 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
 
-export const APP_VERSION = "5.1";
+export const APP_VERSION = "5.2";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 export const MAX_TURNS = 20;
 
@@ -73,10 +73,10 @@ export const BIOGRAPHIES: Biography[] = [
 export const BIO_CHANCE = 0.08, BIO_RES = 8;
 
 export const START_RES: Record<DifficultyId, Resources> = {
-  debut:     { politicalCapital:72, economy:65, military:62, externalReputation:58, internalLegitimacy:70, personalResource:82 },
-  coalition: { politicalCapital:50, economy:44, military:56, externalReputation:50, internalLegitimacy:46, personalResource:65 },
-  crisis:    { politicalCapital:33, economy:36, military:50, externalReputation:38, internalLegitimacy:28, personalResource:55 },
-  ruins:     { politicalCapital:21, economy:22, military:32, externalReputation:22, internalLegitimacy:17, personalResource:42 }
+  debut:     { politicalCapital:60, economy:53, military:50, externalReputation:46, internalLegitimacy:58, personalResource:70 },
+  coalition: { politicalCapital:38, economy:32, military:44, externalReputation:38, internalLegitimacy:34, personalResource:53 },
+  crisis:    { politicalCapital:31, economy:34, military:48, externalReputation:36, internalLegitimacy:26, personalResource:53 },
+  ruins:     { politicalCapital:29, economy:30, military:40, externalReputation:30, internalLegitimacy:25, personalResource:50 }
 };
 
 export interface FactionInfo {
@@ -373,6 +373,8 @@ export const IDEOLOGY_ACTIONS: Record<IdeologyId, { aligned: ActionTag[]; oppose
   leftist:     { aligned:["social","anticorruption","dialogue"],            opposed:["austerity","investment","elite_deal"] },
 };
 
+// Цена решений: потери ресурсов весят больше выгод — бесплатных решений почти не бывает.
+export const COSTS = { weight: 1.3 };
 export const IDEOLOGY_BONUS: ResourceDelta = { personalResource:2, internalLegitimacy:1 };
 export const IDEOLOGY_PENALTY: ResourceDelta = { personalResource:-4, politicalCapital:-2 };
 
@@ -380,7 +382,7 @@ export const IDEOLOGY_PENALTY: ResourceDelta = { personalResource:-4, politicalC
 export function difficultyEffects(id: DifficultyId): string {
   const res = Object.values(START_RES[id]), avg = Math.round(res.reduce((a, b) => a + b, 0) / res.length);
   const mood = DIFF_REL_MOD[id] > 0 ? "группы настроены теплее" : DIFF_REL_MOD[id] < 0 ? "группы настроены враждебнее" : "группы настроены ровно";
-  const drain = DIFF_PRESSURE[id] ? `страна сама теряет ${DIFF_PRESSURE[id]} ед. ресурсов за ход` : "без потерь за ход";
+  const drain = `страна сама теряет ${DIFF_PRESSURE[id]} ед. ресурсов за ход, с каждой главой больше`;
   return `ресурсы на старте ≈${avg} из 100 · ${mood} · ${drain}`;
 }
 export function ideologyEffects(id: IdeologyId, country: string | null): string {
@@ -460,7 +462,11 @@ export const RECOVERY_BELOW = 30;
 export const RECOVERY_RATE = 1;
 
 // Давление обстоятельств: сколько очков ресурсов страна теряет каждый ход сама по себе.
-export const DIFF_PRESSURE: Record<DifficultyId, number> = { debut:0, coalition:1, crisis:2, ruins:2 };
+// С каждой главой мандата (ход 7, 14) давление растёт: страна устаёт от власти.
+export const DIFF_PRESSURE: Record<DifficultyId, number> = { debut:1, coalition:2, crisis:3, ruins:2 };
+export const PRESSURE_GROWTH = { every: 7, by: 1 };
+export const pressureAt = (diff: DifficultyId, turn: number) =>
+  (DIFF_PRESSURE[diff] ?? 0) + Math.floor(turn / PRESSURE_GROWTH.every) * PRESSURE_GROWTH.by;
 
 // Враждебные фракции (отношение ниже порога) вредят каждый ход.
 export const HOSTILE_RELATION = -60;

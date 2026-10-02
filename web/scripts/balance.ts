@@ -1,30 +1,42 @@
-// Симуляция баланса: 2000 партий на каждую сложность для случайного и «умного» игрока.
-// Запуск: npm run balance
-import { ACTION_TAGS, COUNTRIES, IDEOLOGIES, RESOURCE_KEYS, DIFFICULTIES } from "../lib/game/data.ts";
-import type { DifficultyId } from "../lib/game/types.ts";
-import { createInitialState, startEvent, resolveTurn, planTurn, leaderRating } from "../lib/game/engine.ts";
-const intro = { leader:{name:"L",party:"P",bio:""}, speech:"", situation:"", players:[] };
-const pick = <T,>(a: T[]) => a[Math.floor(Math.random()*a.length)];
-const narr = { headline:"h", narrative:"n", reactions:[], historianNote:"", crisisTitle:null, crisisDescription:null, powerLoss:null };
-function play(diff: DifficultyId, strategy: "random"|"smart") {
-  let s = createInitialState(pick(Object.keys(COUNTRIES)), diff, pick(IDEOLOGIES).id, intro);
-  while (!s.ended) {
-    const choices = ["a","b","c"].map(id => ({ id, text:id, hint:"", tags: Array.from({length: 1+Math.floor(Math.random()*2)}, () => pick(ACTION_TAGS)), resolvesCrisis: s.activeCrises.length && Math.random()<0.4 ? s.activeCrises[0].id : null }));
-    const re = Math.random() < 0.28 ? { title:"r", description:"", resourceEffect: { [pick(RESOURCE_KEYS)]: Math.round(Math.random()*12-8) } } : null;
-    s = startEvent(s, { title:"e", source:"", description:"", isCritical:false, affectedFactions:[], choices, randomEvent: re });
-    let c = choices[0].id;
-    if (strategy === "random") c = pick(choices).id;
-    else {
-      let best = -1e9;
-      for (const ch of choices) { const p = planTurn(s, ch.id, { assumeSuccess: true }); const sc = Math.min(...RESOURCE_KEYS.map(k=>p.resources[k])) + leaderRating(p.factions, p.resources)*0.5; if (sc > best) { best = sc; c = ch.id; } }
+// Симуляция баланса на настоящих делах игры: N партий на каждую сложность для трёх игроков.
+//   random — нажимает наугад;
+//   hint   — видит то же, что игрок без совета: только направление перемен (стрелки), и бережёт просевшие опоры;
+//   smart  — знает точные цифры (как с советом на каждом ходу) и смотрит на ход вперёд.
+// Ориентиры: «Коалиция» — hint ≈ 2 из 3 партий, random ≈ 1 из 4.
+// Запуск: npm run balance  (N=500 npm run balance — точнее)
+import { classicApi } from "../lib/game/classic.ts";
+import { choiceEffects, createInitialState, leaderRating, planTurn, resolveTurn, startEvent } from "../lib/game/engine.ts";
+import { COUNTRIES, DIFFICULTIES, IDEOLOGIES, RESOURCE_KEYS } from "../lib/game/data.ts";
+import type { Choice, DifficultyId, GameState } from "../lib/game/types.ts";
+
+const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+const N = Number(process.env.N ?? 200);
+const BIG = 6;
+
+const best = (chs: Choice[], score: (c: Choice) => number) => chs.reduce((b, c) => (score(c) > score(b) ? c : b));
+const strategies: Record<string, (s: GameState, chs: Choice[]) => Choice> = {
+  random: (_s, chs) => pick(chs),
+  hint: (s, chs) => best(chs, c => Object.entries(choiceEffects(s, c).resources as Record<string, number>)
+    .reduce((t, [k, v]) => t + Math.sign(v) * (Math.abs(v) >= BIG ? 2 : 1) * (s.resources[k as keyof GameState["resources"]] < 35 ? 3 : 1), 0) + Math.random() * 0.5),
+  smart: (s, chs) => best(chs, c => { const p = planTurn(s, c.id, { assumeSuccess: true }); return Math.min(...RESOURCE_KEYS.map(k => p.resources[k])) + leaderRating(p.factions, p.resources) * 0.5; }),
+};
+
+for (const d of Object.keys(DIFFICULTIES) as DifficultyId[]) {
+  const row: string[] = [];
+  for (const [name, choose] of Object.entries(strategies)) {
+    let win = 0, turns = 0;
+    for (let i = 0; i < N; i++) {
+      const country = pick(Object.keys(COUNTRIES)), ideo = pick(IDEOLOGIES).id;
+      let s = createInitialState(country, d, ideo, await classicApi.setup(country, d, ideo));
+      while (!s.ended) {
+        s = startEvent(s, await classicApi.event(s));
+        const c = choose(s, s.currentEvent!.choices);
+        s = resolveTurn(s, c.id, await classicApi.consequence(s, c.id));
+      }
+      if (s.endType === "mandate" || s.endType === "reelected") win++;
+      turns += s.turn;
     }
-    s = resolveTurn(s, c, narr);
-    if (process.env.TRACE && s.turn === 1) console.log(s.country, s.diff, s.ideo, "rating", leaderRating(s.factions, s.resources));
+    row.push(`${name} ${String(Math.round((win / N) * 100)).padStart(3)}% (${(turns / N).toFixed(1)} хода)`);
   }
-  return s;
-}
-for (const strat of ["random","smart"] as const) for (const d of Object.keys(DIFFICULTIES) as DifficultyId[]) {
-  const N=2000; let win=0, turns=0; const ends: Record<string,number> = {};
-  for (let i=0;i<N;i++){ const s=play(d,strat); if(s.endType==="mandate"||s.endType==="reelected")win++; turns+=s.turn; ends[s.endType!]=(ends[s.endType!]||0)+1; }
-  console.log(strat.padEnd(6), d.padEnd(9), "win", (win/N*100).toFixed(0)+"%", "avgTurns", (turns/N).toFixed(1), JSON.stringify(ends));
+  console.log(d.padEnd(9), row.join("   "));
 }
