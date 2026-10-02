@@ -10,7 +10,7 @@ export type TrackEventName = (typeof TRACK_EVENTS)[number];
 // По каким свойствам события считаем разрезы.
 const DIMS: Record<TrackEventName, string[]> = {
   open: ["src"], start: ["country", "diff", "ideo", "bio", "daily"], resume: [], turn: ["n"],
-  end: ["type"], share: [], invite: [], daily: [],
+  end: ["type", "kept"], share: [], invite: [], daily: [],
 };
 export const COHORT_DAYS = [1, 3, 7, 14, 30];
 const TTL = 60 * 60 * 24 * 120;
@@ -133,6 +133,7 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 <div class="paper">${section("Курс", "start|ideo=", starts)}</div>
 <div class="paper">${section("Биография", "start|bio=", starts)}</div>
 <div class="paper">${section("Чем заканчиваются партии", "end|type=", ends)}</div>
+<div class="paper">${section("Сколько обещаний исполнено", "end|kept=", ends)}</div>
 <div class="paper">${section("Откуда запускают", "open|src=", sum(s, "open"))}</div>
 </div>
 <div class="paper"><h2>По дням</h2><div class="scroll"><table><tr><th>День</th><th>Игроков</th><th>Новых</th><th>Партий</th><th>Финалов</th><th>Доиграли</th><th>Поделились</th><th>Дело дня</th></tr>${dayRows}</table></div></div>

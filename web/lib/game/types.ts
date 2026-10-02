@@ -187,7 +187,12 @@ export interface TurnReport extends Narration {
   matured: Pending[];   // сработавшие в этом ходу отложенные последствия
   scheduled: Pending[]; // отложенные последствия этого решения
   pacts?: PactNews;     // подписанные, выполненные и нарушенные союзы (названия фракций)
+  promises?: PromiseNews; // исполненные, нарушенные и продвинутые обещания (заголовки)
 }
+
+// Предвыборное обещание в партии: сколько сделано и чем кончилось.
+export interface PromiseState { id: string; progress: number; status: "open" | "kept" | "broken"; turn?: number; target?: number }
+export interface PromiseNews { kept: string[]; broken: string[]; advanced: string[] }
 
 export interface PartyShare { id: string; name: string; share: number }
 export interface Polls { leader: number; parties: PartyShare[]; undecided: number }
@@ -279,6 +284,7 @@ export interface GameState {
   pending: Pending[];
   arc: ArcState | null;
   pacts?: Pact[];        // действующие союзы
+  promises?: PromiseState[]; // предвыборные обещания
   betrayals?: number;    // сколько союзов вы нарушили
   echoes?: Record<string, number>; // сколько раз уже звучало эхо каждого отложенного последствия
   former?: string[];      // люди, ушедшие с постов: их имена не достаются преемникам

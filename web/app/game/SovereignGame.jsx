@@ -7,6 +7,8 @@ import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
 import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
 import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, pactIncome as pactIncomeOf, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
+import { PROMISE_PICK } from "@/lib/content/promises.ts";
+import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
 import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
 import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
@@ -288,7 +290,20 @@ function ChoicePreview({ gs, c }) {
       )}
       {crisis && <div style={{ fontFamily:narrow, fontSize:15, color:G.grn, marginTop:6 }}>Закроет кризис «{crisis.title}», если исполнят</div>}
       <DealLines gs={gs} c={c} exact={exact}/>
+      <PromiseLines gs={gs} c={c}/>
     </>
+  );
+}
+
+// Как решение скажется на обещаниях: шаг к исполнению или прямое нарушение.
+function PromiseLines({ gs, c }) {
+  const { advances, breaks } = promiseImpact(gs.promises, c.deal?.pure ? [] : c.tags);
+  if (!advances.length && !breaks.length) return null;
+  return (
+    <div style={{ fontFamily:narrow, fontSize:15, marginTop:6, lineHeight:1.45 }}>
+      {advances.map(t => <div key={t} style={{ color:G.grn }}>✔ Шаг к обещанию «{t}», если исполнят</div>)}
+      {breaks.map(t => <div key={t} style={{ color:G.red }}>✖ Нарушит обещание «{t}»</div>)}
+    </div>
   );
 }
 
@@ -1126,6 +1141,7 @@ function HowToPlay({ onClose }) {
     ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
     ["Люди — не копии своих лагерей", "У каждого свой характер. Друг во враждебном лагере станет «своим человеком», недруг среди союзников — «червоточиной». Союз с группой даёт доход и голоса, но нарушенное слово запоминают все."],
     ["Не верьте бумагам на слово", "Трижды за правление вам принесут доклад на подпись. Сверьте его со справкой: нашли ложь — отметьте строку и уличите автора. Подписанная ложь всплывёт позже. Дважды за правление звонят по защищённой линии: подход подбирайте по характеру собеседника. Перед парламентскими выборами — бюджет: разложите 10 млрд по статьям, а можно и занять. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
+    ["Вы обещали", "Перед первым ходом вы выбираете три предвыборных обещания. Исполненное поднимает доверие и отношение тех, кому вы его дали; нарушенное бьёт сильнее. Под вариантами видно, что приближает обещание, а что его нарушит. Прогресс — в досье."],
     ["У вас есть тайна", "В каждой партии развивается главная интрига. Эпизоды помечены «Главная интрига» — ваши решения в них определят развязку."],
     ...(desktop ? [["Клавиши", "1–9 — выбрать, Enter — подтвердить или дочитать, Esc — закрыть окно."]] : []),
   ];
@@ -1387,13 +1403,71 @@ function Setup({ onStart, saved, onResume }) {
 }
 
 // ── INTRO ─────────────────────────────────────────────────────────────────────
+// Кому дано обещание: группы этого блока в стране.
+const promisedTo = (gs, def) => gs.factions.filter(f => f.bloc === def.bloc).map(f => `«${f.name}»`).join(", ");
+
+// Предвыборная программа: из пяти обещаний лидер берёт три. Подсказанные — в духе курса.
+function PromisePicker({ gs, offered, picked, setPicked }) {
+  const toggle = id => setPicked(p => p.includes(id) ? p.filter(x => x !== id) : p.length < PROMISE_PICK ? [...p, id] : p);
+  return (
+    <Card style={{ marginBottom:22 }}>
+      <Label>{"ПРЕДВЫБОРНАЯ ПРОГРАММА"}</Label>
+      <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, lineHeight:1.6, marginBottom:8 }}>
+        Отметьте {PROMISE_PICK} обещания, с которыми вы шли на выборы. Исполненное укрепит доверие и тех, кому вы его дали. Нарушенное обойдётся дороже, чем кажется.
+      </div>
+      {offered.map(id => {
+        const def = promiseDef(id), on = picked.includes(id), full = !on && picked.length >= PROMISE_PICK;
+        const to = promisedTo(gs, def);
+        return (
+          <button key={id} onClick={() => toggle(id)} aria-pressed={on} disabled={full}
+            style={{ display:"flex", gap:12, alignItems:"flex-start", width:"100%", textAlign:"left", padding:"10px 4px", background:on ? G.bg3 : "transparent", border:"none", borderTop:`1px dashed ${G.bdr2}`, color:G.txt, opacity:full ? .5 : 1 }}>
+            <span aria-hidden="true" style={{ width:16, height:16, marginTop:3, border:`2px solid ${G.txt}`, flexShrink:0, display:"inline-flex", alignItems:"center", justifyContent:"center", fontFamily:pixel, fontSize:13, lineHeight:1, color:G.red }}>{on ? "X" : ""}</span>
+            <span style={{ minWidth:0 }}>
+              <span style={{ display:"block", fontFamily:narrow, fontSize:17, fontWeight:700 }}>{def.title}</span>
+              <span style={{ display:"block", fontFamily:serif, fontSize:15, fontStyle:"italic", color:G.tx2, lineHeight:1.45 }}>«{def.pitch}»</span>
+              <span style={{ display:"block", fontFamily:mono, fontSize:12, color:G.tx3, lineHeight:1.5, marginTop:3 }}>условие: {promiseGoalText(def, def.goal.kind === "resource" ? Math.min(95, gs.resources[def.goal.key] + def.goal.rise) : undefined)}{to ? ` · обещано: ${to}` : ""}</span>
+            </span>
+          </button>
+        );
+      })}
+    </Card>
+  );
+}
+
+// Обещания в досье: что сделано и сколько осталось.
+function PromisesCard({ gs, final = false, style }) {
+  if (!gs.promises?.length) return null;
+  return (
+    <Card style={{ marginTop:10, ...style }}>
+      <Label>{"ОБЕЩАНИЯ"}</Label>
+      {gs.promises.map(p => {
+        const def = promiseDef(p.id);
+        if (!def) return null;
+        const g = def.goal;
+        const mark = p.status === "kept" ? ["✔", G.grn] : p.status === "broken" ? ["✖", G.red] : ["☐", G.tx2];
+        const left = p.status === "open" ? final ? "не успели" : (g.kind === "tags" ? `${p.progress}/${g.count}` : g.kind === "never" ? "держитесь" : `${gs.resources[g.key]} из ${p.target}`) : p.status === "kept" ? "исполнено" : "нарушено";
+        return (
+          <div key={p.id} title={promiseGoalText(def, p.target)} style={{ display:"flex", justifyContent:"space-between", gap:8, padding:"5px 0", borderTop:`1px dashed ${G.bdr}`, fontFamily:narrow, fontSize:15 }}>
+            <span style={{ color:mark[1], minWidth:0 }}>{mark[0]} {def.title}</span>
+            <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>{left}{p.status === "open" && def.due === 10 ? " · до 10 хода" : ""}</span>
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
 function Intro({ gs, onGo }) {
   const tg = useTelegramButtons();
+  const { offered, suggested } = useMemo(() => offeredPromises(gs.seed, gs.ideo), [gs.seed, gs.ideo]);
+  const [picked, setPicked] = useState(suggested);
+  const ready = picked.length === PROMISE_PICK;
+  const go = useCallback(() => { if (ready) onGo(picked); }, [ready, picked, onGo]);
   useEffect(() => {
     if (!tg) return;
-    setMainButton({ text: "Приступить к управлению →", onClick: onGo });
+    setMainButton({ text: ready ? "Приступить к управлению →" : `Отметьте ещё ${PROMISE_PICK - picked.length}`, onClick: go });
     return () => setMainButton(null);
-  }, [tg, onGo]);
+  }, [tg, go, ready, picked.length]);
   const { country, ideo, leader, speech, situation, keyFigures } = gs;
   const ci = IDEOLOGIES.find(i => i.id === ideo);
   const relC = l => l === "союзник" ? G.grn : l === "враг" ? G.red : G.tx3;
@@ -1474,7 +1548,8 @@ function Intro({ gs, onGo }) {
             </div>
           </Card>
         )}
-        <div style={{ textAlign:"center" }}><PrimaryBtn onClick={onGo}>ПРИСТУПИТЬ К УПРАВЛЕНИЮ →</PrimaryBtn></div>
+        <PromisePicker gs={gs} offered={offered} picked={picked} setPicked={setPicked}/>
+        <div style={{ textAlign:"center" }}><PrimaryBtn onClick={go} disabled={!ready}>{ready ? "ПРИСТУПИТЬ К УПРАВЛЕНИЮ →" : `ОТМЕТЬТЕ ЕЩЁ ${PROMISE_PICK - picked.length}`}</PrimaryBtn></div>
       </div>
     </div>
   );
@@ -1654,6 +1729,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           </button>
           <div className="sv-side-body">
           <PollWidget gs={gs}/>
+          <PromisesCard gs={gs}/>
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:4, margin:"10px 0 6px" }}>
             {tabs.map(t => (
@@ -1990,6 +2066,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}> · «{name}»</span>
                   </div>
                 )))}
+              {lastTurn.promises && [["kept", "Обещание исполнено", G.grn], ["broken", "Обещание нарушено", G.red], ["advanced", "Шаг к обещанию", G.tx2]].flatMap(([k, label, color]) =>
+                lastTurn.promises[k].map(title => (
+                  <div key={k + title} className="sv-paper" style={{ marginBottom:8, padding:"10px 16px", borderRadius:0, borderLeft:`3px solid ${color}` }}>
+                    <span style={{ fontFamily:narrow, fontSize:15, fontWeight:700, color, letterSpacing:".04em" }}>{label.toUpperCase()}</span>
+                    <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}> · «{title}»</span>
+                  </div>
+                )))}
               {lastTurn.matured?.map(p => (
                 <div key={p.id} className="sv-paper" style={{ marginBottom:8, padding:"12px 16px", borderRadius:0 }}>
                   <div style={{ fontFamily:serif, fontSize:16, fontWeight:700, marginBottom:2 }}>{p.label}</div>
@@ -2251,7 +2334,7 @@ function Ending({ gs, setGs, onRestart }) {
         gsRef.current = next;
         setGs(next);
         const run = recordRun(next);
-        track("end", { type: next.endType ?? "", turns: next.turn });
+        track("end", { type: next.endType ?? "", turns: next.turn, kept: (next.promises ?? []).filter(p => p.status === "kept").length });
         setNewAch(run.unlocked);
         cloudSet("meta", compactMeta(run.meta));
         setError(null);
@@ -2310,6 +2393,7 @@ function Ending({ gs, setGs, onRestart }) {
                 <div style={{ marginTop:12, fontFamily:narrow, fontSize:15, color:G.amb, letterSpacing:".05em" }}>ОЦЕНКА: {verdict.rating.toUpperCase()}</div>
               </Card>
             )}
+            {verdict && <PromisesCard gs={gs} final style={{ marginTop:0, marginBottom:12, order:5 }}/>}
 
             <div className="sv-two-col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12, order:10 }}>
               <Card>
@@ -2415,7 +2499,7 @@ export default function App() {
   return (
     <>
       {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={d=>{ track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily }); setGs(d); setScreen("intro"); }}/>}
-      {screen==="intro"  && <Intro  gs={gs} onGo={()=>setScreen("game")}/>}
+      {screen==="intro"  && <Intro  gs={gs} onGo={picks=>{ setGs(g => ({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>}
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
     </>
