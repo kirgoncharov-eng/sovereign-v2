@@ -10,7 +10,7 @@ export type TrackEventName = (typeof TRACK_EVENTS)[number];
 // По каким свойствам события считаем разрезы.
 const DIMS: Record<TrackEventName, string[]> = {
   open: ["src"], start: ["country", "diff", "ideo", "bio", "daily", "quick"], resume: [], turn: ["n"],
-  end: ["type", "kept"], share: [], invite: [], daily: [], intro: [], first: ["sec"], help: [], subscribe: [],
+  end: ["type", "kept"], share: ["via"], invite: [], daily: [], intro: [], first: ["sec"], help: [], subscribe: [],
 };
 export const COHORT_DAYS = [1, 3, 7, 14, 30];
 const TTL = 60 * 60 * 24 * 120;
@@ -82,7 +82,7 @@ const LABELS: Record<string, string> = {
   liberal: "Либерал", nationalist: "Националист", pragmatist: "Прагматик", leftist: "Левый",
   officer: "Офицер", economist: "Экономист", lawyer: "Правозащитник", diplomat: "Дипломат", mayor: "Мэр",
   ...END_TYPES,
-  tg: "Telegram", web: "Браузер", true: "Да", false: "Нет",
+  tg: "Telegram", web: "Браузер", story: "История", native: "Системное меню", copy: "Копия ссылки", save: "Картинка", true: "Да", false: "Нет",
   // первые замеры шли с длинным тире, и сервер его вырезал
   "3060 с": "30-60 с", "12 мин": "1-2 мин", "25 мин": "2-5 мин",
 };
@@ -176,6 +176,7 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 <div class="paper">${section("Сколько обещаний исполнено", "end|kept=", ends)}</div>
 <div class="paper">${section("Откуда запускают", "open|src=", sum(s, "open"))}</div>
 <div class="paper">${section("Быстрая партия или анкета", "start|quick=", starts)}</div>
+<div class="paper">${section("Как делятся итогом", "share|via=", sum(s, "share"))}</div>
 <div class="paper">${section("Время до первого решения", "first|sec=", sum(s, "first"))}</div>
 </div>
 <div class="paper"><h2>Отзывы</h2>${feedback.length ? feedback.map(f => `<div class="fb"><div class="muted">${esc(f.at.slice(0, 16).replace("T", " "))} · ${f.src === "bot" ? "бот" : "игра"}${f.rating ? ` · ${"★".repeat(f.rating)}${"☆".repeat(5 - f.rating)}` : ""}${f.who ? ` · ${esc(f.who)}` : ""}${f.ctx ? ` · ${esc(Object.values(f.ctx).join(", "))}` : ""}</div>${f.text ? `<div>${esc(f.text).replace(/\n/g, "<br>")}</div>` : ""}</div>`).join("") : `<p class="muted">Пока нет отзывов</p>`}</div>

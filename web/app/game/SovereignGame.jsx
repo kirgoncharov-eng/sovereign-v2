@@ -10,6 +10,7 @@ import { ARCS } from "@/lib/content/arcs.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
 import { monthYear, turnDate } from "@/lib/game/calendar.ts";
+import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
 import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
 import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
@@ -24,10 +25,11 @@ const expressApi = {
   ending: theatrical(classicApi.ending, 1500),
 };
 const game = expressApi;
-import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons, requestWriteAccess, tgInitData } from "@/lib/client/telegram.ts";
+import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons, requestWriteAccess, tgInitData, telegramStory, canTelegramStory } from "@/lib/client/telegram.ts";
 import { track, feedbackEnabled, sendFeedback, isTester, toggleTester, syncSubscription } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { resultCard } from "@/lib/client/card.ts";
+import { runScore } from "@/lib/game/daily.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare } from "@/lib/client/square.ts";
@@ -285,7 +287,7 @@ function ChoicePreview({ gs, c }) {
           Позже: {later.map((d, k) => {
             const fx = RES_CONFIG.filter(r => d.res[r.key]).map(r => `${SHORT[r.key].toLowerCase()} ${signed(d.res[r.key])}`).join(", ");
             const good = Object.values(d.res).reduce((a, b) => a + (b ?? 0), 0) >= 0;
-            return <span key={d.label} style={{ color:good ? G.grn : G.red }}>{k ? "; " : ""}{d.label} ({fx}) через {plural(d.turns, "ход", "хода", "ходов")}</span>;
+            return <span key={`${d.label}${k}`} style={{ color:good ? G.grn : G.red }}>{k ? "; " : ""}{d.label} ({fx}) через {plural(d.turns, "ход", "хода", "ходов")}</span>;
           })}
         </div>
       )}
@@ -1237,8 +1239,8 @@ function Archive({ meta }) {
             );
           })}
           <div style={{ borderTop:`1px solid ${G.bdr}`, marginTop:10, paddingTop:10 }}>
-            {meta.runs.slice(0, 6).map(r => (
-              <div key={r.seed} style={{ display:"flex", justifyContent:"space-between", gap:8, fontFamily:narrow, fontSize:15, color:G.tx2, marginBottom:4 }}>
+            {meta.runs.slice(0, 6).map((r, i) => (
+              <div key={`${r.seed}-${i}`} style={{ display:"flex", justifyContent:"space-between", gap:8, fontFamily:narrow, fontSize:15, color:G.tx2, marginBottom:4 }}>
                 <span>{r.leader} — «{r.title}»{r.daily && <span style={{ color:G.gold }}> · дело дня</span>}</span>
                 <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>{END_TYPES[r.endType]}</span>
               </div>
@@ -2120,8 +2122,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
 
               {lastTurn.pacts && [["signed", "Договор подписан", "var(--blue)"], ["kept", "Договор исполнен", G.grn], ["broken", "Договор нарушен", G.red]].flatMap(([k, label, color]) =>
-                lastTurn.pacts[k].map(name => (
-                  <div key={k + name} className="sv-paper" style={{ marginBottom:8, padding:"10px 16px", borderRadius:0, borderLeft:`3px solid ${color}` }}>
+                lastTurn.pacts[k].map((name, i) => (
+                  <div key={`${k}${name}${i}`} className="sv-paper" style={{ marginBottom:8, padding:"10px 16px", borderRadius:0, borderLeft:`3px solid ${color}` }}>
                     <span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{label}</span>
                     <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}> · «{name}»</span>
                   </div>
@@ -2155,8 +2157,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <span style={{ fontFamily:narrow, fontSize:15, color:G.grn }}>КРИЗИС ПРЕОДОЛЁН · {lastTurn.resolvedCrisis.toUpperCase()}</span>
                 </div>
               )}
-              {lastTurn.expiredCrises?.map(t => (
-                <div key={t} style={{ marginBottom:8, padding:"10px 14px", borderRadius:0, background:G.bg2, border:`1px solid ${G.bdr2}` }}>
+              {lastTurn.expiredCrises?.map((t, i) => (
+                <div key={`${t}${i}`} style={{ marginBottom:8, padding:"10px 14px", borderRadius:0, background:G.bg2, border:`1px solid ${G.bdr2}` }}>
                   <span style={{ fontFamily:narrow, fontSize:15, color:G.tx2 }}>КРИЗИС ЗАТИХ · {t.toUpperCase()}</span>
                 </div>
               ))}
@@ -2287,43 +2289,70 @@ function shareText(gs) {
 
 const shareUrl = () => process.env.NEXT_PUBLIC_SHARE_URL || (/^https?:/.test(location.href) ? location.href.split("#")[0] : "");
 
-function ShareButton({ gs }) {
-  const [state, setState] = useState(null); // "ok" | "manual"
-  const text = shareText(gs);
-  const saveCard = async () => {
-    track("share");
+// Итог, которым хочется поделиться: превью карточки прямо на экране и кнопки под ним.
+// С сервером — ссылка на страницу итога (в Telegram превращается в картинку) и история;
+// в демо без сервера — картинка, нарисованная в браузере, и текст.
+function ShareCard({ gs, style }) {
+  const server = feedbackEnabled();
+  const result = useMemo(() => shareResultOf(gs, computePolls(gs.country, gs.factions, gs.resources).leader, runScore(gs),
+    gs.arc ? ARCS.find(a => a.id === gs.arc.id)?.title : undefined), [gs]);
+  const query = shareQuery(result), cap = shareCaption(result);
+  const origin = typeof location !== "undefined" && /^https?:/.test(location.origin) ? location.origin : "";
+  const pageUrl = `${origin}/r?${query}`, cardUrl = `${origin}/api/card?${query}`;
+  const [local, setLocal] = useState(null); // картинка из браузера — для демо и сохранения
+  const [state, setState] = useState(null); // "copied" | "manual"
+  useEffect(() => {
+    if (server) return;
+    let url = null, live = true;
+    resultCard(gs).then(b => { if (b && live) { url = URL.createObjectURL(b); setLocal(url); } }).catch(() => {});
+    return () => { live = false; if (url) URL.revokeObjectURL(url); };
+  }, [gs, server]);
+  const text = `${cap.title}. ${cap.challenge}`;
+  const send = async () => {
+    if (!server) {
+      const full = shareText(gs);
+      if (telegramShare(full.replace(shareUrl(), "").trim(), shareUrl())) { track("share", { via:"tg" }); return; }
+      try { await navigator.clipboard.writeText(full); setState("copied"); track("share", { via:"copy" }); } catch { setState("manual"); }
+      return;
+    }
+    if (telegramShare(text, pageUrl)) { track("share", { via:"tg" }); return; }
+    if (navigator.share) {
+      try { await navigator.share({ title: cap.title, text, url: pageUrl }); track("share", { via:"native" }); return; } catch (e) { if (e?.name === "AbortError") return; }
+    }
+    try { await navigator.clipboard.writeText(`${text}\n${pageUrl}`); setState("copied"); track("share", { via:"copy" }); } catch { setState("manual"); }
+  };
+  const story = () => { if (telegramStory(`${cardUrl}&f=story`, `${text} Играть: ${botLink().replace("https://", "")}`)) track("share", { via:"story" }); };
+  const save = async () => {
     const blob = await resultCard(gs).catch(() => null);
     if (!blob) return;
+    track("share", { via:"save" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = `suveren-${gs.leader.name.replace(/\s+/g, "-")}.png`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   };
-  const copy = async () => {
-    track("share");
-    const blob = matchMedia("(pointer:coarse)").matches ? await resultCard(gs).catch(() => null) : null;
-    const file = blob && new File([blob], "suveren.png", { type:"image/png" });
-    if (file && navigator.canShare?.({ files:[file] })) {
-      try { await navigator.share({ files:[file], text }); return; } catch (e) { if (e?.name === "AbortError") return; }
-    }
-    if (telegramShare(text.replace(shareUrl(), "").trim(), shareUrl())) return;
-    if (navigator.share && matchMedia("(pointer:coarse)").matches) {
-      try { await navigator.share({ text }); return; } catch (e) { if (e?.name === "AbortError") return; }
-    }
-    try { await navigator.clipboard.writeText(text); setState("ok"); }
-    catch { setState("manual"); }
-  };
+  const preview = server ? cardUrl : local;
   return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
-      <PrimaryBtn onClick={copy}>{state === "ok" ? "✓ СКОПИРОВАНО" : "ПОДЕЛИТЬСЯ ИТОГОМ"}</PrimaryBtn>
-      {window.self === window.top && <button onClick={saveCard} style={{ background:"transparent", border:"none", color:G.tx2, fontSize:15, textDecoration:"underline", textUnderlineOffset:3 }}>Сохранить карточку итога</button>}
-      {state === "manual" && (
-        <textarea readOnly value={text} rows={5} onFocus={e => e.target.select()} aria-label="Итог правления"
-          style={{ width:280, background:G.bg, color:G.txt, border:`1px solid ${G.bdr2}`, borderRadius:0, padding:8, fontFamily:narrow, fontSize:15 }}/>
+    <Card style={{ marginBottom:12, ...style }}>
+      <Label>{"ВАШ ИТОГ — ДЛЯ ДРУЗЕЙ"}</Label>
+      {preview && (
+        // eslint-disable-next-line @next/next/no-img-element -- карточку рисует сервер или canvas
+        <img src={preview} alt={cap.title} onClick={send} style={{ display:"block", width:"100%", height:"auto", marginBottom:12, boxShadow:"4px 4px 0 #0006", cursor:"pointer" }}/>
       )}
-    </div>
+      <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, lineHeight:1.55, marginBottom:12 }}>{cap.challenge} Друг увидит эту карточку и сможет сыграть в одно касание.</div>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center" }}>
+        <PrimaryBtn onClick={send}>{state === "copied" ? "✓ ССЫЛКА СКОПИРОВАНА" : "ОТПРАВИТЬ ДРУГУ"}</PrimaryBtn>
+        {server && canTelegramStory() && <button onClick={story} style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.txt, padding:"10px 18px", borderRadius:0, fontFamily:pixel, fontSize:14 }}>В ИСТОРИЮ</button>}
+        {!inTelegram() && window.self === window.top && <button onClick={save} style={{ background:"transparent", border:"none", color:G.tx2, fontSize:15, textDecoration:"underline", textUnderlineOffset:3 }}>Сохранить картинку</button>}
+      </div>
+      {state === "manual" && (
+        <textarea readOnly value={server ? `${text}\n${pageUrl}` : shareText(gs)} rows={4} onFocus={e => e.target.select()} aria-label="Итог правления"
+          style={{ width:"100%", boxSizing:"border-box", marginTop:10, background:G.bg, color:G.txt, border:`1px solid ${G.bdr2}`, borderRadius:0, padding:8, fontFamily:narrow, fontSize:15 }}/>
+      )}
+    </Card>
   );
 }
+
 
 // Таблица «Дела дня»: место среди всех и среди друзей, приглашение друга.
 function DailyBoard({ gs }) {
@@ -2518,6 +2547,7 @@ function Ending({ gs, setGs, onRestart }) {
         {loading && <Card style={{ padding:"50px 20px", textAlign:"center" }}><div style={{ fontFamily:mono, fontSize:13, color:G.tx3, letterSpacing:".05em" }}>{"Историки пишут хронику…"}</div></Card>}
         {!loading && error && <ErrorBanner message={error} onRetry={retry}/>}
 
+        {!loading && verdict && <ShareCard gs={gs} style={{ order:1 }}/>}
         {!loading && (
           <div style={{ display:"contents" }}>
             {isLoss && (verdict?.fallNarrative || gs.powerLoss) && (
@@ -2614,7 +2644,6 @@ function Ending({ gs, setGs, onRestart }) {
           </Card>
         )}
         <div style={{ display:"flex", justifyContent:"center", gap:10, flexWrap:"wrap", order:8, marginBottom:28 }}>
-          {verdict && <ShareButton gs={gs}/>}
           <PrimaryBtn onClick={onRestart}>НОВАЯ ПАРТИЯ</PrimaryBtn>
         </div>
       </div>

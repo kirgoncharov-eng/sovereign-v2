@@ -5,6 +5,7 @@ import { COUNTRIES, END_TYPES } from "../game/data.ts";
 import { computePolls, isFemaleName, isSurvival, plural } from "../game/engine.ts";
 import type { GameState } from "../game/types.ts";
 import { portraitCanvas } from "./portrait.ts";
+import { BOT_USERNAME } from "../share.ts";
 
 const W = 1080, H = 1350;
 const INK = "#2a241d", INK2 = "#4a4236", STAMP_OK = "#3d6a27", RED = "#a02f24", PAPER = "#d9cfb2";
@@ -104,6 +105,8 @@ export async function resultCard(gs: GameState): Promise<Blob | null> {
 
   // подвал
   ctx.fillStyle = INK2; ctx.font = `34px ${MONO}`;
-  ctx.fillText(loss ? `Мой президент продержался ${plural(gs.history.length, "ход", "хода", "ходов")}. А твой?` : "Сможешь лучше?", 80, H - 70);
+  ctx.fillText(loss ? `Мой президент продержался ${plural(gs.history.length, "ход", "хода", "ходов")}. А твой?` : "Сможешь лучше?", 80, H - 110);
+  ctx.font = `700 34px ${NARROW}`;
+  ctx.fillText(`Играть: t.me/${BOT_USERNAME}`, 80, H - 60);
   return new Promise(res => c.toBlob(b => res(b), "image/png"));
 }
