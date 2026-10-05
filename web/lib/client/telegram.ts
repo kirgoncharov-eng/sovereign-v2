@@ -124,3 +124,12 @@ export function requestWriteAccess(): Promise<boolean> {
     try { wa.requestWriteAccess!(ok => resolve(!!ok)); } catch { resolve(false); }
   });
 }
+
+// Истории Telegram: картинка по ссылке (https) и подпись. Ссылку-виджет Telegram даёт только Premium,
+// поэтому адрес игры — в тексте подписи. false — если мы не в Telegram или клиент не умеет истории.
+export function telegramStory(mediaUrl: string, text: string): boolean {
+  const wa = app as (TgWebApp & { shareToStory?(url: string, params?: { text?: string }): void }) | null;
+  if (!wa?.shareToStory) return false;
+  try { wa.shareToStory(mediaUrl, { text: text.slice(0, 200) }); return true; } catch { return false; }
+}
+export const canTelegramStory = () => !!(app as { shareToStory?: unknown } | null)?.shareToStory;
