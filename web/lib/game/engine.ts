@@ -448,6 +448,7 @@ export interface TurnPlan {
   laws: LawInForce[];
   lawNews: TurnReport["law"] | null;
   path: PowerPath | null;
+  sources: Partial<Record<ResourceKey, [string, number][]>>; // из чего сложилась перемена ресурсов
   reign: Reign;                                  // правление после хода (новый срок — уже с новыми правилами)
   termResult: { n: number; outcome: EndType } | null; // срок кончился, правление продолжается
 }
@@ -462,13 +463,26 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   const chance = successChance(state, choice);
   const success = opts.assumeSuccess ? true : rollSuccess(state, choice);
   const effects = choiceEffects(state, choice, !success);
-  let resources = applyDeltas(state.resources, effects.resources);
+  // Из чего сложилась перемена каждого ресурса: решение, давление, кризис, враждебная группа, закон.
+  const sources: Partial<Record<ResourceKey, [string, number][]>> = {};
+  const note = (label: string, before: Resources, after: Resources) => {
+    for (const k of RESOURCE_KEYS) {
+      const d = after[k] - before[k];
+      if (!d) continue;
+      const list = (sources[k] ??= []);
+      const same = list.find(x => x[0] === label);
+      if (same) same[1] += d; else list.push([label, d]);
+    }
+  };
+  let resources = state.resources;
+  const add = (label: string, d: ResourceDelta | null | undefined) => { const next = applyDeltas(resources, d); note(label, resources, next); resources = next; };
+  add("решение", effects.resources);
   const nextTurn = state.turn + 1;
 
   // Срабатывают отложенные последствия прошлых решений; новые встают в очередь.
   const pendingAll = state.pending ?? [];
   const matured = pendingAll.filter(p => p.due <= nextTurn);
-  for (const p of matured) resources = applyDeltas(resources, p.res);
+  for (const p of matured) add(p.label.toLowerCase(), p.res);
   // Провал отменяет отложенную пользу, но не отложенный вред.
   const net = (d: { res: ResourceDelta }) => Object.values(d.res).reduce((x, y) => x + (y ?? 0), 0);
   const later = success && choice.deal?.later ? [{ ...choice.deal.later, story: choice.deal.later.story ?? "" }] : [];
@@ -480,7 +494,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     ...(d.story ? { story: d.story } : {}),
   }));
   const pending = [...pendingAll.filter(p => p.due > nextTurn), ...scheduled].slice(-MAX_PENDING);
-  if (event.randomEvent) resources = applyDeltas(resources, event.randomEvent.resourceEffect);
+  if (event.randomEvent) add(event.randomEvent.title.toLowerCase(), event.randomEvent.resourceEffect);
 
   // Союзы: нарушенные рвутся, истёкшие засчитываются, новые вступают в силу со следующего хода.
   const oldPacts = state.pacts ?? [];
@@ -490,7 +504,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   for (const p of oldPacts) {
     if (broken.includes(p)) continue;
     const bloc = state.factions.find(f => f.id === p.faction)?.bloc;
-    if (bloc) resources = applyDeltas(resources, { [PACT_INCOME[bloc]]: pactIncome(p) });
+    if (bloc) add(`союз с «${facName(p.faction)}»`, { [PACT_INCOME[bloc]]: pactIncome(p) });
   }
   const keptRel: Record<string, number> = {};
   for (const p of kept) keptRel[p.faction] = PACT_KEPT.faction;
@@ -523,13 +537,14 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 
   const tick = tickCrises(crises, resources);
   crises = tick.crises;
+  note(crises.length ? `кризис «${crises[0].title}»${crises.length > 1 ? " и другие" : ""}` : "кризисы", resources, tick.resources);
   resources = tick.resources;
 
   // Давление обстоятельств (по сложности) и вредительство враждебных фракций.
   const turn = state.turn + 1;
   const pressure = pressureAt(state.diff, turn);
   if (pressure) {
-    resources = applyDeltas(resources, {
+    add("давление обстоятельств", {
       [RESOURCE_KEYS[turn % RESOURCE_KEYS.length]]: -Math.ceil(pressure / 2),
       [RESOURCE_KEYS[(turn + 3) % RESOURCE_KEYS.length]]: -Math.floor(pressure / 2),
     });
@@ -537,12 +552,14 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   // Враждебная группа вредит, если её не сдерживает союз или свой человек внутри.
   const hostile = factions.filter(f => f.relation <= HOSTILE_RELATION && !pacts.some(p => p.faction === f.id)
     && !keyFigures.some(fig => fig.faction === f.id && bondOf(fig, f) === "insider"));
-  for (const f of hostile) resources = applyDeltas(resources, HOSTILE_DRAIN[f.bloc]);
+  for (const f of hostile) add(`вредят «${f.name}»`, HOSTILE_DRAIN[f.bloc]);
 
   // Институты понемногу восстанавливаются: просевшие ресурсы подтягиваются вверх.
+  const beforeRecovery = { ...resources };
   for (const k of RESOURCE_KEYS) {
     if (resources[k] < RECOVERY_BELOW && resources[k] > 0) resources[k] = clamp(resources[k] + RECOVERY_RATE);
   }
+  note("институты восстанавливаются", beforeRecovery, resources);
 
   // Ресурс, провалившийся ниже порога, порождает кризис — если по нему ещё нет кризиса.
   let newCrisisKey: ResourceKey | null = null;
@@ -554,12 +571,12 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 
   // Законы: действующие работают каждый ход; принятый сейчас — со следующего.
   const lawStep = stepLaws(state.laws, choice.law, success, nextTurn, factions);
-  resources = applyDeltas(resources, lawStep.res);
+  add("законы", lawStep.res);
   factions = applyFactionChanges(factions, lawStep.rel, {});
 
   // Обещания: решение продвигает или нарушает их; в срок проверяется всё остальное.
   const promiseStep = stepPromises(state.promises, choice.deal?.pure ? [] : choice.tags, success, turn, resources, factions);
-  resources = applyDeltas(resources, promiseStep.res);
+  add("обещания", promiseStep.res);
   factions = applyFactionChanges(factions, promiseStep.rel, {});
 
   // «Вопрос о сроках»: путь выбран, если решение исполнили; сорванное обнуление — значит, уходить.
@@ -578,7 +595,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     const top = [...polls.parties].sort((a, b) => b.share - a.share)[0] ?? { id: "", name: "", share: 0 };
     const outcome = polls.leader > top.share ? "won" : kind === "parliament" && polls.leader < IMPEACH_RATING ? "impeached" : "lost";
     election = { turn, kind, leader: polls.leader, top, outcome };
-    if (kind === "parliament") resources = applyDeltas(resources, outcome === "won" ? ELECTION_WIN_BONUS : ELECTION_LOSS_PENALTY);
+    if (kind === "parliament") add("выборы", outcome === "won" ? ELECTION_WIN_BONUS : ELECTION_LOSS_PENALTY);
   }
 
   // Импичмент грозит только действующему президенту: рокировка в конце срока его не боится.
@@ -594,7 +611,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   if (endType && CONTINUE_ENDS.includes(endType)) {
     termResult = { n: reign.term + 1, outcome: endType };
     nextR = nextReign(reign, endType, path);
-    resources = applyDeltas(resources, TERM_FATIGUE);
+    add("новый срок: власть приедается", TERM_FATIGUE);
     endType = null;
   }
   // Годы берут своё: после двенадцати лет у власти лидер может не дожить до конца срока.
@@ -607,7 +624,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     pacts, pactNews, betrayals: (state.betrayals ?? 0) + broken.length,
     promises: promiseStep.promises, promiseNews: promiseStep.news,
     laws: lawStep.laws, lawNews: lawStep.news,
-    path, reign: nextR, termResult,
+    path, reign: nextR, termResult, sources,
   };
 }
 
@@ -665,6 +682,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       ...(plan.promiseNews.kept.length + plan.promiseNews.broken.length + plan.promiseNews.advanced.length ? { promises: plan.promiseNews } : {}),
       ...(plan.lawNews ? { law: plan.lawNews } : {}),
       ...(plan.termResult ? { term: plan.termResult } : {}),
+      sources: plan.sources,
     },
     pending: plan.pending,
     pacts: plan.pacts,
