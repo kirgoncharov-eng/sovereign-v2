@@ -3,8 +3,9 @@ import { dailyCase, runScore } from "../game/daily.ts";
 import type { GameState } from "../game/types.ts";
 import { tgInitData, tgStartParam } from "./telegram.ts";
 
-export interface BoardRow { name: string; title: string; score: number; me: boolean }
-export interface Board { uid: string; total: number; me: { rank: number; score: number } | null; top: BoardRow[]; friends: BoardRow[] }
+// Таблица «Дела дня» сортируется по годам у власти (ходам), при равенстве — по очкам.
+export interface BoardRow { name: string; title: string; score: number; turns: number; me: boolean }
+export interface Board { uid: string; total: number; me: { rank: number; score: number; turns: number } | null; top: BoardRow[]; friends: BoardRow[] }
 
 const UID_KEY = "sovereign.uid";
 const REF_KEY = "sovereign.ref";

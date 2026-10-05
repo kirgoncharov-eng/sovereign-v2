@@ -42,6 +42,7 @@ export interface EventCard {
 
 import { GENERATED_CARDS } from "./generated.ts";
 import { MORE_CARDS } from "./events-more.ts";
+import { LATE_CARDS } from "./events-late.ts";
 import { LAWS } from "./laws.ts";
 
 const AUTHORED_CARDS: EventCard[] = [
@@ -421,7 +422,7 @@ const LAW_CARDS: EventCard[] = LAWS.map(l => ({
   source: l.followUp.source, title: l.followUp.title, description: l.followUp.description, choices: l.followUp.choices,
 }));
 
-export const EVENT_CARDS: EventCard[] = [...AUTHORED_CARDS, ...MORE_CARDS, ...GENERATED_CARDS, ...LAW_CARDS];
+export const EVENT_CARDS: EventCard[] = [...AUTHORED_CARDS, ...MORE_CARDS, ...GENERATED_CARDS, ...LAW_CARDS, ...LATE_CARDS];
 
 export interface RandomCard { title: string; description: string; effect: ResourceDelta }
 

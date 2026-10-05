@@ -33,6 +33,10 @@ function identify(body: Record<string, unknown>): { uid: string; name: string } 
 
 interface Info { name: string; title: string; end: string; turns: number }
 
+// Место в таблице — по годам у власти, при равенстве — по очкам: ключ = ходы × 10000 + очки.
+const RANK = 10000;
+const unpack = (s: number) => ({ turns: Math.floor(s / RANK), score: s % RANK });
+
 async function board(date: string, uid: string) {
   const key = `daily:${date}`;
   const [top, total, rank, score, friendIds] = await Promise.all([
@@ -44,10 +48,10 @@ async function board(date: string, uid: string) {
   const ids = [...new Set([...top.map(([m]) => m), ...friends.map(([m]) => m)])];
   const infos = await kv.hmget(`${key}:info`, ids);
   const info = new Map(ids.map((id, i) => [id, infos[i] ? JSON.parse(infos[i]!) as Info : null]));
-  const row = ([id, s]: [string, number]) => ({ name: info.get(id)?.name ?? "Игрок", title: info.get(id)?.title ?? "", score: s, me: id === uid });
+  const row = ([id, s]: [string, number]) => ({ name: info.get(id)?.name ?? "Игрок", title: info.get(id)?.title ?? "", ...unpack(s), me: id === uid });
   return {
     total,
-    me: rank === null || score === null ? null : { rank: rank + 1, score },
+    me: rank === null || score === null ? null : { rank: rank + 1, ...unpack(score) },
     top: top.map(row),
     friends: friends.length > 1 ? friends.slice(0, 10).map(row) : [],
   };
@@ -66,10 +70,11 @@ export async function POST(req: Request) {
 
   try {
     if (body.action === "submit") {
-      const score = Math.max(0, Math.min(5000, Math.round(Number(body.score) || 0)));
+      const score = Math.max(0, Math.min(RANK - 1, Math.round(Number(body.score) || 0)));
+      const turns = Math.max(0, Math.min(400, Math.round(Number(body.turns) || 0)));
       const key = `daily:${date}`;
-      if (await kv.zaddNx(key, score, who.uid)) {
-        const info: Info = { name: who.name, title: text(body.title, 40), end: text(body.endType, 16), turns: Math.min(20, Number(body.turns) || 0) };
+      if (await kv.zaddNx(key, turns * RANK + score, who.uid)) {
+        const info: Info = { name: who.name, title: text(body.title, 40), end: text(body.endType, 16), turns };
         await kv.hset(`${key}:info`, who.uid, JSON.stringify(info));
         await Promise.all([kv.expire(key, TTL), kv.expire(`${key}:info`, TTL)]);
       }

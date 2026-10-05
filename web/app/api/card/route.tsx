@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
-import { END_TYPES } from "@/lib/game/data.ts";
+import { END_TYPES, reignShort } from "@/lib/game/data.ts";
 import { BOT_USERNAME, parseShare, shareCaption, survived } from "@/lib/share.ts";
 
 const PAPER = "#d9cfb2", INK = "#2a241d", INK2 = "#5a5040", RED = "#a02f24", GREEN = "#3d6a27", RULE = "#2a241d";
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
   const cap = shareCaption(r);
   const stampColor = loss ? RED : GREEN;
   const stats: [string, string][] = [
-    [`${r.turns}`, "решений из 20"], [`${r.rating}%`, "рейтинг"],
+    [reignShort(r.turns), "у власти"], [`${r.rating}%`, "рейтинг"],
     ...(r.promised ? [[`${r.kept}/${r.promised}`, "обещаний сдержано"] as [string, string]] : []),
     [`${r.score}`, "очков"],
   ];

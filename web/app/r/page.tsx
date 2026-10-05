@@ -39,7 +39,7 @@ export default async function ResultPage({ searchParams }: Props) {
             <p style={{ color: "#e8dfc8", fontSize: 18, lineHeight: 1.6, margin: 0 }}>{cap.description} {cap.challenge}</p>
           </>
         ) : (
-          <p style={{ color: "#e8dfc8", fontSize: 18, lineHeight: 1.6, margin: 0 }}>«Суверен» — политический триллер в Telegram: двадцать решений, одна страна, ни одного права на ошибку.</p>
+          <p style={{ color: "#e8dfc8", fontSize: 18, lineHeight: 1.6, margin: 0 }}>«Суверен» — политический триллер в Telegram: одна страна, один президент — кто продержится у власти дольше.</p>
         )}
         <a href={botLink()} style={{ alignSelf: "flex-start", background: "#c9a227", color: "#2a2622", padding: "14px 28px", fontSize: 18, fontWeight: 700, textDecoration: "none", border: "2px solid #0008", boxShadow: "3px 3px 0 #0008" }}>
           Играть в Telegram →

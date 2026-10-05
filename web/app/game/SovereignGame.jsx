@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
-import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, TERM_RULES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
+import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
@@ -11,11 +11,11 @@ import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
 import { monthYear, turnDate } from "@/lib/game/calendar.ts";
 import { lawDef } from "@/lib/game/laws.ts";
-import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
+import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
 import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
 import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
-import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
+import { ACHIEVEMENTS, ALL_ENDINGS, bestReign, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
 // Весь текст — из библиотеки авторских сценариев, без сети и без модели.
 // Ответ готов мгновенно — даём сцене короткую театральную паузу.
@@ -202,15 +202,25 @@ function RelBar({ label, val, prevVal }) {
   );
 }
 
-// Ближайшие выборы с учётом «вопроса о сроках»: отменённые не считаются, рокировка — парламентские.
-function nextElection(turn, path) {
-  const t = Object.keys(ELECTIONS).map(Number).find(x => x > turn && electionKind(x, path));
-  return t ? { label: ELECTION_LABEL[electionKind(t, path)], in: t - turn } : null;
+// Ближайшие выборы с учётом «вопроса о сроках» и должности: отменённые не считаются, у премьера — парламентские.
+function nextElection(gs) {
+  const office = gs.reign?.office ?? "president";
+  for (let t = gs.turn + 1; t <= gs.turn + TERM; t++) {
+    const kind = electionKind(t, gs.path, office);
+    if (kind) return { label: ELECTION_LABEL[kind], in: t - gs.turn };
+  }
+  return null;
 }
-// Партия делится на четыре главы по пять ходов: у каждой своё название.
-const CHAPTERS = ["Первые сто дней", "Накануне выборов", "Второе дыхание", "Развязка"];
-const chapterOf = turn => Math.min(3, Math.floor((turn - 1) / 5));
-const ROMAN = ["I", "II", "III", "IV"];
+// Срок делится на четыре главы по пять ходов. У первого срока свои названия, у второго — свои, дальше — долгое правление.
+const CHAPTERS = [
+  ["Первые сто дней", "Накануне выборов", "Второе дыхание", "Развязка"],
+  ["Новый мандат", "Привычка к власти", "Двор", "Вопрос о наследнике"],
+  ["Долгое правление", "Портреты на стенах", "Шёпот в коридорах", "Конец эпохи"],
+];
+const chapterOf = turn => Math.min(3, Math.floor((localTurn(turn) - 1) / 5));
+const upperFirst = s => s.charAt(0).toUpperCase() + s.slice(1);
+const chapterName = turn => CHAPTERS[Math.min(termIndex(turn), CHAPTERS.length - 1)][chapterOf(turn)];
+const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
 // Подпись под резолюцией: «А. Шевчик».
 const signature = name => { const [f, ...rest] = String(name).split(" "); return rest.length ? `${f[0]}. ${rest.join(" ")}` : name; };
@@ -222,7 +232,7 @@ function PollWidget({ gs }) {
   const [info, setInfo] = useState(false);
   const polls = computePolls(gs.country, gs.factions, gs.resources);
   const prev = gs.prevFactions && gs.prevResources ? computePolls(gs.country, gs.prevFactions, gs.prevResources) : null;
-  const next = nextElection(gs.turn, gs.path);
+  const next = nextElection(gs);
   const top = Math.max(...polls.parties.map(p => p.share));
   const rows = [
     { id:"me", name:gs.leader.party || "Ваша партия", share:polls.leader, prev:prev?.leader, me:true },
@@ -337,11 +347,14 @@ function TermsCard({ gs, final = false, style }) {
     body = <div style={{ fontFamily:serif, fontSize:14, color:G.tx2 }}>Решено: {PATH_LABEL[path.id]}{path.successor ? ` — ${path.successor}` : ""}{path.from ? " (обнуление сорвалось)" : ""}</div>;
   } else if (path) {
     const L = gs.resources.internalLegitimacy, force = Math.round(forceRelation(gs.factions));
+    // Каждый срок без выборов поднимает планку: улица терпит хуже, генералы — меньше.
+    const step = (gs.reign?.ruled ?? 0) * RULER_STEP;
+    const POSTPONE_MIN = POSTPONE_LEGIT + step, DICTATOR_MIN = DICTATOR_LEGIT + step, COUP_AT = FORCE_HOSTILE + step;
     const heir = path.successor && gs.keyFigures.find(f => f.name === path.successor);
     const cond = path.id === "successor" ? [[(heir?.relation ?? 0) >= SUCCESSOR_REL, `${path.successor}: к вам ${signed(heir?.relation ?? 0)}, нужно от +${SUCCESSOR_REL} — иначе предаст`]]
-      : path.id === "postpone" ? [[L >= POSTPONE_LEGIT, `легитимность ${L}, нужно от ${POSTPONE_LEGIT} — иначе улица`]]
-      : path.id === "dictatorship" ? [[force > FORCE_HOSTILE, `силовики ${signed(force)}, при ${signed(FORCE_HOSTILE)} и ниже — переворот`], [L >= DICTATOR_LEGIT, `легитимность ${L}, нужно от ${DICTATOR_LEGIT} — иначе улица`]]
-      : path.id === "exit" ? [] : [[true, `всё решат выборы на ${MAX_TURNS}-м ходу`]];
+      : path.id === "postpone" ? [[L >= POSTPONE_MIN, `легитимность ${L}, нужно от ${POSTPONE_MIN} — иначе улица`]]
+      : path.id === "dictatorship" ? [[force > COUP_AT, `силовики ${signed(force)}, при ${signed(COUP_AT)} и ниже — переворот`], [L >= DICTATOR_MIN, `легитимность ${L}, нужно от ${DICTATOR_MIN} — иначе улица`]]
+      : path.id === "exit" ? [] : [[true, "всё решат выборы в конце срока"]];
     body = (
       <div style={{ fontFamily:narrow, fontSize:15, lineHeight:1.45 }}>
         <div style={{ color:G.txt }}>Решено: {PATH_LABEL[path.id]}{path.from ? " (обнуление сорвалось)" : ""}</div>
@@ -349,10 +362,10 @@ function TermsCard({ gs, final = false, style }) {
       </div>
     );
   } else if (!final) {
-    const opts = pathOptions(gs).filter(o => o.id !== "exit");
+    const opts = pathOptions(gs).filter(o => o.id !== "exit" && o.lock !== "na");
     body = (
       <div style={{ fontFamily:narrow, fontSize:15, lineHeight:1.45 }}>
-        <div style={{ color:G.tx3, marginBottom:2 }}>Вопрос о сроках — на {TERMS_TURN}-м ходу. Открыто сейчас:</div>
+        <div style={{ color:G.tx3, marginBottom:2 }}>Вопрос о сроках — на {TERMS_TURN}-м ходу срока. Открыто сейчас:</div>
         {opts.map(o => row(!o.lock, `${PATH_LABEL[o.id]}${o.successor ? ` (${o.successor.name})` : ""}`, o.id))}
       </div>
     );
@@ -1077,16 +1090,17 @@ function Hud({ gs, preview, onMenu, onHelp }) {
   const exact = !!preview?.advisor; // итог в цифрах — только для варианта от совета
   const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
   const nextRating = plan ? computePolls(gs.country, plan.factions, plan.resources).leader : null;
-  const next = nextElection(gs.turn, gs.path);
+  const next = nextElection(gs);
   const arrow = (a, b) => b === null || b === a ? null : <span style={{ color:b > a ? G.grn : G.red }}>{exact ? ` → ${b}` : ` ${b > a ? "▲" : "▼"}`}</span>;
-  const turnNow = Math.min(gs.turn + 1, MAX_TURNS);
+  const turnNow = gs.ended ? gs.turn : gs.turn + 1;
+  const local = localTurn(turnNow), termStart = turnNow - local, termNo = termIndex(turnNow);
   return (
     <header className="sv-hud">
       <div style={{ maxWidth:1080, margin:"0 auto", padding:"8px 14px 6px" }}>
         <div className="sv-hud-row" style={{ position:"relative" }}>
           {info && <ResInfo gs={gs} k={info} onClose={() => setInfo(null)}/>}
           <div className="sv-hud-who" style={{ minWidth:0 }}>
-            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, whiteSpace:"nowrap" }}>{gs.country} · {ci.label.toLowerCase()}<span className="sv-hud-turn"> · ход {turnNow}/{MAX_TURNS}</span></div>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, whiteSpace:"nowrap" }}>{gs.country} · {termNo ? `срок ${ROMAN[termNo] ?? termNo + 1}` : ci.label.toLowerCase()}<span className="sv-hud-turn"> · ход {local}/{TERM}</span></div>
             <div style={{ fontFamily:pixel, fontSize:15, color:G.gold, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", textTransform:"uppercase" }}>{gs.leader.name}</div>
           </div>
           <div className="sv-hud-res">
@@ -1125,16 +1139,17 @@ function Hud({ gs, preview, onMenu, onHelp }) {
           </div>
         </div>
         <div className="sv-hud-track" style={{ display:"flex", alignItems:"center", gap:12, marginTop:6 }}>
-          <div style={{ display:"flex", gap:2, flex:"0 0 260px" }} aria-label={`Ход ${gs.turn} из ${MAX_TURNS}`}>
-            {Array.from({ length: MAX_TURNS }, (_, i) => {
-              const t = i + 1;
-              const done = t <= gs.turn, now = t === gs.turn + 1, vote = !!electionKind(t, gs.path);
-              return <div key={t} title={vote ? `${t} ход — ${ELECTION_LABEL[electionKind(t, gs.path)].toLowerCase()}` : `${t} ход`}
-                style={{ flex:1, marginLeft:t > 1 && (t - 1) % 5 === 0 ? 5 : 0, height:vote ? 8 : 5, alignSelf:"flex-end", background: done ? G.gold : now ? G.gld2 : vote ? G.bdr2 : G.bdr, opacity: done ? .75 : 1, outline: now ? `1px solid ${G.gld2}` : "none" }}/>;
+          <div style={{ display:"flex", gap:2, flex:"0 0 260px" }} aria-label={`Ход ${local} из ${TERM}, ${termOrdinal(termNo)} срок`}>
+            {Array.from({ length: TERM }, (_, i) => {
+              const t = termStart + i + 1;
+              const kind = electionKind(t, gs.path, gs.reign?.office ?? "president");
+              const done = t <= gs.turn, now = t === gs.turn + 1, vote = !!kind;
+              return <div key={t} title={vote ? `${i + 1} ход — ${ELECTION_LABEL[kind].toLowerCase()}` : `${i + 1} ход`}
+                style={{ flex:1, marginLeft:i > 0 && i % 5 === 0 ? 5 : 0, height:vote ? 8 : 5, alignSelf:"flex-end", background: done ? G.gold : now ? G.gld2 : vote ? G.bdr2 : G.bdr, opacity: done ? .75 : 1, outline: now ? `1px solid ${G.gld2}` : "none" }}/>;
             })}
           </div>
           <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-            {monthYear(turnDate(gs.seed, COUNTRIES[gs.country].startYear, Math.min(gs.turn, MAX_TURNS - 1)))} · глава {ROMAN[chapterOf(turnNow)]} · ход {turnNow}/{MAX_TURNS}{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
+            {monthYear(turnDate(gs.seed, COUNTRIES[gs.country].startYear, gs.ended ? Math.max(0, gs.turn - 1) : gs.turn))} · {reignLength(gs.turn)} у власти{next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}
           </div>
         </div>
       </div>
@@ -1191,7 +1206,7 @@ function Recap({ gs, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   const arcDef = ARCS.find(a => a.id === gs.arc?.id);
-  const next = nextElection(gs.turn, gs.path);
+  const next = nextElection(gs);
   const lines = [
     ...(gs.activeCrises ?? []).map(c => [G.red, `Кризис «${c.title}» — идёт ${plural(c.turnsActive + 1, "ход", "хода", "ходов")}`]),
     ...(gs.pacts ?? []).map(p => [G.blue, `Договор с «${gs.factions.find(f => f.id === p.faction)?.name}» — ещё ${plural(p.until - gs.turn, "ход", "хода", "ходов")}; нельзя: ${p.ban.map(t => ACTIONS[t].label.toLowerCase()).join(", ")}`]),
@@ -1205,7 +1220,7 @@ function Recap({ gs, onClose }) {
         <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>РАНЕЕ В «СУВЕРЕНЕ»</div>
         <div id="recap-title" style={{ fontFamily:narrow, fontWeight:700, fontSize:30, lineHeight:1.15, margin:"6px 0 4px" }}>{gs.leader.name}</div>
         <div style={{ fontFamily:narrow, fontSize:16, color:G.tx2, marginBottom:14 }}>
-          <Flag country={gs.country}/> {gs.country} · {gs.year} · позади {plural(gs.turn, "ход", "хода", "ходов")} из {MAX_TURNS}
+          <Flag country={gs.country}/> {gs.country} · {gs.year} · {reignLength(gs.turn)} у власти
         </div>
         <div style={{ borderTop:`2px solid ${G.txt}`, paddingTop:8, marginBottom:12 }}>
           {gs.history.slice(-3).map((h, i) => (
@@ -1242,10 +1257,11 @@ function HowToPlay({ onClose }) {
     ["Каждый ход — одно решение", `Под каждым вариантом — куда он потянет опоры: ▲ вырастет, ▼▼ сильно упадёт, — и насколько надёжно его исполнят. ${desktop ? "Наведите на вариант — точки на панели сверху покажут, что изменится." : "Первое касание покажет на панели сверху, что изменится, второе — подпишет решение."}`],
     ["Точные цифры — у советников", "Сколько именно стоит решение, каков шанс и что аукнется позже, знают только советники. Совет можно собрать несколько раз за правление — берегите его для трудных дел."],
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
-    ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м — если вы их не отмените. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
+    ["Цель — продержаться", "Партия не кончается со сроком: если вы остались у власти, начинается следующий. Срок — двадцать ходов, ход — квартал. Каждый новый срок тяжелее прошлого: власть приедается. Счёт идёт на годы у власти — в «Деле дня» таблица сортирует именно по ним."],
+    ["Выборы решают многое", "Парламентские — в середине срока, главные — в конце, если вы их не отмените. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
     ["Люди — не копии своих лагерей", "У каждого свой характер. Друг во враждебном лагере станет «своим человеком», недруг среди союзников — «червоточиной». Союз с группой даёт доход и голоса, но нарушенное слово запоминают все."],
     ["Не верьте бумагам на слово", "Трижды за правление вам принесут доклад на подпись. Сверьте его со справкой: нашли ложь — отметьте строку и уличите автора. Подписанная ложь всплывёт позже. Дважды за правление звонят по защищённой линии: подход подбирайте по характеру собеседника. Перед парламентскими выборами — бюджет: разложите 10 млрд по статьям, а можно и занять. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
-    ["Срок не вечен", `У каждой страны своя конституция: где-то сроки не ограничены, где-то разрешены два, где-то один, а где-то власть у премьера. На ${TERMS_TURN}-м ходу вы решаете, как быть: идти на выборы, уйти самому, обнулить сроки, пересесть в кресло премьера, назвать преемника, отложить выборы или распустить парламент. Какие пути открыты — в досье, в карточке «Конституция». Для каждого пути — своя развязка.`],
+    ["Срок не вечен", `У каждой страны своя конституция: где-то сроки не ограничены, где-то разрешены два, где-то один, а где-то власть у премьера. За два хода до конца каждого срока вы решаете, как быть: идти на выборы, уйти самому, обнулить сроки, пересесть в кресло премьера, назвать преемника, отложить выборы или распустить парламент. Уйти — значит остановить часы. Править без выборов можно, но каждый такой срок опаснее прошлого. Какие пути открыты — в досье, в карточке «Конституция».`],
     ["Законы остаются", "Время от времени парламент вносит законопроект. Принятый закон ложится в «Свод законов» (в досье) и действует каждый ход, пока его не отменят: двигает опоры власти и отношение групп, приносит новые дела. Проведёт ли его парламент, зависит от вашей поддержки."],
     ["Вы обещали", "Перед первым ходом вы выбираете три предвыборных обещания. Исполненное поднимает доверие и отношение тех, кому вы его дали; нарушенное бьёт сильнее. Под вариантами видно, что приближает обещание, а что его нарушит. Прогресс — в досье."],
     ["У вас есть тайна", "В каждой партии развивается главная интрига. Эпизоды помечены «Главная интрига» — ваши решения в них определят развязку."],
@@ -1432,7 +1448,7 @@ function Setup({ onStart, saved, onResume }) {
       <div style={{ maxWidth:580, width:"100%" }}>
         <div style={{ textAlign:"center", marginBottom:26 }}>
           <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(56px, 17vw, 88px)", lineHeight:1, letterSpacing:".1em", color:G.gold, textShadow:"4px 4px 0 rgba(0,0,0,.45)" }}>СУВЕРЕН</h1>
-          <div style={{ fontFamily:narrow, fontSize:19, color:G.tx2, marginTop:12 }}>Двадцать решений. Одна страна. Ни одного права на ошибку.</div>
+          <div style={{ fontFamily:narrow, fontSize:19, color:G.tx2, marginTop:12 }}>Одна страна. Один президент. Сколько лет вы продержитесь?</div>
         </div>
 
         {saved && (
@@ -1443,7 +1459,7 @@ function Setup({ onStart, saved, onResume }) {
                 <Flag country={saved.state.country}/> {saved.state.leader.name}
               </div>
               <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginTop:2 }}>
-                {saved.state.ended ? "правление завершено" : `ход ${saved.state.turn}/${MAX_TURNS} · ${saved.state.year}`}
+                {saved.state.ended ? "правление завершено" : `${reignLength(saved.state.turn)} у власти · ${saved.state.year}`}
               </div>
             </div>
             <PrimaryBtn onClick={onResume}>ПРОДОЛЖИТЬ</PrimaryBtn>
@@ -2047,8 +2063,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 </div>
                 {(turn + 1) % 5 === 1 && (
                   <div style={{ margin:"4px 0 18px", paddingBottom:14, borderBottom:`1px solid ${G.bdr}` }}>
-                    <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>Глава {ROMAN[chapterOf(turn + 1)]}</div>
-                    <div style={{ fontFamily:serif, fontSize:22, fontStyle:"italic", color:G.tx2 }}>{CHAPTERS[chapterOf(turn + 1)]}</div>
+                    <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>{termIndex(turn + 1) ? `${upperFirst(termOrdinal(termIndex(turn + 1)))} срок · ` : ""}Глава {ROMAN[chapterOf(turn + 1)]}</div>
+                    <div style={{ fontFamily:serif, fontSize:22, fontStyle:"italic", color:G.tx2 }}>{chapterName(turn + 1)}</div>
                   </div>
                 )}
                 {event.beat && (
@@ -2226,6 +2242,12 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}> · «{name}»</span>
                   </div>
                 )))}
+              {lastTurn.term && (
+                <div className="sv-paper" style={{ marginBottom:8, padding:"12px 16px", borderRadius:0, borderLeft:`3px solid ${G.gold}` }}>
+                  <span style={{ fontFamily:narrow, fontSize:16, fontWeight:700, color:G.gold, letterSpacing:".04em" }}>НАЧИНАЕТСЯ {termOrdinal(lastTurn.term.n).toUpperCase()} СРОК</span>
+                  <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}> · {END_TYPES[lastTurn.term.outcome]?.toLowerCase()} · у власти {reignLength(gs.turn)}. Власть приедается: каждый новый срок тяжелее прошлого.</span>
+                </div>
+              )}
               {lastTurn.law && (() => {
                 const def = lawDef(lastTurn.law.id);
                 const [label, color] = lastTurn.law.act === "enact"
@@ -2387,12 +2409,12 @@ function shareText(gs) {
   return [
     `${c.flag} СУВЕРЕН · ${gs.daily ? `дело дня ${gs.daily.split("-").reverse().slice(0, 2).join(".")} · ` : ""}${gs.country}`,
     `${gs.leader.name} — «${v.title}»`,
-    `${c.startYear}–${gs.year} · ${plural(gs.history.length, "решение", "решения", "решений")} · ${END_TYPES[gs.endType] ?? ""}`,
+    `${c.startYear}–${gs.year} · у власти ${reignLength(gs.turn)} · ${END_TYPES[gs.endType] ?? ""}`,
     `Оценка истории: ${v.rating} · рейтинг ${rating}%`,
     gs.arc ? `Интрига «${ARCS.find(a => a.id === gs.arc.id)?.title}»: ${gs.arc.epilogue ? "раскрыта" : "так и осталась тайной"}` : "",
     v.epitaph ? `«${v.epitaph}»` : "",
     "",
-    isSurvival(gs.endType) ? "Сможешь лучше?" : `Мой президент продержался ${plural(gs.history.length, "ход", "хода", "ходов")}. А твой?`,
+    `Мой президент правил ${reignLength(gs.turn)}. А твой продержится дольше?`,
     shareUrl(),
   ].filter((l, i, a) => l || (i > 0 && a[i - 1])).join("\n").trim();
 }
@@ -2495,14 +2517,14 @@ function DailyBoard({ gs }) {
       <Label>{"Дело дня · таблица"}</Label>
       {board.me && (
         <div style={{ fontFamily:serif, fontSize:20, marginBottom:12 }}>
-          Вы <b>{board.me.rank}-й</b> из {board.total} · {plural(board.me.score, "очко", "очка", "очков")}
+          Вы <b>{board.me.rank}-й</b> из {board.total} · у власти {reignLength(board.me.turns ?? 0)}
         </div>
       )}
       {friends && <div style={{ display:"flex", gap:16, marginBottom:8 }}>{tabBtn("all", "Все")}{tabBtn("friends", "Друзья")}</div>}
       {rows.map((row, i) => (
         <div key={i} style={{ display:"flex", justifyContent:"space-between", gap:10, padding:"6px 0", borderTop:`1px solid ${G.bdr}`, fontFamily:narrow, fontSize:16, color:row.me ? G.gold : G.txt, fontWeight:row.me ? 700 : 400 }}>
           <span style={{ minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{i + 1}. {row.name}{row.title && <span style={{ color:G.tx3, fontWeight:400 }}> · {row.title}</span>}</span>
-          <span style={{ fontVariantNumeric:"tabular-nums" }}>{row.score}</span>
+          <span style={{ fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{reignShort(row.turns ?? 0)}<span style={{ color:G.tx3, fontSize:14 }}> · {row.score}</span></span>
         </div>
       ))}
       <button onClick={invite} style={{ marginTop:12, background:"transparent", border:`1.5px solid ${G.gold}`, color:G.gold, padding:"8px 16px", borderRadius:0, fontSize:15, fontWeight:700 }}>
@@ -2638,6 +2660,10 @@ function Ending({ gs, setGs, onRestart }) {
   const pa = computePolls(gs.country, gs.factions, gs.resources).leader;
   const isLoss = !isSurvival(gs.endType);
   const startYear = COUNTRIES[gs.country].startYear;
+  // Личный рекорд: эта партия уже в архиве, поэтому «рекорд» — если дольше неё не правил никто из ваших президентов.
+  const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
+  const best = useMemo(() => bestReign(parseMeta(metaRaw)), [metaRaw]);
+  const record = verdict && gs.turn >= best;
 
   return (
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"32px 16px" }}>
@@ -2651,6 +2677,11 @@ function Ending({ gs, setGs, onRestart }) {
           <Portrait name={gs.leader.name} size={96} style={{ display:"block", margin:"0 auto 12px", transform:"rotate(-1.5deg)", filter:isLoss ? "grayscale(1) contrast(.9)" : "none" }}/>
           <div style={{ fontFamily:narrow, fontSize:42, fontWeight:700, color:G.txt, marginBottom:6 }}>{gs.leader.name}</div>
           {verdict?.title && <div style={{ margin:"10px 0 20px" }}><span className={`sv-stamp${isLoss ? " is-red" : ""}`} style={{ fontSize:17 }}>{verdict.title}</span></div>}
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, letterSpacing:".04em", textTransform:"uppercase" }}>у власти</div>
+          <div style={{ fontFamily:narrow, fontSize:34, fontWeight:700, color:G.txt, lineHeight:1.1, marginBottom:4 }}>{reignLength(gs.turn)}</div>
+          <div style={{ fontFamily:narrow, fontSize:15, color:record ? G.gold : G.tx3, fontWeight:record ? 700 : 400, marginBottom:10 }}>
+            {record ? "Ваш личный рекорд" : `Ваш рекорд — ${reignLength(best)}`}
+          </div>
           <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{startYear}–{gs.year} · {plural(gs.history.length, "решение", "решения", "решений")} · ресурсы {avgRes}/100 · рейтинг {pa}%</div>
         </Card>
 

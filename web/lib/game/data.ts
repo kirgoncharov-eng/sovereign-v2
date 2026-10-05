@@ -1,9 +1,30 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "5.10";
+export const APP_VERSION = "6.0";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
-export const MAX_TURNS = 20;
+// Срок — двадцать ходов (пять лет). Правление не ограничено сроком: партия идёт, пока лидер у власти.
+export const TERM = 20;
+export const MAX_TURNS = TERM; // длина срока; старое имя
+export const localTurn = (turn: number) => ((Math.max(1, turn) - 1) % TERM) + 1; // ход внутри срока, 1..20
+export const termIndex = (turn: number) => Math.floor((Math.max(1, turn) - 1) / TERM); // срок, к которому относится ход
+export const TERM_ORDINAL = ["первый", "второй", "третий", "четвёртый", "пятый", "шестой", "седьмой", "восьмой", "девятый", "десятый"];
+export const termOrdinal = (n: number) => TERM_ORDINAL[n] ?? `${n + 1}-й`;
+const TERM_ORDINAL_GEN = ["первого", "второго", "третьего", "четвёртого", "пятого", "шестого", "седьмого", "восьмого", "девятого", "десятого"];
+export const termOrdinalGen = (n: number) => TERM_ORDINAL_GEN[n] ?? `${n + 1}-го`;
+// «7 л. 3 м.» — для крупных цифр на карточке итога.
+export function reignShort(turns: number): string {
+  const y = Math.floor(turns / 4), m = (turns % 4) * 3;
+  const yy = y % 10 >= 1 && y % 10 <= 4 && (y % 100 < 11 || y % 100 > 14) ? "г." : "л.";
+  return [y ? `${y} ${yy}` : "", m ? `${m} м.` : ""].filter(Boolean).join(" ") || "0";
+}
+// «7 лет 3 месяца» — ход равен кварталу.
+export function reignLength(turns: number): string {
+  const y = Math.floor(turns / 4), m = (turns % 4) * 3;
+  const yy = y % 10 === 1 && y % 100 !== 11 ? "год" : [2, 3, 4].includes(y % 10) && ![12, 13, 14].includes(y % 100) ? "года" : "лет";
+  const parts = [y ? `${y} ${yy}` : "", m ? `${m} ${m === 3 ? "месяца" : "месяцев"}` : ""].filter(Boolean);
+  return parts.join(" ") || "меньше квартала";
+}
 
 export interface CountryInfo {
   flag: string;
@@ -236,7 +257,7 @@ export const EVENT_SOURCES = ["МИД","Разведка","Кабинет","Ул
 export const RATINGS = ["Провал","Слабое правление","Противоречивое наследие","Стабильность","Успех","Историческое достижение"];
 
 export const END_TYPES = {
-  reelected:   "Переизбран на второй срок",
+  reelected:   "Переизбран на новый срок",
   mandate:     "Мандат завершён, выборы проиграны",
   revolution:  "Народная революция",
   collapse:    "Коллапс государства",
@@ -249,10 +270,17 @@ export const END_TYPES = {
   betrayed:         "Преемник отстранил покровителя",
   emergency_rule:   "Выборы отложены, правит в режиме ЧП",
   dictator:         "Установил личную диктатуру",
+  died:             "Умер на посту",
 } as const;
 
 // Дожил до конца срока — неважно, остался у власти, передал её или ушёл сам.
-export const SURVIVAL_ENDS: readonly string[] = ["mandate", "reelected", "retired", "zeroed", "premier", "leader_of_nation", "emergency_rule", "dictator"];
+export const SURVIVAL_ENDS: readonly string[] = ["mandate", "reelected", "retired", "zeroed", "premier", "leader_of_nation", "emergency_rule", "dictator", "died"];
+// Новый срок: доверие и аппарат устают от одного и того же лица.
+export const TERM_FATIGUE: ResourceDelta = { internalLegitimacy: -5, politicalCapital: -4 };
+export const DEATH_FROM = 48;      // после двенадцати лет у власти
+export const DEATH_STEP = 0.008;   // шанс не дожить до следующего квартала растёт с каждым кварталом
+// Итоги срока, после которых правление продолжается: начинается следующий срок.
+export const CONTINUE_ENDS: readonly string[] = ["reelected", "zeroed", "premier", "emergency_rule", "dictator"];
 
 // ── Конституции ──────────────────────────────────────────────────────────────
 // Модели сроков, по которым живут страны игры. Это модели, а не пересказ действующих

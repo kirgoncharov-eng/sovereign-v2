@@ -7,6 +7,10 @@ export type SceneKey =
   | "explosion" | "hospital" | "tv" | "summit" | "signing" | "press" | "phone" | "stamp" | "ballot" | "meeting" | "bridge";
 
 const BY_CARD: Record<string, SceneKey> = {
+  // позднее правление
+  late_son: "money", late_health: "hospital", late_portraits: "stamp", late_old_friend: "stamp", late_generation: "protest",
+  late_court: "stamp", late_monument: "construction", late_succession: "army", late_foreign_cover: "press", late_predecessor: "meeting",
+  late_last_minister: "meeting",
   // дела-последствия законов
   law_foreign_agents: "tv", law_state_language: "meeting", law_progressive_tax: "money", law_amnesty: "explosion",
   law_death_penalty: "protest", law_anticorruption_bureau: "meeting", law_emergency_powers: "factory", law_media_licensing: "tv",
@@ -38,7 +42,7 @@ const BY_SPECIAL: Record<string, SceneKey> = {
 
 // Эпизоды интриг — каждый со своей картинкой, чтобы линия не выглядела одной и той же ночной встречей.
 const BY_BEAT: Record<string, SceneKey> = {
-  "Первая ночь в резиденции": "square", "Утечка с закрытого совета": "tv", "Перехваченная шифровка": "phone", "Утечка о здоровье": "hospital",
+  "Первая ночь в резиденции": "square", "Новый совет": "meeting", "Утечка с закрытого совета": "tv", "Перехваченная шифровка": "phone", "Утечка о здоровье": "hospital",
   "Кто-то знал заранее": "meeting", "Разоблачение": "press", "Крот наносит удар": "tv",
   "Присяга": "square", "Странные учения": "army", "Ужин на даче": "meeting", "Анонимное письмо": "stamp", "Ночь длинных звонков": "phone",
   "Путч провалился": "protest", "Танки у телецентра": "army",

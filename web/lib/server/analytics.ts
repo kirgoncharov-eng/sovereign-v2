@@ -94,7 +94,7 @@ function bars(rows: [string, number][], total: number) {
 }
 
 // ── Утренняя сводка в Telegram: вчерашний день и неделя одним сообщением ─────────
-const FUNNEL_STEPS = [1, 3, 5, 10, 15, 20];
+const FUNNEL_STEPS = [1, 3, 5, 10, 15, 20, 30, 40];
 export function digestText(s: Stats, link = ""): string {
   const y = s.days.at(-2) ?? s.days.at(-1);
   if (!y) return "Данных пока нет.";
@@ -105,7 +105,8 @@ export function digestText(s: Stats, link = ""): string {
   // Где бросают: самый большой провал воронки за неделю.
   let drop = "";
   let worst = 0;
-  for (let i = 1; i < FUNNEL_STEPS.length; i++) {
+  // «Где бросают» — внутри первого срока: дальше партия кончается падением, а не скукой.
+  for (let i = 1; i < FUNNEL_STEPS.length && FUNNEL_STEPS[i] <= 20; i++) {
     const a = sum(week, `turn|n=${FUNNEL_STEPS[i - 1]}`), b = sum(week, `turn|n=${FUNNEL_STEPS[i]}`);
     if (a >= 5 && (a - b) / a > worst) { worst = (a - b) / a; drop = `между ${FUNNEL_STEPS[i - 1]}-м и ${FUNNEL_STEPS[i]}-м ходом теряется ${Math.round(worst * 100)}% партий`; }
   }
@@ -134,7 +135,8 @@ export function renderStats(s: Stats, feedback: FeedbackRow[] = []): string {
   const newPlayers = sum(s, "new"), dauToday = s.days.at(-1)?.h.players ?? 0;
   const funnel: [string, number][] = [
     ["Начали партию", starts], ["Ход 1", sum(s, "turn|n=1")], ["Ход 3", sum(s, "turn|n=3")], ["Ход 5", sum(s, "turn|n=5")],
-    ["Ход 10", sum(s, "turn|n=10")], ["Ход 15", sum(s, "turn|n=15")], ["Ход 20", sum(s, "turn|n=20")], ["Финал любого рода", ends],
+    ["Ход 10", sum(s, "turn|n=10")], ["Ход 15", sum(s, "turn|n=15")], ["Ход 20 — конец первого срока", sum(s, "turn|n=20")],
+    ["Ход 30", sum(s, "turn|n=30")], ["Ход 40 — конец второго срока", sum(s, "turn|n=40")], ["Финал любого рода", ends],
   ];
   const today = s.days.at(-1)?.date ?? "";
   const cohortRows = [...s.cohorts].reverse().filter(c => c.h.d0).map(c => {

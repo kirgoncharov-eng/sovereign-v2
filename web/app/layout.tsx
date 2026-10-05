@@ -8,7 +8,7 @@ const serif = PT_Serif({ variable: "--font-serif", subsets: ["latin", "cyrillic"
 const ptMono = PT_Mono({ variable: "--font-ptmono", subsets: ["latin", "cyrillic"], weight: "400" });
 const hand = Marck_Script({ variable: "--font-hand", subsets: ["latin", "cyrillic"], weight: "400" });
 
-const DESCRIPTION = "Двадцать решений. Одна страна. Политический триллер, где каждый ход — глава детектива: заговоры, выборы, предатели в собственном совете.";
+const DESCRIPTION = "Сколько лет вы продержитесь у власти? Политический триллер, где каждый ход — глава детектива: заговоры, выборы, предатели в собственном совете.";
 
 export const metadata: Metadata = {
   title: "Суверен — политический триллер",

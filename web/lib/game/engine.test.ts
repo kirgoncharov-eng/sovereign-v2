@@ -174,9 +174,23 @@ test("парламентские выборы на 10-м ходу: победа 
   assert.equal(lost.endType, "impeachment");
 });
 
-test("президентские выборы на последнем ходу решают переизбрание", () => {
+test("президентские выборы в конце срока: переизбранный правит дальше — начинается второй срок", () => {
   const s = startEvent({ ...newGame(), turn: MAX_TURNS - 1 }, event([choice("a", ["delay"]), choice("b", ["delay"])]));
-  assert.equal(resolveTurn(s, "a", narration).endType, "reelected");
+  const next = resolveTurn(s, "a", narration);
+  assert.equal(next.ended, false, "правление не кончается вместе со сроком");
+  assert.deepEqual(next.lastTurn?.term, { n: 1, outcome: "reelected" });
+  assert.equal(next.reign?.term, 1);
+  assert.equal(next.reign?.counted, 2, "второй президентский срок засчитан");
+  assert.equal(next.path, null, "вопрос о сроках в новом сроке решается заново");
+  assert.notEqual(next.arc?.id, s.arc?.id, "в новом сроке — новая интрига");
+  assert.ok(next.resources.internalLegitimacy < resolveTurn({ ...s, turn: 5 }, "a", narration).resources.internalLegitimacy, "власть приедается");
+});
+
+test("смерть на посту: только после двенадцати лет, шанс растёт с годами", async () => {
+  const { diesInOffice } = await import("./engine.ts");
+  const deaths = (from: number, to: number) => Array.from({ length: 400 }, (_, seed) => Array.from({ length: to - from }, (_, i) => diesInOffice(seed, from + i)).some(Boolean)).filter(Boolean).length;
+  assert.equal(deaths(1, 48), 0);
+  assert.ok(deaths(48, 60) < deaths(60, 72), "чем дольше правит, тем вероятнее");
 });
 
 test("враждебные и сильные силовики устраивают переворот", () => {

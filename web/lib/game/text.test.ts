@@ -2,14 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { COUNTRIES, IDEOLOGIES } from "./data.ts";
 import { classicApi } from "./classic.ts";
-import { createInitialState, isFemaleName, resolveTurn, startEvent } from "./engine.ts";
+import { createInitialState, isFemaleName, resolveTurn, seededRandom, startEvent } from "./engine.ts";
 import { PLACES } from "../content/frame.ts";
 import type { GameState } from "./types.ts";
 
 // Логика текста на целых партиях: слоты заполнены, говорят те, кого решение касается,
 // закрытые эпизоды интриги публика не комментирует, место в шапке совпадает с родом дела.
 async function play(country: string, seed: number, ideo: string, each: (before: GameState, after: GameState) => void) {
-  let s = createInitialState(country, "debut", ideo as GameState["ideo"], await classicApi.setup(country, "debut", ideo, seed));
+  let s = createInitialState(country, "debut", ideo as GameState["ideo"], await classicApi.setup(country, "debut", ideo, seed), seededRandom(seed));
   let i = 0;
   while (!s.ended) {
     const ev = await classicApi.event(s);
@@ -23,7 +23,7 @@ async function play(country: string, seed: number, ideo: string, each: (before: 
 
 test("текст партии: без пустых слотов, говорят стороны закона, эпизоды интриги без публики, эха не больше двух", async () => {
   const slot = /\{\w+(:\w+)*(\|[^}]*)?\}/;
-  for (const country of Object.keys(COUNTRIES)) for (const seed of [3, 11, 29]) {
+  for (const country of Object.keys(COUNTRIES)) for (const seed of [3, 11, 29, 41, 57]) {
     const ideo = IDEOLOGIES[seed % IDEOLOGIES.length].id;
     const s = await play(country, seed, ideo, (b, a) => {
       const ev = b.currentEvent!, t = a.lastTurn!;
@@ -55,4 +55,18 @@ test("число по названию группы: «Кремль переда
   assert.equal(fill("{fac:russia} {v:russia:передаёт|передают}", await by("Беларусь")), "Кремль передаёт");
   assert.equal(fill("{fac:west} {v:west:ставит|ставят}", await by("Грузия")), "Западные партнёры ставят");
   assert.equal(fill("{fac:security} {v:security:считает|считают}", await by("Казахстан")), "КНБ и полиция считают");
+});
+
+test("антагонист любой интриги в любой стране — мужчина и не посол", async () => {
+  const { ARCS } = await import("../content/arcs.ts");
+  const { pickArc } = await import("./engine.ts");
+  for (const country of Object.keys(COUNTRIES)) for (let seed = 0; seed < 60; seed++) {
+    const s = createInitialState(country, "debut", "liberal", await classicApi.setup(country, "debut", "liberal", seed), seededRandom(seed));
+    for (const a of ARCS) {
+      const arc = pickArc(s, seededRandom(seed), ARCS.filter(x => x.id !== a.id).map(x => x.id));
+      const fig = s.keyFigures.find(f => f.name === arc.target);
+      assert.ok(!isFemaleName(arc.target), `${country}/${a.id}: ${arc.target}`);
+      assert.ok(!fig?.id.startsWith("amb_"), `${country}/${a.id}: посол ${arc.target}`);
+    }
+  }
 });
