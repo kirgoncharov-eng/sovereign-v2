@@ -21,6 +21,8 @@ import { sceneOf } from "../content/scene-map.ts";
 import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OPPOSITION_SPECIAL, OUTLETS } from "../content/newspaper.ts";
 import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
 import { lawDef } from "./laws.ts";
+import { TERMS_TURN, fellTrying, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
+import { FINALE, LOCKED, PATHS, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
 import { MEANWHILE, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
 import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
 import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
@@ -28,14 +30,14 @@ import { BUDGET_DEBT, BUDGET_ITEMS, BUDGET_MAX, BUDGET_REL, BUDGET_RES, BUDGET_T
 import { APPROACH_WORKS, CALL_DEMANDS, CALL_ENDINGS, CALL_REPLIES, CALL_TEXT, type Approach } from "../content/calls.ts";
 import {
   COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
-  FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, REACT_APPROVE, REACT_DISAPPROVE, SPEECHES, TAG_LINES, TITLES,
+  FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, type LossEnd, REACT_APPROVE, REACT_DISAPPROVE, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
 import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, DELAYED, WEAK_ADVISOR_DELAYED, ELECTIONS, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
 import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PACT, PACT_BROKEN_LINE, PACT_GIVES, PACT_KEPT_LINE, PACT_OK_VARIANTS, type SpecialChoice } from "../content/people.ts";
 import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } from "./people.ts";
 import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { sanitizeProposals } from "./sanitize.ts";
-import type { ActionTag, Bloc, Choice, Deal, DifficultyId, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, Verdict } from "./types.ts";
+import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, Verdict } from "./types.ts";
 
 type Rand = () => number;
 const pick = <T,>(r: Rand, list: T[]): T => list[Math.floor(r() * list.length)];
@@ -355,10 +357,12 @@ export function lawEvent(state: GameState): SpecialEvent | null {
       description: chapter(dateline(state), f(REPEAL.description)),
       isCritical: false, affectedFactions: state.factions.filter(x => def.drift?.[x.bloc]).map(x => x.id).slice(0, 4),
       choices: [
-        { id: "a", text: REPEAL.keep.text, hint: REPEAL.keep.hint, tags: def.tags, resolvesCrisis: null },
+        { id: "a", text: REPEAL.keep.text, hint: REPEAL.keep.hint, tags: def.tags, resolvesCrisis: null,
+          scene: f(REPEAL.kept), sceneFail: f(REPEAL.keptFail), headline: f(REPEAL.keptHead.ok), headlineFail: f(REPEAL.keptHead.fail) },
         { id: "b", text: REPEAL.repeal.text, hint: REPEAL.repeal.hint, tags: def.veto, resolvesCrisis: null, law: { id: def.id, act: "repeal" },
           scene: f(REPEAL.passed), sceneFail: f(REPEAL.failed), headline: f(REPEAL.head.passed), headlineFail: f(REPEAL.head.failed) },
-        { id: "c", text: REPEAL.wait.text, hint: REPEAL.wait.hint, tags: ["delay"], resolvesCrisis: null },
+        { id: "c", text: REPEAL.wait.text, hint: REPEAL.wait.hint, tags: ["delay"], resolvesCrisis: null,
+          scene: f(REPEAL.waitScene), sceneFail: f(REPEAL.waitScene), headline: f(REPEAL.waitHead), headlineFail: f(REPEAL.waitHead) },
       ],
       randomEvent: null,
     };
@@ -388,6 +392,60 @@ export function lawEvent(state: GameState): SpecialEvent | null {
     randomEvent: null,
   };
 }
+
+// ── Вопрос о сроках ──────────────────────────────────────────────────────────
+// За полгода до президентских выборов: остаться, уйти, передать власть или взять её силой.
+// Какие пути открыты, решают конституция страны и то, как лидер правил до сих пор.
+export function termsEvent(state: GameState): SpecialEvent | null {
+  const turn = state.turn + 1;
+  if (turn !== TERMS_TURN || state.path) return null;
+  const rule = termRule(state.country);
+  const options = pathOptions(state);
+  const open = options.filter(o => !o.lock);
+  const reason = (o: PathOption) => o.id === "run" ? LOCKED.run
+    : o.id === "zeroing" ? LOCKED.zeroing[rule] ?? null
+    : o.id === "rokirovka" ? LOCKED.rokirovka[o.lock === "lost" ? "lost" : "rule"]
+    : o.id === "successor" ? LOCKED.successor
+    : o.id === "postpone" ? LOCKED.postpone[o.lock === "force" ? "force" : "law"]
+    : o.id === "dictatorship" ? LOCKED.dictatorship[o.lock === "force" ? "force" : "military"] : null;
+  const locked = options.filter(o => o.lock).map(reason).filter((x): x is string => !!x);
+  const choices: Choice[] = open.map((o, i) => {
+    const t = PATHS[o.id];
+    const heir = o.successor;
+    const f = (x: string) => fill(x, state, heir ? { name: heir.name, role: heir.role } : {});
+    const base = {
+      id: "abcdefg"[i], text: f(t.text), hint: f(t.hint), resolvesCrisis: null, path: o.id,
+      ...(heir ? { successor: heir.name } : {}),
+      scene: f(t.scene), sceneFail: f(t.sceneFail ?? t.scene), headline: f(t.head), headlineFail: f(t.headFail ?? t.head),
+    };
+    // Обнуление без готовых поправок — законопроект: голоса могут и не найтись.
+    if (o.id === "zeroing" && o.viaLaw) return { ...base, tags: ["elite_deal", "propaganda"] as ActionTag[], law: { id: "constitution", act: "enact" as const } };
+    return {
+      ...base, tags: PATH_TAGS[o.id],
+      ...(o.id === "zeroing" ? { hint: "поправки уже в силе — суду осталось истолковать их как надо" } : {}),
+      deal: pathDeal(o.id, state.factions, heir),
+    };
+  });
+  const force = forceFaction(state.factions);
+  return {
+    cardId: `terms:${turn}`,
+    title: TERMS_TEXT.title, source: TERMS_TEXT.source,
+    description: chapter(dateline(state), fill(TERMS_TEXT.intro[rule], state),
+      locked.length ? [TERMS_TEXT.lockedHead, ...locked.map(l => `— ${l}`)].join("\n") : null,
+      TERMS_TEXT.outro),
+    isCritical: false,
+    affectedFactions: state.factions.filter(x => ["security", "liberal", "west", "ruling"].includes(x.bloc)).map(x => x.id).slice(0, 4),
+    choices,
+    council: null,
+    special: { kind: "terms", figure: null, faction: force?.id ?? state.factions[0].id },
+    randomEvent: null,
+  };
+}
+// Теги подписывают решение для реплик и газет; цену задаёт сделка.
+const PATH_TAGS: Record<PathId, ActionTag[]> = {
+  run: ["dialogue"], exit: ["dialogue"], zeroing: ["elite_deal"], rokirovka: ["elite_deal"],
+  successor: ["elite_deal"], postpone: ["security"], dictatorship: ["repress"],
+};
 
 // ── Проверка документов ──────────────────────────────────────────────────────
 // Дважды за партию на стол ложится доклад и справка к нему. Первый доклад всегда лжёт —
@@ -684,6 +742,8 @@ export function budgetChoice(state: GameState, alloc: Record<string, number>, de
 export const budgetLimit = (debt: boolean) => BUDGET_TOTAL + (debt ? BUDGET_DEBT : 0);
 
 function buildEvent(state: GameState): GameEvent & { cardId?: string } {
+  const terms = termsEvent(state);
+  if (terms) return terms;
   const beat = beatEvent(state);
   if (beat) return beat;
   const interlude = inspectEvent(state) ?? pressEvent(state) ?? callEvent(state) ?? budgetEvent(state);
@@ -730,6 +790,21 @@ function electionHeadline(e: NonNullable<ReturnType<typeof planTurn>["election"]
   if (e.outcome === "won") return pres ? `Президент переизбран: ${e.leader}% против ${e.top.share}%` : `Партия власти удержала парламент: ${e.leader}%`;
   if (e.outcome === "impeached") return `Разгром на выборах: «${e.top.name}» берёт парламент и готовит импичмент`;
   return pres ? `Власть уходит: «${e.top.name}» побеждает на выборах` : `«${e.top.name}» выигрывает парламентские выборы`;
+}
+
+// Развязка «вопроса о сроках» в последний ход: что стало с выбранным путём.
+function finaleOf(state: GameState, plan: ReturnType<typeof planTurn>): { head: string; text: string } | null {
+  const { path, endType: end, election: e } = plan;
+  if (!path || !end || state.turn + 1 < MAX_TURNS || path.id === "run") return null;
+  if (!isSurvival(end) && end !== "betrayed") return null;
+  const won = e?.outcome === "won";
+  const key = path.id === "exit" ? (path.from ? `exit:${path.from}` : "exit")
+    : path.id === "postpone" || path.id === "dictatorship" ? path.id
+    : path.id === "successor" ? (end === "betrayed" ? "successor:betrayed" : won ? "successor:won" : "successor:lost")
+    : `${path.id}:${won ? "won" : "lost"}`;
+  const fin = FINALE[key] ?? FINALE.exit;
+  const slots = { name: path.successor ?? "", pct: String(e?.leader ?? 0), rival: e?.top.name ?? "", rivalPct: String(e?.top.share ?? 0) };
+  return { head: fill(fin.head, state, slots), text: fill(fin.text, state, slots) };
 }
 
 // Заголовок газеты к решению: при успехе и при провале.
@@ -856,7 +931,8 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const arcOpen = !!arcDef && (state.arc?.done.length ?? 0) < arcDef.beats.length;
   const hook = arcDef && arcOpen && !arc && !plan.endType && state.turn % 2 === 1 && hookIdx < arcDef.hooks.length
     ? fill(cycle(arcDef.hooks, state.seed, "hook", hookIdx), state) : null;
-  const parts = [scene, after.join(" "), electionLine, intercut, hook];
+  const finale = finaleOf(state, plan);
+  const parts = [scene, after.join(" "), finale?.text ?? electionLine, intercut, hook];
 
   // То, что уже звучало в партии, не повторяется, пока в пуле есть свежие варианты.
   const heard = new Set(state.history.flatMap(h => h.heard ?? []));
@@ -938,7 +1014,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     heard: said,
     ...(appeared.length ? { cast: appeared } : {}),
     scene: state.currentEvent ? sceneOf(state.currentEvent) : "square",
-    headline: plan.election ? electionHeadline(plan.election)
+    headline: finale ? finale.head : plan.election ? electionHeadline(plan.election)
       : (plan.success ? plan.choice.headline : plan.choice.headlineFail) ?? fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state),
     narrative: chapter(...parts),
     document,
@@ -946,7 +1022,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     historianNote: cycle(HISTORIAN[tone], state.seed, `hi${tone}`, state.turn),
     crisisTitle: key ? pick(r, CRISIS_TITLES[key]) : null,
     crisisDescription: key ? CRISIS_DESC[key] : null,
-    powerLoss: plan.endType && !isSurvival(plan.endType) ? fill(pick(r, POWER_LOSS[plan.endType]), state) : null,
+    powerLoss: plan.endType && !isSurvival(plan.endType) ? fallText(r, plan.path, plan.endType, state) : null,
   };
 }
 
@@ -1036,13 +1112,24 @@ function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?
 }
 
 // ── Финал ────────────────────────────────────────────────────────────────────
+// Сцена падения: после попытки отменить выборы — своя, «свергнут при попытке».
+function fallText(r: Rand, path: GameState["path"], end: EndType, state: GameState): string {
+  const pool = fellTrying(path, end) ? PATH_FALL[end as "coup" | "revolution"] : POWER_LOSS[end as LossEnd] ?? POWER_LOSS.collapse;
+  return fill(pick(r, pool), state, { name: path?.successor ?? "" });
+}
+
+// Насколько концовка украшает вердикт: остаться по закону лучше, чем силой.
+const VERDICT_BONUS: Partial<Record<EndType, number>> = {
+  reelected: 25, zeroed: 20, premier: 20, leader_of_nation: 20, retired: 18, mandate: 12, emergency_rule: 8, dictator: 5,
+};
+
 function buildVerdict(state: GameState): Verdict {
   const r = seededRandom(hashSeed(state.seed, "verdict"));
   const end = state.endType ?? "collapse";
   const rating = computePolls(state.country, state.factions, state.resources).leader;
   const avg = RES_CONFIG.reduce((s, c) => s + state.resources[c.key], 0) / RES_CONFIG.length;
   const kept = promisesKept(state.promises), broke = promisesBroken(state.promises), given = state.promises?.length ?? 0;
-  const score = avg + rating / 2 + (end === "reelected" ? 25 : end === "mandate" ? 12 : 0) - (state.stats?.failures ?? 0) * 2 + kept * 5 - broke * 4;
+  const score = avg + rating / 2 + (VERDICT_BONUS[end] ?? 0) - (state.stats?.failures ?? 0) * 2 + kept * 5 - broke * 4;
   const ratingLabel = RATINGS[Math.max(0, Math.min(RATINGS.length - 1, Math.floor((score - 20) / 14)))];
   const band = score >= 75 ? "good" : score >= 50 ? "mixed" : "bad";
 
@@ -1057,6 +1144,7 @@ function buildVerdict(state: GameState): Verdict {
     `${state.leader.name} правил страной с ${startYear} по ${state.year} год и успел принять ${state.history.length} из ${MAX_TURNS} ключевых решений.`,
     topCount ? `Главный инструмент правления — «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему лидер прибегал ${plural(topCount, "раз", "раза", "раз")}.` : "",
     elections ? `Выборы: ${elections}.` : "",
+    pathVerdict(state.path, end),
     state.stats?.crisesResolved ? `Кризисов преодолено: ${state.stats.crisesResolved}.` : "",
     given ? (kept === given ? `Все ${plural(given, "обещание", "обещания", "обещаний")} избирателям исполнены — редкость для любой столицы.`
       : kept ? `Из ${given} предвыборных обещаний исполнено ${kept}${broke ? `, нарушено ${broke}` : ""}.`
@@ -1067,10 +1155,10 @@ function buildVerdict(state: GameState): Verdict {
 
   return {
     verdict,
-    title: pick(r, TITLES[end]),
-    epitaph: pick(r, EPITAPHS[band]),
+    title: pick(r, fellTrying(state.path, end) ? PATH_FALL.titles : TITLES[end]),
+    epitaph: pick(r, PATH_EPITAPHS[end] ?? EPITAPHS[band]),
     rating: ratingLabel,
-    fallNarrative: isSurvival(end) ? null : state.powerLoss ?? fill(pick(r, POWER_LOSS[end as keyof typeof POWER_LOSS]), state),
+    fallNarrative: isSurvival(end) ? null : state.powerLoss ?? fallText(r, state.path, end, state),
   };
 }
 

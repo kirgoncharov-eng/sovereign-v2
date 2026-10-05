@@ -32,7 +32,7 @@ const BY_CARD: Record<string, SceneKey> = {
 };
 
 const BY_SPECIAL: Record<string, SceneKey> = {
-  press: "press", call: "phone", budget: "money", inspect: "stamp",
+  press: "press", call: "phone", budget: "money", inspect: "stamp", terms: "stamp",
   overture: "meeting", insider: "meeting", mole: "meeting", pact: "signing",
 };
 

@@ -2,6 +2,7 @@
 // Ключи: an:<день> — события и их разрезы, an:u:<день> — кто заходил сегодня,
 // an:first — день первого визита игрока, an:cohort:<день> — сколько из пришедших в тот день вернулись.
 import { END_TYPES } from "../game/data.ts";
+import { PATH_LABEL } from "../content/terms.ts";
 import { kv } from "./kv.ts";
 
 export const TRACK_EVENTS = ["open", "start", "resume", "turn", "end", "share", "invite", "daily", "intro", "first", "help", "subscribe"] as const;
@@ -10,7 +11,7 @@ export type TrackEventName = (typeof TRACK_EVENTS)[number];
 // По каким свойствам события считаем разрезы.
 const DIMS: Record<TrackEventName, string[]> = {
   open: ["src"], start: ["country", "diff", "ideo", "bio", "daily", "quick"], resume: [], turn: ["n"],
-  end: ["type", "kept"], share: ["via"], invite: [], daily: [], intro: [], first: ["sec"], help: [], subscribe: [],
+  end: ["type", "kept", "path"], share: ["via"], invite: [], daily: [], intro: [], first: ["sec"], help: [], subscribe: [],
 };
 export const COHORT_DAYS = [1, 3, 7, 14, 30];
 const TTL = 60 * 60 * 24 * 120;
@@ -81,7 +82,7 @@ const LABELS: Record<string, string> = {
   debut: "Дебют", coalition: "Коалиция", crisis: "Кризис", ruins: "Обломки",
   liberal: "Либерал", nationalist: "Националист", pragmatist: "Прагматик", leftist: "Левый",
   officer: "Офицер", economist: "Экономист", lawyer: "Правозащитник", diplomat: "Дипломат", mayor: "Мэр",
-  ...END_TYPES,
+  ...END_TYPES, ...PATH_LABEL,
   tg: "Telegram", web: "Браузер", story: "История", native: "Системное меню", copy: "Копия ссылки", save: "Картинка", true: "Да", false: "Нет",
   // первые замеры шли с длинным тире, и сервер его вырезал
   "3060 с": "30-60 с", "12 мин": "1-2 мин", "25 мин": "2-5 мин",
@@ -174,6 +175,7 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 <div class="paper">${section("Биография", "start|bio=", starts)}</div>
 <div class="paper">${section("Чем заканчиваются партии", "end|type=", ends)}</div>
 <div class="paper">${section("Сколько обещаний исполнено", "end|kept=", ends)}</div>
+<div class="paper">${section("Как решают вопрос о сроках", "end|path=", ends)}</div>
 <div class="paper">${section("Откуда запускают", "open|src=", sum(s, "open"))}</div>
 <div class="paper">${section("Быстрая партия или анкета", "start|quick=", starts)}</div>
 <div class="paper">${section("Как делятся итогом", "share|via=", sum(s, "share"))}</div>

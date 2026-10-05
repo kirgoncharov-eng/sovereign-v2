@@ -17,7 +17,14 @@ export type IdeologyId = "liberal" | "nationalist" | "pragmatist" | "leftist";
 export type Loyalty = "союзник" | "нейтрал" | "враг";
 export type Severity = "low" | "medium" | "high" | "critical";
 export type GameMode = "classic"; // игра полностью офлайн: авторские сценарии без модели
-export type EndType = "reelected" | "mandate" | "revolution" | "collapse" | "coup" | "impeachment";
+export type EndType =
+  | "reelected" | "mandate" | "revolution" | "collapse" | "coup" | "impeachment"
+  | "retired" | "zeroed" | "premier" | "leader_of_nation" | "betrayed" | "emergency_rule" | "dictator";
+// Конституционная модель страны: сколько сроков у президента и где настоящая власть.
+export type TermRule = "no_limits" | "two_terms" | "single_term" | "parliamentary";
+// Как лидер решил «вопрос о сроках»: идти на выборы, уйти, обнулить, пересесть, передать, отложить, взять силой.
+export type PathId = "run" | "exit" | "zeroing" | "rokirovka" | "successor" | "postpone" | "dictatorship";
+export interface PowerPath { id: PathId; turn: number; successor?: string; from?: PathId } // from — путь, который сорвался
 export type Bloc = "security" | "business" | "church" | "liberal" | "west" | "russia" | "nationalist" | "regional" | "ruling";
 export type ActionTag =
   | "repress" | "security" | "reform" | "pro_west" | "pro_russia" | "social" | "austerity"
@@ -66,6 +73,8 @@ export interface Choice {
   headlineFail?: string;  // заголовок газеты при провале
   deal?: Deal;            // личная сделка или пакт (особые дела)
   law?: { id: string; act: "enact" | "repeal" }; // законопроект: принять или отменить, если исполнят
+  path?: PathId;          // ответ на «вопрос о сроках»
+  successor?: string;     // имя преемника, если путь — преемник
 }
 
 // Особое дело о людях и союзах: что изменится, если решение исполнят.
@@ -136,7 +145,7 @@ export interface GameEvent {
   choices: Choice[];
   council?: Choice[] | null; // предложения советников, если совет собирали
   card?: string;        // авторская карточка, из которой собрано событие
-  special?: { kind: "overture" | "insider" | "mole" | "pact" | "inspect" | "press" | "call" | "budget"; figure: string | null; faction: string } | null; // особое дело
+  special?: { kind: "overture" | "insider" | "mole" | "pact" | "inspect" | "press" | "call" | "budget" | "terms"; figure: string | null; faction: string } | null; // особое дело
   doc?: { facts: string[]; lines: string[]; author: string; key: number | null } | null;  // проверка документа: справка и строки доклада
   press?: { outlet: string; questions: PressQuestion[] } | null;       // пресс-конференция
   call?: { figure: string; trait: string; demand: string } | null;    // звонок по защищённой линии
@@ -293,6 +302,7 @@ export interface GameState {
   pacts?: Pact[];        // действующие союзы
   promises?: PromiseState[]; // предвыборные обещания
   laws?: LawInForce[];       // действующие законы — «Свод законов»
+  path?: PowerPath | null;   // как решён «вопрос о сроках»
   betrayals?: number;    // сколько союзов вы нарушили
   echoes?: Record<string, number>; // сколько раз уже звучало эхо каждого отложенного последствия
   former?: string[];      // люди, ушедшие с постов: их имена не достаются преемникам

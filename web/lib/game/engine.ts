@@ -1,19 +1,20 @@
 // Игровой движок: чистые функции без сети и без React.
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
 import {
-  ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, MAX_PENDING, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, COSTS, CRISIS_DRAIN, pressureAt, ELECTIONS,
+  ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, MAX_PENDING, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, COSTS, CRISIS_DRAIN, pressureAt,
   ELECTION_LOSS_PENALTY, ELECTION_WIN_BONUS, HOSTILE_DRAIN, HOSTILE_RELATION, IMPEACH_RATING, NON_VOTING_BLOCS, PARTIES, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, MAX_TURNS, RECOVERY_BELOW, RECOVERY_RATE,
-  RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES,
+  RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES, SURVIVAL_ENDS,
 } from "./data.ts";
 import { ARCS } from "../content/arcs.ts";
 import { NAMES } from "../content/narration.ts";
 import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE_BONUS, bondOf, breaches, pactIncome, personalDelta } from "./people.ts";
 import { stepPromises } from "./promises.ts";
 import { stepLaws } from "./laws.ts";
+import { electionKind, pathEnd } from "./terms.ts";
 import type {
   Advisor, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
-  LawInForce, Narration, NewCrisis, Pact, PactNews, PromiseNews, PromiseState, ResourceDelta, ResourceKey, Resources, TurnReport, Verdict,
+  LawInForce, Narration, NewCrisis, Pact, PactNews, PowerPath, PromiseNews, PromiseState, ResourceDelta, ResourceKey, Resources, TurnReport, Verdict,
 } from "./types.ts";
 
 export const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
@@ -123,7 +124,7 @@ export function warningLevel(state: Pick<GameState, "resources" | "factions">): 
   return "none";
 }
 
-export const isSurvival = (e: EndType | null) => e === "mandate" || e === "reelected";
+export const isSurvival = (e: EndType | null) => !!e && SURVIVAL_ENDS.includes(e);
 
 // Поражение важнее завершения мандата: рухнуть на последнем ходу — всё равно рухнуть.
 export function detectEnd(resources: Resources, factions: Faction[], turn: number): EndType | null {
@@ -432,6 +433,7 @@ export interface TurnPlan {
   promiseNews: PromiseNews;
   laws: LawInForce[];
   lawNews: TurnReport["law"] | null;
+  path: PowerPath | null;
 }
 
 // Весь расчёт хода без текста. Модель потом описывает именно этот итог.
@@ -544,9 +546,14 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   resources = applyDeltas(resources, promiseStep.res);
   factions = applyFactionChanges(factions, promiseStep.rel, {});
 
+  // «Вопрос о сроках»: путь выбран, если решение исполнили; сорванное обнуление — значит, уходить.
+  const path: PowerPath | null = choice.path
+    ? success ? { id: choice.path, turn, ...(choice.successor ? { successor: choice.successor } : {}) } : { id: "exit", turn, from: choice.path }
+    : state.path ?? null;
+
   // Выборы: по итогам хода считается опрос, он же — результат голосования.
   let election: Election | null = null;
-  const kind = ELECTIONS[turn];
+  const kind = electionKind(turn, path);
   if (kind) {
     // Союзники по пакту голосуют за своих.
     const voters = factions.map(f => pacts.some(p => p.faction === f.id) ? { ...f, relation: clampRel(f.relation + PACT_VOTE_BONUS) } : f);
@@ -557,16 +564,18 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     if (kind === "parliament") resources = applyDeltas(resources, outcome === "won" ? ELECTION_WIN_BONUS : ELECTION_LOSS_PENALTY);
   }
 
-  let endType = election?.outcome === "impeached" ? "impeachment" : detectEnd(resources, factions, turn);
-  if (endType === "mandate" && election?.outcome === "won") endType = "reelected";
+  // Импичмент грозит только действующему президенту: рокировка в конце срока его не боится.
+  let endType: EndType | null = election?.outcome === "impeached" && turn < MAX_TURNS ? "impeachment" : detectEnd(resources, factions, turn);
+  if (endType === "mandate") endType = path ? pathEnd(path, election?.outcome === "won", { factions, resources, keyFigures }) : election?.outcome === "won" ? "reelected" : "mandate";
 
   return {
     choice, effects, success, chance, resources, factions, keyFigures, crises, election, matured, scheduled, pending,
     resolvedCrisis, expiredCrises: tick.expired, hostileFactions: hostile.map(f => f.name), newCrisisKey,
-    endType: endType as EndType | null,
+    endType,
     pacts, pactNews, betrayals: (state.betrayals ?? 0) + broken.length,
     promises: promiseStep.promises, promiseNews: promiseStep.news,
     laws: lawStep.laws, lawNews: lawStep.news,
+    path,
   };
 }
 
@@ -629,6 +638,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     betrayals: plan.betrayals,
     promises: plan.promises,
     laws: plan.laws,
+    path: plan.path,
     former: [...(state.former ?? []), ...state.keyFigures.filter(f => !plan.keyFigures.some(g => g.name === f.name)).map(f => f.name)],
     echoes: plan.matured.reduce((acc, m) => ({ ...acc, [m.label]: (acc[m.label] ?? 0) + 1 }), { ...(state.echoes ?? {}) }),
     arc: state.arc ? {

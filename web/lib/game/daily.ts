@@ -1,6 +1,7 @@
 // «Дело дня» и очки партии — общие для клиента и сервера.
 import { promisesBroken, promisesKept } from "./promises.ts";
 import { computePolls, hashSeed, isSurvival, seededRandom } from "./engine.ts";
+import { END_BONUS } from "./terms.ts";
 import { COUNTRIES, IDEOLOGIES, RES_CONFIG } from "./data.ts";
 import type { DifficultyId, GameState, IdeologyId } from "./types.ts";
 
@@ -25,7 +26,7 @@ export function runScore(gs: Pick<GameState, "endType" | "turn" | "country" | "f
   const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
   const avg = RES_CONFIG.reduce((s, c) => s + gs.resources[c.key], 0) / RES_CONFIG.length;
   const score = gs.turn * 40 + rating * 6 + avg * 3
-    + (isSurvival(gs.endType) ? 400 : 0) + (gs.endType === "reelected" ? 300 : 0)
+    + (isSurvival(gs.endType) ? 400 : 0) + (gs.endType ? END_BONUS[gs.endType] ?? 0 : 0)
     + (gs.arc?.epilogue ? 150 : 0) - (gs.stats?.failures ?? 0) * 15
     + promisesKept(gs.promises) * 120 - promisesBroken(gs.promises) * 80;
   return Math.max(0, Math.round(score));
