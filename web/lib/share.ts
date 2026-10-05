@@ -1,6 +1,6 @@
 // Итог партии в ссылке: из этих параметров сервер рисует карточку (/api/card) и страницу со
 // ссылкой-превью (/r). Общий код для клиента и сервера: что попало в ссылку — то и на картинке.
-import { COUNTRIES, END_TYPES } from "./game/data.ts";
+import { COUNTRIES, END_TYPES, SURVIVAL_ENDS } from "./game/data.ts";
 import type { GameState } from "./game/types.ts";
 
 export const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "sovereign_game_bot";
@@ -53,7 +53,7 @@ export function parseShare(p: Params): ShareResult | null {
   };
 }
 
-export const survived = (r: ShareResult) => r.end === "mandate" || r.end === "reelected";
+export const survived = (r: ShareResult) => SURVIVAL_ENDS.includes(r.end);
 const plural = (n: number, one: string, few: string, many: string) => {
   const m10 = n % 10, m100 = n % 100;
   return `${n} ${m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20) ? few : many}`;

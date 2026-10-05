@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
-import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
+import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, TERM_RULES, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, MAX_TURNS, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
@@ -11,6 +11,8 @@ import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
 import { monthYear, turnDate } from "@/lib/game/calendar.ts";
 import { lawDef } from "@/lib/game/laws.ts";
+import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
+import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
 import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
 import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
@@ -200,9 +202,10 @@ function RelBar({ label, val, prevVal }) {
   );
 }
 
-function nextElection(turn) {
-  const t = Object.keys(ELECTIONS).map(Number).find(x => x > turn);
-  return t ? { label: ELECTION_LABEL[ELECTIONS[t]], in: t - turn } : null;
+// Ближайшие выборы с учётом «вопроса о сроках»: отменённые не считаются, рокировка — парламентские.
+function nextElection(turn, path) {
+  const t = Object.keys(ELECTIONS).map(Number).find(x => x > turn && electionKind(x, path));
+  return t ? { label: ELECTION_LABEL[electionKind(t, path)], in: t - turn } : null;
 }
 // Партия делится на четыре главы по пять ходов: у каждой своё название.
 const CHAPTERS = ["Первые сто дней", "Накануне выборов", "Второе дыхание", "Развязка"];
@@ -219,7 +222,7 @@ function PollWidget({ gs }) {
   const [info, setInfo] = useState(false);
   const polls = computePolls(gs.country, gs.factions, gs.resources);
   const prev = gs.prevFactions && gs.prevResources ? computePolls(gs.country, gs.prevFactions, gs.prevResources) : null;
-  const next = nextElection(gs.turn);
+  const next = nextElection(gs.turn, gs.path);
   const top = Math.max(...polls.parties.map(p => p.share));
   const rows = [
     { id:"me", name:gs.leader.party || "Ваша партия", share:polls.leader, prev:prev?.leader, me:true },
@@ -321,6 +324,46 @@ function LawLines({ gs, c }) {
         ? <><div>⚖ Если парламент примет — закон «{def.title}» будет действовать каждый ход:</div><LawEffects def={def}/></>
         : <div>⚖ Отменит закон «{def.title}»{inForce ? " — его действие прекратится" : ""}</div>}
     </div>
+  );
+}
+
+// Конституция и «вопрос о сроках»: какие пути открыты сейчас, а после решения — что нужно, чтобы путь удался.
+function TermsCard({ gs, final = false, style }) {
+  const rule = TERM_RULES[termRule(gs.country)];
+  const path = gs.path;
+  const row = (ok, text, key) => <div key={key} style={{ color:ok ? G.txt : G.tx3 }}>{ok ? "✔" : "✖"} {text}</div>;
+  let body = null;
+  if (path && final) {
+    body = <div style={{ fontFamily:serif, fontSize:14, color:G.tx2 }}>Решено: {PATH_LABEL[path.id]}{path.successor ? ` — ${path.successor}` : ""}{path.from ? " (обнуление сорвалось)" : ""}</div>;
+  } else if (path) {
+    const L = gs.resources.internalLegitimacy, force = Math.round(forceRelation(gs.factions));
+    const heir = path.successor && gs.keyFigures.find(f => f.name === path.successor);
+    const cond = path.id === "successor" ? [[(heir?.relation ?? 0) >= SUCCESSOR_REL, `${path.successor}: к вам ${signed(heir?.relation ?? 0)}, нужно от +${SUCCESSOR_REL} — иначе предаст`]]
+      : path.id === "postpone" ? [[L >= POSTPONE_LEGIT, `легитимность ${L}, нужно от ${POSTPONE_LEGIT} — иначе улица`]]
+      : path.id === "dictatorship" ? [[force > FORCE_HOSTILE, `силовики ${signed(force)}, при ${signed(FORCE_HOSTILE)} и ниже — переворот`], [L >= DICTATOR_LEGIT, `легитимность ${L}, нужно от ${DICTATOR_LEGIT} — иначе улица`]]
+      : path.id === "exit" ? [] : [[true, `всё решат выборы на ${MAX_TURNS}-м ходу`]];
+    body = (
+      <div style={{ fontFamily:narrow, fontSize:15, lineHeight:1.45 }}>
+        <div style={{ color:G.txt }}>Решено: {PATH_LABEL[path.id]}{path.from ? " (обнуление сорвалось)" : ""}</div>
+        {cond.map(([ok, t], i) => <div key={i} style={{ color:ok ? G.grn : G.red }}>{ok ? "✔" : "✖"} {t}</div>)}
+      </div>
+    );
+  } else if (!final) {
+    const opts = pathOptions(gs).filter(o => o.id !== "exit");
+    body = (
+      <div style={{ fontFamily:narrow, fontSize:15, lineHeight:1.45 }}>
+        <div style={{ color:G.tx3, marginBottom:2 }}>Вопрос о сроках — на {TERMS_TURN}-м ходу. Открыто сейчас:</div>
+        {opts.map(o => row(!o.lock, `${PATH_LABEL[o.id]}${o.successor ? ` (${o.successor.name})` : ""}`, o.id))}
+      </div>
+    );
+  }
+  return (
+    <Card style={{ marginTop:10, ...style }}>
+      <Label>{"КОНСТИТУЦИЯ"}</Label>
+      <div style={{ fontFamily:narrow, fontSize:15, color:G.txt, marginBottom:2 }} title={rule.text}>{rule.title}</div>
+      {!final && !path && <div style={{ fontFamily:serif, fontSize:13, color:G.tx3, marginBottom:6 }}>{rule.text}</div>}
+      {body}
+    </Card>
   );
 }
 
@@ -729,7 +772,7 @@ function CouncilPanel({ gs, onConvened, optProps, stamping }) {
   if (gs.currentEvent?.beat || gs.currentEvent?.special) {
     return (
       <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>
-        {gs.currentEvent.beat ? "Дело засекречено: совет в него не посвящён. Решать вам одному." : gs.currentEvent.special?.kind === "inspect" ? "Проверку не перепоручишь: сверяйте сами." : "Дело личное: совет о нём не знает. Решать вам одному."}
+        {gs.currentEvent.beat ? "Дело засекречено: совет в него не посвящён. Решать вам одному." : gs.currentEvent.special?.kind === "inspect" ? "Проверку не перепоручишь: сверяйте сами." : gs.currentEvent.special?.kind === "terms" ? "Этот вопрос на совет не выносят: о собственной власти решают в одиночку." : "Дело личное: совет о нём не знает. Решать вам одному."}
       </div>
     );
   }
@@ -798,7 +841,7 @@ function Prose({ text }) {
     <div>
       {paras.map((p, i) => DATELINE.test(p)
         ? <div key={i} style={{ fontFamily:mono, fontSize:12.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}>{p}</div>
-        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch" }}>{p}</p>)}
+        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch", whiteSpace:"pre-line" }}>{p}</p>)}
     </div>
   );
 }
@@ -1034,7 +1077,7 @@ function Hud({ gs, preview, onMenu, onHelp }) {
   const exact = !!preview?.advisor; // итог в цифрах — только для варианта от совета
   const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
   const nextRating = plan ? computePolls(gs.country, plan.factions, plan.resources).leader : null;
-  const next = nextElection(gs.turn);
+  const next = nextElection(gs.turn, gs.path);
   const arrow = (a, b) => b === null || b === a ? null : <span style={{ color:b > a ? G.grn : G.red }}>{exact ? ` → ${b}` : ` ${b > a ? "▲" : "▼"}`}</span>;
   const turnNow = Math.min(gs.turn + 1, MAX_TURNS);
   return (
@@ -1085,8 +1128,8 @@ function Hud({ gs, preview, onMenu, onHelp }) {
           <div style={{ display:"flex", gap:2, flex:"0 0 260px" }} aria-label={`Ход ${gs.turn} из ${MAX_TURNS}`}>
             {Array.from({ length: MAX_TURNS }, (_, i) => {
               const t = i + 1;
-              const done = t <= gs.turn, now = t === gs.turn + 1, vote = !!ELECTIONS[t];
-              return <div key={t} title={vote ? `${t} ход — ${ELECTION_LABEL[ELECTIONS[t]].toLowerCase()}` : `${t} ход`}
+              const done = t <= gs.turn, now = t === gs.turn + 1, vote = !!electionKind(t, gs.path);
+              return <div key={t} title={vote ? `${t} ход — ${ELECTION_LABEL[electionKind(t, gs.path)].toLowerCase()}` : `${t} ход`}
                 style={{ flex:1, marginLeft:t > 1 && (t - 1) % 5 === 0 ? 5 : 0, height:vote ? 8 : 5, alignSelf:"flex-end", background: done ? G.gold : now ? G.gld2 : vote ? G.bdr2 : G.bdr, opacity: done ? .75 : 1, outline: now ? `1px solid ${G.gld2}` : "none" }}/>;
             })}
           </div>
@@ -1148,7 +1191,7 @@ function Recap({ gs, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   const arcDef = ARCS.find(a => a.id === gs.arc?.id);
-  const next = nextElection(gs.turn);
+  const next = nextElection(gs.turn, gs.path);
   const lines = [
     ...(gs.activeCrises ?? []).map(c => [G.red, `Кризис «${c.title}» — идёт ${plural(c.turnsActive + 1, "ход", "хода", "ходов")}`]),
     ...(gs.pacts ?? []).map(p => [G.blue, `Договор с «${gs.factions.find(f => f.id === p.faction)?.name}» — ещё ${plural(p.until - gs.turn, "ход", "хода", "ходов")}; нельзя: ${p.ban.map(t => ACTIONS[t].label.toLowerCase()).join(", ")}`]),
@@ -1199,9 +1242,10 @@ function HowToPlay({ onClose }) {
     ["Каждый ход — одно решение", `Под каждым вариантом — куда он потянет опоры: ▲ вырастет, ▼▼ сильно упадёт, — и насколько надёжно его исполнят. ${desktop ? "Наведите на вариант — точки на панели сверху покажут, что изменится." : "Первое касание покажет на панели сверху, что изменится, второе — подпишет решение."}`],
     ["Точные цифры — у советников", "Сколько именно стоит решение, каков шанс и что аукнется позже, знают только советники. Совет можно собрать несколько раз за правление — берегите его для трудных дел."],
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
-    ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
+    ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м — если вы их не отмените. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
     ["Люди — не копии своих лагерей", "У каждого свой характер. Друг во враждебном лагере станет «своим человеком», недруг среди союзников — «червоточиной». Союз с группой даёт доход и голоса, но нарушенное слово запоминают все."],
     ["Не верьте бумагам на слово", "Трижды за правление вам принесут доклад на подпись. Сверьте его со справкой: нашли ложь — отметьте строку и уличите автора. Подписанная ложь всплывёт позже. Дважды за правление звонят по защищённой линии: подход подбирайте по характеру собеседника. Перед парламентскими выборами — бюджет: разложите 10 млрд по статьям, а можно и занять. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
+    ["Срок не вечен", `У каждой страны своя конституция: где-то сроки не ограничены, где-то разрешены два, где-то один, а где-то власть у премьера. На ${TERMS_TURN}-м ходу вы решаете, как быть: идти на выборы, уйти самому, обнулить сроки, пересесть в кресло премьера, назвать преемника, отложить выборы или распустить парламент. Какие пути открыты — в досье, в карточке «Конституция». Для каждого пути — своя развязка.`],
     ["Законы остаются", "Время от времени парламент вносит законопроект. Принятый закон ложится в «Свод законов» (в досье) и действует каждый ход, пока его не отменят: двигает опоры власти и отношение групп, приносит новые дела. Проведёт ли его парламент, зависит от вашей поддержки."],
     ["Вы обещали", "Перед первым ходом вы выбираете три предвыборных обещания. Исполненное поднимает доверие и отношение тех, кому вы его дали; нарушенное бьёт сильнее. Под вариантами видно, что приближает обещание, а что его нарушит. Прогресс — в досье."],
     ["У вас есть тайна", "В каждой партии развивается главная интрига. Эпизоды помечены «Главная интрига» — ваши решения в них определят развязку."],
@@ -1442,7 +1486,7 @@ function Setup({ onStart, saved, onResume }) {
               </button>
             );
           })}
-          {country && <div className="sv-fade" style={{ fontFamily:mono, fontSize:13, color:G.tx2, lineHeight:1.6, padding:"10px 6px 2px", borderTop:`1px dashed ${G.bdr2}` }}>{COUNTRIES[country].context}</div>}
+          {country && <div className="sv-fade" style={{ fontFamily:mono, fontSize:13, color:G.tx2, lineHeight:1.6, padding:"10px 6px 2px", borderTop:`1px dashed ${G.bdr2}` }}>{COUNTRIES[country].context}<div style={{ marginTop:4 }}>Конституция: {TERM_RULES[termRule(country)].title.toLowerCase()}.</div></div>}
 
           {section(2, "СЛОЖНОСТЬ")}
           {explain("С чего вы начинаете: сколько ресурсов у государства, как к вам относятся группы и сколько страна теряет каждый ход без вашего участия.")}
@@ -1838,6 +1882,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           <div className="sv-side-body">
           <PollWidget gs={gs}/>
           <PromisesCard gs={gs}/>
+          <TermsCard gs={gs}/>
           <LawsCard gs={gs}/>
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:4, margin:"10px 0 6px" }}>
@@ -1998,7 +2043,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     <div>Экз. № 1 · вх. № {docNumber(gs)}</div>
                   </div>
                   {(event.beat || event.isCritical) && <span className="sv-stamp is-red" style={{ fontSize:14, flexShrink:0 }}>{event.beat ? "Совершенно секретно" : "Срочно"}</span>}
-                  {event.special && !event.beat && !event.isCritical && <span className="sv-stamp" style={{ fontSize:14, flexShrink:0 }}>{{ pact:"Проект договора", inspect:"На подпись", press:"Пресс-служба", call:"Без протокола", budget:"Финансы" }[event.special.kind] ?? "Лично в руки"}</span>}
+                  {event.special && !event.beat && !event.isCritical && <span className="sv-stamp" style={{ fontSize:14, flexShrink:0 }}>{{ pact:"Проект договора", inspect:"На подпись", press:"Пресс-служба", call:"Без протокола", budget:"Финансы", terms:"Конституция" }[event.special.kind] ?? "Лично в руки"}</span>}
                 </div>
                 {(turn + 1) % 5 === 1 && (
                   <div style={{ margin:"4px 0 18px", paddingBottom:14, borderBottom:`1px solid ${G.bdr}` }}>
@@ -2571,7 +2616,7 @@ function Ending({ gs, setGs, onRestart }) {
         gsRef.current = next;
         setGs(next);
         const run = recordRun(next);
-        track("end", { type: next.endType ?? "", turns: next.turn, kept: (next.promises ?? []).filter(p => p.status === "kept").length });
+        track("end", { type: next.endType ?? "", turns: next.turn, kept: (next.promises ?? []).filter(p => p.status === "kept").length, ...(next.path ? { path: next.path.id } : {}) });
         setNewAch(run.unlocked);
         cloudSet("meta", compactMeta(run.meta));
         setError(null);
@@ -2632,6 +2677,7 @@ function Ending({ gs, setGs, onRestart }) {
               </Card>
             )}
             {verdict && <PromisesCard gs={gs} final style={{ marginTop:0, marginBottom:12, order:5 }}/>}
+            {verdict && gs.path && <TermsCard gs={gs} final style={{ marginTop:0, marginBottom:12, order:5 }}/>}
             {verdict && <LawsCard gs={gs} final style={{ marginTop:0, marginBottom:12, order:5 }}/>}
             {verdict && feedbackEnabled() && <MorningCard gs={gs} style={{ order:5 }}/>}
             {verdict && feedbackEnabled() && <FeedbackBox gs={gs} style={{ order:5 }}/>}

@@ -2,11 +2,15 @@
 import { COUNTRIES } from "../game/data.ts";
 import { ARCS } from "../content/arcs.ts";
 import { isSurvival } from "../game/engine.ts";
+import { fellTrying, wonToStay } from "../game/terms.ts";
 import { isObj } from "../game/sanitize.ts";
 import type { EndType, GameState } from "../game/types.ts";
 
 const KEY = "sovereign.meta";
-export const ALL_ENDINGS: EndType[] = ["reelected", "mandate", "revolution", "collapse", "coup", "impeachment"];
+export const ALL_ENDINGS: EndType[] = [
+  "reelected", "mandate", "retired", "zeroed", "premier", "leader_of_nation", "emergency_rule", "dictator",
+  "revolution", "collapse", "coup", "impeachment", "betrayed",
+];
 export const BASE_COUNTRIES = ["Беларусь", "Украина", "Грузия"];
 
 export interface RunRecord {
@@ -33,14 +37,18 @@ interface Achievement { id: string; title: string; desc: string; check: (gs: Gam
 
 export const ACHIEVEMENTS: Achievement[] = [
   { id:"first_term",  title:"Первый срок",       desc:"Дожить до конца мандата",                     check: gs => isSurvival(gs.endType) },
-  { id:"second_term", title:"Второй срок",       desc:"Переизбраться на президентских выборах",       check: gs => gs.endType === "reelected" },
+  { id:"second_term", title:"Второй срок",       desc:"Переизбраться на президентских выборах",       check: gs => gs.endType === "reelected" || gs.endType === "zeroed" },
   { id:"phoenix",     title:"Феникс",            desc:"Пережить мандат на сложности «Обломки»",       check: gs => gs.diff === "ruins" && isSurvival(gs.endType) },
-  { id:"clean_hands", title:"Чистые руки",       desc:"Переизбраться, ни разу не применив силу",       check: gs => gs.endType === "reelected" && !gs.history.some(h => h.tags?.includes("repress")) },
+  { id:"clean_hands", title:"Чистые руки",       desc:"Остаться у власти через выборы, ни разу не применив силу", check: gs => wonToStay(gs.endType) && !gs.history.some(h => h.tags?.includes("repress")) },
   { id:"crisis_mgr",  title:"Кризис-менеджер",   desc:"Преодолеть 3 кризиса за одну партию",           check: gs => (gs.stats?.crisesResolved ?? 0) >= 3 },
-  { id:"lone_wolf",   title:"Одиночка",          desc:"Переизбраться, ни разу не собрав совет",        check: gs => gs.endType === "reelected" && !(gs.stats?.councils ?? 0) },
+  { id:"lone_wolf",   title:"Одиночка",          desc:"Остаться у власти через выборы, ни разу не собрав совет", check: gs => wonToStay(gs.endType) && !(gs.stats?.councils ?? 0) },
   { id:"hundred_days",title:"Сто дней",          desc:"Потерять власть до 5-го хода",                  check: gs => !isSurvival(gs.endType) && gs.turn < 5 },
   { id:"epaulettes",  title:"Недооценил погоны", desc:"Пасть жертвой переворота",                      check: gs => gs.endType === "coup" },
-  { id:"all_roads",   title:"Все дороги",        desc:"Открыть все 6 концовок",                         check: (_, m) => new Set(Object.values(m.endings).flat()).size >= ALL_ENDINGS.length },
+  { id:"all_roads",   title:"Все дороги",        desc:`Открыть все ${ALL_ENDINGS.length} концовок`,          check: (_, m) => new Set(Object.values(m.endings).flat()).size >= ALL_ENDINGS.length },
+  { id:"cincinnatus", title:"Цинциннат",         desc:"Уйти самому, когда мог остаться",               check: gs => gs.endType === "retired" && !gs.path?.from },
+  { id:"kingmaker",   title:"Делатель королей",  desc:"Передать власть преемнику и сохранить влияние", check: gs => gs.endType === "leader_of_nation" },
+  { id:"iron_fist",   title:"Железная рука",     desc:"Отменить выборы и удержаться у власти",         check: gs => gs.endType === "dictator" || gs.endType === "emergency_rule" },
+  { id:"overreach",   title:"Свергнут при попытке", desc:"Потерять власть, пытаясь отменить выборы",   check: gs => fellTrying(gs.path, gs.endType) },
   { id:"all_secrets", title:"Все тайны",        desc:"Довести до развязки каждую интригу",            check: (_, m) => ARCS.every(a => m.arcs?.includes(a.id)) },
   { id:"traveler",    title:"Путешественник",    desc:"Сыграть за все страны",                          check: (_, m) => Object.keys(COUNTRIES).every(c => m.runs.some(r => r.country === c)) },
 ];

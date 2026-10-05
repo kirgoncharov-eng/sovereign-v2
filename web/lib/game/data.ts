@@ -1,7 +1,7 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
-import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources } from "./types.ts";
+import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "5.8";
+export const APP_VERSION = "5.9";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 export const MAX_TURNS = 20;
 
@@ -241,7 +241,31 @@ export const END_TYPES = {
   collapse:    "Коллапс государства",
   coup:        "Военный переворот",
   impeachment: "Импичмент после провала на выборах",
+  retired:          "Ушёл сам после одного срока",
+  zeroed:           "Сроки обнулены, переизбран",
+  premier:          "Рокировка: пересел в кресло премьера",
+  leader_of_nation: "Власть передана преемнику",
+  betrayed:         "Преемник отстранил покровителя",
+  emergency_rule:   "Выборы отложены, правит в режиме ЧП",
+  dictator:         "Установил личную диктатуру",
 } as const;
+
+// Дожил до конца срока — неважно, остался у власти, передал её или ушёл сам.
+export const SURVIVAL_ENDS: readonly string[] = ["mandate", "reelected", "retired", "zeroed", "premier", "leader_of_nation", "emergency_rule", "dictator"];
+
+// ── Конституции ──────────────────────────────────────────────────────────────
+// Модели сроков, по которым живут страны игры. Это модели, а не пересказ действующих
+// конституций: от модели зависит, какие пути остаться у власти открыты лидеру.
+export const CONSTITUTION: Record<string, TermRule> = {
+  "Беларусь": "no_limits", "Украина": "two_terms", "Казахстан": "single_term",
+  "Грузия": "parliamentary", "Молдова": "parliamentary", "Армения": "parliamentary",
+};
+export const TERM_RULES: Record<TermRule, { title: string; text: string }> = {
+  no_limits:     { title: "Без ограничения сроков", text: "Президент может избираться сколько угодно раз. Каждые пять лет — выборы, и только они." },
+  two_terms:     { title: "Два срока подряд",       text: "Президент может избираться дважды подряд. Второй срок — ваш, если его дадут избиратели." },
+  single_term:   { title: "Один срок",              text: "Президент избирается один раз, без права переизбрания. Остаться можно, только переписав Конституцию." },
+  parliamentary: { title: "Парламентская республика", text: "У президента один срок, а настоящая власть — у премьера, которого назначает парламентское большинство." },
+};
 
 // ── Партии и выборы ──────────────────────────────────────────────────────────
 // Партии-конкуренты лидера: забирают голоса групп из своих блоков, недовольных лидером.
