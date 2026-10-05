@@ -47,3 +47,11 @@ test("сводка автору: вчерашний день, неделя, гд
   assert.match(t, /Обещаний исполняют в среднем: 1\.3/);
   assert.match(t, /href="https:\/\/x\.test/);
 });
+
+test("разрезы: подписи интервалов времени доходят до счётчиков без искажений", async () => {
+  const { record, readStats } = await import("./analytics.ts");
+  const now = Date.parse("2026-11-05T10:00:00Z");
+  for (const sec of ["до 30 с", "30-60 с", "1-2 мин", "2-5 мин", "больше 5 мин"]) await record("tester0001", [{ e: "first", p: { sec } }], now);
+  const h = (await readStats(1, now)).days[0].h;
+  for (const sec of ["до 30 с", "30-60 с", "1-2 мин", "2-5 мин", "больше 5 мин"]) assert.equal(h[`first|sec=${sec}`], 1, sec);
+});
