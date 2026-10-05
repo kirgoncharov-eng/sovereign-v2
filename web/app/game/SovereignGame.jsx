@@ -10,6 +10,7 @@ import { ARCS } from "@/lib/content/arcs.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
 import { monthYear, turnDate } from "@/lib/game/calendar.ts";
+import { lawDef } from "@/lib/game/laws.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
 import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
 import { ACHIEVEMENTS, ALL_ENDINGS, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
@@ -294,7 +295,57 @@ function ChoicePreview({ gs, c }) {
       {crisis && <div style={{ fontFamily:narrow, fontSize:15, color:G.grn, marginTop:6 }}>Закроет кризис «{crisis.title}», если исполнят</div>}
       <DealLines gs={gs} c={c} exact={exact}/>
       <PromiseLines gs={gs} c={c}/>
+      <LawLines gs={gs} c={c}/>
     </>
+  );
+}
+
+// Законопроект: что закон будет делать каждый ход, если пройдёт, — или что исчезнет с его отменой.
+function LawEffects({ def }) {
+  const fac = Object.entries(def.drift ?? {}).filter(([, d]) => d < 0).map(([b]) => b);
+  return (
+    <span style={{ display:"inline-flex", flexWrap:"wrap", gap:"2px 12px", alignItems:"center" }}>
+      <ResourceChips delta={def.perTurn} exact={false}/>
+      {fac.length > 0 && <span style={{ color:G.red }}>недовольны: {fac.map(b => BLOC_LABEL[b] ?? b).join(", ")}</span>}
+    </span>
+  );
+}
+const BLOC_LABEL = { security:"силовики", business:"бизнес", church:"церковь", liberal:"либералы", west:"Запад", russia:"Москва", nationalist:"националисты", regional:"регионы", ruling:"правящая партия" };
+function LawLines({ gs, c }) {
+  const def = c.law && lawDef(c.law.id);
+  if (!def) return null;
+  const inForce = gs.laws?.some(l => l.id === def.id);
+  return (
+    <div style={{ fontFamily:narrow, fontSize:15, marginTop:6, lineHeight:1.45, color:G.tx2 }}>
+      {c.law.act === "enact"
+        ? <><div>⚖ Если парламент примет — закон «{def.title}» будет действовать каждый ход:</div><LawEffects def={def}/></>
+        : <div>⚖ Отменит закон «{def.title}»{inForce ? " — его действие прекратится" : ""}</div>}
+    </div>
+  );
+}
+
+// Свод законов в досье и на экране итогов.
+function LawsCard({ gs, final = false, style }) {
+  if (!gs.laws?.length) return null;
+  const start = COUNTRIES[gs.country].startYear;
+  return (
+    <Card style={{ marginTop:10, ...style }}>
+      <Label>{"СВОД ЗАКОНОВ"}</Label>
+      {gs.laws.map(l => {
+        const def = lawDef(l.id);
+        if (!def) return null;
+        return (
+          <div key={l.id} title={def.short} style={{ padding:"6px 0", borderTop:`1px dashed ${G.bdr}` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:8, fontFamily:narrow, fontSize:15 }}>
+              <span style={{ color:G.txt }}>«{def.title}»</span>
+              <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>с {monthYear(turnDate(gs.seed, start, Math.max(0, l.since - 1)))}</span>
+            </div>
+            {!final && <div style={{ fontFamily:narrow, fontSize:14, marginTop:2 }}><LawEffects def={def}/></div>}
+            {final && <div style={{ fontFamily:serif, fontSize:13, color:G.tx3 }}>{def.short}</div>}
+          </div>
+        );
+      })}
+    </Card>
   );
 }
 
@@ -1151,6 +1202,7 @@ function HowToPlay({ onClose }) {
     ["Выборы решают всё", "Парламентские на 10-м ходу, президентские на 20-м. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
     ["Люди — не копии своих лагерей", "У каждого свой характер. Друг во враждебном лагере станет «своим человеком», недруг среди союзников — «червоточиной». Союз с группой даёт доход и голоса, но нарушенное слово запоминают все."],
     ["Не верьте бумагам на слово", "Трижды за правление вам принесут доклад на подпись. Сверьте его со справкой: нашли ложь — отметьте строку и уличите автора. Подписанная ложь всплывёт позже. Дважды за правление звонят по защищённой линии: подход подбирайте по характеру собеседника. Перед парламентскими выборами — бюджет: разложите 10 млрд по статьям, а можно и занять. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
+    ["Законы остаются", "Время от времени парламент вносит законопроект. Принятый закон ложится в «Свод законов» (в досье) и действует каждый ход, пока его не отменят: двигает опоры власти и отношение групп, приносит новые дела. Проведёт ли его парламент, зависит от вашей поддержки."],
     ["Вы обещали", "Перед первым ходом вы выбираете три предвыборных обещания. Исполненное поднимает доверие и отношение тех, кому вы его дали; нарушенное бьёт сильнее. Под вариантами видно, что приближает обещание, а что его нарушит. Прогресс — в досье."],
     ["У вас есть тайна", "В каждой партии развивается главная интрига. Эпизоды помечены «Главная интрига» — ваши решения в них определят развязку."],
     ...(desktop ? [["Клавиши", "1–9 — выбрать, Enter — подтвердить или дочитать, Esc — закрыть окно."]] : []),
@@ -1786,6 +1838,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           <div className="sv-side-body">
           <PollWidget gs={gs}/>
           <PromisesCard gs={gs}/>
+          <LawsCard gs={gs}/>
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:4, margin:"10px 0 6px" }}>
             {tabs.map(t => (
@@ -2128,6 +2181,18 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}> · «{name}»</span>
                   </div>
                 )))}
+              {lastTurn.law && (() => {
+                const def = lawDef(lastTurn.law.id);
+                const [label, color] = lastTurn.law.act === "enact"
+                  ? lastTurn.law.passed ? ["Закон принят", G.grn] : ["Парламент провалил законопроект", G.red]
+                  : lastTurn.law.passed ? ["Закон отменён", G.amb] : ["Отменить закон не удалось", G.red];
+                return def && (
+                  <div className="sv-paper" style={{ marginBottom:8, padding:"10px 16px", borderRadius:0, borderLeft:`3px solid ${color}` }}>
+                    <span style={{ fontFamily:narrow, fontSize:15, fontWeight:700, color, letterSpacing:".04em" }}>⚖ {label.toUpperCase()}</span>
+                    <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}> · «{def.title}»{lastTurn.law.act === "enact" && lastTurn.law.passed ? " — в своде законов, действует со следующего хода" : ""}</span>
+                  </div>
+                );
+              })()}
               {lastTurn.promises && [["kept", "Обещание исполнено", G.grn], ["broken", "Обещание нарушено", G.red], ["advanced", "Шаг к обещанию", G.tx2]].flatMap(([k, label, color]) =>
                 lastTurn.promises[k].map(title => (
                   <div key={k + title} className="sv-paper" style={{ marginBottom:8, padding:"10px 16px", borderRadius:0, borderLeft:`3px solid ${color}` }}>
@@ -2567,6 +2632,7 @@ function Ending({ gs, setGs, onRestart }) {
               </Card>
             )}
             {verdict && <PromisesCard gs={gs} final style={{ marginTop:0, marginBottom:12, order:5 }}/>}
+            {verdict && <LawsCard gs={gs} final style={{ marginTop:0, marginBottom:12, order:5 }}/>}
             {verdict && feedbackEnabled() && <MorningCard gs={gs} style={{ order:5 }}/>}
             {verdict && feedbackEnabled() && <FeedbackBox gs={gs} style={{ order:5 }}/>}
 

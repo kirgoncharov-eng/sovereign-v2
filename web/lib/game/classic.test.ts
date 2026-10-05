@@ -96,7 +96,8 @@ test("финальный эпизод зависит от сделанных р�
 test("у каждой авторской карточки есть сцена на каждый вариант, у каждой интриги — нить предвестий", async () => {
   const { SCENES } = await import("../content/scenes.ts");
   const { ARCS } = await import("../content/arcs.ts");
-  for (const c of EVENT_CARDS) assert.equal(SCENES[c.id]?.length, c.choices.length, `сцены для ${c.id}`);
+  // у дел-последствий законов сцены лежат прямо в карточке
+  for (const c of EVENT_CARDS) assert.equal(SCENES[c.id]?.length ?? c.choices.filter(x => x.scene).length, c.choices.length, `сцены для ${c.id}`);
   for (const a of ARCS) assert.ok(a.hooks.length >= 6, a.id);
 });
 
@@ -170,7 +171,8 @@ test("у каждого события свой совет: не меньше т
   const { COUNCIL_B } = await import("../content/council-b.ts");
   const { ADVISOR_ROLES } = await import("./data.ts");
   const all = { ...COUNCIL_A, ...COUNCIL_B };
-  for (const card of EVENT_CARDS.filter(c => !c.when?.crisis)) {
+  // дела-последствия законов собирают совет из общих предложений советников
+  for (const card of EVENT_CARDS.filter(c => !c.when?.crisis && !c.when?.law)) {
     const council = all[card.id];
     assert.ok(council, `совет для ${card.id}`);
     const entries = Object.entries(council);
@@ -201,7 +203,7 @@ test("у каждого решения есть свой заголовок га
   const ok = (p: [string, string] | undefined, where: string) => {
     assert.ok(p && p[0] && p[1] && p[0].length <= 80 && p[1].length <= 80, where);
   };
-  for (const card of EVENT_CARDS.filter(c => c.id !== "crisis_escalates")) card.choices.forEach((_, i) => ok(CARD_HEADLINES[card.id]?.[i], `${card.id}#${i}`));
+  for (const card of EVENT_CARDS.filter(c => c.id !== "crisis_escalates")) card.choices.forEach((ch, i) => ok(CARD_HEADLINES[card.id]?.[i] ?? ch.head, `${card.id}#${i}`));
   for (const [key, v] of Object.entries(CRISIS_ESCALATE)) v.choices.forEach((_, i) => ok(CRISIS_HEADLINES[key]?.[i], `crisis ${key}#${i}`));
   for (const [card, roles] of Object.entries({ ...COUNCIL_A, ...COUNCIL_B })) for (const role of Object.keys(roles)) ok(COUNCIL_HEADLINES[card]?.[role as "strategist"], `${card}/${role}`);
   for (const a of ARCS) for (const b of a.beats) for (const v of b.variants) for (const c of v.choices) ok(BEAT_HEADLINES[c.text], `${a.id}: ${c.text}`);
@@ -213,8 +215,9 @@ test("у каждого варианта события своя сцена пр
   const { CRISIS_ESCALATE } = await import("../content/events.ts");
   const fails: Record<string, string[]> = { ...FAIL_A, ...FAIL_B };
   for (const card of EVENT_CARDS.filter(c => c.id !== "crisis_escalates")) {
-    assert.equal(fails[card.id]?.length, card.choices.length, `провалы ${card.id}`);
-    for (const f of fails[card.id]) assert.ok(f.length > 80, card.id);
+    const list = fails[card.id] ?? card.choices.map(c => c.fail ?? "");
+    assert.equal(list.length, card.choices.length, `провалы ${card.id}`);
+    for (const f of list) assert.ok(f.length > 80, card.id);
   }
   for (const [key, v] of Object.entries(CRISIS_ESCALATE)) {
     assert.equal(CRISIS_SCENES[key]?.length, v.choices.length, key);

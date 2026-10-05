@@ -10,9 +10,10 @@ import { ARCS } from "../content/arcs.ts";
 import { NAMES } from "../content/narration.ts";
 import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE_BONUS, bondOf, breaches, pactIncome, personalDelta } from "./people.ts";
 import { stepPromises } from "./promises.ts";
+import { stepLaws } from "./laws.ts";
 import type {
   Advisor, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
-  Narration, NewCrisis, Pact, PactNews, PromiseNews, PromiseState, ResourceDelta, ResourceKey, Resources, Verdict,
+  LawInForce, Narration, NewCrisis, Pact, PactNews, PromiseNews, PromiseState, ResourceDelta, ResourceKey, Resources, TurnReport, Verdict,
 } from "./types.ts";
 
 export const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
@@ -429,6 +430,8 @@ export interface TurnPlan {
   betrayals: number;
   promises: PromiseState[];
   promiseNews: PromiseNews;
+  laws: LawInForce[];
+  lawNews: TurnReport["law"] | null;
 }
 
 // Весь расчёт хода без текста. Модель потом описывает именно этот итог.
@@ -531,6 +534,11 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
       !crises.some(c => c.resourceDrain[k])) ?? null;
   }
 
+  // Законы: действующие работают каждый ход; принятый сейчас — со следующего.
+  const lawStep = stepLaws(state.laws, choice.law, success, nextTurn, factions);
+  resources = applyDeltas(resources, lawStep.res);
+  factions = applyFactionChanges(factions, lawStep.rel, {});
+
   // Обещания: решение продвигает или нарушает их; в срок проверяется всё остальное.
   const promiseStep = stepPromises(state.promises, choice.deal?.pure ? [] : choice.tags, success, turn, resources, factions);
   resources = applyDeltas(resources, promiseStep.res);
@@ -558,6 +566,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     endType: endType as EndType | null,
     pacts, pactNews, betrayals: (state.betrayals ?? 0) + broken.length,
     promises: promiseStep.promises, promiseNews: promiseStep.news,
+    laws: lawStep.laws, lawNews: lawStep.news,
   };
 }
 
@@ -613,11 +622,13 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       scheduled: plan.scheduled,
       ...(plan.pactNews.signed.length + plan.pactNews.kept.length + plan.pactNews.broken.length ? { pacts: plan.pactNews } : {}),
       ...(plan.promiseNews.kept.length + plan.promiseNews.broken.length + plan.promiseNews.advanced.length ? { promises: plan.promiseNews } : {}),
+      ...(plan.lawNews ? { law: plan.lawNews } : {}),
     },
     pending: plan.pending,
     pacts: plan.pacts,
     betrayals: plan.betrayals,
     promises: plan.promises,
+    laws: plan.laws,
     former: [...(state.former ?? []), ...state.keyFigures.filter(f => !plan.keyFigures.some(g => g.name === f.name)).map(f => f.name)],
     echoes: plan.matured.reduce((acc, m) => ({ ...acc, [m.label]: (acc[m.label] ?? 0) + 1 }), { ...(state.echoes ?? {}) }),
     arc: state.arc ? {

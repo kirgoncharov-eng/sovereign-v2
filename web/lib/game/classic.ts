@@ -19,6 +19,8 @@ import { MONTHS_GEN, turnDate } from "./calendar.ts";
 import { ECHOES } from "../content/echoes.ts";
 import { sceneOf } from "../content/scene-map.ts";
 import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OPPOSITION_SPECIAL, OUTLETS } from "../content/newspaper.ts";
+import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
+import { lawDef } from "./laws.ts";
 import { MEANWHILE, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
 import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
 import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
@@ -136,6 +138,7 @@ export function cardAvailable(card: EventCard, state: GameState): boolean {
   if (w.crisis && !state.activeCrises.length) return false;
   if (w.preElection && !ELECTIONS[turn + 1] && !ELECTIONS[turn + 2]) return false;
   if (w.ideo && !w.ideo.includes(state.ideo)) return false;
+  if (w.law && !state.laws?.some(l => l.id === w.law && turn - l.since >= 2)) return false;
   return true;
 }
 
@@ -318,6 +321,72 @@ export function specialEvent(state: GameState): SpecialEvent | null {
   if (over && r() < 0.45) return personEvent(state, "overture", over, turn);
   if (turn >= 4 && turn <= MAX_TURNS - 3 && (state.pacts?.length ?? 0) < MAX_PACTS && r() < 0.3) return pactEvent(state, turn, r, seen);
   return null;
+}
+
+// ── Законы ───────────────────────────────────────────────────────────────────
+// Раз в несколько ходов на стол ложится законопроект — или требование отменить давно принятый закон.
+const LAW_GAP = 2;          // не чаще раза в два хода
+const LAW_CHANCE = 0.85;    // почти всегда, когда можно
+const LAW_REPEAT = 8;       // отклонённый или отложенный законопроект вернётся не раньше чем через 8 ходов
+
+export function lawEvent(state: GameState): SpecialEvent | null {
+  const turn = state.turn + 1;
+  if (turn < 2 || turn >= MAX_TURNS || dueBeat(state)) return null;
+  const marks = (state.usedEvents ?? []).filter(u => u.startsWith("law:")).map(u => u.split(":"));
+  if (turn - Math.max(-LAW_GAP, ...marks.map(m => Number(m[1]) || 0)) < LAW_GAP) return null;
+  const r = seededRandom(hashSeed(state.seed, "law", state.turn));
+  if (r() > LAW_CHANCE) return null;
+  const inForce = state.laws ?? [];
+  const hasBloc = (bloc: Bloc) => state.factions.some(f => f.bloc === bloc);
+  const slots = (def: LawDef) => ({ law: def.title });
+
+  // Отмена: закон действует давно, а те, против кого он, озлоблены.
+  const angry = inForce.map(l => ({ l, def: lawDef(l.id)! })).filter(({ l, def }) => def && turn - l.since >= 4
+    && !marks.some(m => m[2] === "repeal" && m[3] === l.id)
+    && Object.entries(def.drift ?? {}).some(([bloc, d]) => (d ?? 0) < 0 && state.factions.some(f => f.bloc === bloc && f.relation <= -35)));
+  if (angry.length && r() < 0.5) {
+    const { l, def } = pick(r, angry);
+    const foes = state.factions.filter(f => (def.drift?.[f.bloc] ?? 0) < 0 && f.relation <= -35).map(f => `«${f.name}»`);
+    const months = (turn - l.since) * 3;
+    const f = (t: string) => fill(t, state, { ...slots(def), months: plural(months, "месяц", "месяца", "месяцев"), who: foes.join(", ") || "Противники закона" });
+    return {
+      cardId: `law:${turn}:repeal:${def.id}`,
+      title: f(REPEAL.title), source: REPEAL.source,
+      description: chapter(dateline(state), f(REPEAL.description)),
+      isCritical: false, affectedFactions: state.factions.filter(x => def.drift?.[x.bloc]).map(x => x.id).slice(0, 4),
+      choices: [
+        { id: "a", text: REPEAL.keep.text, hint: REPEAL.keep.hint, tags: def.tags, resolvesCrisis: null },
+        { id: "b", text: REPEAL.repeal.text, hint: REPEAL.repeal.hint, tags: def.veto, resolvesCrisis: null, law: { id: def.id, act: "repeal" },
+          scene: f(REPEAL.passed), sceneFail: f(REPEAL.failed), headline: f(REPEAL.head.passed), headlineFail: f(REPEAL.head.failed) },
+        { id: "c", text: REPEAL.wait.text, hint: REPEAL.wait.hint, tags: ["delay"], resolvesCrisis: null },
+      ],
+      randomEvent: null,
+    };
+  }
+
+  // Законопроект: не принят, не противоречит действующим, его автор есть в стране, давно не вносился.
+  const offered = (id: string) => marks.some(m => m[2] === id && turn - Number(m[1]) < LAW_REPEAT);
+  const bills = LAWS.filter(def => !inForce.some(l => l.id === def.id) && hasBloc(def.bloc) && !offered(def.id)
+    && (!def.countries || def.countries.includes(state.country))
+    && !def.conflicts?.some(c => inForce.some(l => l.id === c)));
+  if (!bills.length) return null;
+  const def = pick(r, bills);
+  const f = (t: string) => fill(t, state, slots(def));
+  return {
+    cardId: `law:${turn}:${def.id}`,
+    title: f(BILL.title), source: BILL.source,
+    description: chapter(dateline(state), f(def.pitch)),
+    isCritical: false, affectedFactions: state.factions.filter(x => x.bloc === def.bloc || def.drift?.[x.bloc]).map(x => x.id).slice(0, 4),
+    choices: [
+      { id: "a", text: BILL.enact.text, hint: BILL.enact.hint, tags: def.tags, resolvesCrisis: null, law: { id: def.id, act: "enact" },
+        scene: f(def.passed), sceneFail: f(def.failed), headline: f(def.head.passed), headlineFail: f(def.head.failed) },
+      { id: "b", text: BILL.veto.text, hint: BILL.veto.hint, tags: def.veto, resolvesCrisis: null,
+        scene: f(def.vetoed), sceneFail: f(def.vetoed), headline: f(def.head.vetoed), headlineFail: f(def.head.vetoed) },
+      { id: "c", text: BILL.delay.text, hint: BILL.delay.hint, tags: ["delay"], resolvesCrisis: null,
+        scene: f(BILL.delayScene), sceneFail: f(BILL.delayScene), headline: f(BILL.delayHead), headlineFail: f(BILL.delayHead) },
+    ],
+    randomEvent: null,
+  };
 }
 
 // ── Проверка документов ──────────────────────────────────────────────────────
@@ -621,6 +690,8 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
   if (interlude) return interlude;
   const special = specialEvent(state);
   if (special) return special;
+  const bill = lawEvent(state);
+  if (bill) return bill;
   const r = seededRandom(hashSeed(state.seed, "event", state.turn));
   let card = pickCard(state, r);
   const crisisId = state.activeCrises[0]?.id ?? null;
@@ -643,10 +714,10 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
       ...(escalated
         ? { scene: fill(CRISIS_SCENES[crisisKey!][i][0], state), sceneFail: fill(CRISIS_SCENES[crisisKey!][i][1], state) }
         : {
-          ...(SCENES[card.id]?.[i] ? { scene: fill(SCENES[card.id][i], state) } : {}),
-          ...(FAIL_SCENES[card.id]?.[i] ? { sceneFail: fill(FAIL_SCENES[card.id][i], state) } : {}),
+          ...(SCENES[card.id]?.[i] ?? c.scene ? { scene: fill(SCENES[card.id]?.[i] ?? c.scene!, state) } : {}),
+          ...(FAIL_SCENES[card.id]?.[i] ?? c.fail ? { sceneFail: fill(FAIL_SCENES[card.id]?.[i] ?? c.fail!, state) } : {}),
         }),
-      ...headlines(escalated ? CRISIS_HEADLINES[crisisKey!]?.[i] : CARD_HEADLINES[card.id]?.[i], state),
+      ...headlines(escalated ? CRISIS_HEADLINES[crisisKey!]?.[i] : CARD_HEADLINES[card.id]?.[i] ?? c.head, state),
     })),
     council: null,
     randomEvent: random ? { title: random.title, description: random.description, resourceEffect: random.effect } : null,
@@ -990,6 +1061,7 @@ function buildVerdict(state: GameState): Verdict {
     given ? (kept === given ? `Все ${plural(given, "обещание", "обещания", "обещаний")} избирателям исполнены — редкость для любой столицы.`
       : kept ? `Из ${given} предвыборных обещаний исполнено ${kept}${broke ? `, нарушено ${broke}` : ""}.`
       : broke ? `Ни одно из предвыборных обещаний не исполнено${broke === given ? " — все нарушены" : ""}.` : "") : "",
+    state.laws?.length ? `Законы, по которым живёт страна: ${state.laws.map(l => `«${lawDef(l.id)?.title}»`).join(", ")}.` : "",
     `К концу правления партия власти имела ${rating}% поддержки.`,
   ].filter(Boolean).join(" ");
 

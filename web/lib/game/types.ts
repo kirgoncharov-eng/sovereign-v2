@@ -65,6 +65,7 @@ export interface Choice {
   headline?: string;      // заголовок газеты, если решение исполнят
   headlineFail?: string;  // заголовок газеты при провале
   deal?: Deal;            // личная сделка или пакт (особые дела)
+  law?: { id: string; act: "enact" | "repeal" }; // законопроект: принять или отменить, если исполнят
 }
 
 // Особое дело о людях и союзах: что изменится, если решение исполнят.
@@ -189,7 +190,10 @@ export interface TurnReport extends Narration {
   scheduled: Pending[]; // отложенные последствия этого решения
   pacts?: PactNews;     // подписанные, выполненные и нарушенные союзы (названия фракций)
   promises?: PromiseNews; // исполненные, нарушенные и продвинутые обещания (заголовки)
+  law?: { id: string; act: "enact" | "repeal"; passed: boolean }; // что стало с законопроектом
 }
+
+export interface LawInForce { id: string; since: number } // since — ход, с которого закон действует
 
 // Предвыборное обещание в партии: сколько сделано и чем кончилось.
 export interface PromiseState { id: string; progress: number; status: "open" | "kept" | "broken"; turn?: number; target?: number }
@@ -288,6 +292,7 @@ export interface GameState {
   arc: ArcState | null;
   pacts?: Pact[];        // действующие союзы
   promises?: PromiseState[]; // предвыборные обещания
+  laws?: LawInForce[];       // действующие законы — «Свод законов»
   betrayals?: number;    // сколько союзов вы нарушили
   echoes?: Record<string, number>; // сколько раз уже звучало эхо каждого отложенного последствия
   former?: string[];      // люди, ушедшие с постов: их имена не достаются преемникам
