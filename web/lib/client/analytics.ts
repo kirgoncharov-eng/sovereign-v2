@@ -3,7 +3,7 @@
 // События копятся и уходят пачкой; без сервера (демо, офлайн) отправка тихо ничего не делает.
 import { webUid } from "./daily.ts";
 
-export type TrackEvent = "open" | "start" | "resume" | "turn" | "end" | "share" | "invite" | "daily" | "intro" | "first" | "help";
+export type TrackEvent = "open" | "start" | "resume" | "turn" | "end" | "share" | "invite" | "daily" | "intro" | "first" | "help" | "subscribe";
 type Props = Record<string, string | number | boolean>;
 
 const queue: { e: TrackEvent; p?: Props }[] = [];
@@ -54,4 +54,13 @@ export async function sendFeedback(rating: number, text: string, ctx: Record<str
     const r = await fetch("/api/feedback", { method: "POST", body: JSON.stringify({ pid, rating, text, ctx }) });
     return r.ok;
   } catch { return false; }
+}
+
+// Подписка на утреннее «Дело дня» и вопрос об отзыве наутро — только внутри Telegram (нужна подпись initData).
+export async function syncSubscription(initData: string, subscribe: boolean, run: Record<string, string | number>): Promise<{ subscribed: boolean } | null> {
+  if (!initData || process.env.NEXT_PUBLIC_ANALYTICS === "off") return null;
+  try {
+    const r = await fetch("/api/subscribe", { method: "POST", body: JSON.stringify({ initData, subscribe, run }) });
+    return r.ok ? await r.json() as { subscribed: boolean } : null;
+  } catch { return null; }
 }

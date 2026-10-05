@@ -109,3 +109,53 @@ test("бот: опрос из трёх вопросов сохраняет от�
   await handleUpdate({ message: { chat: { id: 7 }, text: "привет" } });
   assert.match(String(last().body.text), /не веду переписку/);
 });
+
+test("возвращаемость: подписка из игры по подписи Telegram, наутро — вопрос об игре и короткий опрос", async () => {
+  const { createHmac } = await import("node:crypto");
+  const { FOLLOWUP, rememberRun, sendFollowups, subscribeFromApp } = await import("./followup.ts");
+  const { FB_QUESTIONS, FB_THANKS, SUBS } = await import("./bot.ts");
+  const { readFeedback } = await import("./feedback.ts");
+  const { kv } = await import("./kv.ts");
+  const sign = (fields: Record<string, string>) => {
+    const check = Object.entries(fields).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${v}`).join("\n");
+    const secret = createHmac("sha256", "WebAppData").update("123:test").digest();
+    return new URLSearchParams({ ...fields, hash: createHmac("sha256", secret).update(check).digest("hex") }).toString();
+  };
+  const initData = (id: number, allows = false) => sign({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id, allows_write_to_pm: allows }) });
+  const post = async (body: unknown) => { const r = await subscribeFromApp(body, "123:test"); return { status: r.status, json: async () => r.json }; };
+  const run = { финал: "Переизбран на второй срок", ход: 20, страна: "Грузия" };
+
+  assert.equal((await post({ initData: "user=%7B%22id%22%3A1%7D&hash=bad", subscribe: true })).status, 401, "без подписи — нельзя");
+  // не подписан и писать не разрешал: партию не запоминаем
+  assert.deepEqual(await (await post({ initData: initData(501), run })).json(), { subscribed: false });
+  assert.equal(await kv.hget(FOLLOWUP, "501"), null);
+  // подписался из игры
+  assert.deepEqual(await (await post({ initData: initData(501), subscribe: true, run })).json(), { subscribed: true });
+  assert.ok(await kv.sismember(SUBS, "501"));
+  assert.ok(await kv.hget(FOLLOWUP, "501"));
+  // уже разрешал писать (нажимал «Старт»): партию запоминаем и без подписки
+  await post({ initData: initData(502, true), run });
+  assert.ok(await kv.hget(FOLLOWUP, "502"));
+
+  // наутро: спрашиваем только тех, кто доиграл больше 12 часов назад, и только один раз
+  const now = Date.now();
+  await rememberRun(501, run, now - 13 * 3600_000);
+  await rememberRun(502, run, now - 3600_000);
+  calls.length = 0;
+  assert.equal(await sendFollowups(now), 1);
+  assert.equal(calls[0].body.chat_id, 501);
+  assert.match(String(calls[0].body.text), /Вчерашняя партия: Грузия, «Переизбран на второй срок», 20-й ход/);
+  assert.equal(await kv.hget(FOLLOWUP, "501"), null);
+  assert.ok(await kv.hget(FOLLOWUP, "502"), "рано — подождёт следующего утра");
+
+  // ответ: оценка кнопкой, потом два вопроса словами (второй можно пропустить)
+  await handleUpdate({ callback_query: { id: "m1", data: "fbq:5", message: { chat: { id: 501 } }, from: { first_name: "Нино" } } });
+  assert.equal(last().body.text, FB_QUESTIONS[0]);
+  await handleUpdate({ message: { chat: { id: 501 }, text: "Затянуло, но выборы слишком быстрые", from: { first_name: "Нино" } } });
+  assert.equal(last().body.text, FB_QUESTIONS[1]);
+  await handleUpdate({ callback_query: { id: "m2", data: "fbskip", message: { chat: { id: 501 } }, from: { first_name: "Нино" } } });
+  assert.equal(last().body.text, FB_THANKS);
+  const [fb] = await readFeedback(1);
+  assert.equal(fb.rating, 5);
+  assert.match(fb.text, /выборы слишком быстрые/);
+});

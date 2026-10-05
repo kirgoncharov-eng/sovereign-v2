@@ -2,7 +2,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "./env.ts";
 
-export interface TgUser { id: number; first_name?: string; username?: string }
+export interface TgUser { id: number; first_name?: string; username?: string; allows_write_to_pm?: boolean }
 
 // https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
 export function verifyInitData(initData: string, botToken: string, maxAgeSec = 86400, now = Date.now()): TgUser | null {
