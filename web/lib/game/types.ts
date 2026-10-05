@@ -215,6 +215,7 @@ export interface TurnReport extends Narration {
   promises?: PromiseNews; // исполненные, нарушенные и продвинутые обещания (заголовки)
   law?: { id: string; act: "enact" | "repeal"; passed: boolean }; // что стало с законопроектом
   term?: { n: number; outcome: EndType }; // начался новый срок: какой по счёту и чем кончился прошлый
+  sources?: Partial<Record<ResourceKey, [string, number][]>>; // из чего сложилась перемена каждого ресурса
 }
 
 export interface LawInForce { id: string; since: number } // since — ход, с которого закон действует

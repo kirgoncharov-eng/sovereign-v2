@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
-import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION } from "@/lib/game/data.ts";
+import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY } from "@/lib/game/data.ts";
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
@@ -295,6 +295,7 @@ function ChoicePreview({ gs, c }) {
         {c.deal?.pure ? <i style={{ fontFamily:serif }}>{c.hint}</i> : <>{c.tags.map(t => ACTIONS[t].label).join(" · ")} · <ChanceBadge p={successChance(gs, c)} exact={exact}/> · <i style={{ fontFamily:serif }}>{c.hint}</i></>}
       </div>
       <ResourceChips delta={fx.resources} exact={exact}/>
+      <CostReasons gs={gs} c={c} fx={fx}/>
       {later.length > 0 && !exact && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6 }}>⧗ Аукнется позже — как, знают советники</div>}
       {later.length > 0 && exact && (
         <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6, lineHeight:1.45 }}>
@@ -311,6 +312,19 @@ function ChoicePreview({ gs, c }) {
       <LawLines gs={gs} c={c}/>
     </>
   );
+}
+
+// Почему решение чего-то стоит: «экономика — операции силовиков оплачивает казна». Цены без объяснений путают.
+function CostReasons({ gs, c, fx }) {
+  if (c.deal?.pure) return null;
+  const opposed = IDEOLOGY_ACTIONS[gs.ideo]?.opposed.some(t => c.tags.includes(t));
+  const reasons = RES_CONFIG.filter(r => (fx.resources[r.key] ?? 0) < 0).flatMap(r => {
+    const tag = c.tags.find(t => (ACTIONS[t].res[r.key] ?? 0) < 0);
+    const why = tag ? ACTIONS[tag].why?.[r.key] : opposed && IDEOLOGY_PENALTY[r.key] ? "решение против вашего курса" : null;
+    return why ? [`${SHORT[r.key].toLowerCase()} — ${why}`] : [];
+  });
+  if (!reasons.length) return null;
+  return <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.4, marginTop:5 }}>Цена: {reasons.join("; ")}</div>;
 }
 
 // Законопроект: что закон будет делать каждый ход, если пройдёт, — или что исчезнет с его отменой.
@@ -1008,7 +1022,16 @@ function Ledger({ rows: all }) {
             <span style={{ fontWeight:700, color:G.tx2 }}>{r.rel ? signed(r.value) : r.value}</span>
             <span style={{ fontWeight:700, minWidth:34, textAlign:"right", color:r.delta > 0 ? G.grn : G.red }}>{signed(r.delta)}</span>
           </div>
-        ))}
+        )).flatMap((row, i) => {
+          // Из чего сложилась перемена — если источников больше одного или он не очевиден.
+          const src = rows[i].sources?.filter(([, d]) => Math.round(d)).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+          if (!src?.length || (src.length === 1 && src[0][0] === "решение")) return [row];
+          return [row, (
+            <div key={`${rows[i].k}-src`} style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.35, margin:"-2px 0 4px 10px" }}>
+              {src.slice(0, 4).map(([label, d]) => `${label} ${signed(Math.round(d))}`).join(" · ")}{src.length > 4 ? " · …" : ""}
+            </div>
+          )];
+        })}
       </div>
       {!full && hidden > 0 && (
         <button onClick={() => setFull(true)} style={{ marginTop:6, background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
@@ -2223,7 +2246,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
                 {(turnDelta || Object.keys(lastTurn.factionRelChanges||{}).length > 0) && (
                   <Ledger rows={[
-                    ...(turnDelta ? RES_CONFIG.filter(r => turnDelta[r.key]).map(r => ({ k:r.key, label:SHORT[r.key], value:resources[r.key], delta:turnDelta[r.key] })) : []),
+                    ...(turnDelta ? RES_CONFIG.filter(r => turnDelta[r.key]).map(r => ({ k:r.key, label:SHORT[r.key], value:resources[r.key], delta:turnDelta[r.key], sources:lastTurn.sources?.[r.key] })) : []),
                     ...Object.entries(lastTurn.factionRelChanges||{}).flatMap(([fid, v]) => {
                       const f = factions.find(x => x.id === fid);
                       return f ? [{ k:fid, label:f.name, value:f.relation, delta:v, rel:true }] : [];
