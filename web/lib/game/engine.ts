@@ -3,18 +3,18 @@
 import {
   ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, MAX_PENDING, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, COSTS, CRISIS_DRAIN, pressureAt,
   ELECTION_LOSS_PENALTY, ELECTION_WIN_BONUS, HOSTILE_DRAIN, HOSTILE_RELATION, IMPEACH_RATING, NON_VOTING_BLOCS, PARTIES, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
-  IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, MAX_TURNS, RECOVERY_BELOW, RECOVERY_RATE,
-  RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES, SURVIVAL_ENDS,
+  IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, RECOVERY_BELOW, RECOVERY_RATE,
+  RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES, SURVIVAL_ENDS, CONTINUE_ENDS, TERM_FATIGUE, DEATH_FROM, DEATH_STEP, localTurn,
 } from "./data.ts";
 import { ARCS } from "../content/arcs.ts";
 import { NAMES } from "../content/narration.ts";
 import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE_BONUS, bondOf, breaches, pactIncome, personalDelta } from "./people.ts";
 import { stepPromises } from "./promises.ts";
 import { stepLaws } from "./laws.ts";
-import { electionKind, pathEnd } from "./terms.ts";
+import { electionKind, isTermEnd, nextReign, pathEnd, reignOf } from "./terms.ts";
 import type {
   Advisor, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
-  LawInForce, Narration, NewCrisis, Pact, PactNews, PowerPath, PromiseNews, PromiseState, ResourceDelta, ResourceKey, Resources, TurnReport, Verdict,
+  LawInForce, Narration, NewCrisis, Pact, PactNews, PowerPath, PromiseNews, Reign, PromiseState, ResourceDelta, ResourceKey, Resources, TurnReport, Verdict,
 } from "./types.ts";
 
 export const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
@@ -126,12 +126,16 @@ export function warningLevel(state: Pick<GameState, "resources" | "factions">): 
 
 export const isSurvival = (e: EndType | null) => !!e && SURVIVAL_ENDS.includes(e);
 
+// Смерть на посту: после двенадцати лет у власти шанс растёт с каждым кварталом. Зависит только от зерна и хода.
+export const diesInOffice = (seed: number, turn: number) =>
+  turn >= DEATH_FROM && seededRandom(hashSeed(seed, "death", turn))() < (turn - DEATH_FROM + 4) * DEATH_STEP;
+
 // Поражение важнее завершения мандата: рухнуть на последнем ходу — всё равно рухнуть.
 export function detectEnd(resources: Resources, factions: Faction[], turn: number): EndType | null {
   if (leaderRating(factions, resources) <= LIMITS.endRating || resources.internalLegitimacy <= LIMITS.endResource) return "revolution";
   if (turn >= COUP_FROM_TURN && securityRelation(factions) <= COUP_RELATION && resources.military >= COUP_MILITARY) return "coup";
   if (RESOURCE_KEYS.some(k => resources[k] <= LIMITS.endResource)) return "collapse";
-  if (turn >= MAX_TURNS) return "mandate";
+  if (isTermEnd(turn)) return "mandate"; // срок истёк — чем он кончится, решат путь и выборы
   return null;
 }
 
@@ -155,8 +159,11 @@ export function isFemaleName(name: string): boolean {
   const first = name.trim().split(/\s+/)[0] ?? "";
   return FEMALE_NAMES.has(first) || (/[ая]$/.test(first) && !MALE_A.has(first));
 }
-export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "factions">, rand: () => number): ArcState {
-  const arc = ARCS[Math.floor(rand() * ARCS.length)];
+// Интрига на срок. В следующем сроке — другая: сыгранные не повторяются, пока есть новые.
+export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "factions">, rand: () => number, played: string[] = []): ArcState {
+  const pool = ARCS.filter(a => !played.includes(a.id));
+  const list = pool.length ? pool : ARCS;
+  const arc = list[Math.floor(rand() * list.length)];
   const blocOf = (fig: Figure) => state.factions.find(f => f.id === fig.faction)?.bloc;
   let who: { name: string; role: string } | undefined;
   const men = <T extends { name: string }>(list: T[]) => (list.filter(x => !isFemaleName(x.name)).length ? list.filter(x => !isFemaleName(x.name)) : list);
@@ -164,7 +171,8 @@ export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "fact
   if (arc.target === "security") who = men(state.keyFigures.filter(f => blocOf(f) === "security"))[0];
   if (arc.target === "business") who = men(state.keyFigures.filter(f => blocOf(f) === "business" || blocOf(f) === "ruling"))[0];
   if (arc.target === "rival") who = men(state.keyFigures.filter(f => blocOf(f) === "liberal" || blocOf(f) === "nationalist"))[0];
-  who ??= [...state.keyFigures].sort((a, b) => a.relation - b.relation)[0];
+  // Подходящего лагеря нет — антагонист из своих, а не посол или священник: им интриги не по роли.
+  who ??= men(state.keyFigures.filter(f => !/^amb_|^investor$|^patriarch$|^catholicos$|^mufti$/.test(f.id))).sort((a, b) => a.relation - b.relation)[0];
   return { id: arc.id, target: who?.name ?? "неизвестный", targetRole: who?.role ?? "", flags: [], done: [], epilogue: null };
 }
 
@@ -172,7 +180,7 @@ export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "fact
 export function dueBeat(state: Pick<GameState, "arc" | "turn">) {
   const arc = ARCS.find(a => a.id === state.arc?.id);
   if (!arc || !state.arc) return null;
-  const idx = arc.beats.findIndex(b => b.turn === state.turn + 1 && !state.arc!.done.includes(b.turn));
+  const idx = arc.beats.findIndex(b => b.turn === localTurn(state.turn + 1) && !state.arc!.done.includes(b.turn));
   if (idx < 0) return null;
   const beat = arc.beats[idx];
   const variant = beat.variants.find(v => !v.requires || v.requires.some(f => state.arc!.flags.includes(f))) ?? beat.variants[beat.variants.length - 1];
@@ -440,6 +448,8 @@ export interface TurnPlan {
   laws: LawInForce[];
   lawNews: TurnReport["law"] | null;
   path: PowerPath | null;
+  reign: Reign;                                  // правление после хода (новый срок — уже с новыми правилами)
+  termResult: { n: number; outcome: EndType } | null; // срок кончился, правление продолжается
 }
 
 // Весь расчёт хода без текста. Модель потом описывает именно этот итог.
@@ -558,8 +568,9 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     : state.path ?? null;
 
   // Выборы: по итогам хода считается опрос, он же — результат голосования.
+  const reign = reignOf(state);
   let election: Election | null = null;
-  const kind = electionKind(turn, path);
+  const kind = electionKind(turn, path, reign.office);
   if (kind) {
     // Союзники по пакту голосуют за своих.
     const voters = factions.map(f => pacts.some(p => p.faction === f.id) ? { ...f, relation: clampRel(f.relation + PACT_VOTE_BONUS) } : f);
@@ -571,8 +582,23 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   }
 
   // Импичмент грозит только действующему президенту: рокировка в конце срока его не боится.
-  let endType: EndType | null = election?.outcome === "impeached" && turn < MAX_TURNS ? "impeachment" : detectEnd(resources, factions, turn);
-  if (endType === "mandate") endType = path ? pathEnd(path, election?.outcome === "won", { factions, resources, keyFigures }) : election?.outcome === "won" ? "reelected" : "mandate";
+  let endType: EndType | null = election?.outcome === "impeached" && !isTermEnd(turn) ? "impeachment" : detectEnd(resources, factions, turn);
+  if (endType === "mandate") {
+    const won = election?.outcome === "won";
+    // Без решения по сроку (старые партии) — как раньше: выборы для президента и премьера, указы для правителя.
+    const p = path ?? (reign.office === "ruler" ? { id: reign.how ?? "dictatorship", turn } : { id: "run" as const, turn });
+    endType = pathEnd(p, won, { factions, resources, keyFigures }, reign);
+  }
+  // Остался у власти — начинается следующий срок, и он тяжелее прошлого: власть приедается.
+  let termResult: TurnPlan["termResult"] = null, nextR = reign;
+  if (endType && CONTINUE_ENDS.includes(endType)) {
+    termResult = { n: reign.term + 1, outcome: endType };
+    nextR = nextReign(reign, endType, path);
+    resources = applyDeltas(resources, TERM_FATIGUE);
+    endType = null;
+  }
+  // Годы берут своё: после двенадцати лет у власти лидер может не дожить до конца срока.
+  if (!endType && diesInOffice(state.seed, turn)) endType = "died";
 
   return {
     choice, effects, success, chance, resources, factions, keyFigures, crises, election, matured, scheduled, pending,
@@ -581,7 +607,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     pacts, pactNews, betrayals: (state.betrayals ?? 0) + broken.length,
     promises: promiseStep.promises, promiseNews: promiseStep.news,
     laws: lawStep.laws, lawNews: lawStep.news,
-    path,
+    path, reign: nextR, termResult,
   };
 }
 
@@ -638,21 +664,32 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       ...(plan.pactNews.signed.length + plan.pactNews.kept.length + plan.pactNews.broken.length ? { pacts: plan.pactNews } : {}),
       ...(plan.promiseNews.kept.length + plan.promiseNews.broken.length + plan.promiseNews.advanced.length ? { promises: plan.promiseNews } : {}),
       ...(plan.lawNews ? { law: plan.lawNews } : {}),
+      ...(plan.termResult ? { term: plan.termResult } : {}),
     },
     pending: plan.pending,
     pacts: plan.pacts,
+    // Новый срок: прошлое решение о сроке закрыто, интрига — новая.
+    ...(plan.termResult || state.reign ? { reign: plan.termResult ? {
+      ...plan.reign,
+      arcs: [...plan.reign.arcs, ...(state.arc ? [state.arc.id] : [])],
+      epilogues: [...plan.reign.epilogues, ...(plan.choice.arc?.epilogue ?? state.arc?.epilogue ? [plan.choice.arc?.epilogue ?? state.arc!.epilogue!] : [])],
+    } : plan.reign } : {}),
     betrayals: plan.betrayals,
     promises: plan.promises,
     laws: plan.laws,
-    path: plan.path,
+    path: plan.termResult ? null : plan.path,
     former: [...(state.former ?? []), ...state.keyFigures.filter(f => !plan.keyFigures.some(g => g.name === f.name)).map(f => f.name)],
     echoes: plan.matured.reduce((acc, m) => ({ ...acc, [m.label]: (acc[m.label] ?? 0) + 1 }), { ...(state.echoes ?? {}) }),
-    arc: state.arc ? {
-      ...state.arc,
-      flags: plan.choice.arc?.flag ? [...state.arc.flags, plan.choice.arc.flag] : state.arc.flags,
-      done: event.beat ? [...state.arc.done, event.beat.turn] : state.arc.done,
-      epilogue: plan.choice.arc?.epilogue ?? state.arc.epilogue,
-    } : null,
+    // Флаг «later»: эпизоды интриги во втором сроке знают, что президент не новый.
+    arc: plan.termResult
+      ? { ...pickArc({ ...state, keyFigures: plan.keyFigures, factions: plan.factions }, seededRandom(hashSeed(state.seed, "arc", turn)),
+        [...plan.reign.arcs, ...(state.arc ? [state.arc.id] : [])]), flags: ["later"] }
+      : state.arc ? {
+        ...state.arc,
+        flags: plan.choice.arc?.flag ? [...state.arc.flags, plan.choice.arc.flag] : state.arc.flags,
+        done: event.beat ? [...state.arc.done, event.beat.turn] : state.arc.done,
+        epilogue: plan.choice.arc?.epilogue ?? state.arc.epilogue,
+      } : null,
     stats: {
       crisesResolved: (state.stats?.crisesResolved ?? 0) + (plan.resolvedCrisis ? 1 : 0),
       councils: state.stats?.councils ?? 0,

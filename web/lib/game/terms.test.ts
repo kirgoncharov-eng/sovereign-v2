@@ -21,7 +21,7 @@ async function playPath(s0: GameState, id: PathId) {
   const c = s.currentEvent!.choices.find(x => x.path === id);
   assert.ok(c, `путь ${id} должен быть в папке`);
   s = resolveTurn(s, c.id, await classicApi.consequence(s, c.id));
-  while (!s.ended) {
+  while (!s.ended && s.turn < MAX_TURNS) {
     s = { ...s, resources: { ...s.resources, ...patchLegit } };
     const ev = await classicApi.event(s);
     s = startEvent(s, ev);
@@ -121,15 +121,19 @@ test("путь в партии: решение запоминается, в ко
   for (const [country, id, patch, ends] of cases) {
     patchLegit = {};
     const s = await playPath(await eve(country, patch), id);
-    assert.equal(s.path?.id, id, `${country}: путь запомнен`);
+    const outcome = s.endType ?? s.lastTurn?.term?.outcome;
+    assert.equal(s.path?.id ?? s.reign?.past.at(-1)?.path, id, `${country}: путь запомнен`);
     assert.equal(s.turn, MAX_TURNS, `${country}/${id}: дожил до конца срока`);
-    assert.ok(ends.includes(s.endType!), `${country}/${id}: ${s.endType}`);
-    const v = await classicApi.ending(s);
-    assert.ok(v.verdict.includes(pathVerdict(s.path, s.endType)), "вердикт помнит, как решён вопрос о сроках");
-    if (["retired", "dictator", "emergency_rule", "premier", "zeroed"].includes(s.endType!)) {
-      assert.ok(!s.lastTurn?.narrative.includes("Второй срок"), "развязка пути вместо обычной ночи выборов");
+    assert.ok(ends.includes(outcome!), `${country}/${id}: ${outcome}`);
+    if (["dictator", "emergency_rule", "premier", "zeroed"].includes(outcome!)) {
+      assert.equal(s.ended, false, `${country}/${id}: остался у власти — правление продолжается`);
+      assert.ok(!s.lastTurn?.narrative.includes("Второй срок."), "развязка пути вместо обычной ночи выборов");
     }
-    setVerdict(s, v);
+    if (s.ended) {
+      const v = await classicApi.ending(s);
+      assert.ok(v.verdict.includes(pathVerdict(s.path, s.endType)), "вердикт помнит, как решён вопрос о сроках");
+      setVerdict(s, v);
+    }
   }
   // диктатор, которого бросила улица, — «свергнут при попытке»
   patchLegit = { internalLegitimacy: 6 };

@@ -1,7 +1,9 @@
 // Авторские предложения совета — вторая половина событий (см. council-a.ts).
 import type { CouncilCard } from "./council-a.ts";
+import { COUNCIL_LATE } from "./council-late.ts";
 
 export const COUNCIL_B: Record<string, CouncilCard> = {
+  ...COUNCIL_LATE,
   refugees: {
     strategist: ["dialogue", "Собрать мэров приграничных городов и решить, кто сколько примет", "поделить ношу честно",
       "Мэры договариваются за ночь: каждый город берёт свою долю, а деньги ЕС идут прямо им. Недовольство расходится тонким слоем.",

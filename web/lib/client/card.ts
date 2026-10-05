@@ -1,8 +1,8 @@
 // Карточка итога правления — картинка для сторис и мессенджеров (1080×1350).
 import { ARCS } from "../content/arcs.ts";
 import { runScore } from "../game/daily.ts";
-import { COUNTRIES, END_TYPES } from "../game/data.ts";
-import { computePolls, isFemaleName, isSurvival, plural } from "../game/engine.ts";
+import { COUNTRIES, END_TYPES, reignLength, reignShort } from "../game/data.ts";
+import { computePolls, isFemaleName, isSurvival } from "../game/engine.ts";
 import type { GameState } from "../game/types.ts";
 import { portraitCanvas } from "./portrait.ts";
 import { BOT_USERNAME } from "../share.ts";
@@ -82,7 +82,7 @@ export async function resultCard(gs: GameState): Promise<Blob | null> {
 
   // цифры
   const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
-  const stats: [string, string][] = [[String(gs.history.length), "решений из 20"], [`${rating}%`, "рейтинг"], [String(runScore(gs)), "очков"]];
+  const stats: [string, string][] = [[reignShort(gs.turn), "у власти"], [`${rating}%`, "рейтинг"], [String(runScore(gs)), "очков"]];
   stats.forEach(([n, l], i) => {
     const x = 80 + i * ((W - 160) / 3);
     ctx.fillStyle = INK; ctx.font = `700 92px ${SERIF}`; ctx.fillText(n, x, 900);
@@ -105,7 +105,7 @@ export async function resultCard(gs: GameState): Promise<Blob | null> {
 
   // подвал
   ctx.fillStyle = INK2; ctx.font = `34px ${MONO}`;
-  ctx.fillText(loss ? `Мой президент продержался ${plural(gs.history.length, "ход", "хода", "ходов")}. А твой?` : "Сможешь лучше?", 80, H - 110);
+  ctx.fillText(`Мой президент правил ${reignLength(gs.turn)}. А твой?`, 80, H - 110);
   ctx.font = `700 34px ${NARROW}`;
   ctx.fillText(`Играть: t.me/${BOT_USERNAME}`, 80, H - 60);
   return new Promise(res => c.toBlob(b => res(b), "image/png"));

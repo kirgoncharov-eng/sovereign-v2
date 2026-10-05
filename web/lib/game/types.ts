@@ -19,12 +19,25 @@ export type Severity = "low" | "medium" | "high" | "critical";
 export type GameMode = "classic"; // игра полностью офлайн: авторские сценарии без модели
 export type EndType =
   | "reelected" | "mandate" | "revolution" | "collapse" | "coup" | "impeachment"
-  | "retired" | "zeroed" | "premier" | "leader_of_nation" | "betrayed" | "emergency_rule" | "dictator";
+  | "retired" | "zeroed" | "premier" | "leader_of_nation" | "betrayed" | "emergency_rule" | "dictator" | "died";
 // Конституционная модель страны: сколько сроков у президента и где настоящая власть.
 export type TermRule = "no_limits" | "two_terms" | "single_term" | "parliamentary";
 // Как лидер решил «вопрос о сроках»: идти на выборы, уйти, обнулить, пересесть, передать, отложить, взять силой.
 export type PathId = "run" | "exit" | "zeroing" | "rokirovka" | "successor" | "postpone" | "dictatorship";
 export interface PowerPath { id: PathId; turn: number; successor?: string; from?: PathId } // from — путь, который сорвался
+// Правление без потолка: какой по счёту срок, сколько президентских сроков засчитано конституцией,
+// в каком качестве лидер держит власть и сколько сроков правит без выборов.
+export type Office = "president" | "premier" | "ruler";
+export interface Reign {
+  term: number;          // 0 — первый срок
+  counted: number;       // президентских сроков в зачёт ограничения (обнуление сбрасывает)
+  office: Office;
+  ruled: number;         // сроков без выборов — указами или по ЧП
+  how?: "dictatorship" | "postpone"; // как правит, если без выборов
+  arcs: string[];        // интриги, уже сыгранные в прошлых сроках
+  epilogues: string[];   // их развязки — для вердикта
+  past: { term: number; path: PathId; outcome: EndType }[]; // чем кончался каждый срок
+}
 export type Bloc = "security" | "business" | "church" | "liberal" | "west" | "russia" | "nationalist" | "regional" | "ruling";
 export type ActionTag =
   | "repress" | "security" | "reform" | "pro_west" | "pro_russia" | "social" | "austerity"
@@ -201,6 +214,7 @@ export interface TurnReport extends Narration {
   pacts?: PactNews;     // подписанные, выполненные и нарушенные союзы (названия фракций)
   promises?: PromiseNews; // исполненные, нарушенные и продвинутые обещания (заголовки)
   law?: { id: string; act: "enact" | "repeal"; passed: boolean }; // что стало с законопроектом
+  term?: { n: number; outcome: EndType }; // начался новый срок: какой по счёту и чем кончился прошлый
 }
 
 export interface LawInForce { id: string; since: number } // since — ход, с которого закон действует
@@ -303,7 +317,8 @@ export interface GameState {
   pacts?: Pact[];        // действующие союзы
   promises?: PromiseState[]; // предвыборные обещания
   laws?: LawInForce[];       // действующие законы — «Свод законов»
-  path?: PowerPath | null;   // как решён «вопрос о сроках»
+  path?: PowerPath | null;   // как решён «вопрос о сроках» в текущем сроке
+  reign?: Reign;             // сроки правления; нет — первый срок президента
   betrayals?: number;    // сколько союзов вы нарушили
   echoes?: Record<string, number>; // сколько раз уже звучало эхо каждого отложенного последствия
   former?: string[];      // люди, ушедшие с постов: их имена не достаются преемникам

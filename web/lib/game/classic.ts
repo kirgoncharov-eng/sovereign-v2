@@ -22,8 +22,8 @@ import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OP
 import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
 import { lawDef } from "./laws.ts";
 import { DEEDS, ELECTION_NIGHT, INTERCUTS, roleGroup } from "../content/roles.ts";
-import { TERMS_TURN, electionKind, fellTrying, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
-import { FINALE, LOCKED, PATHS, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
+import { TERMS_TURN, electionKind, fellTrying, isTermEnd, reignOf, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
+import { DIED, FINALE, LOCKED, PATHS, PATHS_AS, TERM_HOW, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
 import { LAW_REACT, MEANWHILE, type LawAct, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
 import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
 import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
@@ -33,7 +33,7 @@ import {
   COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
   FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, type LossEnd, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
-import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, FACTIONS_DATA, DELAYED, WEAK_ADVISOR_DELAYED, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
+import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, FACTIONS_DATA, DELAYED, WEAK_ADVISOR_DELAYED, ELECTION_LABEL, FIGURE_ROLES, RATINGS, RES_CONFIG, TERM, localTurn, reignLength, termIndex, termOrdinal, termOrdinalGen } from "./data.ts";
 import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PACT, PACT_BROKEN_LINE, PACT_GIVES, PACT_KEPT_LINE, PACT_OK_VARIANTS, type SpecialChoice } from "../content/people.ts";
 import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } from "./people.ts";
 import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
@@ -156,7 +156,7 @@ export function cardAvailable(card: EventCard, state: GameState): boolean {
   if (w.friendly && !blocRel(w.friendly).some(r => r >= 40)) return false;
   if (w.crisis && !state.activeCrises.length) return false;
   // «Перед выборами» — только если выборы действительно будут: после отмены или ухода их нет.
-  const vote = (t: number) => !!electionKind(t, state.path);
+  const vote = (t: number) => !!electionKind(t, state.path, reignOf(state).office);
   if (w.preElection && !vote(turn + 1) && !vote(turn + 2)) return false;
   // Когда страна уже живёт по чрезвычайному положению или указам, просить «ввести ЧП» некому.
   if (w.law === "emergency_powers" && (state.path?.id === "postpone" || state.path?.id === "dictatorship")) return false;
@@ -211,6 +211,7 @@ export function beatEvent(state: GameState): GameEvent | null {
 // Выпадают не чаще раза в три хода и не перебивают интригу.
 const SPECIAL_GAP = 3;
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const tagLabels = (tags: ActionTag[]) => tags.map(t => `«${ACTIONS[t].label}»`).join(" или ");
 
 function successorName(state: GameState, fig: Figure): string {
@@ -320,7 +321,7 @@ function pactEvent(state: GameState, turn: number, r: Rand, seen: (kind: string,
 
 export function specialEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
-  if (state.turn < 2 || turn >= MAX_TURNS || dueBeat(state)) return null;
+  if (state.turn < 2 || isTermEnd(turn) || dueBeat(state)) return null;
   if (state.activeCrises.length && warningLevel(state) === "critical") return null;
   const marks = (state.usedEvents ?? []).filter(u => u.startsWith("sp:")).map(u => u.split(":"));
   if (turn - Math.max(0, ...marks.map(m => Number(m[1]) || 0)) < SPECIAL_GAP) return null;
@@ -342,7 +343,7 @@ export function specialEvent(state: GameState): SpecialEvent | null {
     .filter(f => f.relation >= 10 && (facOf(f)?.relation ?? 0) <= 0 && gap(f) >= 25 && bondOf(f, facOf(f)) !== "insider" && !seen("overture", f.id))
     .sort((a, b) => gap(b) - gap(a))[0];
   if (over && r() < 0.45) return personEvent(state, "overture", over, turn);
-  if (turn >= 4 && turn <= MAX_TURNS - 3 && (state.pacts?.length ?? 0) < MAX_PACTS && r() < 0.3) return pactEvent(state, turn, r, seen);
+  if (localTurn(turn) >= 4 && localTurn(turn) <= TERM - 3 && (state.pacts?.length ?? 0) < MAX_PACTS && r() < 0.3) return pactEvent(state, turn, r, seen);
   return null;
 }
 
@@ -354,7 +355,7 @@ const LAW_REPEAT = 8;       // отклонённый или отложенны�
 
 export function lawEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
-  if (turn < 2 || turn >= MAX_TURNS || dueBeat(state)) return null;
+  if (turn < 2 || isTermEnd(turn) || dueBeat(state)) return null;
   const marks = (state.usedEvents ?? []).filter(u => u.startsWith("law:")).map(u => u.split(":"));
   if (turn - Math.max(-LAW_GAP, ...marks.map(m => Number(m[1]) || 0)) < LAW_GAP) return null;
   const r = seededRandom(hashSeed(state.seed, "law", state.turn));
@@ -427,11 +428,12 @@ export function lawEvent(state: GameState): SpecialEvent | null {
 // Какие пути открыты, решают конституция страны и то, как лидер правил до сих пор.
 export function termsEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
-  if (turn !== TERMS_TURN || state.path) return null;
+  if (localTurn(turn) !== TERMS_TURN || state.path) return null;
   const rule = termRule(state.country);
-  const options = pathOptions(state);
+  const reign = reignOf(state);
+  const options = pathOptions(state).filter(o => o.lock !== "na");
   const open = options.filter(o => !o.lock);
-  const reason = (o: PathOption) => o.id === "run" ? LOCKED.run
+  const reason = (o: PathOption) => o.id === "run" ? (o.lock === "limit" ? LOCKED.limit : LOCKED.run)
     : o.id === "zeroing" ? LOCKED.zeroing[rule] ?? null
     : o.id === "rokirovka" ? LOCKED.rokirovka[o.lock === "lost" ? "lost" : "rule"]
     : o.id === "successor" ? LOCKED.successor
@@ -439,9 +441,10 @@ export function termsEvent(state: GameState): SpecialEvent | null {
     : o.id === "dictatorship" ? LOCKED.dictatorship[o.lock === "force" ? "force" : "military"] : null;
   const locked = options.filter(o => o.lock).map(reason).filter((x): x is string => !!x);
   const choices: Choice[] = open.map((o, i) => {
-    const t = PATHS[o.id];
+    // Тот же путь в другой должности звучит иначе: премьер идёт в списке, правитель продлевает или возвращает выборы.
+    const t = { ...PATHS[o.id], ...PATHS_AS[`${reign.office}:${o.id}`] };
     const heir = o.successor;
-    const f = (x: string) => fill(x, state, heir ? { name: heir.name, role: heir.role } : {});
+    const f = (x: string) => fill(x, state, { next: termOrdinal(reign.term + 1), ...(heir ? { name: heir.name, role: heir.role } : {}) });
     const base = {
       id: "abcdefg"[i], text: f(t.text), hint: f(t.hint), resolvesCrisis: null, path: o.id,
       ...(heir ? { successor: heir.name } : {}),
@@ -452,14 +455,15 @@ export function termsEvent(state: GameState): SpecialEvent | null {
     return {
       ...base, tags: PATH_TAGS[o.id],
       ...(o.id === "zeroing" ? { hint: "поправки уже в силе — суду осталось истолковать их как надо" } : {}),
-      deal: pathDeal(o.id, state.factions, heir),
+      deal: pathDeal(o.id, state.factions, heir, reign.office),
     };
   });
   const force = forceFaction(state.factions);
   return {
     cardId: `terms:${turn}`,
     title: TERMS_TEXT.title, source: TERMS_TEXT.source,
-    description: chapter(dateline(state), fill(TERMS_TEXT.intro[rule], state),
+    description: chapter(dateline(state),
+      fill(reign.term === 0 ? TERMS_TEXT.intro[rule] : TERMS_TEXT.later[reign.office], state, { term: termOrdinalGen(reign.term) }),
       locked.length ? [TERMS_TEXT.lockedHead, ...locked.map(l => `— ${l}`)].join("\n") : null,
       TERMS_TEXT.outro),
     isCritical: false,
@@ -483,7 +487,8 @@ export const inspectTurns = (seed: number) => (seed % 2 ? [4, 14] : [5, 15]);
 
 export function inspectEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
-  const k = inspectTurns(state.seed).indexOf(turn);
+  // Сверка докладов — дело первого срока: дальше аппарат уже знает, что вы читаете бумаги.
+  const k = termIndex(turn) === 0 ? inspectTurns(state.seed).indexOf(turn) : -1;
   if (k < 0 || dueBeat(state)) return null;
   const docs = INSPECT_DOCS.filter(d => state.factions.some(f => f.bloc === d.bloc))
     .sort((a, b) => hashSeed(state.seed, "doc", a.id) - hashSeed(state.seed, "doc", b.id));
@@ -533,12 +538,14 @@ export const PRESS_TURNS = [9, 19];
 
 export function pressEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
-  const k = PRESS_TURNS.indexOf(turn);
+  const k = PRESS_TURNS.indexOf(localTurn(turn));
   if (k < 0 || dueBeat(state)) return null;
   const asked = new Set((state.usedEvents ?? []).filter(u => u.startsWith("prs:")).flatMap(u => u.split(":")[2].split(",")));
   const r = state.resources;
   // После «вопроса о сроках» выборов может и не быть: тогда о них не спрашивают.
-  const noVote = turn > TERMS_TURN && !!state.path && !electionKind(MAX_TURNS, state.path);
+  // Пресс-конференция стоит перед выборами — если они будут: в середине срока парламентские, в конце — главные.
+  const ahead = k === 0 ? turn + 1 : turn - localTurn(turn) + TERM;
+  const noVote = !electionKind(ahead, state.path, reignOf(state).office);
   const fits: Record<PressWhen, boolean> = {
     always: true, crisis: state.activeCrises.length > 0, lowEcon: r.economy < 40, lowLegit: r.internalLegitimacy < 40,
     elect: !noVote, pact: (state.pacts ?? []).length > 0, highMil: r.military > 60,
@@ -561,7 +568,7 @@ export function pressEvent(state: GameState): SpecialEvent | null {
   };
   return {
     cardId: `prs:${turn}:${picked.map(q => q.id).join(",")}`,
-    title: noVote ? PRESS_TEXT.titleNoVote[state.path!.id] ?? PRESS_TEXT.title[0] : PRESS_TEXT.title[k],
+    title: noVote ? PRESS_TEXT.titleNoVote[state.path?.id ?? reignOf(state).how ?? ""] ?? PRESS_TEXT.titleNoVote.none : PRESS_TEXT.title[k],
     source: "Пресс-служба",
     description: chapter(dateline(state, "press"), PRESS_TEXT.intro),
     isCritical: false,
@@ -602,7 +609,7 @@ export function pressChoice(state: GameState, picks: number[]): Choice {
   const count = (t: string) => tones.filter(x => x === t).length;
   // Тон пресс-конференции — тот, что прозвучал хотя бы дважды; иначе зал запомнит смешанное впечатление.
   const tone = (["honest", "hard", "evasive"] as const).find(t => count(t) >= 2) ?? "mixed";
-  lines.push(nth(PRESS_TEXT.close[tone], Math.max(0, PRESS_TURNS.indexOf(state.turn + 1))));
+  lines.push(nth(PRESS_TEXT.close[tone], Math.max(0, PRESS_TURNS.indexOf(localTurn(state.turn + 1)))));
   const factionRel: Record<string, number> = {};
   for (const f of state.factions) if (relBloc[f.bloc]) factionRel[f.id] = relBloc[f.bloc];
   const headline = quote && quote.length <= 70 ? `Президент: ${quote}` : "Президент ответил на вопросы журналистов";
@@ -626,7 +633,7 @@ const CONCESSION: Record<Bloc, keyof GameState["resources"]> = {
 
 export function callEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
-  const k = CALL_TURNS.indexOf(turn);
+  const k = CALL_TURNS.indexOf(localTurn(turn));
   if (k < 0 || dueBeat(state)) return null;
   const called = new Set((state.usedEvents ?? []).filter(u => u.startsWith("call:")).map(u => u.split(":")[2]));
   const facOf = (f: Figure) => state.factions.find(x => x.id === f.faction);
@@ -686,7 +693,7 @@ export function callChoice(state: GameState, approach: Approach, ending: (typeof
   const scene = [
     `${fig.name} начинает без приветствия: ${fill(call.demand, state, slots)}`,
     `Вы ${APPROACH_SAY[approach]}. ${reply}.`,
-    fill(nth(T.outcome[`${ending}_${ok ? "ok" : "no"}`], Math.max(0, CALL_TURNS.indexOf(state.turn + 1))), state, slots),
+    fill(nth(T.outcome[`${ending}_${ok ? "ok" : "no"}`], Math.max(0, CALL_TURNS.indexOf(localTurn(state.turn + 1)))), state, slots),
   ].join(" ");
   const head = fill(T.heads[ending], state, slots);
   return {
@@ -712,7 +719,7 @@ export const BUDGET_TURN = 8;
 
 export function budgetEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
-  if (turn !== BUDGET_TURN || dueBeat(state)) return null;
+  if (localTurn(turn) !== BUDGET_TURN || dueBeat(state)) return null;
   const T = BUDGET_TEXT;
   const skip: Choice = {
     id: "b", text: T.skip.text, hint: T.skip.hint, tags: ["delay"], resolvesCrisis: null,
@@ -825,12 +832,18 @@ function electionHeadline(e: NonNullable<ReturnType<typeof planTurn>["election"]
 
 // Развязка «вопроса о сроках» в последний ход: что стало с выбранным путём.
 function finaleOf(state: GameState, plan: ReturnType<typeof planTurn>): { head: string; text: string } | null {
-  const { path, endType: end, election: e } = plan;
-  if (!path || !end || state.turn + 1 < MAX_TURNS || path.id === "run") return null;
+  const { election: e } = plan;
+  const end = plan.termResult?.outcome ?? plan.endType;
+  const office = reignOf(state).office;
+  const path = plan.path ?? (isTermEnd(state.turn + 1) && office === "ruler" ? { id: reignOf(state).how ?? "dictatorship", turn: state.turn + 1 } : null);
+  if (!path || !isTermEnd(state.turn + 1)) return null;
   if (!isSurvival(end) && end !== "betrayed") return null;
   const won = e?.outcome === "won";
-  const key = path.id === "exit" ? (path.from ? `exit:${path.from}` : "exit")
-    : path.id === "postpone" || path.id === "dictatorship" ? path.id
+  // Президент идёт на выборы — обычная ночь подсчёта; у премьера и у правителя, вернувшего выборы, — своя развязка.
+  if (path.id === "run" && office === "president") return null;
+  const key = path.id === "run" ? `${office === "premier" ? "rokirovka" : "return"}:${won ? "won" : "lost"}`
+    : path.id === "exit" ? (path.from ? `exit:${path.from}` : "exit")
+    : path.id === "postpone" || path.id === "dictatorship" ? (office === "ruler" ? `${path.id}:keep` : path.id)
     : path.id === "successor" ? (end === "betrayed" ? "successor:betrayed" : won ? "successor:won" : "successor:lost")
     : `${path.id}:${won ? "won" : "lost"}`;
   const fin = FINALE[key] ?? FINALE.exit;
@@ -939,7 +952,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     const e = plan.election;
     electionLine = (e.outcome === "won"
       ? e.kind === "president"
-        ? `${ELECTION_LABEL[e.kind]}. Последний регион досчитывают к трём часам ночи: ${e.leader}% против ${e.top.share}% у «${e.top.name}». Второй срок. Вы долго стоите у окна резиденции и смотрите на площадь, где уже начинают праздновать.`
+        ? `${ELECTION_LABEL[e.kind]}. Последний регион досчитывают к трём часам ночи: ${e.leader}% против ${e.top.share}% у «${e.top.name}». ${upper(termOrdinal(reignOf(state).term + 1))} срок. Вы долго стоите у окна резиденции и смотрите на площадь, где уже начинают праздновать.`
         : `${ELECTION_LABEL[e.kind]}. В штабе открывают шампанское в 23:40, когда приходят данные из последнего региона: ${e.leader}% против ${e.top.share}% у «${e.top.name}». Вы выходите к сторонникам и впервые за месяц улыбаетесь не для камер.`
       : `${ELECTION_LABEL[e.kind]}. К полуночи всё ясно: «${e.top.name}» — ${e.top.share}%, у вас ${e.leader}%. В штабе молча выключают телевизоры. Кто-то уже собирает вещи.`);
   }
@@ -1001,7 +1014,8 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const arcOpen = !!arcDef && (state.arc?.done.length ?? 0) < arcDef.beats.length;
   const hook = arcDef && arcOpen && !arc && !plan.endType && state.turn % 2 === 1 && hookIdx < arcDef.hooks.length
     ? fill(cycle(arcDef.hooks, state.seed, "hook", hookIdx), state) : null;
-  const finale = finaleOf(state, plan);
+  const died = plan.endType === "died" ? { head: pick(r, DIED.head), text: pick(r, DIED.text) } : null;
+  const finale = died ?? finaleOf(state, plan);
   const parts = [scene, ...after, finale?.text ?? electionLine, intercut, hook];
 
   // То, что уже звучало в партии, не повторяется, пока в пуле есть свежие варианты.
@@ -1191,7 +1205,7 @@ function personName(country: string, r: Rand, male = false, used?: Set<string>):
 
 // Роли, которые в этих странах занимают только мужчины: иначе тексты событий звучат нелепо.
 // Тексты интриг написаны о мужчине-антагонисте: роли, из которых он выбирается, всегда достаются мужчинам.
-const MALE_ROLES = new Set(["patriarch", "catholicos", "mufti", "general", "kgb", "knb", "interior", "sbu", "security", "shadow", "clan", "prosecutor", "oligarch", "opp_leader", "activist"]);
+const MALE_ROLES = new Set(["patriarch", "catholicos", "mufti", "general", "kgb", "knb", "interior", "sbu", "security", "shadow", "clan", "prosecutor", "oligarch", "opp_leader", "activist", "nat_leader", "revanchist"]);
 
 function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?: number): Intro {
   const r = seed === undefined ? Math.random : seededRandom(hashSeed(seed, "intro"));
@@ -1204,7 +1218,8 @@ function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?
     speech: SPEECHES[ideo][0].replaceAll("{country}", country),
     situation: `${COUNTRIES[country].context} ${DIFFICULTY_SITUATION[diff]}`,
     players: FIGURE_ROLES[country].map(f => FOREIGN_NAMES[f.id] ? foreign(FOREIGN_NAMES[f.id]) : unique(MALE_ROLES.has(f.id))),
-    advisors: ADVISOR_ROLES.map(() => unique()),
+    // Советник по безопасности — всегда мужчина: из советников выбирается «крот», а тексты интриги — в мужском роде.
+    advisors: ADVISOR_ROLES.map(r => unique(r.id === "security")),
   };
 }
 
@@ -1238,7 +1253,8 @@ function buildVerdict(state: GameState): Verdict {
     `${ELECTION_LABEL[e.kind].toLowerCase()} ${e.outcome === "won" ? "выиграны" : "проиграны"} (${e.leader}% против ${e.top.share}%)`).join(", ");
 
   const verdict = [
-    `${state.leader.name} правил страной с ${startYear} по ${state.year} год и успел принять ${state.history.length} из ${MAX_TURNS} ключевых решений.`,
+    `${state.leader.name} правил страной ${reignLength(state.turn)} — с ${startYear} по ${state.year} год — и принял ${plural(state.history.length, "ключевое решение", "ключевых решения", "ключевых решений")}.`,
+    state.reign?.past.length ? `Как он оставался у власти: ${state.reign.past.map(p => `после ${termOrdinalGen(p.term)} срока ${TERM_HOW[p.outcome] ?? ""}`).join(", ")}.` : "",
     topCount ? `Главный инструмент правления — «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему лидер прибегал ${plural(topCount, "раз", "раза", "раз")}.` : "",
     elections ? `Выборы: ${elections}.` : "",
     pathVerdict(state.path, end),
