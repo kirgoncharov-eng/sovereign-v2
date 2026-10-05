@@ -244,8 +244,11 @@ export function initAdvisors(diff: DifficultyId, names: string[], rand: () => nu
 }
 
 // Отложенные последствия решения: по тегам и за слабого советника.
+// Отложенные последствия по тегам — у обычных решений. У закона последствия свои — каждый ход, пока он действует;
+// у эпизода интриги — сюжетные, у сделки и союза — прописанные в самой сделке.
+// Общие «розданные деньги разогнали инфляцию» к ним не относятся.
 export function delayedEffects(choice: Choice): DelayedInfo[] {
-  if (choice.deal?.pure) return [];
+  if (choice.deal || choice.stance || choice.arc) return [];
   const list = choice.tags.map(t => DELAYED[t]).filter((d): d is DelayedInfo => !!d);
   if (choice.advisor?.skill === 1) list.push(WEAK_ADVISOR_DELAYED);
   return list;
@@ -348,10 +351,13 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions"> & Part
     if (ideo.aligned.includes(tag)) addDelta(res, IDEOLOGY_BONUS);
     if (ideo.opposed.includes(tag)) addDelta(res, IDEOLOGY_PENALTY);
     for (const f of state.factions) {
-      addDelta(rel, { [f.id]: a.rel[f.bloc] });
+      if (!choice.stance) addDelta(rel, { [f.id]: a.rel[f.bloc] });
       addDelta(appr, { [f.id]: a.appr?.[f.bloc] });
     }
   }
+  // Законы и подобные им решения задевают тех, кого касаются по сути: союзный договор злит не «патриотов вообще»,
+  // а Запад и либералов. Тогда отношения берутся из позиции сторон, а не из общих тегов.
+  if (choice.stance) for (const f of state.factions) addDelta(rel, { [f.id]: choice.stance[f.bloc] });
   for (const k of Object.keys(res)) if (res[k] < 0) res[k] *= COSTS.weight;
   // Качество советника: потери умножаются на cost, выгода — на gain.
   const skill = choice.advisor ? ADVISOR_SKILL[choice.advisor.skill] : null;

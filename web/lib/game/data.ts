@@ -1,7 +1,7 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "5.9";
+export const APP_VERSION = "5.10";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 export const MAX_TURNS = 20;
 
@@ -86,68 +86,69 @@ export interface FactionInfo {
   emoji: string;
   baseApproval: number;
   bloc: Bloc;
+  plural?: boolean; // название во множественном числе: «Силовые структуры требуют», а не «требует»
 }
 
 export const FACTIONS_DATA: Record<string, FactionInfo[]> = {
   "Беларусь": [
-    { id:"siloviki",   name:"Силовые структуры", desc:"КГБ, МВД, ОМОН",             emoji:"🛡️", baseApproval:32, bloc:"security" },
-    { id:"gossektor",  name:"Гос. предприятия",   desc:"Директорат заводов",          emoji:"🏭", baseApproval:38, bloc:"business" },
+    { id:"siloviki",   name:"Силовые структуры", desc:"КГБ, МВД, ОМОН",             emoji:"🛡️", baseApproval:32, bloc:"security", plural:true },
+    { id:"gossektor",  name:"Гос. предприятия",   desc:"Директорат заводов",          emoji:"🏭", baseApproval:38, bloc:"business", plural:true },
     { id:"church",     name:"Православная церковь",desc:"Патриархат и приходы",      emoji:"⛪", baseApproval:52, bloc:"church" },
     { id:"opposition", name:"Демоппозиция",       desc:"Подполье и эмиграция",       emoji:"✊", baseApproval:58, bloc:"liberal" },
     { id:"youth",      name:"Молодёжь",           desc:"Активисты и студенты",       emoji:"🔥", baseApproval:65, bloc:"liberal" },
     { id:"west",       name:"Запад",               desc:"ЕС, США, НАТО",             emoji:"🌍", baseApproval:50, bloc:"west" },
     { id:"russia",     name:"Кремль",              desc:"Москва и пророссийские",     emoji:"🦅", baseApproval:22, bloc:"russia" },
-    { id:"media",      name:"Независимые СМИ",    desc:"Журналисты и блогеры",       emoji:"📰", baseApproval:60, bloc:"liberal" },
+    { id:"media",      name:"Независимые СМИ",    desc:"Журналисты и блогеры",       emoji:"📰", baseApproval:60, bloc:"liberal", plural:true },
   ],
   "Украина": [
-    { id:"military",     name:"ЗСУ",               desc:"Вооружённые силы",           emoji:"⚔️", baseApproval:75, bloc:"security" },
+    { id:"military",     name:"ЗСУ",               desc:"Вооружённые силы",           emoji:"⚔️", baseApproval:75, bloc:"security", plural:true },
     { id:"oligarchs",    name:"Олигархат",          desc:"Крупный капитал",            emoji:"💼", baseApproval:18, bloc:"business" },
-    { id:"nationalists", name:"Националисты",      desc:"Радикальные движения",       emoji:"🔱", baseApproval:55, bloc:"nationalist" },
-    { id:"west",         name:"Западные союзники", desc:"США, ЕС, НАТО",              emoji:"🌍", baseApproval:68, bloc:"west" },
+    { id:"nationalists", name:"Националисты",      desc:"Радикальные движения",       emoji:"🔱", baseApproval:55, bloc:"nationalist", plural:true },
+    { id:"west",         name:"Западные союзники", desc:"США, ЕС, НАТО",              emoji:"🌍", baseApproval:68, bloc:"west", plural:true },
     { id:"civil",        name:"Гражданское общество",desc:"Волонтёры и НКО",         emoji:"🤝", baseApproval:70, bloc:"liberal" },
-    { id:"regions",      name:"Местные элиты",     desc:"Мэры и губернаторы",         emoji:"🏛️", baseApproval:40, bloc:"regional" },
+    { id:"regions",      name:"Местные элиты",     desc:"Мэры и губернаторы",         emoji:"🏛️", baseApproval:40, bloc:"regional", plural:true },
     { id:"church",       name:"Церковь (ПЦУ)",     desc:"Православная церковь Украины",emoji:"⛪", baseApproval:60, bloc:"church" },
-    { id:"media",        name:"Медиа",             desc:"Телеканалы и пресса",         emoji:"📰", baseApproval:55, bloc:"liberal" },
+    { id:"media",        name:"Медиа",             desc:"Телеканалы и пресса",         emoji:"📰", baseApproval:55, bloc:"liberal", plural:true },
   ],
   "Грузия": [
     { id:"gdream",     name:"Грузинская мечта",    desc:"Партия Иванишвили",          emoji:"👑", baseApproval:35, bloc:"ruling" },
     { id:"opposition", name:"Проевропейская оппозиция",desc:"Нацдвижение и др.",     emoji:"🌍", baseApproval:48, bloc:"liberal" },
     { id:"church",     name:"Православная церковь",desc:"Патриарх и духовенство",    emoji:"⛪", baseApproval:72, bloc:"church" },
-    { id:"business",   name:"Бизнес-элиты",       desc:"Предприниматели и банки",    emoji:"💼", baseApproval:44, bloc:"business" },
+    { id:"business",   name:"Бизнес-элиты",       desc:"Предприниматели и банки",    emoji:"💼", baseApproval:44, bloc:"business", plural:true },
     { id:"civil",      name:"Гражданское общество",desc:"НКО и активисты",           emoji:"✊", baseApproval:62, bloc:"liberal" },
     { id:"russia",     name:"Кремль",              desc:"Москва и пророссийские",     emoji:"🦅", baseApproval:20, bloc:"russia" },
-    { id:"west",       name:"Западные партнёры",  desc:"ЕС, США, НАТО",              emoji:"🌍", baseApproval:58, bloc:"west" },
+    { id:"west",       name:"Западные партнёры",  desc:"ЕС, США, НАТО",              emoji:"🌍", baseApproval:58, bloc:"west", plural:true },
     { id:"diaspora",   name:"Диаспора",            desc:"Эмигранты и зарубежная Грузия",emoji:"✈️", baseApproval:55, bloc:"liberal" },
   ],
   "Молдова": [
-    { id:"west",      name:"ЕС и Румыния",          desc:"Брюссель и Бухарест",          emoji:"🌍", baseApproval:55, bloc:"west" },
+    { id:"west",      name:"ЕС и Румыния",          desc:"Брюссель и Бухарест",          emoji:"🌍", baseApproval:55, bloc:"west", plural:true },
     { id:"russia",    name:"Кремль",                desc:"Москва и Тирасполь",           emoji:"🦅", baseApproval:30, bloc:"russia" },
-    { id:"oligarchs", name:"Беглые олигархи",       desc:"Теневые кланы и их партии",    emoji:"💼", baseApproval:20, bloc:"business" },
-    { id:"regions",   name:"Гагаузия и север",      desc:"Пророссийские регионы",        emoji:"🏛️", baseApproval:40, bloc:"regional" },
+    { id:"oligarchs", name:"Беглые олигархи",       desc:"Теневые кланы и их партии",    emoji:"💼", baseApproval:20, bloc:"business", plural:true },
+    { id:"regions",   name:"Гагаузия и север",      desc:"Пророссийские регионы",        emoji:"🏛️", baseApproval:40, bloc:"regional", plural:true },
     { id:"church",    name:"Митрополия",            desc:"Молдавская православная церковь",emoji:"⛪", baseApproval:65, bloc:"church" },
     { id:"civil",     name:"Гражданское общество",  desc:"Проевропейские НКО и СМИ",     emoji:"🤝", baseApproval:55, bloc:"liberal" },
-    { id:"siloviki",  name:"Прокуратура и полиция", desc:"Силовой блок",                 emoji:"🛡️", baseApproval:35, bloc:"security" },
+    { id:"siloviki",  name:"Прокуратура и полиция", desc:"Силовой блок",                 emoji:"🛡️", baseApproval:35, bloc:"security", plural:true },
     { id:"diaspora",  name:"Диаспора",              desc:"Молдаване в ЕС",               emoji:"✈️", baseApproval:60, bloc:"liberal" },
   ],
   "Армения": [
-    { id:"military",    name:"Армия и ветераны",     desc:"Генштаб и ветераны Карабаха", emoji:"⚔️", baseApproval:60, bloc:"security" },
+    { id:"military",    name:"Армия и ветераны",     desc:"Генштаб и ветераны Карабаха", emoji:"⚔️", baseApproval:60, bloc:"security", plural:true },
     { id:"church",      name:"Апостольская церковь", desc:"Эчмиадзин",                    emoji:"⛪", baseApproval:70, bloc:"church" },
-    { id:"oligarchs",   name:"Старые элиты",         desc:"Олигархи прежней власти",      emoji:"💼", baseApproval:25, bloc:"business" },
-    { id:"revanchists", name:"Реваншисты",           desc:"Карабахский клан и радикалы",  emoji:"🔱", baseApproval:40, bloc:"nationalist" },
+    { id:"oligarchs",   name:"Старые элиты",         desc:"Олигархи прежней власти",      emoji:"💼", baseApproval:25, bloc:"business", plural:true },
+    { id:"revanchists", name:"Реваншисты",           desc:"Карабахский клан и радикалы",  emoji:"🔱", baseApproval:40, bloc:"nationalist", plural:true },
     { id:"civil",       name:"Гражданское общество", desc:"НКО, журналисты, студенты",    emoji:"🤝", baseApproval:55, bloc:"liberal" },
     { id:"diaspora",    name:"Диаспора",             desc:"США, Франция, Россия",         emoji:"✈️", baseApproval:65, bloc:"liberal" },
-    { id:"west",        name:"ЕС и США",             desc:"Новые партнёры",               emoji:"🌍", baseApproval:55, bloc:"west" },
-    { id:"russia",      name:"Кремль и ОДКБ",        desc:"Бывший союзник",               emoji:"🦅", baseApproval:30, bloc:"russia" },
+    { id:"west",        name:"ЕС и США",             desc:"Новые партнёры",               emoji:"🌍", baseApproval:55, bloc:"west", plural:true },
+    { id:"russia",      name:"Кремль и ОДКБ",        desc:"Бывший союзник",               emoji:"🦅", baseApproval:30, bloc:"russia", plural:true },
   ],
   "Казахстан": [
-    { id:"siloviki",     name:"КНБ и полиция",       desc:"Спецслужбы",                   emoji:"🛡️", baseApproval:35, bloc:"security" },
-    { id:"oligarchs",    name:"Семейные кланы",      desc:"Старая элита и её активы",     emoji:"💼", baseApproval:15, bloc:"business" },
-    { id:"regions",      name:"Акимы регионов",      desc:"Региональная вертикаль",       emoji:"🏛️", baseApproval:40, bloc:"regional" },
+    { id:"siloviki",     name:"КНБ и полиция",       desc:"Спецслужбы",                   emoji:"🛡️", baseApproval:35, bloc:"security", plural:true },
+    { id:"oligarchs",    name:"Семейные кланы",      desc:"Старая элита и её активы",     emoji:"💼", baseApproval:15, bloc:"business", plural:true },
+    { id:"regions",      name:"Акимы регионов",      desc:"Региональная вертикаль",       emoji:"🏛️", baseApproval:40, bloc:"regional", plural:true },
     { id:"youth",        name:"Городская молодёжь",  desc:"Алматы, Астана, соцсети",      emoji:"🔥", baseApproval:60, bloc:"liberal" },
-    { id:"nationalists", name:"Национал-патриоты",   desc:"Казахоязычные активисты",      emoji:"🔱", baseApproval:45, bloc:"nationalist" },
+    { id:"nationalists", name:"Национал-патриоты",   desc:"Казахоязычные активисты",      emoji:"🔱", baseApproval:45, bloc:"nationalist", plural:true },
     { id:"church",       name:"Духовенство",         desc:"Духовное управление мусульман",emoji:"🕌", baseApproval:50, bloc:"church" },
     { id:"russia",       name:"Кремль",              desc:"Москва и ЕАЭС",                emoji:"🦅", baseApproval:35, bloc:"russia" },
-    { id:"west",         name:"Западные инвесторы",  desc:"Нефть, уран, США и ЕС",        emoji:"🌍", baseApproval:45, bloc:"west" },
+    { id:"west",         name:"Западные инвесторы",  desc:"Нефть, уран, США и ЕС",        emoji:"🌍", baseApproval:45, bloc:"west", plural:true },
   ],
 };
 

@@ -244,15 +244,16 @@ test("у каждого решения в эпизодах интриг есть
 test("газета и реплики: у каждой карточки своя сцена, другие издания и реплики по сути решения", async () => {
   const { sceneOf } = await import("../content/scene-map.ts");
   for (const c of EVENT_CARDS) assert.notEqual(sceneOf({ card: c.id, source: c.source }), "square", `сцена для ${c.id}`);
-  let s = await newGame("Украина");
+  // эпизод интриги — дело закрытое, газеты о нём не пишут; проверяем обычное дело
+  let s: GameState = { ...(await newGame("Украина")), arc: null };
   const ev = await classicApi.event(s);
   s = startEvent(s, ev);
   const n = await classicApi.consequence(s, ev.choices[0].id);
   assert.ok(n.scene, "сцена хода");
   assert.ok(n.press?.length && n.press.every(p => p.outlet && p.headline && !/\{\w+/.test(p.headline)), "что пишут другие");
   // цитаты без финальной точки: её ставит подача после кавычек
-  const { REACT_BY_TAG, REACT_DIPLOMAT, REACT_SPECIAL, REACT_FAILURE } = await import("../content/reactions.ts");
-  for (const pool of [...Object.values(REACT_BY_TAG), ...Object.values(REACT_DIPLOMAT), ...Object.values(REACT_SPECIAL), REACT_FAILURE])
+  const { LAW_REACT, REACT_BY_TAG, REACT_DIPLOMAT, REACT_SPECIAL, REACT_FAILURE } = await import("../content/reactions.ts");
+  for (const pool of [...Object.values(REACT_BY_TAG), ...Object.values(REACT_DIPLOMAT), ...Object.values(REACT_SPECIAL), ...Object.values(LAW_REACT), REACT_FAILURE])
     for (const q of [...pool.pro, ...pool.con]) assert.ok(!q.endsWith("."), q);
 });
 

@@ -14,25 +14,26 @@ import { CRISIS_ESCALATE, EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../
 import { SCENES } from "../content/scenes.ts";
 import { EVENT_EXT } from "../content/events-ext.ts";
 import { BEAT_EXT } from "../content/beats-ext.ts";
-import { DAY_TIMES, DAYLIGHT, INTERCEPTS, INTERCUT_CHURCH, INTERCUT_COLD, INTERCUT_ENVOY, INTERCUT_WARM, PLACES, TIMES, WEATHER_ANY, WEATHER_BY_SEASON } from "../content/frame.ts";
-import { MONTHS_GEN, turnDate } from "./calendar.ts";
+import { DAY_TIMES, DAYLIGHT, NIGHT, NIGHT_TIMES, type PlaceKind, INTERCEPTS, PLACES, TIMES, WEATHER_ANY, WEATHER_BY_SEASON } from "../content/frame.ts";
+import { MONTHS_ADJ, MONTHS_GEN, turnDate } from "./calendar.ts";
 import { ECHOES } from "../content/echoes.ts";
 import { sceneOf } from "../content/scene-map.ts";
 import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OPPOSITION_SPECIAL, OUTLETS } from "../content/newspaper.ts";
 import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
 import { lawDef } from "./laws.ts";
-import { TERMS_TURN, fellTrying, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
+import { DEEDS, ELECTION_NIGHT, INTERCUTS, roleGroup } from "../content/roles.ts";
+import { TERMS_TURN, electionKind, fellTrying, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
 import { FINALE, LOCKED, PATHS, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
-import { MEANWHILE, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
+import { LAW_REACT, MEANWHILE, type LawAct, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
 import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
 import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
 import { BUDGET_DEBT, BUDGET_ITEMS, BUDGET_MAX, BUDGET_REL, BUDGET_RES, BUDGET_TEXT, BUDGET_TOTAL } from "../content/budget.ts";
 import { APPROACH_WORKS, CALL_DEMANDS, CALL_ENDINGS, CALL_REPLIES, CALL_TEXT, type Approach } from "../content/calls.ts";
 import {
   COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
-  FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, type LossEnd, REACT_APPROVE, REACT_DISAPPROVE, SPEECHES, TAG_LINES, TITLES,
+  FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, type LossEnd, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
-import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, DELAYED, WEAK_ADVISOR_DELAYED, ELECTIONS, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
+import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, FACTIONS_DATA, DELAYED, WEAK_ADVISOR_DELAYED, ELECTION_LABEL, FIGURE_ROLES, MAX_TURNS, RATINGS, RES_CONFIG } from "./data.ts";
 import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PACT, PACT_BROKEN_LINE, PACT_GIVES, PACT_KEPT_LINE, PACT_OK_VARIANTS, type SpecialChoice } from "../content/people.ts";
 import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } from "./people.ts";
 import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
@@ -86,7 +87,12 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
     const name = figureOf(state, bloc)?.name;
     return name && isFemaleName(name) ? she : he;
   });
-  return gendered.replace(/\{(\w+)(?::(\w+))?\}/g, (m, key: string, arg?: string) => {
+  // Число по названию группы: {v:west:ставит|ставят} — «Запад ставит», «Западные партнёры ставят».
+  const agreed = gendered.replace(/\{v:(\w+):([^|{}]*)\|([^{}]*)\}/g, (_m, bloc: string, one: string, many: string) => {
+    const fac = factionOf(state, bloc);
+    return fac && FACTIONS_DATA[state.country]?.find(f => f.id === fac.id)?.plural ? many : one;
+  });
+  return agreed.replace(/\{(\w+)(?::(\w+))?\}/g, (m, key: string, arg?: string) => {
     switch (key) {
       case "capital": {
         const cap = COUNTRIES[state.country].capital;
@@ -109,14 +115,25 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
 }
 
 // Шапка главы: день, время, погода, место. Детерминирована ходом, чтобы не менялась при перезагрузке.
-export function dateline(state: GameState): string {
+// Место — по роду дела. У эпизодов интриги время и место задаёт сама сцена, в шапке только дата и погода.
+export function dateline(state: GameState, kind: PlaceKind | "beat" = "desk"): string {
   const r = seededRandom(hashSeed(state.seed, "dateline", state.turn));
   const t = state.turn;
   const d = turnDate(state.seed, COUNTRIES[state.country].startYear, t);
-  const weather = cycle([...WEATHER_BY_SEASON[d.season], ...WEATHER_ANY], state.seed, "weather", t), place = cycle(PLACES, state.seed, "place", t);
-  const time = pick(r, DAYLIGHT.has(weather) || DAYLIGHT.has(place) ? DAY_TIMES : TIMES);
-  return fill(`${d.day} ${MONTHS_GEN[d.month]} ${d.year}, ${d.weekday}, ${time}. ${weather} ${place}`, state);
+  const weather = cycle([...WEATHER_BY_SEASON[d.season], ...WEATHER_ANY], state.seed, "weather", t);
+  if (kind === "beat") return fill(`${d.day} ${MONTHS_GEN[d.month]} ${d.year}, ${d.weekday}. ${weather}`, state);
+  const place = cycle(PLACES[kind], state.seed, "place", t);
+  // Ночное место — ночное время; дневная погода или место — дневное. Ночью «жары в кабинетах» не бывает.
+  const time = pick(r, NIGHT.has(place) ? NIGHT_TIMES : DAYLIGHT.has(weather) || DAYLIGHT.has(place) ? DAY_TIMES : TIMES);
+  const sky = NIGHT.has(place) && DAYLIGHT.has(weather) ? "" : ` ${weather}`;
+  return fill(`${d.day} ${MONTHS_GEN[d.month]} ${d.year}, ${d.weekday}, ${time}.${sky} ${place}`, state);
 }
+// Место по источнику обычного дела: улица и армия — ситуационный центр, иностранцы — спецсвязь.
+const SOURCE_PLACE: Record<string, PlaceKind> = {
+  "Улица": "crisis", "Армия": "crisis", "Разведка": "crisis", "Оппозиция": "crisis",
+  "МИД": "foreign", "Брюссель": "foreign", "Кремль": "foreign", "Москва": "foreign", "Парламент": "parliament",
+  "МВД": "crisis", "Министерство обороны": "crisis", "Олигарх": "private",
+};
 
 const chapter = (...parts: (string | undefined | null | false)[]) => parts.filter(Boolean).join("\n\n");
 
@@ -138,7 +155,11 @@ export function cardAvailable(card: EventCard, state: GameState): boolean {
   if (w.hostile && !blocRel(w.hostile).some(r => r <= -40)) return false;
   if (w.friendly && !blocRel(w.friendly).some(r => r >= 40)) return false;
   if (w.crisis && !state.activeCrises.length) return false;
-  if (w.preElection && !ELECTIONS[turn + 1] && !ELECTIONS[turn + 2]) return false;
+  // «Перед выборами» — только если выборы действительно будут: после отмены или ухода их нет.
+  const vote = (t: number) => !!electionKind(t, state.path);
+  if (w.preElection && !vote(turn + 1) && !vote(turn + 2)) return false;
+  // Когда страна уже живёт по чрезвычайному положению или указам, просить «ввести ЧП» некому.
+  if (w.law === "emergency_powers" && (state.path?.id === "postpone" || state.path?.id === "dictatorship")) return false;
   if (w.ideo && !w.ideo.includes(state.ideo)) return false;
   if (w.law && !state.laws?.some(l => l.id === w.law && turn - l.since >= 2)) return false;
   return true;
@@ -170,7 +191,7 @@ export function beatEvent(state: GameState): GameEvent | null {
     title: fill(variant.title, state),
     source: "Секретно",
     // Первый ход — короткий: игрок только вошёл в кабинет, второй абзац подождёт до следующих эпизодов.
-    description: chapter(dateline(state), fill(variant.description, state), state.turn > 0 && BEAT_EXT[variant.title] && fill(BEAT_EXT[variant.title], state)),
+    description: chapter(dateline(state, "beat"), fill(variant.description, state), state.turn > 0 && BEAT_EXT[variant.title] && fill(BEAT_EXT[variant.title], state)),
     isCritical: episode === total,
     affectedFactions: [],
     choices: variant.choices.map((c, i) => ({
@@ -243,7 +264,7 @@ function personEvent(state: GameState, kind: "overture" | "insider" | "mole", fi
     cardId: `sp:${turn}:${kind}:${fig.id}`,
     title: fill(content.title, state, slots),
     source: kind === "mole" ? "Разведка" : "Лично",
-    description: chapter(dateline(state), fill(content.description, state, slots), reason),
+    description: chapter(dateline(state, "private"), fill(content.description, state, slots), reason),
     isCritical: false,
     affectedFactions: [fac.id],
     choices: specialChoices(state, options, slots),
@@ -287,7 +308,7 @@ function pactEvent(state: GameState, turn: number, r: Rand, seen: (kind: string,
     cardId: `sp:${turn}:pact:${fac.id}`,
     title: fill(PACT.title, state, slots),
     source: "Канцелярия",
-    description: chapter(dateline(state), fill(warm ? PACT.viaFigure : PACT.viaLetter, state, slots), fill(PACT.body, state, slots), state.betrayals ? PACT.betrayed : null),
+    description: chapter(dateline(state, "meeting"), fill(warm ? PACT.viaFigure : PACT.viaLetter, state, slots), fill(PACT.body, state, slots), state.betrayals ? PACT.betrayed : null),
     isCritical: false,
     affectedFactions: [fac.id, ...(rival ? [rival.id] : [])],
     choices,
@@ -341,6 +362,14 @@ export function lawEvent(state: GameState): SpecialEvent | null {
   const inForce = state.laws ?? [];
   const hasBloc = (bloc: Bloc) => state.factions.some(f => f.bloc === bloc);
   const slots = (def: LawDef) => ({ law: def.title });
+  // Позиция сторон: авторы и союзники закона — за, противники — против. Отказ и отмена — наоборот.
+  const stance = (def: LawDef, author: number, ally: number, foe: number) => {
+    const out: Partial<Record<Bloc, number>> = {};
+    for (const b of def.allies) out[b] = ally;
+    for (const b of def.foes) out[b] = foe;
+    out[def.bloc] = author;
+    return out;
+  };
 
   // Отмена: закон действует давно, а те, против кого он, озлоблены.
   const angry = inForce.map(l => ({ l, def: lawDef(l.id)! })).filter(({ l, def }) => def && turn - l.since >= 4
@@ -354,14 +383,14 @@ export function lawEvent(state: GameState): SpecialEvent | null {
     return {
       cardId: `law:${turn}:repeal:${def.id}`,
       title: f(REPEAL.title), source: REPEAL.source,
-      description: chapter(dateline(state), f(REPEAL.description)),
+      description: chapter(dateline(state, "parliament"), f(REPEAL.description)),
       isCritical: false, affectedFactions: state.factions.filter(x => def.drift?.[x.bloc]).map(x => x.id).slice(0, 4),
       choices: [
-        { id: "a", text: REPEAL.keep.text, hint: REPEAL.keep.hint, tags: def.tags, resolvesCrisis: null,
+        { id: "a", text: REPEAL.keep.text, hint: REPEAL.keep.hint, tags: def.tags, resolvesCrisis: null, stance: stance(def, 4, 2, -5),
           scene: f(REPEAL.kept), sceneFail: f(REPEAL.keptFail), headline: f(REPEAL.keptHead.ok), headlineFail: f(REPEAL.keptHead.fail) },
-        { id: "b", text: REPEAL.repeal.text, hint: REPEAL.repeal.hint, tags: def.veto, resolvesCrisis: null, law: { id: def.id, act: "repeal" },
+        { id: "b", text: REPEAL.repeal.text, hint: REPEAL.repeal.hint, tags: def.veto, resolvesCrisis: null, law: { id: def.id, act: "repeal" }, stance: stance(def, -8, -4, 6),
           scene: f(REPEAL.passed), sceneFail: f(REPEAL.failed), headline: f(REPEAL.head.passed), headlineFail: f(REPEAL.head.failed) },
-        { id: "c", text: REPEAL.wait.text, hint: REPEAL.wait.hint, tags: ["delay"], resolvesCrisis: null,
+        { id: "c", text: REPEAL.wait.text, hint: REPEAL.wait.hint, tags: ["delay"], resolvesCrisis: null, stance: Object.fromEntries(def.foes.map(b => [b, -3])),
           scene: f(REPEAL.waitScene), sceneFail: f(REPEAL.waitScene), headline: f(REPEAL.waitHead), headlineFail: f(REPEAL.waitHead) },
       ],
       randomEvent: null,
@@ -379,14 +408,14 @@ export function lawEvent(state: GameState): SpecialEvent | null {
   return {
     cardId: `law:${turn}:${def.id}`,
     title: f(BILL.title), source: BILL.source,
-    description: chapter(dateline(state), f(def.pitch)),
+    description: chapter(dateline(state, "parliament"), f(def.pitch)),
     isCritical: false, affectedFactions: state.factions.filter(x => x.bloc === def.bloc || def.drift?.[x.bloc]).map(x => x.id).slice(0, 4),
     choices: [
-      { id: "a", text: BILL.enact.text, hint: BILL.enact.hint, tags: def.tags, resolvesCrisis: null, law: { id: def.id, act: "enact" },
+      { id: "a", text: BILL.enact.text, hint: BILL.enact.hint, tags: def.tags, resolvesCrisis: null, law: { id: def.id, act: "enact" }, stance: stance(def, 8, 5, -6),
         scene: f(def.passed), sceneFail: f(def.failed), headline: f(def.head.passed), headlineFail: f(def.head.failed) },
-      { id: "b", text: BILL.veto.text, hint: BILL.veto.hint, tags: def.veto, resolvesCrisis: null,
+      { id: "b", text: BILL.veto.text, hint: BILL.veto.hint, tags: def.veto, resolvesCrisis: null, stance: stance(def, -8, -3, 5),
         scene: f(def.vetoed), sceneFail: f(def.vetoed), headline: f(def.head.vetoed), headlineFail: f(def.head.vetoed) },
-      { id: "c", text: BILL.delay.text, hint: BILL.delay.hint, tags: ["delay"], resolvesCrisis: null,
+      { id: "c", text: BILL.delay.text, hint: BILL.delay.hint, tags: ["delay"], resolvesCrisis: null, stance: { [def.bloc]: -3 },
         scene: f(BILL.delayScene), sceneFail: f(BILL.delayScene), headline: f(BILL.delayHead), headlineFail: f(BILL.delayHead) },
     ],
     randomEvent: null,
@@ -508,9 +537,11 @@ export function pressEvent(state: GameState): SpecialEvent | null {
   if (k < 0 || dueBeat(state)) return null;
   const asked = new Set((state.usedEvents ?? []).filter(u => u.startsWith("prs:")).flatMap(u => u.split(":")[2].split(",")));
   const r = state.resources;
+  // После «вопроса о сроках» выборов может и не быть: тогда о них не спрашивают.
+  const noVote = turn > TERMS_TURN && !!state.path && !electionKind(MAX_TURNS, state.path);
   const fits: Record<PressWhen, boolean> = {
     always: true, crisis: state.activeCrises.length > 0, lowEcon: r.economy < 40, lowLegit: r.internalLegitimacy < 40,
-    elect: true, pact: (state.pacts ?? []).length > 0, highMil: r.military > 60,
+    elect: !noVote, pact: (state.pacts ?? []).length > 0, highMil: r.military > 60,
     highRating: computePolls(state.country, state.factions, r).leader >= 45, lowRep: r.externalReputation < 40,
     betrayal: (state.betrayals ?? 0) > 0, arc: !!state.arc && !state.arc.epilogue && state.arc.done.length >= 2,
   };
@@ -530,9 +561,9 @@ export function pressEvent(state: GameState): SpecialEvent | null {
   };
   return {
     cardId: `prs:${turn}:${picked.map(q => q.id).join(",")}`,
-    title: PRESS_TEXT.title[k],
+    title: noVote ? PRESS_TEXT.titleNoVote[state.path!.id] ?? PRESS_TEXT.title[0] : PRESS_TEXT.title[k],
     source: "Пресс-служба",
-    description: chapter(dateline(state), PRESS_TEXT.intro),
+    description: chapter(dateline(state, "press"), PRESS_TEXT.intro),
     isCritical: false,
     affectedFactions: [],
     // Итоговое решение собирается из ответов (pressChoice); до тех пор доступна только отмена.
@@ -616,7 +647,7 @@ export function callEvent(state: GameState): SpecialEvent | null {
     cardId: `call:${turn}:${fig.id}`,
     title: CALL_TEXT.title,
     source: "Защищённая линия",
-    description: chapter(dateline(state), fill(CALL_TEXT.intro, state, slots)),
+    description: chapter(dateline(state, "call"), fill(CALL_TEXT.intro, state, slots)),
     isCritical: false,
     affectedFactions: [fac.id],
     // Итог собирается из выбранного подхода и развязки (callChoice); до тех пор можно не брать трубку.
@@ -765,7 +796,7 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
     cardId: card.id,
     title: fill(card.title, state),
     source: card.source,
-    description: chapter(dateline(state), fill(card.description, state), state.turn > 0 && EVENT_EXT[card.id] && fill(EVENT_EXT[card.id], state)),
+    description: chapter(dateline(state, SOURCE_PLACE[card.source] ?? (warningLevel(state) === "critical" ? "crisis" : "desk")), fill(card.description, state), state.turn > 0 && EVENT_EXT[card.id] && fill(EVENT_EXT[card.id], state)),
     isCritical: warningLevel(state) === "critical",
     affectedFactions: state.factions.filter(f => blocs.has(f.bloc)).slice(0, 4).map(f => f.id),
     choices: card.choices.map((c, i) => ({
@@ -811,6 +842,14 @@ function finaleOf(state: GameState, plan: ReturnType<typeof planTurn>): { head: 
 const headlines = (pair: HeadlinePair | undefined, state: GameState) =>
   pair ? { headline: fill(pair[0], state), headlineFail: fill(pair[1], state) } : {};
 
+const MAX_ECHOES = 2;
+// «Аукается апрельское дело «Студенты захватили университет».» — откуда пришло последствие.
+function echoLead(state: GameState, m: { from?: number; event?: string }): string {
+  if (m.from === undefined || !m.event) return "";
+  const adj = MONTHS_ADJ[turnDate(state.seed, COUNTRIES[state.country].startYear, m.from).month];
+  return m.event.includes("«") ? `Аукается ${adj} решение. ` : `Аукается ${adj} дело «${m.event}». `;
+}
+
 // Эхо прошлого решения — авторская фраза. Если то же эхо уже звучало в партии, берётся следующий вариант.
 const maturedStory = (label: string, times: number) => {
   const first = [...Object.values(DELAYED), WEAK_ADVISOR_DELAYED].find(d => d?.label === label)?.story ?? `Аукнулось прошлое решение: ${label.toLowerCase()}.`;
@@ -837,7 +876,7 @@ const POLLS_DOWN = [
   "Опрос показывает то, что вы и так чувствуете по лицам в зале: доверие уходит, и уходит быстро.",
   "Ваш портрет на остановке у министерства кто-то разрисовал ночью. Дворники стирают его к утру, социологи — нет.",
   "Штаб просит отменить поездку в регионы: по свежим цифрам там вас встретят не цветами.",
-  "Рейтинг проседает на четыре пункта за неделю. Пресс-секретарь впервые не находит, как это подать.",
+  "Рейтинг проседает второй замер подряд. Пресс-секретарь впервые не находит, как это подать.",
 ];
 
 // ── Итог хода ────────────────────────────────────────────────────────────────
@@ -847,6 +886,14 @@ export function specialAct(state: GameState, choice: Choice): SpecialAct | null 
   const kind = state.currentEvent?.special?.kind;
   if (kind === "inspect") return choice.id === "a" ? "inspect_sign" : "inspect";
   if (kind === "press" || kind === "call" || kind === "budget") return choice.id === "p" ? kind : `${kind}_skip`;
+  return null;
+}
+
+// Что сделали с законом: провели, отклонили, отменили или отстояли.
+function lawActOf(c: Choice): LawAct | null {
+  if (c.law) return c.law.act;
+  if (c.text === BILL.veto.text) return "veto";
+  if (c.text === REPEAL.keep.text) return "keep";
   return null;
 }
 
@@ -882,7 +929,12 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   let electionLine: string | null = null;
   if (plan.resolvedCrisis && !arc) after.push(`Кризис «${plan.resolvedCrisis}» наконец отступает. В ситуационном центре впервые за много дней кто-то шутит.`);
   const echoed: Record<string, number> = { ...(state.echoes ?? {}) };
-  for (const m of plan.matured) after.push(m.story || maturedStory(m.label, (echoed[m.label] = (echoed[m.label] ?? 0) + 1) - 1));
+  // Эхо прошлых решений: сначала — какое именно решение аукнулось, чтобы связь была видна. Не больше двух за ход:
+  // газета, в которой аукается всё сразу, читается как список.
+  for (const m of plan.matured.slice(0, MAX_ECHOES)) {
+    const story = m.story || maturedStory(m.label, (echoed[m.label] = (echoed[m.label] ?? 0) + 1) - 1);
+    after.push(`${echoLead(state, m)}${story}`);
+  }
   if (plan.election) {
     const e = plan.election;
     electionLine = (e.outcome === "won"
@@ -894,7 +946,8 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const news = plan.pactNews;
   for (const name of news.kept) after.push(fill(cycle(PACT_KEPT_LINE, state.seed, "kept", state.turn), state, { camp: name }));
   for (const name of news.broken) after.push(fill(cycle(PACT_BROKEN_LINE, state.seed, "broken", state.betrayals ?? 0), state, { camp: name }));
-  if (Math.abs(pollsAfter - pollsBefore) >= 4) after.push(cycle(pollsAfter > pollsBefore ? POLLS_UP : POLLS_DOWN, state.seed, `polls${pollsAfter > pollsBefore}`, state.turn));
+  // Строка об опросах — если сцена сама уже не говорит о рейтинге: два разных числа в одной заметке — небрежность.
+  if (Math.abs(pollsAfter - pollsBefore) >= 4 && !/рейтинг|опрос|замер/i.test(scene)) after.push(cycle(pollsAfter > pollsBefore ? POLLS_UP : POLLS_DOWN, state.seed, `polls${pollsAfter > pollsBefore}`, state.turn));
 
   // «Тем временем»: персонаж, чьё личное отношение изменилось сильнее всего.
   // Антагонист интриги и герой особого дела не комментируют собственные эпизоды — они в них участники.
@@ -907,21 +960,38 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     const next = plan.keyFigures.find(x => x.id === f.id);
     return next && next.name === f.name ? next.relation - f.relation : 0;
   };
+  // У закона есть стороны: за него говорят его сторонники, против — противники; остальным до него дела нет.
+  const stanceOf = (f: (typeof cast)[number]) => plan.choice.stance?.[state.factions.find(x => x.id === f.faction)?.bloc ?? "liberal"];
+  const onSide = (f: (typeof cast)[number], sign: number) => !plan.choice.stance || Math.sign(stanceOf(f) ?? 0) === sign;
+  // Послы и иностранный бизнес появляются, только когда решение касается их столиц.
+  const concerns = (f: (typeof cast)[number]) => {
+    const bloc = state.factions.find(x => x.id === f.faction)?.bloc;
+    // Доклады, бюджет, звонки — дела внутренней кухни: их обсуждают власть и элиты; пресс-конференцию — ещё и оппозиция.
+    const sa = specialAct(state, plan.choice);
+    if (sa && !["power", "elite", ...(sa.startsWith("press") ? ["outsider"] : [])].includes(roleGroup(f.id))) return false;
+    if (bloc !== "west" && bloc !== "russia") return true;
+    return plan.choice.stance ? !!plan.choice.stance[bloc] : plan.choice.tags.some(t => ACTIONS[t].rel[bloc]);
+  };
   const moved = [...cast]
     .map(f => ({ f, d: delta(f) }))
-    .filter(x => Math.abs(x.d) >= 3)
+    .filter(x => Math.abs(x.d) >= 3 && concerns(x.f) && onSide(x.f, Math.sign(x.d)))
     .sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
   // Свой человек или червоточина иногда напоминают о себе вместо обычной реплики.
   const facOf = (f: (typeof cast)[number]) => state.factions.find(x => x.id === f.faction);
   const bonded = state.turn % 3 === 2 ? cast.find(f => ["insider", "mole"].includes(bondOf(f, facOf(f)) ?? "")) : undefined;
-  const movedBloc = moved && facOf(moved.f)?.bloc;
-  const intercutPool = !moved ? [] : movedBloc === "west" || movedBloc === "russia" ? INTERCUT_ENVOY[moved.d > 0 ? "warm" : "cold"]
-    : movedBloc === "church" ? INTERCUT_CHURCH[moved.d > 0 ? "warm" : "cold"] : moved.d > 0 ? INTERCUT_WARM : INTERCUT_COLD;
-  const intercut = bonded
+  // Что человек делает, зависит от его места: генерал не созывает митинг, посол не голосует в комитетах.
+  const movedGroup = moved && roleGroup(moved.f.id);
+  const intercutPool = moved ? INTERCUTS[movedGroup!][moved.d > 0 ? "warm" : "cold"] : [];
+  // В ночь выборов говорит самый близкий к вам человек — о результате, а не о решении дня.
+  const closest = plan.election ? [...state.keyFigures].filter(f => f.name !== state.arc?.target && f.name !== plan.path?.successor)
+    .sort((x, y) => y.relation - x.relation)[0] : undefined;
+  const intercut = closest
+    ? fill(cycle(ELECTION_NIGHT[plan.election!.outcome === "won" ? "won" : "lost"][roleGroup(closest.id)], state.seed, "elnight", state.turn), state, { name: closest.name, role: lower(closest.role) })
+    : bonded
     ? fill(cycle(bondOf(bonded, facOf(bonded)) === "insider" ? INSIDER_LINES : MOLE_LINES, state.seed, "bond", state.turn), state, { name: bonded.name, camp: facOf(bonded)?.name ?? "" })
-    : moved ? fill(cycle(intercutPool, state.seed, `ic${moved.d > 0}${movedBloc}`, state.turn)
-      .replace(/^Тем временем /, `${cycle(MEANWHILE, state.seed, "meanwhile", state.turn)} `).replace("{name} ({role})", "{name}, {role},"), state,
-    { name: moved.f.name, role: moved.f.role.charAt(0).toLowerCase() + moved.f.role.slice(1) }) : null;
+    : moved ? fill(cycle(intercutPool, state.seed, `ic${moved.d > 0}${movedGroup}`, state.turn)
+      .replace(/^Тем временем /, `${cycle(MEANWHILE, state.seed, "meanwhile", state.turn)} `), state,
+    { name: moved.f.name, role: lower(moved.f.role) }) : null;
 
   // Нить интриги: между эпизодами — зловещая строка-предвестие.
   const arcDef = ARCS.find(a => a.id === state.arc?.id);
@@ -932,7 +1002,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const hook = arcDef && arcOpen && !arc && !plan.endType && state.turn % 2 === 1 && hookIdx < arcDef.hooks.length
     ? fill(cycle(arcDef.hooks, state.seed, "hook", hookIdx), state) : null;
   const finale = finaleOf(state, plan);
-  const parts = [scene, after.join(" "), finale?.text ?? electionLine, intercut, hook];
+  const parts = [scene, ...after, finale?.text ?? electionLine, intercut, hook];
 
   // То, что уже звучало в партии, не повторяется, пока в пуле есть свежие варианты.
   const heard = new Set(state.history.flatMap(h => h.heard ?? []));
@@ -957,34 +1027,60 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     const act = specialAct(state, plan.choice);
     if (act) return voice(f, sign, fresh(REACT_SPECIAL[act][side], `qs${act}${side}`, state.turn));
     if (state.currentEvent?.special?.kind) return null;
+    // Закон обсуждают как закон: за что голосовали и что отклонили.
+    const lawAct = lawActOf(plan.choice);
+    if (lawAct && bloc !== "west" && bloc !== "russia") {
+      const law = state.currentEvent?.title.match(/«(.+)»/)?.[1] ?? "";
+      return voice(f, sign, fill(fresh(LAW_REACT[lawAct][side], `ql${lawAct}${side}`, state.turn), state, { law }));
+    }
     // Чем решение задело: интересом лагеря или личными убеждениями говорящего.
     const trait = TRAITS[traitOf(state.seed, f, bloc)];
     const weight = (t: ActionTag) => sign * ((ACTIONS[t].rel[bloc] ?? 0) / 4 + (trait.like.includes(t) ? 7 : 0) - (trait.dislike.includes(t) ? 7 : 0));
     // Высказываются о том, что задевает их лагерь: патриарх не рецензирует кредит МВФ.
     const tag = plan.choice.tags.filter(t => weight(t) > 0 && (ACTIONS[t].rel[bloc] ?? 0) !== 0).sort((a, b) => weight(b) - weight(a))[0];
     if (!tag) return null;
-    const envoy = bloc === "west" || bloc === "russia" ? bloc : null;
+    const envoy = (bloc === "west" || bloc === "russia") && roleGroup(f.id) === "envoy" ? bloc : null;
     const uses = state.history.filter(h => h.tags?.includes(tag)).length;
     return voice(f, sign, envoy ? fresh(REACT_DIPLOMAT[envoy][side], `q${envoy}${side}`, state.turn)
       : fresh(REACT_BY_TAG[tag][side], `q${tag}${side}`, uses));
   };
   // Если сказать по сути нечего — только поступок, без слов: так реплика не уходит мимо темы.
-  const deed = (pool: string[], sign: number, f: (typeof cast)[number]) =>
-    fill(cycle(pool.filter(l => !l.includes("«")), state.seed, `re${sign}`, state.turn).replace("{name} ({role})", "{name}, {role},"), state, { name: f.name, role: lower(f.role) });
-  // Иностранцы высказываются только о том, что задевает их столицы, — во внутренние дела они не лезут.
-  const foreignAffair = (f: (typeof cast)[number]) => {
-    const bloc = facOf(f)?.bloc;
-    return bloc !== "west" && bloc !== "russia" || plan.choice.tags.some(t => ACTIONS[t].rel[bloc]);
-  };
+  const deed = (sign: number, f: (typeof cast)[number]) =>
+    fill(cycle(DEEDS[roleGroup(f.id)][sign > 0 ? "pro" : "con"], state.seed, `re${sign}`, state.turn), state, { name: f.name, role: lower(f.role) });
   const speakers: string[] = [];
-  const react = (sign: number, pool: string[]) => cast
-    .filter(f => f !== moved?.f && f !== bonded && Math.abs(delta(f)) >= 3 && Math.sign(delta(f)) === sign && foreignAffair(f))
-    .sort((a, b) => Math.abs(delta(b)) - Math.abs(delta(a)))
+  // Эпизод интриги — дело закрытое: публика о нём не знает и не комментирует.
+  // По закону говорят стороны: по одному человеку от тех, кто за, и от тех, кто против.
+  // Интерес лагеря: позиция сторон у закона, иначе — как теги решения задевают блок.
+  const interestOf = (f: (typeof cast)[number]) => {
+    const b = facOf(f)?.bloc;
+    if (!b) return 0;
+    if (plan.choice.stance) return plan.choice.stance[b] ?? 0;
+    // У сделки цену задаёт она сама: теги лишь подписывают решение.
+    if (plan.choice.deal?.pure) return plan.choice.deal.factionRel?.[f.faction] ?? 0;
+    return plan.choice.tags.reduce((s, t) => s + (ACTIONS[t].rel[b] ?? 0), 0);
+  };
+  // Личные убеждения: человек может говорить и поперёк своего лагеря, если решение задело то, во что он верит.
+  const traitPull = (f: (typeof cast)[number], sign: number) => {
+    const b = facOf(f)?.bloc;
+    const tr = b && TRAITS[traitOf(state.seed, f, b)];
+    return !!tr && plan.choice.tags.some(t => (sign > 0 ? tr.like : tr.dislike).includes(t));
+  };
+  const sAct = specialAct(state, plan.choice);
+  const fits = (f: (typeof cast)[number], sign: number) => {
+    if (sAct) return Math.abs(delta(f)) >= 3 && Math.sign(delta(f)) === sign;
+    // Провал: те, кому решение было выгодно, досадуют; те, кому нет, злорадствуют.
+    if (!plan.success) return Math.sign(interestOf(f)) === sign;
+    if (plan.choice.stance) return onSide(f, sign);
+    return Math.abs(delta(f)) >= 3 && Math.sign(delta(f)) === sign && (Math.sign(interestOf(f)) === sign || traitPull(f, sign));
+  };
+  const react = (sign: number) => (arc ? [] : cast)
+    .filter(f => f !== moved?.f && f !== bonded && f.id !== closest?.id && concerns(f) && fits(f, sign))
+    .sort((a, b) => Math.abs(stanceOf(b) ?? 0) - Math.abs(stanceOf(a) ?? 0) || Math.abs(delta(b)) - Math.abs(delta(a)))
     .slice(0, 1)
-    .map(f => { speakers.push(f.name); return quote(f, sign) ?? deed(pool, sign, f); });
-  const reactions = [...react(1, REACT_APPROVE), ...react(-1, REACT_DISAPPROVE)].slice(0, 3);
+    .map(f => { speakers.push(f.name); return quote(f, sign) ?? deed(sign, f); });
+  const reactions = [...react(1), ...react(-1)].slice(0, 3);
   // Кто появился в этой главе: в следующих двух он уступит место другим.
-  const appeared = [...(bonded ? [bonded.name] : moved && intercut ? [moved.f.name] : []), ...speakers];
+  const appeared = [...(closest ? [closest.name] : bonded ? [bonded.name] : moved && intercut ? [moved.f.name] : []), ...speakers];
 
   // Документ хода — перехват по линии интриги, раз в четыре хода и без повторов.
   // Газета уже сама по себе итог хода, вторая подборка заголовков в ней не нужна.
@@ -1006,7 +1102,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     ? { outlet: OUTLETS.foreign, headline: fill(fresh(FOREIGN[ext > 0 ? "up" : "down"], `fp${ext > 0}`, state.turn), state) }
     : Math.abs(econ) >= 3 && (act === "budget" || plan.choice.tags.some(t => MONEY_TAGS.includes(t)))
       ? { outlet: OUTLETS.business, headline: fresh(BUSINESS[econ > 0 ? "up" : "down"], `bz${econ > 0}`, state.turn) } : null;
-  const press = [{ outlet: OUTLETS.opposition, headline: fill(opposition, state) }, ...(second ? [second] : [])];
+  const press = arc && !plan.election ? [] : [{ outlet: OUTLETS.opposition, headline: fill(opposition, state) }, ...(second ? [second] : [])];
 
   const key = plan.newCrisisKey;
   return {
@@ -1094,7 +1190,8 @@ function personName(country: string, r: Rand, male = false, used?: Set<string>):
 }
 
 // Роли, которые в этих странах занимают только мужчины: иначе тексты событий звучат нелепо.
-const MALE_ROLES = new Set(["patriarch", "catholicos", "mufti", "general", "kgb", "knb", "interior", "sbu", "security", "shadow", "clan"]);
+// Тексты интриг написаны о мужчине-антагонисте: роли, из которых он выбирается, всегда достаются мужчинам.
+const MALE_ROLES = new Set(["patriarch", "catholicos", "mufti", "general", "kgb", "knb", "interior", "sbu", "security", "shadow", "clan", "prosecutor", "oligarch", "opp_leader", "activist"]);
 
 function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?: number): Intro {
   const r = seed === undefined ? Math.random : seededRandom(hashSeed(seed, "intro"));

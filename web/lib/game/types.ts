@@ -73,6 +73,7 @@ export interface Choice {
   headlineFail?: string;  // заголовок газеты при провале
   deal?: Deal;            // личная сделка или пакт (особые дела)
   law?: { id: string; act: "enact" | "repeal" }; // законопроект: принять или отменить, если исполнят
+  stance?: Partial<Record<Bloc, number>>; // кто за и кто против по сути решения — вместо отношений по тегам
   path?: PathId;          // ответ на «вопрос о сроках»
   successor?: string;     // имя преемника, если путь — преемник
 }
