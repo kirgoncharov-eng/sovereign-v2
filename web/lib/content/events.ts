@@ -14,6 +14,7 @@ export interface CardCondition {
   maxTurn?: number;
   preElection?: boolean;   // до выборов 1–2 хода
   ideo?: IdeologyId[];
+  law?: string;            // действует закон (принят хотя бы два хода назад)
 }
 
 export interface CardChoice {
@@ -21,6 +22,10 @@ export interface CardChoice {
   hint: string;
   tags: ActionTag[];
   resolves?: boolean;      // закрывает первый активный кризис
+  // Сцены прямо в карточке (дела-последствия законов); у остальных карточек — в scenes.ts, fail-*.ts, headlines-cards.ts.
+  scene?: string;
+  fail?: string;
+  head?: [string, string];
 }
 
 export interface EventCard {
@@ -37,6 +42,7 @@ export interface EventCard {
 
 import { GENERATED_CARDS } from "./generated.ts";
 import { MORE_CARDS } from "./events-more.ts";
+import { LAWS } from "./laws.ts";
 
 const AUTHORED_CARDS: EventCard[] = [
   // ── Экономика ──────────────────────────────────────────────────────────────
@@ -409,7 +415,13 @@ const AUTHORED_CARDS: EventCard[] = [
     ] },
 ];
 
-export const EVENT_CARDS: EventCard[] = [...AUTHORED_CARDS, ...MORE_CARDS, ...GENERATED_CARDS];
+// Последствия законов: дело приходит, только пока закон действует.
+const LAW_CARDS: EventCard[] = LAWS.map(l => ({
+  id: `law_${l.id}`, when: { ...l.followUp.when, law: l.id }, weight: 5, ...(l.countries ? { countries: l.countries } : {}),
+  source: l.followUp.source, title: l.followUp.title, description: l.followUp.description, choices: l.followUp.choices,
+}));
+
+export const EVENT_CARDS: EventCard[] = [...AUTHORED_CARDS, ...MORE_CARDS, ...GENERATED_CARDS, ...LAW_CARDS];
 
 export interface RandomCard { title: string; description: string; effect: ResourceDelta }
 
