@@ -4,13 +4,13 @@
 import { END_TYPES } from "../game/data.ts";
 import { kv } from "./kv.ts";
 
-export const TRACK_EVENTS = ["open", "start", "resume", "turn", "end", "share", "invite", "daily", "intro", "first", "help"] as const;
+export const TRACK_EVENTS = ["open", "start", "resume", "turn", "end", "share", "invite", "daily", "intro", "first", "help", "subscribe"] as const;
 export type TrackEventName = (typeof TRACK_EVENTS)[number];
 
 // По каким свойствам события считаем разрезы.
 const DIMS: Record<TrackEventName, string[]> = {
   open: ["src"], start: ["country", "diff", "ideo", "bio", "daily", "quick"], resume: [], turn: ["n"],
-  end: ["type", "kept"], share: [], invite: [], daily: [], intro: [], first: ["sec"], help: [],
+  end: ["type", "kept"], share: [], invite: [], daily: [], intro: [], first: ["sec"], help: [], subscribe: [],
 };
 export const COHORT_DAYS = [1, 3, 7, 14, 30];
 const TTL = 60 * 60 * 24 * 120;
@@ -140,7 +140,7 @@ export function renderStats(s: Stats, feedback: FeedbackRow[] = []): string {
     const age = Math.round((Date.parse(today) - Date.parse(c.date)) / 864e5);
     return `<tr><td>${esc(c.date)}</td><td>${c.h.d0}</td>${COHORT_DAYS.map(k => `<td>${age >= k ? pct(c.h[`d${k}`] ?? 0, c.h.d0) : "—"}</td>`).join("")}</tr>`;
   }).join("");
-  const dayRows = [...s.days].reverse().map(d => `<tr><td>${esc(d.date)}</td><td>${d.h.players ?? 0}</td><td>${d.h.new ?? 0}</td><td>${d.h.start ?? 0}</td><td>${d.h.end ?? 0}</td><td>${pct(d.h.end ?? 0, d.h.start ?? 0)}</td><td>${(d.h.share ?? 0) + (d.h.invite ?? 0)}</td><td>${d.h.daily ?? 0}</td></tr>`).join("");
+  const dayRows = [...s.days].reverse().map(d => `<tr><td>${esc(d.date)}</td><td>${d.h.players ?? 0}</td><td>${d.h.new ?? 0}</td><td>${d.h.start ?? 0}</td><td>${d.h.end ?? 0}</td><td>${pct(d.h.end ?? 0, d.h.start ?? 0)}</td><td>${(d.h.share ?? 0) + (d.h.invite ?? 0)}</td><td>${d.h.subscribe ?? 0}</td><td>${d.h.daily ?? 0}</td></tr>`).join("");
   const section = (title: string, prefix: string, total: number) => `<section><h2>${title}</h2>${bars(breakdown(s, prefix), total)}</section>`;
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Суверен · цифры</title>
@@ -179,6 +179,6 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 <div class="paper">${section("Время до первого решения", "first|sec=", sum(s, "first"))}</div>
 </div>
 <div class="paper"><h2>Отзывы</h2>${feedback.length ? feedback.map(f => `<div class="fb"><div class="muted">${esc(f.at.slice(0, 16).replace("T", " "))} · ${f.src === "bot" ? "бот" : "игра"}${f.rating ? ` · ${"★".repeat(f.rating)}${"☆".repeat(5 - f.rating)}` : ""}${f.who ? ` · ${esc(f.who)}` : ""}${f.ctx ? ` · ${esc(Object.values(f.ctx).join(", "))}` : ""}</div>${f.text ? `<div>${esc(f.text).replace(/\n/g, "<br>")}</div>` : ""}</div>`).join("") : `<p class="muted">Пока нет отзывов</p>`}</div>
-<div class="paper"><h2>По дням</h2><div class="scroll"><table><tr><th>День</th><th>Игроков</th><th>Новых</th><th>Партий</th><th>Финалов</th><th>Доиграли</th><th>Поделились</th><th>Дело дня</th></tr>${dayRows}</table></div></div>
+<div class="paper"><h2>По дням</h2><div class="scroll"><table><tr><th>День</th><th>Игроков</th><th>Новых</th><th>Партий</th><th>Финалов</th><th>Доиграли</th><th>Поделились</th><th>Подписались</th><th>Дело дня</th></tr>${dayRows}</table></div></div>
 </main></body></html>`;
 }

@@ -2,6 +2,7 @@
 // с заголовком Authorization: Bearer CRON_SECRET.
 import { adminDigest, dailyText, SUBS } from "@/lib/server/bot.ts";
 import { notifyAdmin } from "@/lib/server/feedback.ts";
+import { sendFollowups } from "@/lib/server/followup.ts";
 import { kv } from "@/lib/server/kv.ts";
 import { botApi, playButton } from "@/lib/server/telegram.ts";
 import { env } from "@/lib/server/env.ts";
@@ -24,7 +25,9 @@ export async function GET(req: Request) {
     }
     await new Promise(r => setTimeout(r, 40)); // не больше ~25 сообщений в секунду
   }
+  // Тем, кто вчера доиграл партию, — короткий вопрос, как она прошла.
+  const asked = await sendFollowups().catch(e => { console.error("followup", e); return 0; });
   // Автору игры — сводка за вчера (если он подключил её командой /admin).
   await notifyAdmin(await adminDigest()).catch(e => console.error("digest", e));
-  return Response.json({ sent, dropped, total: subs.length });
+  return Response.json({ sent, dropped, total: subs.length, asked });
 }

@@ -102,6 +102,10 @@ export const kv = {
     }
     return Object.fromEntries(bucket(hashes, key));
   },
+  async sismember(key: string, member: string): Promise<boolean> {
+    if (kvConfigured()) return (await redis<number>(["SISMEMBER", key, member])) === 1;
+    return setOf(key).has(member);
+  },
   async srem(key: string, member: string) {
     if (kvConfigured()) return void await redis(["SREM", key, member]);
     setOf(key).delete(member);

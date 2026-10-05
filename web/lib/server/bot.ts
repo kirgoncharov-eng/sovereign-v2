@@ -70,7 +70,8 @@ export const FB_THANKS = "Спасибо. Отзыв ушёл автору иг�
 const rateKeyboard = () => ({ inline_keyboard: [[1, 2, 3, 4, 5].map(n => ({ text: String(n), callback_data: `fbr:${n}` }))] });
 const skipKeyboard = () => ({ inline_keyboard: [[{ text: "Пропустить вопрос", callback_data: "fbskip" }]] });
 
-interface FbState { step: number; a: string[] }
+// rating — оценка уже дана (утренний вопрос «Как вам игра?»): тогда остаются только два вопроса словами.
+interface FbState { step: number; a: string[]; rating?: number }
 async function fbState(chat: number): Promise<FbState | null> {
   const raw = await kv.hget(FB_STATE, String(chat)).catch(() => null);
   try { return raw ? JSON.parse(raw) as FbState : null; } catch { return null; }
@@ -80,10 +81,12 @@ async function askFeedback(chat: number, st: FbState) {
   await send(chat, FB_QUESTIONS[st.step], st.step === 2 ? rateKeyboard() : skipKeyboard());
 }
 async function answerFeedback(chat: number, st: FbState, answer: string, who: string) {
-  if (st.step < 2) return askFeedback(chat, { step: st.step + 1, a: [...st.a, answer] });
-  const rating = Number(answer.match(/[1-5]/)?.[0]) || undefined;
+  const last = st.rating ? 1 : 2;
+  if (st.step < last) return askFeedback(chat, { ...st, step: st.step + 1, a: [...st.a, answer] });
+  const a = st.rating ? [...st.a, answer] : st.a;
+  const rating = st.rating ?? (Number(answer.match(/[1-5]/)?.[0]) || undefined);
   await kv.hdel(FB_STATE, String(chat));
-  const [ending, unfair] = st.a;
+  const [ending, unfair] = a;
   const text = [ending && `Как закончилась, где скучно: ${ending}`, unfair && `Нечестно или странно: ${unfair}`].filter(Boolean).join("\n");
   await saveFeedback({ at: new Date().toISOString(), src: "bot", rating, text, who });
   await send(chat, FB_THANKS, playButton("Сыграть ещё"));
@@ -138,6 +141,12 @@ export async function handleUpdate(update: Update) {
     if (cb.data === "daily") await send(chat, dailyText(), playButton("Взяться за дело"));
     else if (cb.data === "help") await send(chat, HELP, playButton("Войти в кабинет"));
     else if (cb.data === "feedback") await askFeedback(chat, { step: 0, a: [] });
+    else if (cb.data?.startsWith("fbq:")) {
+      // Ответ на утренний вопрос: оценка есть, дальше — два вопроса словами (их можно пропустить).
+      const rating = Number(cb.data.slice(4));
+      if (rating >= 1 && rating <= 5) await askFeedback(chat, { step: 0, a: [], rating });
+    }
+    else if (cb.data === "fbno") await send(chat, "Хорошо, не отвлекаю. Если захочется рассказать — /feedback.", playButton("Сыграть ещё"));
     else if (cb.data === "fbskip" || cb.data?.startsWith("fbr:")) {
       const st = await fbState(chat);
       if (st) await answerFeedback(chat, st, cb.data === "fbskip" ? "" : cb.data.slice(4), whoOf(cb.from));

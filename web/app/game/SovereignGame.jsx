@@ -24,8 +24,8 @@ const expressApi = {
   ending: theatrical(classicApi.ending, 1500),
 };
 const game = expressApi;
-import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons } from "@/lib/client/telegram.ts";
-import { track, feedbackEnabled, sendFeedback, isTester, toggleTester } from "@/lib/client/analytics.ts";
+import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons, requestWriteAccess, tgInitData } from "@/lib/client/telegram.ts";
+import { track, feedbackEnabled, sendFeedback, isTester, toggleTester, syncSubscription } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
@@ -2374,6 +2374,45 @@ function DailyBoard({ gs }) {
 }
 
 // ── ENDING ────────────────────────────────────────────────────────────────────
+// Утреннее «Дело дня»: в Telegram — подписка в одно касание (бот просит разрешения писать).
+// Заодно сервер запоминает итог партии, чтобы наутро бот спросил, как она прошла.
+function MorningCard({ gs, style }) {
+  const [state, setState] = useState(() => tgInitData() ? "check" : "hidden"); // check · offer · busy · done · denied · hidden
+  const run = useMemo(() => ({ финал: END_TYPES[gs.endType] ?? gs.endType ?? "", ход: gs.turn, страна: gs.country }), [gs.endType, gs.turn, gs.country]);
+  useEffect(() => {
+    const initData = tgInitData();
+    if (!initData) return;
+    let live = true;
+    syncSubscription(initData, false, run).then(r => { if (live) setState(!r ? "hidden" : r.subscribed ? "hidden" : "offer"); });
+    return () => { live = false; };
+  }, [run]);
+  const ask = async () => {
+    setState("busy");
+    const ok = await requestWriteAccess();
+    if (!ok) { setState("denied"); return; }
+    const r = await syncSubscription(tgInitData(), true, run);
+    setState(r?.subscribed ? "done" : "denied");
+    if (r?.subscribed) track("subscribe");
+  };
+  if (state === "check" || state === "hidden") return null;
+  return (
+    <Card style={{ marginBottom:12, ...style }}>
+      <Label>{"ДЕЛО ДНЯ ПО УТРАМ"}</Label>
+      {state === "done" ? (
+        <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, lineHeight:1.6 }}>Готово. Завтра в 8:00 по Москве на столе будет новое дело — одно на всех, с таблицей друзей. Отписаться — /stop в чате с ботом.</div>
+      ) : (
+        <>
+          <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, lineHeight:1.6, marginBottom:12 }}>
+            Каждое утро — новое дело: одна страна и одни условия для всех. Сравните, кто продержится дольше.
+          </div>
+          <PrimaryBtn onClick={ask} disabled={state === "busy"}>{state === "busy" ? "ЖДУ ОТВЕТА…" : "ПРИСЫЛАТЬ ПО УТРАМ"}</PrimaryBtn>
+          {state === "denied" && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:8 }}>Без разрешения бот не сможет написать. Передумаете — нажмите «Старт» в чате с ботом.</div>}
+        </>
+      )}
+    </Card>
+  );
+}
+
 // Отзыв после партии: оценка и пара слов уходят автору игры. Одна партия — один отзыв.
 const FEEDBACK_LABELS = ["", "скучно", "так себе", "неплохо", "интересно", "затянуло"];
 function FeedbackBox({ gs, style }) {
@@ -2498,6 +2537,7 @@ function Ending({ gs, setGs, onRestart }) {
               </Card>
             )}
             {verdict && <PromisesCard gs={gs} final style={{ marginTop:0, marginBottom:12, order:5 }}/>}
+            {verdict && feedbackEnabled() && <MorningCard gs={gs} style={{ order:5 }}/>}
             {verdict && feedbackEnabled() && <FeedbackBox gs={gs} style={{ order:5 }}/>}
 
             <div className="sv-two-col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12, order:10 }}>

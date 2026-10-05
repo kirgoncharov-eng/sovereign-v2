@@ -113,3 +113,14 @@ export function setBackButton(onClick: (() => void) | null) {
   backHandler = onClick;
   if (onClick) { bb.onClick(onClick); bb.show(); } else bb.hide();
 }
+
+// Разрешение боту писать игроку: без него бот не может позвать того, кто открыл игру по ссылке
+// и ни разу не нажал «Старт». true — разрешение есть (дали сейчас или раньше).
+export function requestWriteAccess(): Promise<boolean> {
+  const wa = app as (TgWebApp & { requestWriteAccess?(cb: (ok: boolean) => void): void; initDataUnsafe?: { user?: { allows_write_to_pm?: boolean } } }) | null;
+  if (wa?.initDataUnsafe?.user?.allows_write_to_pm) return Promise.resolve(true);
+  if (!wa?.requestWriteAccess) return Promise.resolve(false);
+  return new Promise(resolve => {
+    try { wa.requestWriteAccess!(ok => resolve(!!ok)); } catch { resolve(false); }
+  });
+}
