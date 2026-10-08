@@ -36,6 +36,8 @@ import { runScore } from "@/lib/game/daily.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
+import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
+import { warningDetails } from "@/lib/client/warning-detail.ts";
 import { squareStateOf } from "@/lib/client/square-state.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
@@ -871,8 +873,8 @@ function Prose({ text }) {
   return (
     <div>
       {paras.map((p, i) => DATELINE.test(p)
-        ? <div key={i} style={{ fontFamily:mono, fontSize:12.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}>{p}</div>
-        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch", whiteSpace:"pre-line" }}>{p}</p>)}
+        ? <div key={i} style={{ fontFamily:mono, fontSize:12.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}><PeopleText>{p}</PeopleText></div>
+        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch", whiteSpace:"pre-line" }}><PeopleText>{p}</PeopleText></p>)}
     </div>
   );
 }
@@ -888,7 +890,7 @@ function DocumentCard({ doc }) {
           : <span style={{ fontFamily:narrow, fontWeight:700, fontSize:14, color:G.tx3 }}>{doc.title}</span>}
       </div>
       {doc.lines.map((l, i) => (
-        <div key={i} style={{ fontFamily:secret ? mono : serif, fontSize:secret ? 13 : 17, fontWeight:secret ? 400 : 700, fontStyle:secret && i > 0 ? "italic" : "normal", color:secret && i > 0 ? G.tx3 : G.txt, lineHeight:1.5, padding:"5px 0", borderTop:!secret && i ? `1px solid ${G.bdr}` : "none" }}>{l}</div>
+        <div key={i} style={{ fontFamily:secret ? mono : serif, fontSize:secret ? 13 : 17, fontWeight:secret ? 400 : 700, fontStyle:secret && i > 0 ? "italic" : "normal", color:secret && i > 0 ? G.tx3 : G.txt, lineHeight:1.5, padding:"5px 0", borderTop:!secret && i ? `1px solid ${G.bdr}` : "none" }}><PeopleText>{l}</PeopleText></div>
       ))}
     </div>
   );
@@ -928,7 +930,7 @@ function Typewriter({ text, onDone }) {
     <div onClick={finish} title={typing ? "Показать сразу" : undefined}
       style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:14, cursor:typing ? "pointer" : "default" }}>
       {text.slice(0, n).split(/\n\n+/).map((p, i, arr) => (
-        <p key={i} style={{ marginBottom:i < arr.length - 1 ? 12 : 0 }}>{p}{typing && i === arr.length - 1 && <span className="sv-caret">▍</span>}</p>
+        <p key={i} style={{ marginBottom:i < arr.length - 1 ? 12 : 0 }}><PeopleText>{p}</PeopleText>{typing && i === arr.length - 1 && <span className="sv-caret">▍</span>}</p>
       ))}
     </div>
   );
@@ -2051,9 +2053,19 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           {warnLevel !== "none" && !busy && !gs.ended && (
             <div className="sv-paper sv-citation" style={{ marginBottom:10, padding:"9px 16px" }}>
               <span style={{ fontFamily:pixel, fontSize:13, color:"var(--red)", marginRight:8 }}>{warnLevel==="critical" ? "ПРЕДУПРЕЖДЕНИЕ" : "ЗАМЕЧАНИЕ"}</span>
-              <span style={{ fontFamily:narrow, fontSize:15, color:G.txt }}>
-                {warnLevel==="critical" ? "Власть под серьёзной угрозой. Следующее решение может стать последним." : "Положение ослаблено. Действуйте осторожно."}
+              <span style={{ fontFamily:narrow, fontSize:16, color:G.txt }}>
+                {warnLevel==="critical" ? "Власть под серьёзной угрозой" : "Положение ослаблено"}
               </span>
+              <div data-warning-reasons style={{ marginTop:8 }}>
+                {warningDetails(gs).map(r => <div key={r.id} style={{ fontFamily:narrow, fontSize:16, lineHeight:1.45, padding:"5px 0", borderTop:`1px dashed ${G.bdr}` }}>
+                  <strong>{r.label}: {signed(r.value).replace(/^\+/, "")}{r.unit}</strong>
+                  <span style={{ color:G.tx3 }}> · {r.level === "critical" ? "критический" : "опасный"} уровень — {r.threshold}{r.unit} и ниже</span>
+                  <div>{r.explanation}</div>
+                  {r.previous !== null && r.previous !== r.value && <div style={{ color:G.tx3 }}>За последний ход: {r.previous}{r.unit} → {r.value}{r.unit}</div>}
+                  {r.sources.length > 0 && <div style={{ color:G.tx3 }}>Снижение: {r.sources.map(([label, delta]) => `${label} ${signed(delta)}`).join("; ")}</div>}
+                  {r.factions.length > 0 && <div style={{ color:G.tx3 }}>{r.factions.map(f => `${f.name}: ${signed(f.relation)}`).join("; ")}</div>}
+                </div>)}
+              </div>
             </div>
           )}
 
@@ -2233,7 +2245,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:5 }}>{gs.year} · выпуск № {turn} · цена 5 коп.</div>
                 </div>
                 <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>
-                <h2 className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.1, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}>{lastTurn.headline}</h2>
+                <h2 className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.1, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}><PeopleText>{lastTurn.headline}</PeopleText></h2>
                 <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
                   <SquareView gs={gs} sceneKey={lastTurn.scene} height={36} mono still/>
                   <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>{SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции</figcaption>
@@ -2247,7 +2259,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   return (
                     <div key={i} style={{ display:"flex", gap:12, alignItems:"center", padding:"9px 0", borderTop:`1px solid ${G.bdr}` }}>
                       {who && <Portrait name={who.name} size={36}/>}
-                      <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic" }}>{r}</div>
+                      <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic" }}><PeopleText>{r}</PeopleText></div>
                     </div>
                   );
                 })}
@@ -2257,7 +2269,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     {lastTurn.press.map((p, i) => (
                       <div key={i} className="sv-fade" style={{ padding:"5px 0", borderTop: i ? `1px dashed ${G.bdr}` : "none", animationDelay:`${0.2 + i * 0.25}s` }}>
                         <div style={{ fontFamily:narrow, fontSize:13, color:G.tx3 }}>{p.outlet}</div>
-                        <div style={{ fontFamily:serif, fontWeight:700, fontSize:16, lineHeight:1.25, color:G.txt }}>{p.headline}</div>
+                        <div style={{ fontFamily:serif, fontWeight:700, fontSize:16, lineHeight:1.25, color:G.txt }}><PeopleText>{p.headline}</PeopleText></div>
                       </div>
                     ))}
                   </div>
@@ -2741,7 +2753,7 @@ function Ending({ gs, setGs, onRestart }) {
             {isLoss && (verdict?.fallNarrative || gs.powerLoss) && (
               <Card accent={G.red} style={{ marginBottom:12, order:3 }}>
                 <Label>{"КАК ЭТО ПРОИЗОШЛО"}</Label>
-                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt }}>{verdict?.fallNarrative || gs.powerLoss}</div>
+                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt }}><PeopleText>{verdict?.fallNarrative || gs.powerLoss}</PeopleText></div>
                 {endCause(gs) && <div style={{ fontFamily:narrow, fontSize:15, lineHeight:1.6, color:G.red, marginTop:10, paddingTop:10, borderTop:`1px solid ${G.bdr}` }}>{endCause(gs)}</div>}
               </Card>
             )}
@@ -2749,7 +2761,7 @@ function Ending({ gs, setGs, onRestart }) {
             {verdict && (
               <Card accent={G.amb} style={{ marginBottom:12, order:5 }}>
                 <Label>{"ВЕРДИКТ ИСТОРИИ"}</Label>
-                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt, marginBottom:14 }}>{verdict.verdict}</div>
+                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt, marginBottom:14 }}><PeopleText>{verdict.verdict}</PeopleText></div>
                 {verdict.epitaph && <div style={{ fontFamily:serif, fontSize:15, fontStyle:"italic", color:G.tx2, padding:"12px 0", borderTop:`1px solid ${G.bdr}`, borderBottom:`1px solid ${G.bdr}` }}>«{verdict.epitaph}»</div>}
                 <div style={{ marginTop:12, fontFamily:narrow, fontSize:15, color:G.amb, letterSpacing:".05em" }}>ОЦЕНКА: {verdict.rating.toUpperCase()}</div>
               </Card>
@@ -2864,7 +2876,7 @@ export default function App() {
   const restart = () => { clearSave(); setGs(null); setScreen("setup"); };
 
   return (
-    <>
+    <PeopleProvider gs={gs} Portrait={Portrait}>
       {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={(d, quick)=>{
         track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily, quick:!!quick });
         // Быстрая партия и дело дня — сразу в кабинет: обещания берутся подсказанные, досье открывается в игре.
@@ -2874,6 +2886,6 @@ export default function App() {
       {screen==="intro"  && <Intro  gs={gs} onGo={picks=>{ setGs(g => ({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>}
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
-    </>
+    </PeopleProvider>
   );
 }

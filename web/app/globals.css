@@ -346,3 +346,21 @@ button:focus-visible {
 /* Прокрутка к резолюции не прячет её под липкой шапкой */
 #sv-resolution { scroll-margin-top: 150px; }
 @media (max-width: 760px) { #sv-resolution { scroll-margin-top: 140px; } }
+
+/* Досье открывается прямо из текста и не меняет его вёрстку. */
+.sv-person-name { display:inline; padding:0; margin:0; border:0; border-bottom:1px dotted currentColor; background:transparent; color:inherit; font:inherit; line-height:inherit; text-align:inherit; cursor:help; }
+.sv-person-name:hover, .sv-person-name[aria-expanded="true"] { color:var(--blue); border-bottom-style:solid; }
+.sv-person-name:focus-visible { outline:2px solid var(--blue); outline-offset:3px; }
+.sv-person-card { position:fixed; z-index:1000; padding:18px; overflow:auto; box-shadow:4px 5px 0 rgba(0,0,0,.4); font-family:var(--font-narrow); font-size:16px; line-height:1.4; border:2px solid var(--bdr2); }
+.sv-person-close { position:absolute; top:3px; right:4px; width:32px; height:32px; border:0; background:transparent; font-size:26px; color:var(--tx3); cursor:pointer; }
+.sv-person-heading { display:flex; gap:12px; align-items:center; padding-right:14px; margin-bottom:14px; }
+.sv-person-heading strong { font-family:var(--font-serif); font-size:18px; }
+.sv-person-heading div div { color:var(--tx2); font-size:15px; }
+.sv-person-relation { margin-bottom:12px; font-weight:700; }
+.sv-person-range { height:3px; background:var(--bdr); margin:5px 0 2px; }
+.sv-person-range span { display:block; height:100%; }
+.sv-person-relation small { font-size:13px; color:var(--tx3); font-weight:400; }
+.sv-person-card dl { margin:0; }
+.sv-person-card dl > div { border-top:1px dashed var(--bdr); padding:6px 0; }
+.sv-person-card dt { font-size:14px; color:var(--tx3); }
+.sv-person-card dd { margin:0; color:var(--txt); }
