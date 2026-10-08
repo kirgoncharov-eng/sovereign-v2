@@ -52,7 +52,8 @@ test('все девять решений имеют цену, отложенны
     assert.equal(chosen.world!.health!.progress,original,'подпись не означает исполнение');
     assert.throws(()=>interveneWorld(chosen,`health:response:${response}`),/недоступно|использовано/);
     assert.deepEqual(parseSave(save(chosen))?.state.world,chosen.world);
-    const midway=tick(chosen);assert.equal(midway.world!.health!.aftermath!.phase,'working');
+    let midway: GameState=tick(chosen);
+    if (midway.world!.health!.aftermath!.bargain?.phase === 'open') midway = interveneWorld(midway,'health:bargain:doctor');assert.equal(midway.world!.health!.aftermath!.phase,'working');
     assert.deepEqual(parseSave(save(midway))?.state.world,midway.world);
     const unchanged=JSON.stringify(midway), result=stepLivingWorld(midway,midway.turn+1);
     assert.equal(JSON.stringify(midway),unchanged,'прогноз не меняет реальное поручение');
@@ -114,4 +115,74 @@ test('повреждённая цепочка отклоняется, стары
   const legacy=JSON.parse(save(s));delete legacy.state.world.health.aftermath;assert.ok(parseSave(JSON.stringify(legacy)));
   const daily={...s,daily:'2026-10-08'};assert.ok(livingActions(daily).every(a=>a.blocked));
   assert.equal(stepLivingWorld(daily,daily.turn+1).story,null);
+});
+
+
+test('полномочия требуют отдельного ответа; три политических договора меняют исполнителя и отношения', async () => {
+  const open = await branch('rotation');
+  for (const choice of ['minister', 'doctor', 'joint'] as const) {
+    const working = tick(interveneWorld(open, 'health:response:mediate'));
+    const original = JSON.stringify(working), old = working.world!.people;
+    assert.equal(working.world!.health!.aftermath!.bargain!.phase, 'open');
+    const actions = livingActions(working).filter(a => a.id.startsWith('health:bargain:'));
+    assert.equal(actions.length, 3); assert.ok(actions.every(a => !a.blocked));
+    assert.equal(livingActions(working).filter(a => a.id.startsWith('health:response:')).length, 0);
+    const signed = interveneWorld(working, `health:bargain:${choice}`);
+    assert.equal(JSON.stringify(working), original);
+    assert.equal(signed.world!.health!.aftermath!.executor, choice === 'minister' ? 'healthMinister' : 'doctor');
+    assert.notEqual(signed.world!.people.find(p => p.id === 'doctor')!.relation, old.find(p => p.id === 'doctor')!.relation);
+    assert.equal(signed.world!.health!.progress, working.world!.health!.progress);
+    assert.deepEqual(parseSave(save(signed))?.state.world, signed.world);
+    const end = tick(signed);
+    assert.equal(end.world!.health!.aftermath!.outcome, 'fulfilled');
+    assert.equal(end.world!.health!.progress, 90);
+    assert.ok(end.world!.health!.aftermath!.factors.some(f => /мандат|контроль|соглашение/.test(f)));
+    assert.deepEqual(parseSave(save(end))?.state.world, end.world);
+  }
+});
+
+test('молчание даже при лояльном министре блокирует график; характер и враждебность определяют возникновение конфликта', async () => {
+  const open = await branch('rotation');
+  const pending = tick(interveneWorld(open, 'health:response:mediate'));
+  const end = tick(pending);
+  assert.equal(end.world!.health!.aftermath!.outcome, 'limited');
+  assert.equal(end.world!.health!.aftermath!.bargain!.phase, 'ignored');
+  assert.ok(end.world!.health!.aftermath!.factors.some(f => f.includes('без ответа')));
+  assert.equal(end.world!.health!.progress, 100);
+  for (const relation of [45, -40]) {
+    const variant = { ...open, world: { ...open.world!, people: open.world!.people.map(p => p.id === 'healthMinister' ? { ...p, trait: 'pragmatist' as const, relation } : p) } };
+    const s = tick(interveneWorld(variant, 'health:response:mediate'));
+    assert.equal(!!s.world!.health!.aftermath!.bargain, relation < 0);
+  }
+});
+
+test('кадровая уступка имеет известную отложенную цену, прогноз не мутирует её и повторно её не списывает', async () => {
+  const open = await branch('rotation');
+  const signed = interveneWorld(tick(interveneWorld(open, 'health:response:mediate')), 'health:bargain:minister');
+  let s = tick(signed);
+  assert.ok(resourceDetail(s, 'politicalCapital').upcoming.some(x => x.delta === -2 && x.text.includes('сеть министра')));
+  s = tick(s); const restored = parseSave(save(s))!.state;
+  const before = JSON.stringify(restored), plan = stepLivingWorld(restored, restored.turn + 1);
+  assert.equal(JSON.stringify(restored), before);
+  assert.equal(plan.res.politicalCapital, -2); assert.match(plan.story!, /цена переданного контроля/);
+  assert.deepEqual(stepLivingWorld(restored, restored.turn + 1), plan);
+  const end = tick(restored);
+  assert.deepEqual(stepLivingWorld(end, end.turn + 1).res, {});
+  assert.equal(resourceDetail(end, 'politicalCapital').upcoming.filter(x => x.text.includes('сеть министра')).length, 0);
+  assert.deepEqual(parseSave(save(end))?.state.world, end.world);
+});
+
+test('торг сохраняет зависимость от компетенции и экономики; старое поручение не получает требований задним числом', async () => {
+  const open = await branch('rotation');
+  const weak = { ...open, world: { ...open.world!, people: open.world!.people.map(p => p.id === 'healthMinister' ? { ...p, competence: 1 as const } : p) } };
+  const end = tick(interveneWorld(tick(interveneWorld(weak, 'health:response:mediate')), 'health:bargain:minister'));
+  assert.equal(end.world!.health!.aftermath!.outcome, 'limited');
+  const poor = { ...open, resources: { ...open.resources, economy: 18 } };
+  assert.equal(tick(interveneWorld(tick(interveneWorld(poor, 'health:response:mediate')), 'health:bargain:joint')).world!.health!.aftermath!.outcome, 'limited');
+  const legacy = interveneWorld(open, 'health:response:mediate'); delete legacy.world!.health!.aftermath!.bargain;
+  assert.ok(parseSave(save(legacy)));
+  assert.equal(tick(tick(legacy)).world!.health!.aftermath!.outcome, 'fulfilled');
+  const corrupt = JSON.parse(save(interveneWorld(tick(interveneWorld(open, 'health:response:mediate')), 'health:bargain:minister')));
+  corrupt.state.world.health.aftermath.bargain.reviewDue++;
+  assert.equal(parseSave(JSON.stringify(corrupt)), null);
 });

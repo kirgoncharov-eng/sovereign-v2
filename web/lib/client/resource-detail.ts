@@ -30,6 +30,7 @@ export function resourceDetail(gs: GameState, key: ResourceKey) {
   }
   const health = gs.world?.health;
   const continuation = health?.aftermath;
+  if (key === 'politicalCapital' && continuation?.bargain?.reviewDue != null) upcoming.push({ delta: -2, text: `После ${Math.max(1, continuation.bargain.reviewDue - gs.turn)} кв.: контроль над назначениями укрепит сеть министра` });
   if (continuation?.phase === 'open') {
     const costs = continuation.branch === 'permanent' ? { economy: 1, internalLegitimacy: -4 } : continuation.branch === 'rotation' ? { economy: -2, internalLegitimacy: -3 } : { internalLegitimacy: -4, politicalCapital: -2 };
     const delta = (costs as Partial<Record<ResourceKey, number>>)[key];
