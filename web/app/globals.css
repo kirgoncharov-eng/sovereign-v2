@@ -298,11 +298,7 @@ button:focus-visible {
 
 /* Тач: выбранная резолюция ждёт второго касания */
 .sv-opt[data-armed] { background: var(--bg3) !important; box-shadow: inset 3px 0 0 var(--gold); }
-.sv-opt[data-armed]::after {
-  content: "Коснитесь ещё раз — подписать";
-  display: block; margin-top: 10px;
-  font-family: var(--font-hand), "Marck Script", cursive; font-size: 17px; color: var(--blue);
-}
+
 
 /* Розовый бланк-предписание: кризисы и предупреждения */
 .sv-paper.sv-citation {
@@ -334,7 +330,7 @@ button:focus-visible {
     font-size: 17px; text-align: left;
   }
   .sv-sidebar:not([data-open]) .sv-side-body { display: none; }
-  .sv-opt[data-armed]::after { content: "Подпишите кнопкой внизу или коснитесь ещё раз"; }
+
 }
 
 /* Таймер вопроса на пресс-конференции */
@@ -432,3 +428,22 @@ button:focus-visible {
 .sv-resource-info-heading{display:flex;align-items:flex-start;gap:10px;font-size:20px}.sv-resource-info-heading strong{flex:1}.sv-resource-info-heading button{background:transparent;border:1px solid var(--bdr2);color:var(--txt);width:32px;height:32px;flex-shrink:0;font-size:22px}.sv-resource-info p{margin:8px 0}.sv-resource-info ul{padding-left:20px;margin:6px 0}.sv-resource-info-note{color:var(--tx3);font-size:14px}.sv-resource-info-changes{border-top:1px dashed var(--bdr2);margin-top:10px;padding-top:8px}
 
 .sv-hud-side [data-rating] div:first-child{text-decoration:underline dotted;text-underline-offset:3px}
+
+/* Кабинет: проекты свёрнуты, решение и результат занимают основной лист. */
+.sv-country:not(:has(.sv-country-body)) .sv-country-toggle { min-height:48px; padding:10px 14px; }
+.sv-agenda-attention { display:block; width:100%; min-height:44px; padding:8px 14px; text-align:left; background:var(--bg3); border:0; border-top:1px solid var(--bdr2); color:var(--gold); font-family:var(--font-narrow); font-size:16px; }
+.sv-hud-resource-label { font-family:var(--font-narrow); font-size:12px; line-height:1.1; color:var(--tx2); white-space:nowrap; }
+.sv-mandate { margin-bottom:12px; color:var(--tx2); font-family:var(--font-narrow); }
+.sv-mandate summary { cursor:pointer; min-height:44px; padding:10px 14px; border:1px solid var(--bdr2); font-size:16px; }
+.sv-executor-compare { display:flex; gap:16px; flex-wrap:wrap; padding:6px 0; }
+.sv-execution-calculation { color:var(--tx3); font-family:var(--font-narrow); font-size:15px; }
+.sv-execution-calculation summary { cursor:pointer; padding:10px 0; min-height:44px; }
+#sv-turn-result { scroll-margin-top:150px; }
+@media (pointer:coarse) and (min-width:761px) {
+  .sv-actionbar {
+    position:fixed; left:0; right:0; bottom:0; z-index:30;
+    display:flex; gap:8px; padding:8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    background:var(--bg-deep); border-top:2px solid #000;
+  }
+  .sv-game-grid { padding-bottom:76px; }
+}

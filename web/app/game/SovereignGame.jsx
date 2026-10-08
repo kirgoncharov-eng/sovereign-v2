@@ -1046,6 +1046,7 @@ function Flag({ country, size = 18 }) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
+const HUD_LABEL = { politicalCapital:"Влияние", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимн.", personalResource:"Личный" };
 const SHORT = { politicalCapital:"Политкапитал", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимность", personalResource:"Личный ресурс" };
 
 // Постоянная панель статуса. При наведении на вариант показывает итог хода, посчитанный движком.
@@ -1083,6 +1084,7 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
                   aria-label={`${r.prompt}: ${v}${d ? (exact ? `, станет ${to}` : d > 0 ? ", вырастет" : ", упадёт") : ""}. Подробнее`}
                   style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, position:"relative", background:info === r.key ? G.bg3 : "transparent", border:"none", padding:"2px 0", color:"inherit" }}>
                   {d !== 0 && <span className="sv-fade" style={{ position:"absolute", top:-2, right:"calc(50% - 20px)", width:dot, height:dot, background:d > 0 ? G.grn : G.red }}/>}
+                  <span className="sv-hud-resource-label">{HUD_LABEL[r.key]}</span>
                   <ResIcon k={r.key} value={v} size={28} color={danger && to !== null ? G.red : barColor(v)}/>
                   <div style={{ fontFamily:pixel, fontSize:14, lineHeight:1, color:G.tx2, whiteSpace:"nowrap" }}>
                     {v}{d !== 0 && exact && <span style={{ color:d > 0 ? G.grn : G.red }}>→{to}</span>}
@@ -1222,7 +1224,7 @@ function HowToPlay({ onClose }) {
   }, [onClose]);
   const desktop = typeof matchMedia === "function" && matchMedia("(pointer:fine)").matches;
   const items = [
-    ["Каждый ход — одно решение", `Под каждым вариантом — риск и смысл решения. «Показать прогноз цены» раскрывает изменения опор: ▲ вырастет, ▼▼ сильно упадёт. ${desktop ? "Наведите на вариант — точки на панели сверху покажут, что изменится." : "Первое касание покажет на панели сверху, что изменится, второе — подпишет решение."}`],
+    ["Каждый ход — одно решение", `Под каждым вариантом — риск и смысл решения. «Показать прогноз цены» раскрывает изменения опор: ▲ вырастет, ▼▼ сильно упадёт. ${desktop ? "Наведите на вариант — точки на панели сверху покажут, что изменится." : "Коснитесь варианта, чтобы выбрать его и увидеть прогноз. Подпишите отдельной кнопкой внизу."}`],
     ["Точные цифры — у советников", "Сколько именно стоит решение, каков шанс и что аукнется позже, знают только советники. Совет можно собрать несколько раз за правление — берегите его для трудных дел."],
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
     ["Цель — продержаться", "Партия не кончается со сроком: если вы остались у власти, начинается следующий. Срок — двадцать ходов, ход — квартал. Каждый новый срок тяжелее прошлого: власть приедается. Счёт идёт на годы у власти — в «Деле дня» таблица сортирует именно по ним."],
@@ -1697,7 +1699,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [error, setError]     = useState(null); // { message, choice? }
   const [sideTab, setSideTab] = useState("res");
   const [preview, setPreview] = useState(null); // вариант под курсором/фокусом
-  const [armed, setArmed]     = useState(null); // тач: первое касание выбирает, второе — подписывает
+  const [armed, setArmed]     = useState(null); // тач: выбор сохраняется до подписи или отмены
   const [forecast, setForecast] = useState(false); // сначала дилемма, подробная цена — по запросу
   const [help, setHelp]       = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
@@ -1711,6 +1713,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [stamping, setStamping] = useState(null); // резолюция, на которую опускается печать
   const [dossier, setDossier] = useState(false);   // телефон: досье под игрой свёрнуто
   const [resolutionInView, setResolutionInView] = useState(false);
+  const [reviewedTurn, setReviewedTurn] = useState(null);
   useEffect(() => { gsRef.current = gs; }, [gs]);
 
   const [attempt, setAttempt] = useState(0);
@@ -1811,9 +1814,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [countryOpen, resourceOpen]);
 
-  // Выбор резолюции: на касании первое нажатие выбирает (с предпросмотром), второе — подписывает.
+  // Касание выбирает; отдельная кнопка подписывает. Повторное касание не исполняет приказ.
   const pick = (c, preview = true) => {
-    if (armed !== c.id && matchMedia("(pointer:coarse)").matches) { setArmed(c.id); setPreview(preview ? c : null); return; }
+    if (matchMedia("(pointer:coarse)").matches) { setArmed(c.id); setPreview(preview ? c : null); return; }
     setArmed(null); choose(c);
   };
   const optProps = (c, n) => ({
@@ -1824,7 +1827,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     // Наведение — только для мыши: на касании браузер шлёт «уход курсора» сразу после выбора.
     onPointerEnter: e => { if (e.pointerType === "mouse") setPreview(c); },
     onPointerLeave: e => { if (e.pointerType === "mouse") setPreview(null); },
-    onFocus: () => setPreview(c), onBlur: () => { setPreview(null); setArmed(null); },
+    onFocus: () => setPreview(c), onBlur: () => { if (!matchMedia("(pointer:coarse)").matches) setPreview(null); },
   });
 
   const agendaFinished = gs.world && projectFinished(gs.world.project) && (!gs.world.health || projectFinished(gs.world.health) && !healthHasContinuation(gs.world.health));
@@ -1837,13 +1840,18 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       raf = 0;
       const el = document.getElementById("sv-resolution");
       setResolutionInView(!!el && el.getBoundingClientRect().top < window.innerHeight * 0.65);
+      const report = document.getElementById('sv-turn-result');
+      if (report && !recap && !countryOpen && !resourceOpen && !help) {
+        const box = report.getBoundingClientRect();
+        if (box.top < window.innerHeight * .75 && box.bottom > (document.querySelector(".sv-hud")?.getBoundingClientRect().bottom ?? 0)) setReviewedTurn(gs.turn);
+      }
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
     check();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
-  }, [event, busy]);
+  }, [event, busy, gs.turn, gs.lastTurn, counted, recap, countryOpen, resourceOpen, help]);
   // Срочное дело: власть под угрозой — на резолюцию 25 секунд с момента, как варианты на экране.
   const urgent = !!event && event.isCritical && !event.beat && !event.special && !recap && !busy;
   if (urgent && resolutionInView && urgentTurn !== gs.turn) setUrgentTurn(gs.turn);
@@ -2000,7 +2008,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               const next = interveneWorld(gsRef.current, id);
               prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
             }}/>}
-          {gs.turn === 0 && !busy && <BriefCard gs={gs}/>}
+          {gs.turn === 0 && !busy && <details className="sv-mandate"><summary>Ваш мандат и обещания</summary><BriefCard gs={gs}/></details>}
           {warnLevel !== "none" && !busy && !gs.ended && (
             <div className="sv-paper sv-citation" style={{ marginBottom:10, padding:"9px 16px" }}>
               <span style={{ fontFamily:pixel, fontSize:13, color:"var(--red)", marginRight:8 }}>{warnLevel==="critical" ? "ПРЕДУПРЕЖДЕНИЕ" : "ЗАМЕЧАНИЕ"}</span>
@@ -2063,9 +2071,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   {event.special && !event.beat && !event.isCritical && <span className="sv-stamp" style={{ fontSize:14, flexShrink:0 }}>{{ pact:"Проект договора", inspect:"На подпись", press:"Пресс-служба", call:"Без протокола", budget:"Финансы", terms:"Конституция" }[event.special.kind] ?? "Лично в руки"}</span>}
                 </div>
                 {(turn + 1) % 5 === 1 && (
-                  <div style={{ margin:"4px 0 18px", paddingBottom:14, borderBottom:`1px solid ${G.bdr}` }}>
+                  <div style={{ margin:"4px 0 12px", paddingBottom:8, borderBottom:`1px solid ${G.bdr}` }}>
                     <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>{termIndex(turn + 1) ? `${upperFirst(termOrdinal(termIndex(turn + 1)))} срок · ` : ""}Глава {ROMAN[chapterOf(turn + 1)]}</div>
-                    <div style={{ fontFamily:serif, fontSize:22, fontStyle:"italic", color:G.tx2 }}>{chapterName(turn + 1)}</div>
+                    <div style={{ fontFamily:serif, fontSize:17, fontStyle:"italic", color:G.tx2 }}>{chapterName(turn + 1)}</div>
                   </div>
                 )}
                 {event.beat && (
@@ -2162,29 +2170,31 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             <div>
               <Card style={{ marginBottom:12, padding:"20px 24px 22px" }}>
                 <div className="sv-reveal">
+                <div className="sv-paper-drop" style={{ borderTop:`4px solid ${G.txt}`, borderBottom:`2px solid ${G.txt}`, padding:"8px 0 6px", marginBottom:12, textAlign:"center" }}>
+                  <div style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(30px, 8vw, 46px)", lineHeight:1.02, textTransform:"uppercase", letterSpacing:".06em" }}>Вечерний {COUNTRIES[gs.country].capital}</div>
+                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:5 }}>{gs.year} · выпуск № {turn} · цена 5 коп.</div>
+                </div>
+                <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>
+                <h2 id="sv-turn-result" className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.1, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}><PeopleText>{lastTurn.headline}</PeopleText></h2>
+                <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
+                  <SquareView gs={gs} sceneKey={lastTurn.scene} height={36} mono still/>
+                  <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>{SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции</figcaption>
+                </figure>
+                <Typewriter key={`t${turn}`} text={lastTurn.narrative} onDone={() => setTypedTurn(turn)}/>
+                <details className="sv-execution-calculation"><summary>Ваша резолюция и расчёт исполнения</summary>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px 14px", marginBottom:18, flexWrap:"wrap" }}>
                   <div style={{ minWidth:0, flex:"1 1 240px" }}>
                     <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:autoTurn === turn ? G.red : G.tx3, marginBottom:2 }}>{autoTurn === turn ? "Пока вы медлили, аппарат решил за вас" : "Ваша резолюция"}</div>
                     <div className="sv-hand" style={{ fontSize:21, lineHeight:1.25 }}>{lastTurn.choiceText}. — {signature(gs.leader.name)}</div>
                   </div>
                   {lastTurn.chance < 1 && (
-                    <span className={`sv-stamp sv-in${lastTurn.success === false ? " is-red" : " is-green"}`} style={{ fontSize:15, flexShrink:0 }}>
+                    <div><span>Расчёт исполнения: </span><span>
                       {lastTurn.success === false ? "Неблагоприятный исход" : "Благоприятный исход"}
                       <span style={{ display:"block", fontSize:11, fontWeight:400, letterSpacing:0, textTransform:"none", lineHeight:1.3, marginTop:4 }}>вероятность успеха была {Math.round(lastTurn.chance * 100)}%</span>
-                    </span>
+                    </span></div>
                   )}
                 </div>
-                <div className="sv-paper-drop" style={{ borderTop:`4px solid ${G.txt}`, borderBottom:`2px solid ${G.txt}`, padding:"8px 0 6px", marginBottom:12, textAlign:"center" }}>
-                  <div style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(30px, 8vw, 46px)", lineHeight:1.02, textTransform:"uppercase", letterSpacing:".06em" }}>Вечерний {COUNTRIES[gs.country].capital}</div>
-                  <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:5 }}>{gs.year} · выпуск № {turn} · цена 5 коп.</div>
-                </div>
-                <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>
-                <h2 className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.1, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}><PeopleText>{lastTurn.headline}</PeopleText></h2>
-                <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
-                  <SquareView gs={gs} sceneKey={lastTurn.scene} height={36} mono still/>
-                  <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>{SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции</figcaption>
-                </figure>
-                <Typewriter key={`t${turn}`} text={lastTurn.narrative} onDone={() => setTypedTurn(turn)}/>
+                </details>
                 <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
 
                 {lastTurn.document && <DocumentCard doc={lastTurn.document}/>}
@@ -2314,12 +2324,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       </div>
       </div>
       <ActionBar
-        mode={recap ? "recap" : busy || countryOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
+        mode={recap ? "recap" : busy || countryOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (reviewedTurn !== turn ? "review" : gs.ended ? "end" : "next") : "skip") : null}
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}
         onJump={() => document.getElementById("opt-1")?.scrollIntoView({ behavior:"smooth", block:"center" })}
         onSkip={() => window.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter" }))}
+        onReview={() => document.getElementById("sv-turn-result")?.scrollIntoView({behavior:"smooth",block:"center"})}
         onCount={() => setCountedTurn(turn)}
         onNext={nextTurn} onEnd={onEnd} onRecap={onRecapDone}/>
     </div>
@@ -2335,7 +2346,7 @@ function useTelegramButtons() {
 
 // Нижняя панель на телефоне: главное действие хода всегда под большим пальцем.
 // Кнопки не забирают фокус — иначе выбранная резолюция успела бы сброситься.
-function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd, onRecap, onCount }) {
+function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd, onRecap, onCount, onReview }) {
   // В Telegram то же действие уходит на его родную кнопку внизу экрана, отмена — на «Назад».
   const tg = useTelegramButtons();
   useEffect(() => {
@@ -2349,6 +2360,7 @@ function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onE
       end:  { text: "Подвести итоги →", onClick: onEnd, color: "#a02f24", textColor: "#f1e9d2" },
       recap: { text: "Продолжить правление →", onClick: onRecap },
       count: { text: "Сразу к итогам", onClick: onCount },
+      review: { text: "К последствиям ↓", onClick: onReview },
     };
     setMainButton(specs[mode] ?? null);
     setBackButton(mode === "sign" ? onCancel : null);
@@ -2368,6 +2380,7 @@ function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onE
         </button>
       </>}
       {mode === "jump" && <button {...keep} onClick={onJump} style={main}>К резолюции ↓</button>}
+      {mode === "review" && <button {...keep} onClick={onReview} style={main}>К последствиям ↓</button>}
       {mode === "count" && <button {...keep} onClick={onCount} style={{ ...main, background:"transparent", color:G.txt, border:`2px solid ${G.bdr2}`, boxShadow:"none" }}>Сразу к итогам</button>}
       {mode === "skip" && <button {...keep} onClick={onSkip} style={{ ...main, background:"transparent", color:G.txt, border:`2px solid ${G.bdr2}`, boxShadow:"none" }}>Показать текст сразу</button>}
       {mode === "next" && <button {...keep} onClick={onNext} style={main}>Следующий ход →</button>}
