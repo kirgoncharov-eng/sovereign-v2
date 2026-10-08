@@ -1,10 +1,11 @@
 // Какая картинка у события: авторская карточка → сцена, иначе по особому делу, интриге или источнику.
 // Та же сцена потом стоит в газете как «фото редакции» — с подписью.
-import type { GameEvent } from "../game/types.ts";
+import type { Choice, GameEvent } from "../game/types.ts";
 
 export type SceneKey =
   | "square" | "protest" | "army" | "factory" | "money" | "construction" | "energy" | "field" | "border"
-  | "explosion" | "hospital" | "tv" | "summit" | "signing" | "press" | "phone" | "stamp" | "ballot" | "meeting" | "bridge";
+  | "explosion" | "hospital" | "tv" | "summit" | "signing" | "press" | "phone" | "stamp" | "ballot" | "meeting" | "bridge"
+  | "office" | "cabinet" | "archive" | "dinner";
 
 const BY_CARD: Record<string, SceneKey> = {
   // позднее правление
@@ -36,21 +37,21 @@ const BY_CARD: Record<string, SceneKey> = {
 };
 
 const BY_SPECIAL: Record<string, SceneKey> = {
-  press: "press", call: "phone", budget: "money", inspect: "stamp", terms: "stamp",
+  press: "press", call: "phone", budget: "cabinet", inspect: "stamp", terms: "stamp",
   overture: "meeting", insider: "meeting", mole: "meeting", pact: "signing",
 };
 
 // Эпизоды интриг — каждый со своей картинкой, чтобы линия не выглядела одной и той же ночной встречей.
 const BY_BEAT: Record<string, SceneKey> = {
-  "Первая ночь в резиденции": "square", "Новый совет": "meeting", "Утечка с закрытого совета": "tv", "Перехваченная шифровка": "phone", "Утечка о здоровье": "hospital",
+  "Первая ночь в резиденции": "office", "Новый совет": "cabinet", "Утечка с закрытого совета": "cabinet", "Перехваченная шифровка": "archive", "Утечка о здоровье": "hospital",
   "Кто-то знал заранее": "meeting", "Разоблачение": "press", "Крот наносит удар": "tv",
   "Присяга": "square", "Странные учения": "army", "Ужин на даче": "meeting", "Анонимное письмо": "stamp", "Ночь длинных звонков": "phone",
   "Путч провалился": "protest", "Танки у телецентра": "army",
-  "Поздравительная открытка": "stamp", "Звонок из прошлого": "phone", "Свидетель": "meeting", "Публикация назначена": "tv",
+  "Поздравительная открытка": "office", "Звонок из прошлого": "phone", "Свидетель": "meeting", "Публикация назначена": "tv",
   "Правда выходит наружу": "press", "Пятница": "tv",
-  "Непрошеная помощь": "money", "Благодарность спонсора": "meeting", "Бухгалтер": "border", "Второе требование": "summit",
+  "Непрошеная помощь": "office", "Благодарность спонсора": "office", "Бухгалтер": "archive", "Второе требование": "summit",
   "Сеть раскрыта": "press", "Счёт выставлен": "tv",
-  "Неудобный вопрос": "press", "Последнее сообщение": "phone", "Номер на ладони": "meeting", "Месяц тишины": "tv",
+  "Неудобный вопрос": "press", "Последнее сообщение": "office", "Номер на ладони": "office", "Месяц тишины": "archive",
   "Объект номер четыре": "army", "Показания журналиста": "press", "Дело закрыто": "tv",
 };
 const BY_ARC: Record<string, SceneKey> = { generals: "army", mole: "meeting", kompromat: "tv", money: "money", reporter: "meeting" };
@@ -67,6 +68,16 @@ export function sceneOf(ev: Pick<GameEvent, "card" | "special" | "beat" | "sourc
     || BY_SOURCE[ev.source] || "square";
 }
 
+// Фото в газете показывает сделанное, а не повторяет картинку входящего дела.
+export function sceneAfter(ev: GameEvent, choice: Choice, success: boolean): SceneKey {
+  if (choice.advisor) return "cabinet";
+  if (ev.beat?.arcId === "money" && choice.arc?.flag === "o_thank") return "dinner";
+  if (success && ev.beat?.arcId === "mole" && choice.arc?.flag === "o_file") return "archive";
+  if (success && ev.beat?.arcId === "mole" && choice.arc?.flag === "o_open") return "cabinet";
+  if (success && ev.beat?.arcId === "reporter" && choice.arc?.flag === "commission") return "archive";
+  return sceneOf(ev);
+}
+
 export const SCENE_CAPTION: Record<SceneKey, string> = {
   square: "Площадь перед резиденцией", protest: "Площадь перед резиденцией, вечер", army: "Бронетехника на улицах столицы",
   factory: "У проходной завода", money: "Министерство финансов, ночное совещание", construction: "Стройплощадка на окраине столицы",
@@ -74,4 +85,5 @@ export const SCENE_CAPTION: Record<SceneKey, string> = {
   explosion: "Место происшествия", hospital: "У приёмного покоя областной больницы", tv: "Кадр из вечернего эфира",
   summit: "Переговоры за закрытыми дверями", signing: "Подписание договора в резиденции", press: "Пресс-центр резиденции", phone: "Кабинет президента, полночь",
   stamp: "Документ на столе президента", ballot: "Избирательный участок", meeting: "Встреча без свидетелей", bridge: "На месте обрушения",
+  office: "Личный кабинет президента", cabinet: "Заседание кабинета министров", archive: "Закрытый архив, просмотр документов", dinner: "Ужин за закрытыми дверями",
 };

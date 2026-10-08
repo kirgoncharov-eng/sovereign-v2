@@ -18,7 +18,7 @@ import { BEAT_EXT } from "../content/beats-ext.ts";
 import { DAY_TIMES, DAYLIGHT, NIGHT, NIGHT_TIMES, type PlaceKind, INTERCEPTS, PLACES, TIMES, WEATHER_ANY, WEATHER_BY_SEASON } from "../content/frame.ts";
 import { MONTHS_ADJ, MONTHS_GEN, turnDate } from "./calendar.ts";
 import { ECHOES } from "../content/echoes.ts";
-import { sceneOf } from "../content/scene-map.ts";
+import { sceneAfter } from "../content/scene-map.ts";
 import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OPPOSITION_SPECIAL, OUTLETS } from "../content/newspaper.ts";
 import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
 import { lawDef } from "./laws.ts";
@@ -191,8 +191,7 @@ export function beatEvent(state: GameState): GameEvent | null {
   return {
     title: fill(variant.title, state),
     source: "Секретно",
-    // Первый ход — короткий: игрок только вошёл в кабинет, второй абзац подождёт до следующих эпизодов.
-    description: chapter(dateline(state, "beat"), fill(variant.description, state), state.turn > 0 && BEAT_EXT[variant.title] && fill(BEAT_EXT[variant.title], state)),
+    description: chapter(dateline(state, "beat"), fill(variant.description, state), BEAT_EXT[variant.title] && fill(BEAT_EXT[variant.title], state)),
     isCritical: episode === total,
     affectedFactions: [],
     choices: variant.choices.map((c, i) => ({
@@ -1142,7 +1141,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     press,
     heard: said,
     ...(appeared.length ? { cast: appeared } : {}),
-    scene: state.currentEvent ? sceneOf(state.currentEvent) : "square",
+    scene: state.currentEvent ? sceneAfter(state.currentEvent, plan.choice, plan.success) : "square",
     headline: finale ? finale.head : plan.election ? electionHeadline(plan.election)
       : (plan.success ? plan.choice.headline : plan.choice.headlineFail) ?? fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state),
     narrative: chapter(...parts),
