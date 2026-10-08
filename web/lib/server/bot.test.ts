@@ -159,3 +159,33 @@ test("возвращаемость: подписка из игры по подп
   assert.equal(fb.rating, 5);
   assert.match(fb.text, /выборы слишком быстрые/);
 });
+
+test("/stop отменяет вопрос об отзыве и запрещает повторную очередь по старому initData", async () => {
+  const { createHmac } = await import("node:crypto");
+  const { FOLLOWUP, OPT_OUT, rememberRun, sendFollowups, subscribeFromApp } = await import("./followup.ts");
+  const { kv } = await import("./kv.ts");
+  const { SUBS } = await import("./bot.ts");
+  const id = 601;
+  const fields = { auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id, allows_write_to_pm: true }) };
+  const check = Object.entries(fields).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${v}`).join("\n");
+  const secret = createHmac("sha256", "WebAppData").update("123:test").digest();
+  const initData = new URLSearchParams({ ...fields, hash: createHmac("sha256", secret).update(check).digest("hex") }).toString();
+  const run = { страна: "Грузия", ход: 20 };
+  const now = Date.now();
+  await subscribeFromApp({ initData, subscribe: true, run }, "123:test");
+  await rememberRun(id, run, now - 13 * 3600_000);
+  await handleUpdate({ message: { chat: { id }, text: "/stop" } });
+  assert.equal(await kv.sismember(SUBS, String(id)), false);
+  assert.equal(await kv.hget(FOLLOWUP, String(id)), null);
+  await subscribeFromApp({ initData, run }, "123:test");
+  assert.equal(await kv.hget(FOLLOWUP, String(id)), null, "старая подпись не возвращает очередь");
+  // Даже старая запись очереди не должна пройти при отправке.
+  await rememberRun(id, run, now - 13 * 3600_000);
+  calls.length = 0;
+  await sendFollowups(now);
+  assert.ok(!calls.some(c => c.body.chat_id === id));
+  await subscribeFromApp({ initData, subscribe: true, run }, "123:test");
+  assert.equal(await kv.sismember(OPT_OUT, String(id)), false);
+  assert.equal(await kv.sismember(SUBS, String(id)), true);
+  assert.ok(await kv.hget(FOLLOWUP, String(id)), "явная повторная подписка работает");
+});

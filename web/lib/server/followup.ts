@@ -5,6 +5,7 @@ import { kv } from "./kv.ts";
 import { botApi, verifyInitData } from "./telegram.ts";
 
 export const FOLLOWUP = "tg:followup"; // поле — id игрока, значение — {at, ctx} последней доигранной партии
+export const OPT_OUT = "tg:optout"; // /stop важнее старого allows_write_to_pm в подписанном initData
 export const FOLLOWUP_AFTER_H = 12;     // спрашиваем не раньше чем через 12 часов после финала
 
 export interface RunCtx { финал?: string; ход?: number; страна?: string }
@@ -29,6 +30,7 @@ export async function sendFollowups(now = Date.now()): Promise<number> {
   const all = await kv.hgetall(FOLLOWUP);
   let sent = 0;
   for (const [user, raw] of Object.entries(all)) {
+    if (await kv.sismember(OPT_OUT, user)) { await kv.hdel(FOLLOWUP, user); continue; }
     let rec: { at: number; ctx: RunCtx };
     try { rec = JSON.parse(raw); } catch { await kv.hdel(FOLLOWUP, user); continue; }
     if (now - rec.at < FOLLOWUP_AFTER_H * 3600_000) continue;
@@ -41,7 +43,10 @@ export async function sendFollowups(now = Date.now()): Promise<number> {
 }
 
 export const isSubscribed = (userId: number) => kv.sismember(SUBS, String(userId));
-export const subscribe = (userId: number) => kv.sadd(SUBS, String(userId));
+export async function subscribe(userId: number) {
+  await kv.srem(OPT_OUT, String(userId));
+  return kv.sadd(SUBS, String(userId));
+}
 
 // Запрос мини-приложения: {initData, subscribe?, run?}. Возвращает HTTP-статус и ответ.
 export async function subscribeFromApp(body: unknown, botToken: string): Promise<{ status: number; json?: { subscribed: boolean } }> {
@@ -51,7 +56,7 @@ export async function subscribeFromApp(body: unknown, botToken: string): Promise
   if (b.subscribe === true) await subscribe(user.id);
   const subscribed = await isSubscribed(user.id);
   // Спросить об игре можно только того, кому боту разрешено писать.
-  if (b.run && typeof b.run === "object" && (subscribed || user.allows_write_to_pm)) {
+  if (b.run && typeof b.run === "object" && (subscribed || user.allows_write_to_pm) && !await kv.sismember(OPT_OUT, String(user.id))) {
     const r = b.run as Record<string, unknown>;
     await rememberRun(user.id, {
       ...(typeof r.финал === "string" ? { финал: r.финал.slice(0, 40) } : {}),

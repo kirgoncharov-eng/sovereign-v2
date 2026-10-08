@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EVENT_CARDS } from "../content/events.ts";
 import { classicApi, cardAvailable, fill } from "./classic.ts";
-import { ACTION_TAGS, COUNTRIES } from "./data.ts";
+import { ACTION_TAGS, COUNTRIES, TERM } from "./data.ts";
 import { choiceEffects, createInitialState, resolveTurn, startEvent, successChance } from "./engine.ts";
 import type { GameState } from "./types.ts";
 
@@ -70,7 +70,8 @@ test("интрига: эпизоды приходят на своих ходах
   let s = await newGame();
   assert.ok(s.arc);
   const seen: { turn: number; flagsBefore: string[] }[] = [];
-  while (!s.ended) {
+  let resolved = false;
+  while (!s.ended && s.turn < TERM) {
     s = startEvent(s, await classicApi.event(s));
     if (s.currentEvent!.beat) {
       seen.push({ turn: s.turn + 1, flagsBefore: [...s.arc!.flags] });
@@ -78,10 +79,11 @@ test("интрига: эпизоды приходят на своих ходах
     }
     const n = await classicApi.consequence(s, "a");
     s = resolveTurn(s, "a", n);
+    resolved ||= !!s.arc?.epilogue;
   }
   const reached = seen.map(x => x.turn);
   assert.deepEqual(reached, [1, 3, 7, 12, 16].filter(t => t <= s.turn));
-  if (reached.length === 5) assert.ok(s.arc!.epilogue);
+  if (reached.length === 5) assert.ok(resolved);
 });
 
 test("финальный эпизод зависит от сделанных ранее выборов", async () => {

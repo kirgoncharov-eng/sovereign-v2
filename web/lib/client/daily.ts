@@ -1,5 +1,5 @@
 // Клиент таблицы «Дела дня». Без сервера (демо, офлайн) функции тихо возвращают null.
-import { dailyCase, runScore } from "../game/daily.ts";
+import { dailyCase } from "../game/daily.ts";
 import type { GameState } from "../game/types.ts";
 import { tgInitData, tgStartParam } from "./telegram.ts";
 
@@ -44,9 +44,9 @@ async function call(payload: Record<string, unknown>): Promise<Board | null> {
   }
 }
 
-export const submitDaily = (gs: GameState) => call({
-  action: "submit", date: gs.daily, score: runScore(gs), title: gs.verdict?.title ?? "", endType: gs.endType, turns: gs.turn,
-});
+export const submitDaily = (gs: GameState) => call(gs.dailyMoves?.length === gs.turn ? {
+  action: "submit", date: gs.daily, moves: gs.dailyMoves,
+} : { action: "board", date: gs.daily }); // старая партия остаётся доступна, но без проверяемого результата
 export const fetchBoard = (date = dailyCase().date) => call({ action: "board", date });
 
 // Ссылка-приглашение: друг, пришедший по ней, появится в таблице друзей.
