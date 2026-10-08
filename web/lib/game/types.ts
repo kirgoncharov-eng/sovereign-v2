@@ -308,6 +308,7 @@ export interface GameState {
   mode: GameMode;
   seed: number;
   daily?: string | null; // дата «дела дня», если партия общая для всех
+  dailyMoves?: DailyMove[]; // решения для серверного пересчёта результата
   bio?: string;         // биография лидера (BIOGRAPHIES)
   usedEvents: string[]; // карточки сценариев, уже показанные в этой партии
   stats: GameStats;
@@ -329,4 +330,13 @@ export interface GameState {
   endType: EndType | null;
   powerLoss: string | null;
   verdict: Verdict | null;
+}
+
+export interface DailyMove {
+  id: string;
+  council?: boolean;
+  marked?: number; // выбранная игроком строка доклада, а не подсказанный исход
+  press?: number[];
+  budget?: { alloc: Record<string, number>; debt: boolean };
+  call?: { approach: "offer" | "principle" | "pressure" | "numbers"; ending: "deal" | "refuse" | "later" };
 }

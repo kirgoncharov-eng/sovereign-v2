@@ -1,10 +1,13 @@
 // Таблица «Дела дня»: результат засчитывается один раз, видно место среди всех и среди друзей.
 // Друзья появляются, когда игрок приходит по ссылке-приглашению другого игрока.
-import { isObj } from "@/lib/game/sanitize.ts";
-import { kv } from "@/lib/server/kv.ts";
-import { checkRate, clientKey } from "@/lib/server/rateLimit.ts";
-import { verifyInitData } from "@/lib/server/telegram.ts";
-import { env } from "@/lib/server/env.ts";
+import { isObj } from "../../../lib/game/sanitize.ts";
+import { replayDaily } from "../../../lib/game/daily-run.ts";
+import { runScore } from "../../../lib/game/daily.ts";
+import { classicApi } from "../../../lib/game/classic.ts";
+import { kv } from "../../../lib/server/kv.ts";
+import { checkRate, clientKey } from "../../../lib/server/rateLimit.ts";
+import { verifyInitData } from "../../../lib/server/telegram.ts";
+import { env } from "../../../lib/server/env.ts";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UID = /^(tg\d{1,15}|w[a-z0-9]{8,24})$/;
@@ -61,7 +64,11 @@ export async function POST(req: Request) {
   const rate = checkRate(clientKey(req));
   if (!rate.ok) return fail(429, "Слишком много запросов");
   let body: unknown;
-  try { body = JSON.parse((await req.text()).slice(0, 8000)); } catch { return fail(400, "Некорректный JSON"); }
+  try {
+    const raw = await req.text();
+    if (raw.length > 100_000) return fail(413, "Слишком большой запрос");
+    body = JSON.parse(raw);
+  } catch { return fail(400, "Некорректный JSON"); }
   if (!isObj(body)) return fail(400, "Некорректный запрос");
   const date = typeof body.date === "string" && DATE.test(body.date) ? body.date : "";
   if (!date || !freshDate(date)) return fail(400, "Неверная дата");
@@ -70,13 +77,19 @@ export async function POST(req: Request) {
 
   try {
     if (body.action === "submit") {
-      const score = Math.max(0, Math.min(RANK - 1, Math.round(Number(body.score) || 0)));
-      const turns = Math.max(0, Math.min(400, Math.round(Number(body.turns) || 0)));
       const key = `daily:${date}`;
-      if (await kv.zaddNx(key, turns * RANK + score, who.uid)) {
-        const info: Info = { name: who.name, title: text(body.title, 40), end: text(body.endType, 16), turns };
-        await kv.hset(`${key}:info`, who.uid, JSON.stringify(info));
-        await Promise.all([kv.expire(key, TTL), kv.expire(`${key}:info`, TTL)]);
+      // Повторный запрос (в том числе после потери ответа) возвращает уже записанный результат.
+      if (await kv.zscore(key, who.uid) === null) {
+        let verified;
+        try { verified = await replayDaily(date, body.moves); }
+        catch { return fail(400, "Не удалось проверить партию. Нужна полная история решений."); }
+        const score = Math.min(RANK - 1, runScore(verified));
+        const verdict = await classicApi.ending(verified);
+        if (await kv.zaddNx(key, verified.turn * RANK + score, who.uid)) {
+          const info: Info = { name: who.name, title: text(verdict.title, 40), end: verified.endType!, turns: verified.turn };
+          await kv.hset(`${key}:info`, who.uid, JSON.stringify(info));
+          await Promise.all([kv.expire(key, TTL), kv.expire(`${key}:info`, TTL)]);
+        }
       }
     }
     // Приглашение: дружба взаимная

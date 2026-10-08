@@ -116,8 +116,8 @@ const speakerOf = (gs, text) => [...(gs.keyFigures ?? []), ...(gs.advisors ?? []
 function Divider() { return <div style={{ height:1, background:G.bdr, margin:"0 0 24px" }}/>; }
 function Label({ children }) { return <div style={{ fontFamily:pixel, fontSize:13, letterSpacing:".04em", textTransform:"uppercase", color:G.tx3, marginBottom:10 }}>{children}</div>; }
 // Лист бумаги на столе. accent оставлен для совместимости вызовов и не рисуется.
-function Card({ children, style, className = "" }) {
-  return <div className={`sv-paper ${className}`} style={{ borderRadius:0, padding:"20px 22px", ...style }}>{children}</div>;
+function Card({ children, style, className = "", id }) {
+  return <div id={id} className={`sv-paper ${className}`} style={{ borderRadius:0, padding:"20px 22px", ...style }}>{children}</div>;
 }
 function PrimaryBtn({ children, onClick, disabled, danger, id }) {
   return (
@@ -1413,6 +1413,7 @@ function Setup({ onStart, saved, onResume }) {
   const [diff, setDiff]       = useState(null);
   const [ideo, setIdeo]       = useState(null);
   const [bio, setBio]         = useState(null);
+  const [custom, setCustom] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState(null);
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
@@ -1429,7 +1430,7 @@ function Setup({ onStart, saved, onResume }) {
       const raw = await game.setup(c, d, i, daily?.seed);
       const intro = { ...raw, leader: { ...raw.leader, bio: B.text } };
       const st = createInitialState(c, d, i, intro, daily ? seededRandom(daily.seed) : Math.random, "classic", B.id);
-      onStart(daily ? { ...st, daily: daily.date } : st, quick || !!daily);
+      onStart(daily ? { ...st, daily: daily.date, dailyMoves: [] } : st, quick || !!daily);
     } catch (e) {
       console.error(e);
       setErr(e.message || "Ошибка API. Попробуйте снова.");
@@ -1439,7 +1440,7 @@ function Setup({ onStart, saved, onResume }) {
 
   const quick = () => {
     const pickOne = list => list[Math.floor(Math.random() * list.length)];
-    go(pickOne(open), "coalition", pickOne(IDEOLOGIES).id, null, null, true);
+    go(pickOne(open), meta.runs.length ? "coalition" : "debut", pickOne(IDEOLOGIES).id, null, null, true);
   };
 
   // Строка анкеты: клетка для отметки, как в казённом бланке.
@@ -1491,15 +1492,20 @@ function Setup({ onStart, saved, onResume }) {
 
 
         <div style={{ textAlign:"center", marginBottom:22 }}>
-          <PrimaryBtn onClick={quick} disabled={loading}>БЫСТРАЯ ПАРТИЯ</PrimaryBtn>
-          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:8 }}>случайная страна и курс · сложность «Коалиция»</div>
+          <div style={{ fontFamily:serif, fontSize:18, color:G.txt, lineHeight:1.5, marginBottom:14 }}>Вы принимаете решения. Союзники торгуются, противники готовят заговор. Удержите власть — и разберитесь, кому можно верить.</div>
+          <PrimaryBtn onClick={quick} disabled={loading}>{loading ? "ОТКРЫВАЕМ КАБИНЕТ…" : saved ? "НОВАЯ ПАРТИЯ" : "НАЧАТЬ ИГРУ"}</PrimaryBtn>
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:8 }}>{meta.runs.length ? "случайная страна и курс · сложность «Коалиция»" : "сразу в кабинет · мягкая сложность «Дебют»"}</div>
         </div>
 
         <DailyCard meta={meta} disabled={loading} onPlay={d => go(d.country, d.diff, d.ideo, d)}/>
 
         {meta.runs.length > 0 && <Archive meta={meta}/>}
 
-        <Card style={{ padding:"18px 20px 22px" }}>
+        <button onClick={() => setCustom(v => !v)} aria-expanded={custom} aria-controls="sv-custom-setup" style={{ width:"100%", background:"transparent", border:`1px solid ${G.bdr}`, padding:"12px 16px", color:G.tx2, fontFamily:narrow, fontSize:18, marginBottom:12 }}>
+          {custom ? "Свернуть анкету ▴" : "Выбрать страну, курс и сложность ▾"}
+        </button>
+        {err && <div role="alert" style={{ color:G.red, marginBottom:12 }}>{err} <button onClick={quick}>Попробовать снова</button></div>}
+        {custom && <Card id="sv-custom-setup" style={{ padding:"18px 20px 22px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10 }}>
             <div>
               <div style={{ fontFamily:mono, fontSize:12, color:G.tx3 }}>Форма № 1-П · ЦИК</div>
@@ -1559,7 +1565,7 @@ function Setup({ onStart, saved, onResume }) {
             <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{saved ? "Новая партия заменит сохранённую" : ready ? "Документы в порядке" : "Отметьте по одной графе в каждом разделе"}</span>
             <PrimaryBtn onClick={() => go()} disabled={!ready || loading}>{loading ? "ОФОРМЛЯЕМ…" : "ПОДАТЬ ДОКУМЕНТЫ"}</PrimaryBtn>
           </div>
-        </Card>
+        </Card>}
         <VersionLabel/>
       </div>
       </div>
@@ -1797,9 +1803,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
   const retryEvent = () => { setBusy("event"); setError(null); setAttempt(a => a + 1); };
 
-  const choose = async (choice) => {
+  const choose = async (choice, details = {}) => {
     if (busy || inFlight.current) return;
     inFlight.current = true;
+    const dailyMove = { id: choice.id, ...details, ...(gsRef.current.currentEvent?.council?.length ? { council:true } : {}), ...(gsRef.current.currentEvent?.doc && ["c", "d"].includes(choice.id) ? { marked } : {}) };
     setStamping(choice.id);
     stampFx();
     if (!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) await new Promise(r => setTimeout(r, 480));
@@ -1807,7 +1814,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     setBusy("choice"); setError(null);
     try {
       const consequence = await game.consequence(gsRef.current, choice.id);
-      const next = resolveTurn(gsRef.current, choice.id, consequence);
+      let next = resolveTurn(gsRef.current, choice.id, consequence);
+      if (next.daily && gsRef.current.dailyMoves) {
+        next = { ...next, dailyMoves: [...gsRef.current.dailyMoves, dailyMove] };
+      }
       commit(next);
       track("turn", { n: next.turn });
       if (next.turn === 1 && startedAt.current) {
@@ -1823,7 +1833,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       }
     } catch (e) {
       console.error(e);
-      setError({ message: e.message, choice });
+      setError({ message: e.message, choice, details });
     } finally {
       inFlight.current = false;
       setBusy(null);
@@ -2043,7 +2053,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           )}
 
           {error && !busy && (
-            <ErrorBanner message={error.message} onRetry={error.choice ? () => choose(error.choice) : retryEvent}/>
+            <ErrorBanner message={error.message} onRetry={error.choice ? () => choose(error.choice, error.details) : retryEvent}/>
           )}
 
           {activeCrises?.length > 0 && !busy && (
@@ -2117,7 +2127,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     const final = budgetChoice(gsRef.current, alloc, debt);
                     const cur = gsRef.current.currentEvent;
                     commit({ ...gsRef.current, currentEvent: { ...cur, choices: [final, cur.choices[1]] } });
-                    choose(final);
+                    choose(final, { budget: { alloc, debt } });
                   }}/>
               ) : event.call ? (
                 <CallPanel key={`call${turn}`} call={event.call} seed={gs.seed} stamping={stamping}
@@ -2126,7 +2136,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     const final = callChoice(gsRef.current, approach, ending);
                     const cur = gsRef.current.currentEvent;
                     commit({ ...gsRef.current, currentEvent: { ...cur, choices: [final, cur.choices[1]] } });
-                    choose(final);
+                    choose(final, { call: { approach, ending } });
                   }}/>
               ) : event.press ? (
                 <PressPanel key={`press${turn}`} press={event.press} stamping={stamping}
@@ -2135,7 +2145,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     const final = pressChoice(gsRef.current, picks);
                     const cur = gsRef.current.currentEvent;
                     commit({ ...gsRef.current, currentEvent: { ...cur, choices: [final, cur.choices[1]] } });
-                    choose(final);
+                    choose(final, { press: picks });
                   }}/>
               ) : (
               <Card style={{ padding:"18px 0 8px" }}>
@@ -2538,6 +2548,7 @@ function DailyBoard({ gs }) {
   return (
     <Card style={{ marginBottom:12, order:6 }}>
       <Label>{"Дело дня · таблица"}</Label>
+      {!board.me && <div style={{ fontFamily:narrow, fontSize:16, color:G.tx3, marginBottom:12 }}>Эта партия не записана в таблицу. Для проверяемого результата начните новое «Дело дня».</div>}
       {board.me && (
         <div style={{ fontFamily:serif, fontSize:20, marginBottom:12 }}>
           Вы <b>{board.me.rank}-й</b> из {board.total} · у власти {reignLength(board.me.turns ?? 0)}

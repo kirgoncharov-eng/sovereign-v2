@@ -7,6 +7,7 @@ import { env } from "./env.ts";
 import { kv } from "./kv.ts";
 import { ADMIN, saveFeedback } from "./feedback.ts";
 import { digestText, readStats } from "./analytics.ts";
+import { FOLLOWUP, OPT_OUT } from "./followup.ts";
 
 export const SUBS = "tg:subs";
 
@@ -179,13 +180,16 @@ export async function handleUpdate(update: Update) {
     else await send(chat, FALLBACK);
   } else if (cmd === "/start") {
     // Подписка не должна мешать ответу: без хранилища бот всё равно здоровается.
+    await kv.srem(OPT_OUT, String(chat));
     await kv.sadd(SUBS, String(chat)).catch(e => console.error("subscribe", e));
     const cover = appUrl() ? `${appUrl().replace(/\/$/, "")}/telegram-cover.png` : "";
     // Обложку Telegram скачивает сам; не смог — приветствие уходит текстом, бот не молчит.
     const sent = cover && await call("sendPhoto", { chat_id: chat, photo: cover, caption: WELCOME, parse_mode: "HTML", reply_markup: menu() });
     if (!sent) await send(chat, WELCOME, menu());
   } else if (cmd === "/stop") {
+    await kv.sadd(OPT_OUT, String(chat));
     await kv.srem(SUBS, String(chat));
+    await kv.hdel(FOLLOWUP, String(chat));
     await send(chat, STOPPED, null);
   } else if (cmd === "/daily") {
     await send(chat, dailyText(), playButton("Взяться за дело"));

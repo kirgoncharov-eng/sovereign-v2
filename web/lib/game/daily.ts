@@ -8,6 +8,10 @@ import type { DifficultyId, GameState, IdeologyId } from "./types.ts";
 // «Дело дня»: одна и та же партия у всех игроков в течение суток — можно сравнить итог с друзьями.
 export function dailyCase(now = new Date()) {
   const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return dailyCaseForDate(date);
+}
+
+export function dailyCaseForDate(date: string) {
   const seed = hashSeed("daily", date);
   const r = seededRandom(seed);
   const countries = Object.keys(COUNTRIES);
