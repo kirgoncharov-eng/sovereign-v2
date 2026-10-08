@@ -3,6 +3,7 @@
 // an:first — день первого визита игрока, an:cohort:<день> — сколько из пришедших в тот день вернулись.
 import { END_TYPES } from "../game/data.ts";
 import { PATH_LABEL } from "../content/terms.ts";
+import { readRunCohorts, recordRunMilestones, type RunCohort } from "./run-cohorts.ts";
 import { kv } from "./kv.ts";
 
 export const TRACK_EVENTS = ["open", "start", "resume", "turn", "end", "share", "invite", "daily", "intro", "first", "help", "subscribe"] as const;
@@ -39,7 +40,9 @@ export async function record(pid: string, events: TrackInput[], now = Date.now()
       if (first && COHORT_DAYS.includes(k)) ops.push(kv.hincrby(`an:cohort:${first}`, `d${k}`));
     }
   }
-  for (const { e, p } of accepted) {
+  for (const event of accepted) {
+    const { e, p } = event;
+    ops.push(recordRunMilestones(pid, event, now));
     if (!(TRACK_EVENTS as readonly string[]).includes(e)) continue;
     ops.push(kv.hincrby(key, e));
     for (const dim of new Set([...DIMS[e as TrackEventName], "v", "src"])) {
@@ -54,6 +57,8 @@ export async function record(pid: string, events: TrackInput[], now = Date.now()
 }
 
 export interface Stats {
+  runCohorts?: RunCohort[];
+  observedAt?: number;
   days: { date: string; h: Record<string, number> }[];      // старые → новые
   cohorts: { date: string; h: Record<string, number> }[];
 }
@@ -61,11 +66,12 @@ const nums = (h: Record<string, string>) => Object.fromEntries(Object.entries(h)
 
 export async function readStats(n: number, now = Date.now()): Promise<Stats> {
   const dates = Array.from({ length: n }, (_, i) => dayOf(now - (n - 1 - i) * 864e5));
-  const [days, cohorts] = await Promise.all([
+  const [days, cohorts, runCohorts] = await Promise.all([
     Promise.all(dates.map(async date => ({ date, h: nums(await kv.hgetall(`an:${date}`)) }))),
     Promise.all(dates.map(async date => ({ date, h: nums(await kv.hgetall(`an:cohort:${date}`)) }))),
+    readRunCohorts(dates),
   ]);
-  return { days, cohorts };
+  return { days, cohorts, runCohorts, observedAt: now };
 }
 
 // ── Страница с цифрами ───────────────────────────────────────────────────────
@@ -138,6 +144,11 @@ export function renderStats(s: Stats, feedback: FeedbackRow[] = []): string {
     return `<tr><td>${esc(c.date)}</td><td>${c.h.d0}</td>${COHORT_DAYS.map(k => `<td>${age >= k ? pct(c.h[`d${k}`] ?? 0, c.h.d0) : "—"}</td>`).join("")}</tr>`;
   }).join("");
   const dayRows = [...s.days].reverse().map(d => `<tr><td>${esc(d.date)}</td><td>${d.h.players ?? 0}</td><td>${d.h.new ?? 0}</td><td>${d.h.start ?? 0}</td><td>${d.h.end ?? 0}</td><td>${(d.h.share ?? 0) + (d.h.invite ?? 0)}</td><td>${d.h.subscribe ?? 0}</td><td>${d.h.daily ?? 0}</td></tr>`).join("");
+  const runRows = [...(s.runCohorts ?? [])].reverse().map(c => {
+    const age = Math.max(0, Math.floor(((s.observedAt ?? Date.now()) - Date.parse(c.date)) / 864e5));
+    const count = (key: string) => `${c.h[key] ?? 0} · ${pct(c.h[key] ?? 0, c.h.started ?? 0)}`;
+    return `<tr><td>${esc(c.date)}</td><td>${c.mode === "daily" ? "Дело дня" : "Обычная"}</td><td>${esc(c.version)} · ${esc(LABELS[c.source])}</td><td>${age < 2 ? "Новая когорта" : `Наблюдение ${age - 1}–${age} суток`}</td><td>${c.h.started ?? 0}</td>${["turn1", "turn3", "turn5", "turn10", "turn20", "resumed", "ended", "shareAttempt"].map(k => `<td>${count(k)}</td>`).join("")}</tr>`;
+  }).join("");
   const section = (title: string, prefix: string, total: number) => `<section><h2>${title}</h2>${bars(breakdown(s, prefix), total)}</section>`;
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Суверен · цифры</title>
@@ -162,6 +173,7 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 <div class="kpi"><b>${sum(s, "share") + sum(s, "invite")}</b><span>действий с отправкой или ссылкой</span></div>
 <div class="kpi"><b>${sum(s, "rating_n") ? (sum(s, "rating_sum") / sum(s, "rating_n")).toFixed(1) : "—"}</b><span>средняя оценка (${sum(s, "feedback")} отзывов)</span></div>
 </div>
+<div class="paper"><h2>Когорты отдельных партий</h2><p class="muted">Партии сгруппированы по дню старта UTC, режиму, версии и каналу на старте. Один рубеж — одна партия, даже после загрузки и повторного финала. Ходы, финал и продолжение могут пересекаться: это не последовательная воронка. Проценты — от числа партий данной строки за всё время наблюдения. Новые когорты ещё нельзя считать потерянными; партии остаются в процессе. Возраст указан диапазоном для всех стартов за сутки. Действие с отправкой — попытка, не подтверждённая отправка. Учитываются только полученные события новых партий с идентификатором; старые сохранения не добавляются задним числом. Потеря сети, очистка данных и другие устройства ограничивают полноту измерения.</p><div class="scroll"><table><tr><th>Старт</th><th>Режим</th><th>Версия / канал</th><th>Возраст</th><th>Партий</th><th>Ход 1</th><th>Ход 3</th><th>Ход 5</th><th>Ход 10</th><th>Ход 20</th><th>Продолжили</th><th>Финал</th><th>Попытка поделиться</th></tr>${runRows || '<tr><td colspan="13">Новые партии с идентификатором пока не получены</td></tr>'}</table></div></div>
 <div class="paper"><h2>События партий за период</h2><p class="muted">Число событий за выбранный период; это не доля конкретных партий. Продолжения старых партий и повторные финалы при загрузке могут попадать сюда; место выхода по этим счётчикам определить нельзя.</p>${bars(funnel, starts, false)}</div>
 <div class="paper"><h2>Возвращаемость по дню первого визита</h2><p class="muted">Доля новых устройств, активных в указанный календарный день UTC после первого визита. Повторные визиты за день считаются один раз. Незавершённые интервалы показаны прочерком; смена браузера или очистка данных создаёт новое устройство.</p><div class="scroll"><table><tr><th>Пришли</th><th>Устройств</th>${COHORT_DAYS.map(k => `<th>День ${k}</th>`).join("")}</tr>${cohortRows || `<tr><td colspan="7" class="muted">Пока нет данных</td></tr>`}</table></div></div>
 <div class="grid">

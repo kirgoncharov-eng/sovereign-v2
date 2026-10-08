@@ -289,6 +289,7 @@ export interface Verdict {
 }
 
 export interface GameState {
+  analyticsRun?: import("../client/run-context.ts").AnalyticsRun;
   world?: LivingWorld;
   version: number;
   country: string;

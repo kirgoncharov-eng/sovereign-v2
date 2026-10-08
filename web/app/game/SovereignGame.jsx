@@ -28,6 +28,7 @@ const expressApi = {
 };
 const game = expressApi;
 import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons, requestWriteAccess, tgInitData, telegramStory, canTelegramStory } from "@/lib/client/telegram.ts";
+import { newAnalyticsRun, setRunContext } from "@/lib/client/run-context.ts";
 import { track, feedbackEnabled, sendFeedback, isTester, toggleTester, syncSubscription } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { resultCard } from "@/lib/client/card.ts";
@@ -37,6 +38,7 @@ import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
 import ResourceInfo from "./ResourceInfo.jsx";
+import { projectFinished } from "@/lib/game/living-health.ts";
 import { openLivingWorld, interveneWorld } from "@/lib/game/living-world.ts";
 import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
 import { warningDetails } from "@/lib/client/warning-detail.ts";
@@ -1824,6 +1826,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     onFocus: () => setPreview(c), onBlur: () => { setPreview(null); setArmed(null); },
   });
 
+  const agendaFinished = gs.world && projectFinished(gs.world.project) && (!gs.world.health || projectFinished(gs.world.health));
   const { resources, prevResources, factions, prevFactions, keyFigures, prevFigures, turn, history, activeCrises, currentEvent: event, lastTurn } = gs;
   // Видна ли резолюция на экране — тогда нижней кнопке «К резолюции» показываться незачем.
   // Проверяем при прокрутке: резолюция уже на экране или проскроллена выше.
@@ -2292,8 +2295,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               </div>
               {typed && gs.world && !gs.daily && !gs.ended && <div className="sv-country-entry" style={{marginBottom:12}}>
                 <strong>Повестка · энергосеть {gs.world.project.progress}%{gs.world.health ? ` · больницы ${gs.world.health.progress}%` : ''}</strong>
-                <span>{gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
-                <button onClick={()=>countryPanel.current?.showReport()}>Открыть повестку и поручения →</button>
+                <span>{agendaFinished?'Проекты завершены. Итоги и оставшиеся обязательства — в досье. Продолжите управление из кабинета.':gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
+                <button onClick={()=>countryPanel.current?.showReport()}>{agendaFinished?'Открыть итоги проектов':'Открыть повестку и поручения'} →</button>
               </div>}
               {typed && <div style={{ textAlign:"right" }}>
                 {gs.ended
@@ -2622,6 +2625,7 @@ function Ending({ gs, setGs, onRestart }) {
 
   const [attempt, setAttempt] = useState(0);
   const needsVerdict = !verdict;
+  useEffect(() => { track("end", { type: gs.endType ?? "", turns: gs.turn, kept: (gs.promises ?? []).filter(p => p.status === "kept").length, ...(gs.path ? { path: gs.path.id } : {}) }); }, [gs.endType, gs.turn, gs.path, gs.promises]);
   useEffect(() => {
     if (!needsVerdict) return;
     let cancelled = false;
@@ -2632,7 +2636,6 @@ function Ending({ gs, setGs, onRestart }) {
         gsRef.current = next;
         setGs(next);
         const run = recordRun(next);
-        track("end", { type: next.endType ?? "", turns: next.turn, kept: (next.promises ?? []).filter(p => p.status === "kept").length, ...(next.path ? { path: next.path.id } : {}) });
         setNewAch(run.unlocked);
         cloudSet("meta", compactMeta(run.meta));
         setError(null);
@@ -2807,12 +2810,14 @@ export default function App() {
   }, [gs, screen]);
 
   const [recap, setRecap] = useState(false); // «Ранее в Суверене» — после возвращения к сохранённой партии
-  const resume = () => { if (saved) { track("resume", { turn: saved.state.turn }); setGs(openLivingWorld(saved.state)); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
-  const restart = () => { clearSave(); setGs(null); setScreen("setup"); };
+  const resume = () => { if (saved) { setRunContext(saved.state.analyticsRun); track("resume", { turn: saved.state.turn }); setGs(openLivingWorld(saved.state)); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
+  const restart = () => { setRunContext(undefined); clearSave(); setGs(null); setScreen("setup"); };
 
   return (
     <PeopleProvider gs={gs} Portrait={Portrait}>
       {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={(d, quick)=>{
+        d = { ...d, analyticsRun: newAnalyticsRun(APP_VERSION, inTelegram() ? "tg" : "web", !!d.daily) };
+        setRunContext(d.analyticsRun);
         track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily, quick:!!quick });
         // Быстрая партия и дело дня — сразу в кабинет: обещания берутся подсказанные, досье открывается в игре.
         if (quick) { setGs(openLivingWorld({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) })); setScreen("game"); }
