@@ -14,7 +14,6 @@ import { lawDef } from "@/lib/game/laws.ts";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
 import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
-import { INSPECT_TEXT } from "@/lib/content/inspect.ts";
 import { ACHIEVEMENTS, ALL_ENDINGS, bestReign, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
 
 // Весь текст — из библиотеки авторских сценариев, без сети и без модели.
@@ -495,33 +494,18 @@ function PactSlips({ gs }) {
 }
 
 // Проверка документа: справка и доклад, строку можно отметить как ложную — красным кругом, как в Papers, Please.
-function InspectDoc({ doc, marked, onMark }) {
-  return (
-    <div className="sv-inspect">
-      <div className="sv-paper" style={{ padding:"14px 18px", borderLeft:"6px solid var(--blue)", marginBottom:12, transform:"rotate(-.4deg)" }}>
-        <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>СПРАВКА</div>
-        {doc.facts.map((f, i) => <div key={i} style={{ fontFamily:mono, fontSize:14, lineHeight:1.55, color:G.txt, marginBottom:4 }}>{f}</div>)}
+function InspectDoc({ doc }) {
+  return <div className="sv-inspect">
+    <Card style={{ padding:"16px 20px", marginBottom:14 }}>
+      <Label>МАТЕРИАЛЫ К СОВЕЩАНИЮ</Label>
+      <p style={{fontFamily:narrow,fontSize:16,color:G.tx2}}>Предложение ведомства и замечания аппарата. Выберите способ исполнения в резолюции ниже.</p>
+      <div style={{fontFamily:narrow,fontSize:15,color:G.tx3}}>исп.: {doc.author}</div>
+      {doc.lines.map((l,i)=><p key={i} style={{fontFamily:serif,fontSize:16,lineHeight:1.6}}><PeopleText>{l}</PeopleText></p>)}
+      <div style={{borderTop:`1px dashed ${G.bdr}`,paddingTop:12}}><Label>ЗАМЕЧАНИЯ АППАРАТА</Label>
+        {doc.facts.map((f,i)=><p key={i} style={{fontFamily:serif,fontSize:16,lineHeight:1.6}}>{f}</p>)}
       </div>
-      <Card style={{ padding:"16px 0 10px", marginBottom:14, transform:"rotate(.3deg)" }}>
-        <div style={{ padding:"0 20px 6px", display:"flex", justifyContent:"space-between", gap:10, alignItems:"baseline", flexWrap:"wrap" }}>
-          <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>ДОКЛАД</span>
-          <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>исп.: {doc.author}</span>
-        </div>
-        <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, padding:"0 20px 8px" }}>{INSPECT_TEXT.hint}</div>
-        {doc.lines.map((l, i) => {
-          const on = marked === i;
-          return (
-            <button key={i} onClick={() => onMark(on ? null : i)} aria-pressed={on} className="sv-docline"
-              style={{ display:"flex", gap:10, width:"100%", textAlign:"left", padding:on ? "9px 86px 9px 20px" : "9px 20px", background:on ? "rgba(160,47,36,.08)" : "transparent", border:"none", borderTop:`1px dashed ${G.bdr}`, color:G.txt, position:"relative" }}>
-              <span style={{ fontFamily:mono, fontSize:13, color:G.tx3, minWidth:16, paddingTop:2 }}>{i + 1}</span>
-              <span style={{ fontFamily:mono, fontSize:14, lineHeight:1.55, textDecoration:on ? "underline wavy var(--red)" : "none", textUnderlineOffset:4 }}>{l}</span>
-              {on && <span className="sv-stamp is-red sv-in" style={{ position:"absolute", right:12, top:"50%", marginTop:-14, fontSize:12, animationDelay:"0s" }}>ложь?</span>}
-            </button>
-          );
-        })}
-      </Card>
-    </div>
-  );
+    </Card>
+  </div>;
 }
 
 // Предвыборный бюджет: раскладываешь миллиарды по статьям и сразу видишь, что получится.
@@ -807,7 +791,7 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, detailed }) {
   if (gs.currentEvent?.beat || gs.currentEvent?.special) {
     return (
       <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>
-        {gs.currentEvent.beat ? "Дело засекречено: совет в него не посвящён. Решать вам одному." : gs.currentEvent.special?.kind === "inspect" ? "Проверку не перепоручишь: сверяйте сами." : gs.currentEvent.special?.kind === "terms" ? "Этот вопрос на совет не выносят: о собственной власти решают в одиночку." : "Дело личное: совет о нём не знает. Решать вам одному."}
+        {gs.currentEvent.beat ? "Дело засекречено: совет в него не посвящён. Решать вам одному." : gs.currentEvent.special?.kind === "inspect" ? "Предложения ведомства уже приложены. Способ исполнения выбираете вы." : gs.currentEvent.special?.kind === "terms" ? "Этот вопрос на совет не выносят: о собственной власти решают в одиночку." : "Дело личное: совет о нём не знает. Решать вам одному."}
       </div>
     );
   }
@@ -1291,7 +1275,7 @@ function HowToPlay({ onClose }) {
     ["Что останется после вас", "Кроме рекорда лет у власти есть другие цели: довести интригу до развязки, сдержать обещания, изменить законы или передать власть добровольно. Итог правления расскажет, что получилось. Уход по своей воле — тоже окончание истории."],
     ["Выборы решают многое", "Парламентские — в середине срока, главные — в конце, если вы их не отмените. Рейтинг — это отношение групп общества к вам плюс легитимность и экономика."],
     ["Люди — не копии своих лагерей", "У каждого свой характер. Друг во враждебном лагере станет «своим человеком», недруг среди союзников — «червоточиной». Союз с группой даёт доход и голоса, но нарушенное слово запоминают все."],
-    ["Не верьте бумагам на слово", "Трижды за правление вам принесут доклад на подпись. Сверьте его со справкой: нашли ложь — отметьте строку и уличите автора. Подписанная ложь всплывёт позже. Дважды за правление звонят по защищённой линии: подход подбирайте по характеру собеседника. Перед парламентскими выборами — бюджет: разложите 10 млрд по статьям, а можно и занять. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
+    ["Исполнение важнее подписи", "Доклады приходят с замечаниями аппарата. Вы выбираете способ исполнения: быстрый запуск, поэтапную работу или внешний контроль. У каждого решения есть цена и отложенные последствия. Дважды за правление звонят по защищённой линии: подход подбирайте по характеру собеседника. Перед парламентскими выборами — бюджет: разложите 10 млрд по статьям, а можно и занять. Перед выборами — пресс-конференция: на каждый ответ 15 секунд. В критический момент на решение даётся 25 секунд — иначе решат за вас."],
     ["Срок не вечен", `У каждой страны своя конституция: где-то сроки не ограничены, где-то разрешены два, где-то один, а где-то власть у премьера. За два хода до конца каждого срока вы решаете, как быть: идти на выборы, уйти самому, обнулить сроки, пересесть в кресло премьера, назвать преемника, отложить выборы или распустить парламент. Уйти — значит остановить часы. Править без выборов можно, но каждый такой срок опаснее прошлого. Какие пути открыты — в досье, в карточке «Конституция».`],
     ["Законы остаются", "Время от времени парламент вносит законопроект. Принятый закон ложится в «Свод законов» (в досье) и действует каждый ход, пока его не отменят: двигает опоры власти и отношение групп, приносит новые дела. Проведёт ли его парламент, зависит от вашей поддержки."],
     ["Вы обещали", "Перед первым ходом вы выбираете три предвыборных обещания. Исполненное поднимает доверие и отношение тех, кому вы его дали; нарушенное бьёт сильнее. Под вариантами видно, что приближает обещание, а что его нарушит. Прогресс — в досье."],
@@ -1763,6 +1747,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [forecast, setForecast] = useState(false); // сначала дилемма, подробная цена — по запросу
   const [help, setHelp]       = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
+  const countryPanel = useRef(null);
   const [tips] = useState(() => !tutorialSeen()); // подсказки на первых ходах — пока правила не прочитаны
   const gsRef = useRef(gs);
   const startedAt = useRef(0); // когда открылся первый ход — для времени до первого решения
@@ -1770,7 +1755,6 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const inFlight = useRef(false);
   const [stamping, setStamping] = useState(null); // резолюция, на которую опускается печать
   const [dossier, setDossier] = useState(false);   // телефон: досье под игрой свёрнуто
-  const [marked, setMarked] = useState(null);       // проверка документа: отмеченная строка
   const [resolutionInView, setResolutionInView] = useState(false);
   useEffect(() => { gsRef.current = gs; }, [gs]);
 
@@ -1816,7 +1800,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const choose = async (choice, details = {}) => {
     if (busy || inFlight.current) return;
     inFlight.current = true;
-    const dailyMove = { id: choice.id, ...details, ...(gsRef.current.currentEvent?.council?.length ? { council:true } : {}), ...(gsRef.current.currentEvent?.doc && ["c", "d"].includes(choice.id) ? { marked } : {}) };
+    const dailyMove = { id: choice.id, ...details, ...(gsRef.current.currentEvent?.council?.length ? { council:true } : {}) };
     setStamping(choice.id);
     stampFx();
     if (!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) await new Promise(r => setTimeout(r, 480));
@@ -1852,7 +1836,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
   const nextTurn = () => {
     setCountryOpen(false);
-    setBusy("event"); setError(null); setPreview(null); setArmed(null); setMarked(null);
+    setBusy("event"); setError(null); setPreview(null); setArmed(null);
     pageFx();
     commit({ ...gsRef.current, lastTurn: null });
   };
@@ -2053,7 +2037,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         </div>
 
         <div className="sv-main">
-          {!busy && !recap && <WorldPanel gs={gs} Scene={SquareView} onViewChange={setCountryOpen}
+          {!busy && !recap && <WorldPanel ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}
             onOpen={() => { if (!inFlight.current) commit(openLivingWorld(gsRef.current)); }}
             onAction={id => {
               if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
@@ -2147,7 +2131,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </div>
                 )}
               </Card>
-              {event.doc && <InspectDoc doc={event.doc} marked={marked} onMark={setMarked}/>}
+              {event.doc && <InspectDoc doc={event.doc}/>}
               {event.budget ? (
                 <BudgetPanel key={`budget${turn}`} gs={gs} stamping={stamping}
                   onSkip={() => choose(event.choices[1])}
@@ -2198,7 +2182,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </div>
                 )}
                 <div id="sv-choice-list">
-                {(event.doc ? event.choices.slice(0, 2) : event.choices).map((c, i) => (
+                {event.choices.map((c, i) => (
                   <button key={c.id} {...optProps(c, i + 1)}
                     style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
                     <span style={{ position:"absolute", left:22, top:13, fontFamily:serif, fontWeight:700, fontSize:18, color:G.tx3 }}>{i + 1}.</span>
@@ -2206,23 +2190,6 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     {stamping === c.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
                   </button>
                 ))}
-                {event.doc && (() => {
-                  // Обвинение: какой исход — решает отмеченная строка; предпросмотр не подсказывает ответ.
-                  const verdict = event.choices.find(c => c.id === (marked !== null && marked === event.doc.key ? "c" : "d"));
-                  const on = armed === "c" || armed === "d";
-                  return (
-                    <button id="opt-3" className="sv-opt" data-armed={on || undefined} disabled={marked === null}
-                      onClick={() => pick(verdict, false)} onBlur={() => setArmed(null)}
-                      style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative", opacity:marked === null ? .55 : 1 }}>
-                      <span style={{ position:"absolute", left:22, top:13, fontFamily:serif, fontWeight:700, fontSize:18, color:G.tx3 }}>3.</span>
-                      <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{INSPECT_TEXT.accuse.text}</div>
-                      <div style={{ fontFamily:narrow, fontSize:15, color:marked === null ? G.tx3 : G.red }}>
-                        {marked === null ? "Сначала отметьте в докладе строку, которая не сходится со справкой" : `Отмечена строка ${marked + 1}. ${INSPECT_TEXT.accuse.hint}`}
-                      </div>
-                      {(stamping === "c" || stamping === "d") && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
-                    </button>
-                  );
-                })()}
                 <div style={{ padding:"0 24px 12px" }}>
                 <CouncilPanel gs={gs} stamping={stamping} detailed={forecast} onConvened={list => { setForecast(true); commit(conveneCouncil(gsRef.current, list)); }} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
                 </div>
@@ -2371,6 +2338,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               )}
 
               </div>
+              {typed && gs.world && !gs.daily && !gs.ended && <div className="sv-country-entry" style={{marginBottom:12}}>
+                <strong>Из промышленного региона · восстановлено {gs.world.project.progress}% сети</strong>
+                <span>{gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':['completed','partial','failed'].includes(gs.world.project.status)?'Проект завершён. Итоги и причины сохранены в досье.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
+                <button onClick={()=>countryPanel.current?.showReport()}>Открыть доклад и поручения →</button>
+              </div>}
               {typed && <div style={{ textAlign:"right" }}>
                 {gs.ended
                   ? <PrimaryBtn id="next-turn" onClick={onEnd} danger>ПОДВЕСТИ ИТОГИ ⏎</PrimaryBtn>

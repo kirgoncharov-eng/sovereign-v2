@@ -26,7 +26,7 @@ import { DEEDS, ELECTION_NIGHT, INTERCUTS, roleGroup } from "../content/roles.ts
 import { TERMS_TURN, electionKind, fellTrying, isTermEnd, reignOf, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
 import { DIED, FINALE, LOCKED, PATHS, PATHS_AS, TERM_HOW, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
 import { LAW_REACT, MEANWHILE, type LawAct, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
-import { INSPECT_DOCS, INSPECT_TEXT } from "../content/inspect.ts";
+import { MANAGEMENT_DOSSIERS } from "../content/management.ts";
 import { PRESS_QUESTIONS, PRESS_TEXT, type PressWhen } from "../content/press.ts";
 import { BUDGET_DEBT, BUDGET_ITEMS, BUDGET_MAX, BUDGET_REL, BUDGET_RES, BUDGET_TEXT, BUDGET_TOTAL } from "../content/budget.ts";
 import { APPROACH_WORKS, CALL_DEMANDS, CALL_ENDINGS, CALL_REPLIES, CALL_TEXT, type Approach } from "../content/calls.ts";
@@ -39,7 +39,7 @@ import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PA
 import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } from "./people.ts";
 import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { sanitizeProposals } from "./sanitize.ts";
-import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, Verdict } from "./types.ts";
+import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
 
 type Rand = () => number;
 const pick = <T,>(r: Rand, list: T[]): T => list[Math.floor(r() * list.length)];
@@ -491,46 +491,40 @@ export function inspectEvent(state: GameState): SpecialEvent | null {
   // Сверка докладов — дело первого срока: дальше аппарат уже знает, что вы читаете бумаги.
   const k = termIndex(turn) === 0 ? inspectTurns(state.seed).indexOf(turn) : -1;
   if (k < 0 || dueBeat(state)) return null;
-  const docs = INSPECT_DOCS.filter(d => state.factions.some(f => f.bloc === d.bloc))
-    .sort((a, b) => hashSeed(state.seed, "doc", a.id) - hashSeed(state.seed, "doc", b.id));
-  const lies = docs.filter(d => d.lie !== null), honest = docs.filter(d => d.lie === null);
-  const order = hashSeed(state.seed, "honest") % 2 ? [lies[0], honest[0]] : [lies[0], lies[1]];
-  const doc = order[k];
-  if (!doc) return null;
-  const facIds = state.factions.filter(f => f.bloc === doc.bloc).map(f => f.id);
-  const rel = (n: number) => Object.fromEntries(facIds.map(id => [id, n]));
-  const slots = { who: doc.who, who_cap: doc.who.charAt(0).toUpperCase() + doc.who.slice(1), title: fill(doc.title, state), reveal: doc.reveal ?? "" };
-  const f = (t: string) => fill(t, state, slots);
-  const T = INSPECT_TEXT;
-  const lie = doc.lie !== null;
-  const choice = (id: string, text: string, hint: string, tags: ActionTag[], deal: Deal, scene: string, head: string): Choice => ({
-    id, text, hint, tags, resolvesCrisis: null, deal: { pure: true, ...deal }, scene: f(scene), sceneFail: f(scene), headline: f(head), headlineFail: f(head),
+  const docs=MANAGEMENT_DOSSIERS.filter(d=>state.factions.some(f=>f.bloc===d.bloc))
+    .sort((a,b)=>hashSeed(state.seed,'management',a.id)-hashSeed(state.seed,'management',b.id));
+  const doc=docs[k];if(!doc)return null;
+  const facIds=state.factions.filter(f=>f.bloc===doc.bloc).map(f=>f.id);
+  const choices=doc.options.map((option,i):Choice=>({
+    id:['a','b','c'][i],text:option.text,hint:option.hint,tags:['delay'],resolvesCrisis:null,
+    deal:{pure:true,res:option.res,factionRel:Object.fromEntries(facIds.map(id=>[id,option.relation])),later:option.later},
+    scene:option.scene,sceneFail:option.scene,headline:`${doc.title}: ${option.text.toLowerCase()}`,headlineFail:`${doc.title}: ${option.text.toLowerCase()}`,
+  }));
+  return {cardId:`ins:${turn}:${doc.id}`,title:doc.title,source:'Рабочее совещание',description:chapter(dateline(state),doc.intro),isCritical:false,affectedFactions:facIds,
+    choices,council:null,special:{kind:'inspect',figure:null,faction:facIds[0]??''},doc:{facts:doc.facts,lines:doc.lines,author:doc.who,key:null},randomEvent:null};
+}
+
+// Также переводит сохранённое дело старого формата в управленческое решение.
+export function managementDocument<T extends GameEvent>(event: T): T {
+  if (!event.doc) return event;
+  const rel=(n:number)=>Object.fromEntries(event.affectedFactions.map(id=>[id,n]));
+  const choice=(id:string,text:string,hint:string,res:ResourceDelta,n:number,scene:string,later:Deal['later']):Choice=>({
+    id,text,hint,tags:["delay"],resolvesCrisis:null,
+    deal:{pure:true,res,factionRel:rel(n),later},scene,sceneFail:scene,
+    headline:`«${event.title}»: ${text.toLowerCase()}`,headlineFail:`«${event.title}»: ${text.toLowerCase()}`,
   });
-  const wrong = choice("d", T.accuse.text, T.accuse.hint, ["anticorruption"],
-    { res: { internalLegitimacy: -3, politicalCapital: -4 }, factionRel: rel(-10) }, nth(T.accuse.wrong, k), T.accuse.headWrong);
-  return {
-    cardId: `ins:${turn}:${doc.id}`,
-    title: slots.title,
-    source: "На подпись",
-    description: chapter(dateline(state), f(doc.intro)),
-    isCritical: false,
-    affectedFactions: facIds.slice(0, 2),
-    choices: [
-      choice("a", T.accept.text, T.accept.hint, ["delay"], {
-        res: { politicalCapital: 3 }, factionRel: rel(4),
-        ...(lie && doc.exposed ? { later: { turns: 2, label: doc.exposed.label, res: doc.exposed.res, story: doc.exposed.story } } : {}),
-      }, nth(lie ? T.accept.lie : T.accept.honest, k), T.accept.head),
-      choice("b", T.back.text, T.back.hint, ["delay"], { res: { politicalCapital: -2 }, factionRel: rel(-3) }, nth(lie ? T.back.lie : T.back.honest, k), T.back.head),
-      lie ? choice("c", T.accuse.text, T.accuse.hint, ["anticorruption"],
-        { res: { internalLegitimacy: 4, politicalCapital: 3 }, factionRel: rel(-6) }, nth(T.accuse.right, k), doc.head ?? T.accuse.headWrong)
-        : { ...wrong, id: "c" },
-      wrong,
-    ],
-    council: null,
-    special: { kind: "inspect", figure: null, faction: facIds[0] ?? "" },
-    doc: { facts: doc.facts.map(f), lines: doc.lines.map(f), author: doc.who, key: doc.lie },
-    randomEvent: null,
-  };
+  const title=event.title,who=event.doc.author;
+  return {...event,doc:{...event.doc,key:null},choices:[
+    choice('a','Запустить программу в текущем графике','Быстрый запуск и поддержка ведомства; сжатый график потребует дополнительных расходов.',{economy:2,politicalCapital:1},3,
+      `Вы подписываете график исполнения. ${who} получает полномочия начать работу сегодня. В протоколе остаётся предупреждение аппарата: резерв небольшой, исправлять недочёты придётся по ходу. Министр финансов просит не обещать, что утверждённая смета станет окончательной.`,
+      {turns:2,label:`${title}: расходы на ускоренный запуск`,res:{economy:-2,internalLegitimacy:-1},story:'Сжатый график потребовал дополнительных закупок и работы сверхурочно. Ведомство удержало темп, но часть жалоб пришлось разбирать уже после запуска.'}),
+    choice('b','Разделить исполнение на этапы','Меньше риска для жителей; медленнее и дороже на старте, ведомство теряет свободу действий.',{economy:-1,politicalCapital:-2,internalLegitimacy:1},-2,
+      `Вы оставляете программу в работе, но делите её на этапы. Следующую часть средств ведомство получит после сдачи первой. ${who} предупреждает, что прежний срок придётся пересмотреть. Секретарь записывает новую договорённость: оценивать результат по работающим объектам, а не по закрытым актам.`,
+      {turns:2,label:`${title}: первые этапы сданы`,res:{economy:2,internalLegitimacy:1},story:'Первые этапы приняты отдельно. Работа шла медленнее первоначального графика, зато недочёты исправили до расширения программы.'}),
+    choice('c','Установить внешний контроль исполнения','Потребует денег и политического капитала; ответственность станет прозрачнее, ведомство потеряет автономию.',{economy:-1,politicalCapital:-3},-4,
+      `Вы поручаете независимой группе сопровождать исполнение программы. ${who} остаётся ответственным за результат, но больше не определяет критерии приёмки в одиночку. На совещании спорят о доступе к договорам и о том, кто будет отвечать за задержки. Вы устанавливаете правило: замечания фиксируют до оплаты следующего этапа.`,
+      {turns:2,label:`${title}: внешний контроль`,res:{internalLegitimacy:3,politicalCapital:1},story:'Внешняя группа опубликовала ход исполнения и замечания к работе ведомства. Контроль не сделал программу бесплатной, но ответственность за решения стала понятнее.'}),
+  ]};
 }
 
 // ── Пресс-конференция ────────────────────────────────────────────────────────

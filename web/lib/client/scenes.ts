@@ -163,7 +163,7 @@ const SCENES: Record<Exclude<SceneKey, "square" | "protest" | "army" | "signing"
     const ch = [fx + fw - 10, fx + fw - 20];
     ch.forEach((x, i) => { px(x, g - fh - 14, 3, 14, "#6a5e50"); px(x, g - fh - 14, 3, 1, "#a04030"); smoke(c, x + 1, g - fh - 15, g - fh - 8 + i * 4); });
     px(fx - 2, g - 6, 1, 6, "#3d3a34"); px(fx - 14, g - 5, 12, 1, (c.f % 4 < 2) ? "#d03a30" : "#eeeeee");
-    crowd(c, 4, fx - 4, g + 6, Math.round(W / 14), true);
+    crowd(c, 4, fx - 4, g + 6, Math.round(W / 14), c.partner !== 'restored');
   },
   money(c) {
     const { px, W, H } = c;
@@ -209,7 +209,8 @@ const SCENES: Record<Exclude<SceneKey, "square" | "protest" | "army" | "signing"
     for (let i = 0; i < 6; i++) {
       const x = 4 + i * Math.round(W / 6), h = 7 + (i % 3) * 2;
       px(x, H - h, 10, h, "#3a3832");
-      const on = (c.f + i * 5) % 9 > 2;
+      const restored=c.partner.startsWith('grid:')?Math.floor(Number(c.partner.slice(5))*6/100):0;
+      const on = i<restored || (c.f + i * 5) % 9 > 2;
       px(x + 2, H - h + 2, 2, 2, on ? "#e8c766" : "#1d1c19"); px(x + 6, H - h + 2, 2, 2, on && i % 2 ? "#e8c766" : "#1d1c19");
     }
     if (c.f % 7 === 0) { const x = pyl[1] + 4; px(x, 10, 1, 1, "#ffffff"); px(x + 1, 11, 1, 1, "#fff3a0"); }
