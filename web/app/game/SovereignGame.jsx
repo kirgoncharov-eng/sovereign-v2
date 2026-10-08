@@ -38,6 +38,7 @@ import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
 import ResourceInfo from "./ResourceInfo.jsx";
+import { healthHasContinuation, healthNeedsAttention } from "@/lib/game/health-aftermath.ts";
 import { projectFinished } from "@/lib/game/living-health.ts";
 import { openLivingWorld, interveneWorld } from "@/lib/game/living-world.ts";
 import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
@@ -1826,7 +1827,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     onFocus: () => setPreview(c), onBlur: () => { setPreview(null); setArmed(null); },
   });
 
-  const agendaFinished = gs.world && projectFinished(gs.world.project) && (!gs.world.health || projectFinished(gs.world.health));
+  const agendaFinished = gs.world && projectFinished(gs.world.project) && (!gs.world.health || projectFinished(gs.world.health) && !healthHasContinuation(gs.world.health));
   const { resources, prevResources, factions, prevFactions, keyFigures, prevFigures, turn, history, activeCrises, currentEvent: event, lastTurn } = gs;
   // Видна ли резолюция на экране — тогда нижней кнопке «К резолюции» показываться незачем.
   // Проверяем при прокрутке: резолюция уже на экране или проскроллена выше.
@@ -2295,7 +2296,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               </div>
               {typed && gs.world && !gs.daily && !gs.ended && <div className="sv-country-entry" style={{marginBottom:12}}>
                 <strong>Повестка · энергосеть {gs.world.project.progress}%{gs.world.health ? ` · больницы ${gs.world.health.progress}%` : ''}</strong>
-                <span>{agendaFinished?'Проекты завершены. Итоги и оставшиеся обязательства — в досье. Продолжите управление из кабинета.':gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
+                <span>{healthNeedsAttention(gs.world.health)?'По больницам требуется ваш ответ. Срок и варианты вмешательства — в повестке.':gs.world.health?.aftermath?.phase==='working'?'Поручение по больницам исполняется. Продолжите решения в кабинете до итогового доклада.':gs.world.health?.aftermath?.phase==='scheduled'&&projectFinished(gs.world.project)?'Программы завершены; ожидается доклад о последствиях. Продолжите решения в кабинете.':agendaFinished?'Проекты завершены. Итоги и оставшиеся обязательства — в досье. Продолжите управление из кабинета.':gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
                 <button onClick={()=>countryPanel.current?.showReport()}>{agendaFinished?'Открыть итоги проектов':'Открыть повестку и поручения'} →</button>
               </div>}
               {typed && <div style={{ textAlign:"right" }}>

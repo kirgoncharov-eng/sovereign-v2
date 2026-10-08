@@ -33,7 +33,7 @@ test('доклад показывает выполненную работу; в�
  const s=tick(interveneWorld(openLivingWorld(await fresh()),'appoint:minister'));
  assert.equal(s.world!.project.reported,s.world!.project.progress);assert.ok(!livingActions(s).some(a=>a.id==='inspect'));assert.ok(livingActions(s).some(a=>a.id==='retender'&&!a.blocked));
  const repaired=interveneWorld(s,'retender');assert.ok(stepLivingWorld(repaired,2).world!.project.progress>stepLivingWorld(s,2).world!.project.progress);assert.ok(repaired.factions.some((f,i)=>f.relation<s.factions[i].relation));
- const completed=tick(tick(tick(repaired)));assert.equal(completed.world!.project.status,'completed');const settled=stepLivingWorld(completed,completed.turn+1);assert.deepEqual(settled.res,{});assert.equal(settled.story,null);
+ const completed=tick(tick(tick(repaired)));assert.equal(completed.world!.project.status,'completed');const settled=stepLivingWorld(completed,completed.turn+1);assert.deepEqual(settled.res,{});assert.ok(settled.story!.includes('Причина:'));
  const bargain=interveneWorld(s,'negotiate');assert.ok(bargain.factions.some((f,i)=>f.relation>s.factions[i].relation));assert.ok(!livingActions(bargain).some(a=>a.id==='retender'));
 });
 test('бездействие и незавершённое исполнение дают разные исходы; информация переживает сохранение',async()=>{
@@ -60,7 +60,7 @@ test('дело развивается при обычных решениях, в
  for(let i=0;i<4;i++){s=startEvent(s,event);const text=await classicApi.consequence(s,'a');assert.ok(text.narrative.includes('Из промышленного региона'));const plan=planTurn(s,'a');s=resolveTurn(s,'a',text);assert.equal(s.world!.lastTick,s.turn);assert.deepEqual(s.world,plan.world);}
  assert.equal(s.world!.project.status,'failed');assert.deepEqual(s.lastTurn!.sources!.economy!.find(([label])=>label==='энергосеть промышленного региона'),['энергосеть промышленного региона',-4]);
  assert.ok(s.lastTurn!.narrative.includes('не принимает сеть'));
- s=startEvent(s,event);const next=planTurn(s,'a');assert.equal(next.worldStory,null);assert.ok(!next.sources.economy?.some(([label])=>label==='энергосеть промышленного региона'));
+ s=startEvent(s,event);const next=planTurn(s,'a');assert.ok(next.worldStory!.includes('Пустые кабинеты'));assert.ok(!next.worldStory!.includes('Из промышленного региона'));assert.ok(!next.sources.economy?.some(([label])=>label==='энергосеть промышленного региона'));
  const profile=personProfiles(s).find(p=>p.name===s.world!.people[0].name)!;assert.ok(profile.rows.some(r=>r.label==='Компетенция в проекте'));
 });
 
@@ -96,10 +96,12 @@ test('две программы делят поручение и бюджет; �
 });
 function worldPersonForTest(s:GameState){const person=s.world!.people.find(p=>p.id==='governor')!;return s.keyFigures.find(f=>f.id===person.figure)??person;}
 
-test('больницы исполняются независимо, временные переводы оставляют отложенную цену ровно один раз',async()=>{
+test('старые завершённые переводы сохраняют отложенную цену ровно один раз',async()=>{
  let s=interveneWorld(openLivingWorld(await fresh()),'health:appoint:healthMinister');
  s=tick(s);s=interveneWorld(s,'health:approach:rotation');s=tick(tick(s));
  assert.equal(s.world!.health!.status,'completed');assert.equal(s.world!.project.status,'unassigned');
+ // Сохранение предыдущей версии уже завершило программу, новой истории в нём нет.
+ delete s.world!.health!.aftermath;
  assert.equal(s.world!.health!.followupTurn,5);
  s=tick(s);const debt=stepLivingWorld(s,5);
  assert.deepEqual(debt.effects.find(e=>e.label==='районные больницы')!.res,{economy:-2,internalLegitimacy:-2});

@@ -1,3 +1,4 @@
+import { aftermathActions, decideHealthAftermath, scheduleHealthAftermath, stepHealthAftermath, validHealthAftermath, type HealthAftermath, type HealthResponse } from './health-aftermath.ts';
 import type { GameState, ResourceDelta } from './types.ts';
 import type { LivingWorld, WorldAction, WorldPerson, WorldPersonId } from './living-world.ts';
 
@@ -14,6 +15,7 @@ export interface HealthProject {
   approach: 'permanent' | 'rotation';
   lastFactors: string[];
   followupTurn: number | null;
+  aftermath?: HealthAftermath;
 }
 export const HEALTH_PEOPLE: WorldPersonId[] = ['healthMinister', 'doctor', 'governor'];
 export const projectFinished = (project: { status: ProjectStatus }) =>
@@ -29,7 +31,8 @@ export function newHealthProject(turn: number): HealthProject {
 
 export function healthActions(world: LivingWorld, people: WorldPerson[]): Omit<WorldAction, 'blocked'>[] {
   const project = world.health;
-  if (!project || projectFinished(project)) return [];
+  if (!project) return [];
+  if (projectFinished(project)) return aftermathActions(world, people);
   const candidates = people.filter(person => HEALTH_PEOPLE.includes(person.id));
   const candidateAction = (person: WorldPerson, replace: boolean) => ({
     id: `health:${replace ? 'replace' : 'appoint'}:${person.id}`,
@@ -59,8 +62,9 @@ export function healthActions(world: LivingWorld, people: WorldPerson[]): Omit<W
   return [...actions, ...candidates.filter(person => person.id !== project.executor).map(person => candidateAction(person, true))];
 }
 
-export function healthDecision(world: LivingWorld, id: string, person: (id: WorldPersonId) => WorldPerson): string {
+export function healthDecision(world: LivingWorld, id: string, person: (id: WorldPersonId) => WorldPerson, turn: number): string {
   const project = world.health!;
+  if (id.startsWith('health:response:')) return decideHealthAftermath(world, id.slice(16) as HealthResponse, turn, person);
   if (id.startsWith('health:appoint:') || id.startsWith('health:replace:')) {
     const replace = id.startsWith('health:replace:');
     project.executor = id.split(':')[2] as WorldPersonId;
@@ -88,6 +92,10 @@ export function healthDecision(world: LivingWorld, id: string, person: (id: Worl
 export function stepHealthProject(state: GameState, world: LivingWorld, turn: number, executor?: WorldPerson): { res: ResourceDelta; story: string | null } {
   const project = world.health;
   if (!project) return { res: {}, story: null };
+  if (project.aftermath) return stepHealthAftermath(state, world, turn, world.people.map(p => {
+    const figure = p.figure && state.keyFigures.find(f => f.id === p.figure);
+    return figure ? { ...p, name: figure.name, relation: figure.relation } : p;
+  }));
   if (projectFinished(project)) {
     if (project.followupTurn === null || turn < project.followupTurn) return { res: {}, story: null };
     project.followupTurn = null;
@@ -129,11 +137,12 @@ export function stepHealthProject(state: GameState, world: LivingWorld, turn: nu
     if (project.status === 'completed') res = project.approach === 'rotation' ? { internalLegitimacy: 3 } : { economy: 1, internalLegitimacy: 5 };
     else if (project.status === 'partial') res = { internalLegitimacy: 2, economy: -1 };
     else res = { internalLegitimacy: -3, economy: -1 };
-    if (project.status !== 'failed') project.followupTurn = turn + 2;
+    project.aftermath = scheduleHealthAftermath(project, turn);
+    project.followupTurn = project.aftermath.due;
     const ending = project.status === 'completed' ? 'Районные отделения открыты; запись к специалистам снова доступна на месте.'
       : project.status === 'partial' ? 'Часть районных отделений открылась. В остальных пациенты по-прежнему едут в областной центр.'
       : 'Программа не выполнена. Незанятые ставки остаются пустыми; жители требуют объяснить, куда ушёл год.';
-    story = `${ending} Укомплектовано ${project.progress}%. ${factors.join('. ')}. ${project.status !== 'failed' ? 'Бюджетные и кадровые обязательства сохранятся после завершения проекта.' : ''} Экономика ${res.economy ?? 0}, легитимность ${(res.internalLegitimacy ?? 0) > 0 ? '+' : ''}${res.internalLegitimacy}.`;
+    story = `${ending} Укомплектовано ${project.progress}%. ${factors.join('. ')}. Продолжение истории — через ${project.aftermath.due - turn} кв.: ${project.status === 'failed' ? 'ответ жителям за провал программы' : 'бюджетные и кадровые обязательства после завершения проекта'}. Экономика ${res.economy ?? 0}, легитимность ${(res.internalLegitimacy ?? 0) > 0 ? '+' : ''}${res.internalLegitimacy}.`;
   }
   return { res, story };
 }
@@ -149,5 +158,11 @@ export function validHealthProject(value: unknown, turn: number): value is Healt
     && typeof project.secured === 'boolean' && typeof project.cover === 'boolean'
     && ['permanent', 'rotation'].includes(project.approach)
     && Array.isArray(project.lastFactors) && project.lastFactors.every(factor => typeof factor === 'string')
-    && (project.followupTurn === null || integer(project.followupTurn, project.openedTurn + 1, Number.MAX_SAFE_INTEGER));
+    && (project.followupTurn === null || integer(project.followupTurn, project.openedTurn + 1, Number.MAX_SAFE_INTEGER))
+    && (project.aftermath === undefined || projectFinished(project) && validHealthAftermath(project.aftermath, turn)
+      && (project.aftermath.phase === 'scheduled' ? project.followupTurn === project.aftermath.due : project.followupTurn === null));
+}
+
+export function cloneHealthProject(project: HealthProject): HealthProject {
+  return { ...project, lastFactors: [...project.lastFactors], ...(project.aftermath ? { aftermath: { ...project.aftermath, factors: [...project.aftermath.factors] } } : {}) };
 }

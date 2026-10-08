@@ -5,6 +5,7 @@ import { monthYear, turnDate } from '@/lib/game/calendar.ts';
 import { livingActions, worldPerson } from '@/lib/game/living-world.ts';
 import HealthPanel from './HealthPanel.jsx';
 import ProjectActions from './ProjectActions.jsx';
+import { healthHasContinuation, healthNeedsAttention } from '@/lib/game/health-aftermath.ts';
 import { projectFinished } from '@/lib/game/living-health.ts';
 import { PeopleText } from './PeopleText.jsx';
 
@@ -27,12 +28,13 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
   const latest=energyReports.at(-1);
   const latestDispatch=world?.dispatches.at(-1);
   const selected=place==='health'?world?.health:project;
-  const selectedFinished=selected&&projectFinished(selected);
+  const continuation = place === 'health' ? world?.health?.aftermath : null;
+  const selectedFinished=selected&&projectFinished(selected)&&!(place==='health'&&healthHasContinuation(world?.health));
   const projects=world?[['region','Энергосеть',world.project],...(world.health?[['health','Районные больницы',world.health]]:[])]:[];
-  const activeProjects = projects.filter(([, , item]) => !projectFinished(item)).length;
+  const activeProjects = projects.filter(([, , item]) => !projectFinished(item)||(item===world?.health&&healthHasContinuation(world.health))).length;
   const showActions=()=>{
     if(!world?.health)onOpen();
-    setExpanded(true);if(place==='capital')setPlace('region');setTab('actions');onViewChange(true);setPending(null);
+    setExpanded(true);if(world?.health?.aftermath&&projectFinished(world.project))setPlace('health');else if(place==='capital')setPlace('region');setTab('actions');onViewChange(true);setPending(null);
     requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));
   };
   useImperativeHandle(ref,()=>({showReport:()=>{
@@ -52,19 +54,19 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
   return <section data-world-panel className="sv-country">
     <button type="button" className="sv-country-toggle" aria-expanded={expanded} onClick={toggle}>
       <span>ПОВЕСТКА ПРЕЗИДЕНТА <span className="sv-country-arrow">{expanded?'▴':'▾'}</span></span>
-      <span>{world?`${projects.filter(([, , item])=>!projectFinished(item)).length} дела в работе`:'Кабинет, проекты и исполнители'}</span>
+      <span>{world?`В повестке: ${activeProjects}`:'Кабинет, проекты и исполнители'}</span>
     </button>
     {!expanded&&latestDispatch&&<div className="sv-country-latest">{stamp(gs,Math.max(world.openedTurn,latestDispatch.turn-(['report','news'].includes(latestDispatch.kind)?1:0)))} · {latestDispatch.title}</div>}
     {world&&<div className="sv-agenda-projects" aria-label="Проекты в повестке">{projects.map(([id,title,item])=><button key={id} data-agenda-project={id} aria-pressed={expanded&&place===id} onClick={()=>{if(!world.health)onOpen();setExpanded(true);onViewChange(true);setPlace(id);setTab(item.status==='unassigned'?'actions':'dispatches');setPending(null);}}>
-      <strong>{title}</strong><span>{item.status==='unassigned'?'Ждёт назначения':item.status==='running'?`${item.progress}% · работа идёт`:item.status==='completed'?'Завершён':item.status==='partial'?'Частичный результат':'Срок сорван'}</span><small>{projectFinished(item)?item.followupTurn?'Остались обязательства':'Итоги в досье':`${Math.max(0,item.deadline-gs.turn)} кв. до срока${item.executor?' · исполнитель назначен':''}`}</small>
+      <strong>{title}</strong><span>{id==='health'&&healthHasContinuation(item)?healthNeedsAttention(item)?'Требуется ваше решение':item.aftermath.phase==='working'?'Поручение исполняется':'Ожидается новый доклад':item.status==='unassigned'?'Ждёт назначения':item.status==='running'?`${item.progress}% · работа идёт`:item.status==='completed'?'Завершён':item.status==='partial'?'Частичный результат':'Срок сорван'}</span><small>{id==='health'&&healthHasContinuation(item)?item.aftermath.phase==='open'?`${Math.max(0,item.aftermath.deadline-gs.turn)} кв. для ответа`:`Доклад через ${Math.max(0,item.aftermath.due-gs.turn)} кв.`:projectFinished(item)?item.followupTurn?'Остались обязательства':'Итоги в досье':`${Math.max(0,item.deadline-gs.turn)} кв. до срока${item.executor?' · исполнитель назначен':''}`}</small>
     </button>)}</div>}
-    {!expanded&&!gs.ended&&<div className="sv-country-entry"><button onClick={showActions}>{!world?'Открыть проекты страны':!activeProjects?'Посмотреть итоги проектов':quota?'Посмотреть ход проектов':'Выбрать личное поручение'} →</button><span>{world&&!activeProjects?'Проекты завершены. Следующее дело — в кабинете.':quota?'Поручение на этот квартал уже подписано':'Сроки обоих дел идут после решения в кабинете. Чтение свободно.'}</span></div>}
+    {!expanded&&!gs.ended&&<div className="sv-country-entry"><button onClick={showActions}>{!world?'Открыть проекты страны':!activeProjects?'Посмотреть итоги проектов':!actions.length?'Посмотреть ожидаемый доклад':quota?'Посмотреть ход проектов':'Выбрать личное поручение'} →</button><span>{world&&activeProjects&&!actions.length?'Следующий доклад придёт после решений в кабинете. Сейчас нового поручения не требуется.':world&&!activeProjects?'Проекты завершены. Следующее дело — в кабинете.':quota?'Поручение на этот квартал уже подписано':'Сроки обоих дел идут после решения в кабинете. Чтение свободно.'}</span></div>}
     {expanded&&world&&<div className="sv-country-body">
       <div className="sv-country-guide">
         <div className="sv-country-label">ПОРУЧЕНИЯ · {stamp(gs,gs.turn)}</div>
-        <strong>{selectedFinished?'Проект завершён':quota?'Поручение принято. Теперь — к делу в кабинете':selected?.status==='unassigned'?'Первый шаг — назначить руководителя':gs.lastTurn?'Доклад получен. Выберите, что изменить':'Можно скорректировать исполнение'}</strong>
-        <p>{selectedFinished?activeProjects?'Итоги остаются в досье. Другой проект продолжает работу.':'Итоги остаются в досье. Сведения об обязательствах — в докладе. Продолжите управление из кабинета.':quota?'Поручение уже подписано. Второй проект можно поручить после следующего решения в кабинете. Назначенные исполнители продолжат работу.':selected?.status==='unassigned'?'Выберите человека во вкладке «Поручения». Он получит финансирование на год.':'Прочитайте доклад и решите, нужны ли новое поручение, деньги или другой приоритет. Можно оставить текущий план в работе.'}</p>
-        <div>{!selectedFinished&&!quota&&<button onClick={showActions}>{selected?.status==='unassigned'?'Выбрать руководителя':'Выбрать поручение'} →</button>}<button onClick={returnToDesk}>{gs.lastTurn&&!gs.ended?'Открыть дело нового квартала':'К текущему делу в кабинете'} →</button></div>
+        <strong>{continuation?.phase==='open'&&!quota?'Последствия программы требуют решения':continuation?.phase==='working'?'Подписанное поручение исполняется':continuation?.phase==='scheduled'?'Программа закончена; история продолжается':selectedFinished?'Проект завершён':quota?'Поручение принято. Теперь — к делу в кабинете':selected?.status==='unassigned'?'Первый шаг — назначить руководителя':gs.lastTurn?'Доклад получен. Выберите, что изменить':'Можно скорректировать исполнение'}</strong>
+        <p>{continuation?.phase==='open'&&!quota?'Прочитайте новый доклад и выберите ответ во вкладке «Поручения». Срок указан в досье; без ответа ситуация изменится сама.':continuation?.phase==='working'?'Исполнитель готовит итоговый доклад. Продолжайте решения в кабинете: время и согласования идут после них.':continuation?.phase==='scheduled'?'Результат программы уже известен. Следующий доклад покажет бюджетные или кадровые последствия выбранного вами пути.':selectedFinished?activeProjects?'Итоги остаются в досье. Другой проект продолжает работу.':'Итоги остаются в досье. Сведения об обязательствах — в докладе. Продолжите управление из кабинета.':quota?'Поручение уже подписано. Второй проект можно поручить после следующего решения в кабинете. Назначенные исполнители продолжат работу.':selected?.status==='unassigned'?'Выберите человека во вкладке «Поручения». Он получит финансирование на год.':'Прочитайте доклад и решите, нужны ли новое поручение, деньги или другой приоритет. Можно оставить текущий план в работе.'}</p>
+        <div>{!selectedFinished&&!quota&&(!continuation||continuation.phase==='open')&&<button onClick={showActions}>{selected?.status==='unassigned'?'Выбрать руководителя':'Выбрать поручение'} →</button>}<button onClick={returnToDesk}>{gs.lastTurn&&!gs.ended?'Открыть дело нового квартала':'К текущему делу в кабинете'} →</button></div>
         <small>Карта и доклады доступны свободно. Одно личное поручение на оба проекта за квартал. Общий резерв экономики: {gs.resources.economy}. Время идёт после решения в кабинете.</small>
       </div>
       <div className="sv-country-map" aria-label="Резиденция и два проекта страны">

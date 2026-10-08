@@ -375,6 +375,7 @@ button:focus-visible {
 .sv-country-entry { display:flex; gap:8px; flex-direction:column; border-top:1px solid var(--bdr2); }
 .sv-country-entry span, .sv-country-guide small { color:var(--tx2); font-size:15px; }
 .sv-country-entry button, .sv-country-guide button { padding:10px 12px; border:1px solid var(--gold); background:var(--bg2); color:var(--txt); font-family:var(--font-narrow); font-size:16px; text-align:left; }
+.sv-health-response { display:block; width:100%; min-height:44px; margin-top:10px; padding:10px 12px; border:1px solid var(--gold); background:var(--bg2); color:var(--txt); font-family:var(--font-narrow); font-size:16px; text-align:left; }
 .sv-country-guide p { margin:6px 0 10px; }
 .sv-country-guide > div { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
 .sv-country-tabs { scroll-margin-top:130px; }
