@@ -77,6 +77,7 @@ export interface Choice {
   text: string;
   hint: string;
   tags: ActionTag[];
+  costReasons?: Partial<Record<ResourceKey, string>>; // цена именно этого решения, вместо общей причины по тегу
   resolvesCrisis: string | null; // id кризиса, который закрывает это решение
   advisor?: { id: string; name: string; role: string; skill: 1 | 2 | 3 } | null; // автор предложения
   arc?: ArcChoice | null; // сюжетный вариант эпизода интриги
