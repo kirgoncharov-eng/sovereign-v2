@@ -41,8 +41,9 @@ test("сводка автору: вчерашний день, неделя, гд
   };
   const t = digestText(s, "https://x.test/api/stats?key=k");
   assert.match(t, /сводка за 02\.10/);
-  assert.match(t, /Игроков: 12 \(новых 7\)/);
-  assert.match(t, /между 3-м и 5-м ходом теряется 50%/);
+  assert.match(t, /Устройств: 12 \(новых 7\)/);
+  assert.ok(!t.includes("Где бросают"));
+  assert.match(t, /не конверсия и не подтверждённые отправки/);
   assert.match(t, /средняя оценка 3\.7/);
   assert.match(t, /Обещаний исполняют в среднем: 1\.3/);
   assert.match(t, /href="https:\/\/x\.test/);
@@ -54,4 +55,20 @@ test("разрезы: подписи интервалов времени дох�
   for (const sec of ["до 30 с", "30-60 с", "1-2 мин", "2-5 мин", "больше 5 мин"]) await record("tester0001", [{ e: "first", p: { sec } }], now);
   const h = (await readStats(1, now)).days[0].h;
   for (const sec of ["до 30 с", "30-60 с", "1-2 мин", "2-5 мин", "больше 5 мин"]) assert.equal(h[`first|sec=${sec}`], 1, sec);
+});
+
+
+test("аналитика: мусор не создаёт визит, версия и канал сохраняются, повторные возвраты не раздувают D1/D7",async()=>{
+ const time=Date.parse('2026-12-01T23:58:00Z');
+ await record('garbageonly',[{e:'garbage'}],time);
+ assert.equal((await readStats(1,time)).days[0].h.players,undefined);
+ await record('version001',[{e:'open',p:{v:'6.1',src:'tg'}},{e:'start',p:{v:'6.1',src:'tg'}}],time);
+ await record('version001',[{e:'resume',p:{v:'6.1',src:'tg'}}],time+120_000);
+ await record('version001',[{e:'open',p:{v:'6.1',src:'tg'}}],time+180_000);
+ const first=(await readStats(2,time+180_000)).cohorts[0];assert.equal(first.h.d0,1);assert.equal(first.h.d1,1);
+ await record('version001',[{e:'open',p:{v:'6.1',src:'tg'}}],time+7*DAY);
+ await record('version001',[{e:'open',p:{v:'6.1',src:'tg'}}],time+7*DAY+60_000);
+ const stats=await readStats(8,time+7*DAY+60_000);assert.equal(stats.cohorts[0].h.d7,1);
+ assert.equal(stats.days[0].h['open|v=6.1'],1);assert.equal(stats.days[0].h['start|src=tg'],1);
+ const html=renderStats(stats);assert.ok(html.includes('не доля конкретных партий'));assert.ok(!html.includes('финалов, после которых поделились'));assert.ok(html.includes('Версии приложения'));
 });

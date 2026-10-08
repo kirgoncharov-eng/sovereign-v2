@@ -24,6 +24,8 @@ const clean = (v: unknown) => String(v).replace(/[^\p{L}\p{N} _.-]/gu, "").trim(
 export interface TrackInput { e: string; p?: Record<string, unknown> }
 
 export async function record(pid: string, events: TrackInput[], now = Date.now()) {
+  const accepted = events.filter(event => (TRACK_EVENTS as readonly string[]).includes(event.e));
+  if (!accepted.length) return;
   const d = dayOf(now), key = `an:${d}`;
   const ops: Promise<unknown>[] = [];
   // Первый визит за сегодня: считаем игрока и, если он вернулся, его когорту.
@@ -37,10 +39,10 @@ export async function record(pid: string, events: TrackInput[], now = Date.now()
       if (first && COHORT_DAYS.includes(k)) ops.push(kv.hincrby(`an:cohort:${first}`, `d${k}`));
     }
   }
-  for (const { e, p } of events) {
+  for (const { e, p } of accepted) {
     if (!(TRACK_EVENTS as readonly string[]).includes(e)) continue;
     ops.push(kv.hincrby(key, e));
-    for (const dim of DIMS[e as TrackEventName]) {
+    for (const dim of new Set([...DIMS[e as TrackEventName], "v", "src"])) {
       const v = p?.[dim];
       if (v === undefined || v === null || v === "") continue;
       const val = clean(v);
@@ -88,13 +90,12 @@ const LABELS: Record<string, string> = {
   "3060 с": "30-60 с", "12 мин": "1-2 мин", "25 мин": "2-5 мин",
 };
 
-function bars(rows: [string, number][], total: number) {
+function bars(rows: [string, number][], total: number, showPercent = true) {
   if (!rows.length) return `<p class="muted">Пока нет данных</p>`;
-  return rows.map(([k, v]) => `<div class="bar"><span class="name">${esc(LABELS[k] ?? k)}</span><span class="track"><i style="width:${total ? Math.round((v / total) * 100) : 0}%"></i></span><span class="val">${v} · ${pct(v, total)}</span></div>`).join("");
+  return rows.map(([k, v]) => `<div class="bar"><span class="name">${esc(LABELS[k] ?? k)}</span><span class="track"><i style="width:${total ? Math.min(100, Math.round((v / total) * 100)) : 0}%"></i></span><span class="val">${v}${showPercent ? ` · ${pct(v, total)}` : ""}</span></div>`).join("");
 }
 
 // ── Утренняя сводка в Telegram: вчерашний день и неделя одним сообщением ─────────
-const FUNNEL_STEPS = [1, 3, 5, 10, 15, 20, 30, 40];
 export function digestText(s: Stats, link = ""): string {
   const y = s.days.at(-2) ?? s.days.at(-1);
   if (!y) return "Данных пока нет.";
@@ -102,14 +103,7 @@ export function digestText(s: Stats, link = ""): string {
   const h = y.h, n = (k: string) => h[k] ?? 0;
   const [, mm, dd] = y.date.split("-");
   const wStarts = sum(week, "start");
-  // Где бросают: самый большой провал воронки за неделю.
-  let drop = "";
-  let worst = 0;
-  // «Где бросают» — внутри первого срока: дальше партия кончается падением, а не скукой.
-  for (let i = 1; i < FUNNEL_STEPS.length && FUNNEL_STEPS[i] <= 20; i++) {
-    const a = sum(week, `turn|n=${FUNNEL_STEPS[i - 1]}`), b = sum(week, `turn|n=${FUNNEL_STEPS[i]}`);
-    if (a >= 5 && (a - b) / a > worst) { worst = (a - b) / a; drop = `между ${FUNNEL_STEPS[i - 1]}-м и ${FUNNEL_STEPS[i]}-м ходом теряется ${Math.round(worst * 100)}% партий`; }
-  }
+  const wFirst = sum(week, "turn|n=1");
   const ends = breakdown(week, "end|type=").slice(0, 4).map(([k, v]) => `${(LABELS[k] ?? k).toLowerCase()} ${v}`).join(", ");
   const kept = breakdown(week, "end|kept=");
   const keptAvg = kept.length ? (kept.reduce((t, [k, v]) => t + Number(k) * v, 0) / kept.reduce((t, [, v]) => t + v, 0)).toFixed(1) : "";
@@ -117,13 +111,13 @@ export function digestText(s: Stats, link = ""): string {
   const back = s.cohorts.at(-3);
   return [
     `<b>Суверен · сводка за ${dd}.${mm}</b>`,
-    `Игроков: ${n("players")} (новых ${n("new")}) · партий начато ${n("start")}, первое решение ${n("turn|n=1")}, до финала ${n("end")}`,
-    `За 7 дней: партий ${wStarts}, доиграли ${pct(sum(week, "end"), wStarts)}, поделились ${sum(week, "share") + sum(week, "invite")}`,
-    drop ? `Где бросают: ${drop}` : "",
+    `Устройств: ${n("players")} (новых ${n("new")}) · партий начато ${n("start")}, первое решение ${n("turn|n=1")}, до финала ${n("end")}`,
+    `За 7 дней: стартов ${wStarts}, первых решений ${wFirst}, финалов ${sum(week, "end")}, действий с отправкой или ссылкой ${sum(week, "share") + sum(week, "invite")}`,
+    "Старт и финал могут относиться к разным партиям. Это события периода, не конверсия и не подтверждённые отправки.",
     ends ? `Чем кончаются: ${ends}` : "",
     keptAvg ? `Обещаний исполняют в среднем: ${keptAvg} из 3` : "",
     rn ? `Отзывов за неделю: ${sum(week, "feedback")}, средняя оценка ${(sum(week, "rating_sum") / rn).toFixed(1)} из 5` : sum(week, "feedback") ? `Отзывов за неделю: ${sum(week, "feedback")}` : "",
-    back?.h.d0 ? `Вернулись на следующий день: ${pct(back.h.d1 ?? 0, back.h.d0)} из пришедших ${back.date.slice(8)}.${back.date.slice(5, 7)}` : "",
+    back?.h.d0 ? `Вернулись на следующий день: ${pct(back.h.d1 ?? 0, back.h.d0)} из устройств первого визита ${back.date.slice(8)}.${back.date.slice(5, 7)}` : "",
     link ? `<a href="${link}">Все цифры и отзывы</a>` : "",
   ].filter(Boolean).join("\n");
 }
@@ -143,7 +137,7 @@ export function renderStats(s: Stats, feedback: FeedbackRow[] = []): string {
     const age = Math.round((Date.parse(today) - Date.parse(c.date)) / 864e5);
     return `<tr><td>${esc(c.date)}</td><td>${c.h.d0}</td>${COHORT_DAYS.map(k => `<td>${age >= k ? pct(c.h[`d${k}`] ?? 0, c.h.d0) : "—"}</td>`).join("")}</tr>`;
   }).join("");
-  const dayRows = [...s.days].reverse().map(d => `<tr><td>${esc(d.date)}</td><td>${d.h.players ?? 0}</td><td>${d.h.new ?? 0}</td><td>${d.h.start ?? 0}</td><td>${d.h.end ?? 0}</td><td>${pct(d.h.end ?? 0, d.h.start ?? 0)}</td><td>${(d.h.share ?? 0) + (d.h.invite ?? 0)}</td><td>${d.h.subscribe ?? 0}</td><td>${d.h.daily ?? 0}</td></tr>`).join("");
+  const dayRows = [...s.days].reverse().map(d => `<tr><td>${esc(d.date)}</td><td>${d.h.players ?? 0}</td><td>${d.h.new ?? 0}</td><td>${d.h.start ?? 0}</td><td>${d.h.end ?? 0}</td><td>${(d.h.share ?? 0) + (d.h.invite ?? 0)}</td><td>${d.h.subscribe ?? 0}</td><td>${d.h.daily ?? 0}</td></tr>`).join("");
   const section = (title: string, prefix: string, total: number) => `<section><h2>${title}</h2>${bars(breakdown(s, prefix), total)}</section>`;
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Суверен · цифры</title>
@@ -159,17 +153,17 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 .fb{padding:8px 0;border-top:1px solid var(--line)}.fb:first-of-type{border-top:none}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px}
 </style></head><body><main>
-<div class="paper"><h1>Суверен · цифры</h1><div class="muted">За ${s.days.length} дн., по ${esc(today)} включительно (UTC). Анонимные счётчики, без личных данных.</div></div>
+<div class="paper"><h1>Суверен · цифры</h1><div class="muted">За ${s.days.length} дн., по ${esc(today)} включительно (UTC). Счётчики по случайному идентификатору браузера. Действие с итогом не доказывает, что сообщение отправлено.</div></div>
 <div class="paper kpis">
-<div class="kpi"><b>${newPlayers}</b><span>новых игроков</span></div>
-<div class="kpi"><b>${dauToday}</b><span>игроков сегодня</span></div>
+<div class="kpi"><b>${newPlayers}</b><span>новых устройств</span></div>
+<div class="kpi"><b>${dauToday}</b><span>устройств сегодня</span></div>
 <div class="kpi"><b>${starts}</b><span>партий начато</span></div>
-<div class="kpi"><b>${pct(ends, starts)}</b><span>партий доведено до финала</span></div>
-<div class="kpi"><b>${pct(sum(s, "share") + sum(s, "invite"), ends)}</b><span>финалов, после которых поделились</span></div>
+<div class="kpi"><b>${ends}</b><span>событий финала</span></div>
+<div class="kpi"><b>${sum(s, "share") + sum(s, "invite")}</b><span>действий с отправкой или ссылкой</span></div>
 <div class="kpi"><b>${sum(s, "rating_n") ? (sum(s, "rating_sum") / sum(s, "rating_n")).toFixed(1) : "—"}</b><span>средняя оценка (${sum(s, "feedback")} отзывов)</span></div>
 </div>
-<div class="paper"><h2>Воронка партии</h2><p class="muted">Доля от начатых партий: где игроки бросают.</p>${bars(funnel, starts)}</div>
-<div class="paper"><h2>Возвращаемость по дню первого визита</h2><p class="muted">Какая доля новых игроков вернулась на 1-й, 3-й, 7-й, 14-й и 30-й день.</p><div class="scroll"><table><tr><th>Пришли</th><th>Игроков</th>${COHORT_DAYS.map(k => `<th>День ${k}</th>`).join("")}</tr>${cohortRows || `<tr><td colspan="7" class="muted">Пока нет данных</td></tr>`}</table></div></div>
+<div class="paper"><h2>События партий за период</h2><p class="muted">Число событий за выбранный период; это не доля конкретных партий. Продолжения старых партий и повторные финалы при загрузке могут попадать сюда; место выхода по этим счётчикам определить нельзя.</p>${bars(funnel, starts, false)}</div>
+<div class="paper"><h2>Возвращаемость по дню первого визита</h2><p class="muted">Доля новых устройств, активных в указанный календарный день UTC после первого визита. Повторные визиты за день считаются один раз. Незавершённые интервалы показаны прочерком; смена браузера или очистка данных создаёт новое устройство.</p><div class="scroll"><table><tr><th>Пришли</th><th>Устройств</th>${COHORT_DAYS.map(k => `<th>День ${k}</th>`).join("")}</tr>${cohortRows || `<tr><td colspan="7" class="muted">Пока нет данных</td></tr>`}</table></div></div>
 <div class="grid">
 <div class="paper">${section("Страны", "start|country=", starts)}</div>
 <div class="paper">${section("Сложность", "start|diff=", starts)}</div>
@@ -178,12 +172,13 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 <div class="paper">${section("Чем заканчиваются партии", "end|type=", ends)}</div>
 <div class="paper">${section("Сколько обещаний исполнено", "end|kept=", ends)}</div>
 <div class="paper">${section("Как решают вопрос о сроках", "end|path=", ends)}</div>
+<div class="paper">${section("Версии приложения при запуске", "open|v=", sum(s, "open"))}</div>
 <div class="paper">${section("Откуда запускают", "open|src=", sum(s, "open"))}</div>
 <div class="paper">${section("Быстрая партия или анкета", "start|quick=", starts)}</div>
-<div class="paper">${section("Как делятся итогом", "share|via=", sum(s, "share"))}</div>
+<div class="paper">${section("Действия с итогом: меню, ссылка, картинка", "share|via=", sum(s, "share"))}</div>
 <div class="paper">${section("Время до первого решения", "first|sec=", sum(s, "first"))}</div>
 </div>
 <div class="paper"><h2>Отзывы</h2>${feedback.length ? feedback.map(f => `<div class="fb"><div class="muted">${esc(f.at.slice(0, 16).replace("T", " "))} · ${f.src === "bot" ? "бот" : "игра"}${f.rating ? ` · ${"★".repeat(f.rating)}${"☆".repeat(5 - f.rating)}` : ""}${f.who ? ` · ${esc(f.who)}` : ""}${f.ctx ? ` · ${esc(Object.values(f.ctx).join(", "))}` : ""}</div>${f.text ? `<div>${esc(f.text).replace(/\n/g, "<br>")}</div>` : ""}</div>`).join("") : `<p class="muted">Пока нет отзывов</p>`}</div>
-<div class="paper"><h2>По дням</h2><div class="scroll"><table><tr><th>День</th><th>Игроков</th><th>Новых</th><th>Партий</th><th>Финалов</th><th>Доиграли</th><th>Поделились</th><th>Подписались</th><th>Дело дня</th></tr>${dayRows}</table></div></div>
+<div class="paper"><h2>По дням</h2><div class="scroll"><table><tr><th>День</th><th>Устройств</th><th>Новых</th><th>Партий</th><th>Финалов</th><th>Действия с отправкой</th><th>Подписались</th><th>Дело дня</th></tr>${dayRows}</table></div></div>
 </main></body></html>`;
 }
