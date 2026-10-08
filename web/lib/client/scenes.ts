@@ -77,8 +77,82 @@ function flash(c: Ctx, x: number, y: number, i: number) {
   if ((c.f * 7 + i * 13) % 11 === 0) { c.px(x - 1, y, 3, 1, "#ffffff"); c.px(x, y - 1, 1, 3, "#ffffff"); }
 }
 
+function windowOnCity(c: Ctx, x: number, y: number, w: number, h: number) {
+  const { px, s } = c;
+  px(x - 2, y - 2, w + 4, h + 4, "#282a2c");
+  px(x, y, w, h, c.night ? "#18232f" : "#7e929d");
+  for (let i = 0; i < 5; i++) {
+    const bx = x + i * w / 5, bh = h * (0.3 + (i % 3) * 0.12);
+    px(bx, y + h - bh, w / 5 - 1, bh, "#3b4852");
+    if (!s.blackout && c.night) px(bx + 2, y + h - bh + 2, 1, 2, "#bda66a");
+  }
+  px(x + w / 2, y, 1, h, "#554b40"); px(x, y + h * 0.57, w, 1, "#554b40");
+}
+function seated(c: Ctx, x: number, y: number, coat: string, gesture = false) {
+  const { px, f } = c;
+  px(x - 2, y - 1, 12, 18, "#272a2a");
+  px(x + 1, y, 6, 7, skinOf(c.night)); px(x + 1, y, 6, 2, "#423b34");
+  px(x, y + 7, 9, 11, coat); px(x + 4, y + 8, 1, 7, "#c5beb0");
+  const move = gesture && f % 18 > 6 && f % 18 < 12 ? 2 : 0;
+  px(x - 2 - move, y + 11, 3 + move, 2, skinOf(c.night));
+}
+
 // ── Сцены ────────────────────────────────────────────────────────────────────
 const SCENES: Record<Exclude<SceneKey, "square" | "protest" | "army" | "signing">, (c: Ctx, phase: number) => void> = {
+  office(c) {
+    const { px, W, H, f } = c;
+    const g = indoors(c, "#51483f", "#342f2a", 0.76);
+    windowOnCity(c, 6, 5, Math.round(W * 0.3), Math.round(H * 0.48));
+    const dx = Math.round(W * 0.44), dy = g - 8;
+    seated(c, Math.round(W * 0.73), dy - 20, "#323c48", true);
+    px(dx, dy, Math.round(W * 0.48), 4, "#775a3d"); px(dx + 3, dy + 4, 3, H - dy - 5, "#463526");
+    px(dx + W * 0.4, dy + 4, 3, H - dy - 5, "#463526");
+    px(dx + 6, dy - 2, 14, 2, "#cfc6ac"); px(dx + 9 + (f % 20 > 12 ? 2 : 0), dy - 3, 11, 1, "#e0d8bf");
+    px(dx + 24, dy - 3, 4, 3, "#ddd2ba");
+    px(dx + 31, dy - 8, 1, 8, "#272b2c"); px(dx + 27, dy - 9, 9, 2, "#58644b");
+    const cx = Math.round(W * 0.52); px(cx, 6, 7, 7, "#b4a480"); px(cx + 3, 7, 1, 3, "#3c3931"); px(cx + 3, 9, 2, 1, "#3c3931");
+    flagPx(px, c.s.country, W - 13, 9, 8, 5, f); px(W - 14, 8, 1, g - 8, "#80785e");
+  },
+  cabinet(c) {
+    const { px, W, H, f } = c;
+    const g = indoors(c, "#5c554a", "#3e3830", 0.72);
+    windowOnCity(c, 5, 4, Math.round(W * 0.23), Math.round(H * 0.42));
+    const tableY = Math.round(H * 0.6), tableX = Math.round(W * 0.18), tableW = Math.round(W * 0.7);
+    for (let i = 0; i < 4; i++) seated(c, tableX + 7 + i * (tableW - 14) / 4, tableY - 20, ["#3b4654", "#4b443a", "#454e3c", "#453a3a"][i], Math.floor(f / 18) % 4 === i);
+    px(tableX, tableY, tableW, 6, "#79583d"); px(tableX + 4, tableY + 6, 3, H - tableY - 7, "#493424"); px(tableX + tableW - 7, tableY + 6, 3, H - tableY - 7, "#493424");
+    for (let i = 0; i < 5; i++) { const x = tableX + 6 + i * (tableW - 14) / 5; px(x, tableY - 2, 8, 2, i % 2 ? "#b5a47f" : "#ded5bb"); px(x + 10, tableY - 3, 2, 3, "#a5a9a2"); }
+    const paper = tableX + 8 + (f % 30 > 15 ? 4 : 0); px(paper, tableY + 1, 10, 1, "#e6dfcd");
+    flagPx(px, c.s.country, W - 13, 6, 8, 5, f); px(W - 14, 5, 1, g - 5, "#827756");
+  },
+  archive(c) {
+    const { px, W, H, f } = c;
+    const g = indoors(c, "#414640", "#32342e", 0.78);
+    for (let i = 0; i < 4; i++) {
+      const x = 4 + i * Math.round(W * 0.19); px(x, 4, Math.round(W * 0.16), g - 4, "#665b49");
+      for (let y = 7; y < g - 5; y += 9) {
+        for (let k = 0; k < 5; k++) { px(x + 2 + k * 4, y, 3, 6, ["#8b7c5e", "#687268", "#9b8d71"][k % 3]); px(x + 2 + k * 4, y + 3, 2, 1, "#c4bca5"); }
+        px(x, y + 7, Math.round(W * 0.16), 1, "#403b32");
+      }
+    }
+    const tx = Math.round(W * 0.45), ty = g - 4;
+    seated(c, Math.round(W * 0.82), ty - 22, "#3b4144", true);
+    px(tx, ty, Math.round(W * 0.5), 4, "#78694f"); px(tx + 3, ty + 4, 2, H - ty - 5, "#474236");
+    px(tx + 9, ty - 4, 18, 4, "#c4b696"); px(tx + 13, ty - 5, 16, 1, "#e3dbc5");
+    const page = f % 24; if (page > 8 && page < 13) px(tx + 18 + page - 8, ty - 7, 1, 4, "#e3dbc5");
+    px(tx + 32, ty - 13, 1, 13, "#272d2a"); px(tx + 28, ty - 14, 9, 2, "#798069");
+  },
+  dinner(c) {
+    const { px, W, H, f } = c;
+    const g = indoors(c, "#403630", "#292520", 0.77);
+    windowOnCity({ ...c, night: true }, 5, 5, Math.round(W * 0.24), Math.round(H * 0.48));
+    const tx = Math.round(W * 0.32), tw = Math.round(W * 0.53), ty = g - 7;
+    seated(c, tx + 3, ty - 20, "#303a45", true); seated(c, tx + tw - 13, ty - 20, "#45362e", Math.floor(f / 18) % 2 === 1);
+    px(tx, ty, tw, 5, "#d1c5aa"); px(tx + 4, ty + 5, 2, H - ty - 6, "#584a38"); px(tx + tw - 6, ty + 5, 2, H - ty - 6, "#584a38");
+    for (let i = 0; i < 2; i++) { const x = tx + 9 + i * (tw - 26); px(x, ty - 1, 10, 1, "#e8decb"); px(x + 12, ty - 7, 3, 3, "#a99484"); px(x + 13, ty - 4, 1, 4, "#b7aa91"); }
+    px(tx + tw / 2, ty - 7, 2, 7, "#dfd0a2"); px(tx + tw / 2, ty - 8, 1, 1, f % 6 < 3 ? "#e2b469" : "#bf9158");
+    // За окном задерживается силуэт: именно через стекло ужин может попасть в сеть.
+    if (f % 48 > 26 && f % 48 < 40) { px(10, g - 16, 3, 4, "#1f252b"); px(9, g - 12, 5, 7, "#1f252b"); }
+  },
   factory(c, phase) {
     const { px, W, H } = c;
     const g = outdoors(c, phase);

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
-import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTIONS, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY } from "@/lib/game/data.ts";
+import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY } from "@/lib/game/data.ts";
 import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
@@ -35,7 +35,8 @@ import { resultCard } from "@/lib/client/card.ts";
 import { runScore } from "@/lib/game/daily.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
-import { drawFlagAt, drawSquare } from "@/lib/client/square.ts";
+import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
+import { squareStateOf } from "@/lib/client/square-state.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
@@ -945,15 +946,7 @@ function dayPhase(text) {
   return h >= 5 && h < 10 ? 0 : h >= 10 && h < 17 ? 1 : h >= 17 && h < 21 ? 2 : 3;
 }
 function squareState(gs) {
-  const sec = gs.factions.filter(f => f.bloc === "security");
-  return {
-    country: gs.country, seed: gs.seed ?? 0, turn: gs.turn,
-    legitimacy: gs.resources.internalLegitimacy, military: gs.resources.military,
-    rating: computePolls(gs.country, gs.factions, gs.resources).leader,
-    security: sec.length ? sec.reduce((a, f) => a + f.relation, 0) / sec.length : 0,
-    crises: gs.activeCrises?.length ?? 0, election: !!ELECTIONS[gs.turn],
-    phase: dayPhase(gs.currentEvent?.description),
-  };
+  return squareStateOf(gs, dayPhase(gs.currentEvent?.description));
 }
 // Рубрика над заголовком газеты — по сути решения.
 const RUBRICS = {
@@ -968,7 +961,7 @@ function rubricOf(t) {
   return RUBRICS[tag] || "Политика";
 }
 
-function SquareView({ gs, scene, sceneKey, partner, height = 48, mono = false, still = false, style }) {
+function SquareView({ gs, scene, sceneKey, partner, height = 48, mono = false, still = false, describe = false, style }) {
   const wrap = useRef(null), ref = useRef(null);
   const [w, setW] = useState(0);
   useEffect(() => {
@@ -993,15 +986,22 @@ function SquareView({ gs, scene, sceneKey, partner, height = 48, mono = false, s
     // Сцена события или сама площадь — один и тот же растр и палитра.
     const draw = () => st.sceneKey && st.sceneKey !== "square" ? drawScene(ctx, lw, height, st.sceneKey, st, frame++, st.partner) : drawSquare(ctx, lw, height, st, frame++);
     draw();
-    const reduce = still || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (reduce) return;
-    const t = setInterval(() => { if (!document.hidden) draw(); }, st.sceneKey && st.sceneKey !== "square" ? 260 : 420);
-    return () => clearInterval(t);
+    const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    let t;
+    const animate = () => {
+      clearInterval(t);
+      draw();
+      if (!still && !motion?.matches) t = setInterval(() => { if (!document.hidden) draw(); }, st.sceneKey && st.sceneKey !== "square" ? 180 : 200);
+    };
+    animate();
+    motion?.addEventListener("change", animate);
+    return () => { clearInterval(t); motion?.removeEventListener("change", animate); };
   }, [key, lw, height, w, still]);
   return (
     <div ref={wrap} style={{ width:"100%", ...style }}>
-      {w > 0 && <canvas ref={ref} width={lw} height={height} className="sv-px" aria-label="Площадь перед резиденцией"
+      {w > 0 && <canvas ref={ref} width={lw} height={height} className="sv-px" aria-label={sceneKey && sceneKey !== "square" ? SCENE_CAPTION[sceneKey] : `Площадь перед резиденцией. ${squareCaption(st0)}`}
         style={{ display:"block", width:"100%", height:height * (w / lw), filter: mono ? "grayscale(1) contrast(1.15) sepia(.25)" : "none" }}/>}
+      {describe && <div aria-live="polite" style={{ fontFamily:narrow, fontSize:14, lineHeight:1.4, color:G.tx2, background:G.bg2, padding:"6px 12px", textAlign:"center" }}>{squareCaption(st0)}</div>}
     </div>
   );
 }
@@ -1922,7 +1922,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
   return (
     <div style={{ minHeight:"100vh", background:G.bg }}>
-      <div className="sv-window"><SquareView gs={gs}/></div>
+      <div className="sv-window"><SquareView gs={gs} height={64} describe/></div>
       <Hud gs={gs} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => { setHelp(true); track("help"); }}/>
       {help && <HowToPlay onClose={() => setHelp(false)}/>}
       {recap && <Recap gs={gs} onClose={onRecapDone}/>}
@@ -2113,7 +2113,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
                 {sceneOf(event) !== "square" && (
                   <figure className="sv-scene" style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
-                    <SquareView gs={gs} sceneKey={sceneOf(event)} partner={event.source === "Кремль" ? "ru" : "eu"} height={44}/>
+                    <SquareView gs={gs} sceneKey={sceneOf(event)} partner={event.source === "Кремль" ? "ru" : "eu"} height={60}/>
                   </figure>
                 )}
                 {event.special && <SpecialHeader gs={gs} event={event}/>}
