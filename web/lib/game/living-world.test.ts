@@ -18,7 +18,7 @@ test('открытие страны свободно, детерминирова
  for(const country of ['Беларусь','Украина','Грузия','Молдова','Армения','Казахстан']){
   const s=await fresh(country);const w=openLivingWorld(s);assert.deepEqual(w.resources,s.resources);assert.equal(w.turn,s.turn);assert.deepEqual(openLivingWorld(s).world,w.world);assert.equal(openLivingWorld(w),w);
   const all=[s.leader.name,...s.advisors.map(a=>a.name),...s.keyFigures.map(f=>f.name)];
-  const newPeople=w.world!.people.filter(p=>!p.figure);assert.ok(newPeople.every(p=>!all.includes(p.name)));assert.equal(new Set(w.world!.people.map(p=>p.name)).size,3);assert.ok(validLivingWorld(w.world));
+  const newPeople=w.world!.people.filter(p=>!p.figure);assert.ok(newPeople.every(p=>!all.includes(p.name)));assert.equal(new Set(w.world!.people.map(p=>p.name)).size,5);assert.ok(validLivingWorld(w.world));
   const daily={...s,daily:'2026-10-08'};assert.equal(openLivingWorld(daily),daily);
  }
 });
@@ -77,4 +77,46 @@ test('приоритет заводов и жилых районов меняе�
  const finish=(gs:GameState)=>stepLivingWorld({...gs,world:{...gs.world!,project:{...gs.world!.project,progress:99,procurementFixed:true}}},gs.turn+1);
  const x=finish(industry),y=finish(homes);assert.equal(x.world!.project.status,'completed');assert.equal(y.world!.project.status,'completed');assert.ok(x.res.economy!>y.res.economy!);assert.ok(x.res.internalLegitimacy!<y.res.internalLegitimacy!);
  const legacy={...s,world:{...s.world!,project:{...s.world!.project}}};delete legacy.world.project.priority;assert.ok(validLivingWorld(legacy.world));assert.ok(stepLivingWorld(legacy,2).story);
+});
+
+test('две программы делят поручение и бюджет; назначенный в обе руководитель перегружен',async()=>{
+ const base=openLivingWorld(await fresh());
+ const energy=interveneWorld(base,'appoint:governor');
+ assert.throws(()=>interveneWorld(energy,'health:appoint:governor'),/уже использовано/);
+ const quarter=tick(energy);
+ assert.ok(livingActions(quarter).find(a=>a.id==='health:appoint:governor')!.detail.includes('оба проекта'));
+ const shared=interveneWorld(quarter,'health:appoint:governor');
+ const separate={...shared,world:{...shared.world!,health:{...shared.world!.health!,executor:'healthMinister' as const},people:shared.world!.people.map(p=>p.id==='healthMinister'?{...p,competence:2 as const,relation:worldPersonForTest(shared).relation}:p)}};
+ const a=stepLivingWorld(shared,2),b=stepLivingWorld(separate,2);
+ assert.ok(a.world!.project.progress<b.world!.project.progress);
+ assert.ok(a.world!.health!.lastFactors.some(f=>f.includes('делит время')));
+ assert.equal(shared.resources.economy,base.resources.economy-8);
+ assert.equal(shared.world!.health!.progress,0);
+ assert.ok(validLivingWorld(a.world));
+});
+function worldPersonForTest(s:GameState){const person=s.world!.people.find(p=>p.id==='governor')!;return s.keyFigures.find(f=>f.id===person.figure)??person;}
+
+test('больницы исполняются независимо, временные переводы оставляют отложенную цену ровно один раз',async()=>{
+ let s=interveneWorld(openLivingWorld(await fresh()),'health:appoint:healthMinister');
+ s=tick(s);s=interveneWorld(s,'health:approach:rotation');s=tick(tick(s));
+ assert.equal(s.world!.health!.status,'completed');assert.equal(s.world!.project.status,'unassigned');
+ assert.equal(s.world!.health!.followupTurn,5);
+ s=tick(s);const debt=stepLivingWorld(s,5);
+ assert.deepEqual(debt.effects.find(e=>e.label==='районные больницы')!.res,{economy:-2,internalLegitimacy:-2});
+ assert.ok(debt.story!.includes('областных больниц'));assert.equal(debt.world!.health!.followupTurn,null);
+ const after={...s,turn:5,world:debt.world};assert.equal(stepLivingWorld(after,6).story,null);
+ assert.deepEqual(stepLivingWorld(after,5).effects,[]);
+});
+
+test('старое досье получает новую программу без сброса проекта, расходов и квартального ограничения',async()=>{
+ const base=tick(interveneWorld(openLivingWorld(await fresh()),'appoint:minister'));
+ const old={...base,world:{...base.world!,people:base.world!.people.filter(p=>['minister','governor','engineer'].includes(p.id)),dispatches:base.world!.dispatches.filter(d=>d.project!=='health')}};
+ delete old.world.health;assert.ok(validLivingWorld(old.world));
+ const restored=parseSave(JSON.stringify({version:SAVE_VERSION,screen:'game',state:old}))!.state;
+ const upgraded=openLivingWorld(restored);assert.deepEqual(upgraded.world!.project,old.world.project);assert.deepEqual(upgraded.resources,old.resources);
+ assert.equal(upgraded.world!.health!.deadline,old.turn+4);assert.equal(upgraded.world!.lastActionTurn,old.world.lastActionTurn);
+ assert.equal(openLivingWorld(upgraded),upgraded);
+ const malformed={...upgraded.world!,health:{...upgraded.world!.health!,executor:'engineer'}};assert.equal(validLivingWorld(malformed),false);
+ assert.equal(validLivingWorld({...upgraded.world,health:null}),false);
+ assert.equal(validLivingWorld({...upgraded.world,health:undefined}),false);
 });

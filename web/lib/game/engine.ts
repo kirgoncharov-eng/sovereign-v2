@@ -567,7 +567,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   for (const f of hostile) add(`вредят «${f.name}»`, HOSTILE_DRAIN[f.bloc]);
 
   const worldStep = stepLivingWorld({ ...state, resources, factions, keyFigures }, turn);
-  add("энергосеть промышленного региона", worldStep.res);
+  for (const effect of worldStep.effects) add(effect.label, effect.res);
 
   // Институты понемногу восстанавливаются: просевшие ресурсы подтягиваются вверх.
   const beforeRecovery = { ...resources };

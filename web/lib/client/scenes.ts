@@ -272,7 +272,11 @@ const SCENES: Record<Exclude<SceneKey, "square" | "protest" | "army" | "signing"
     px(sx, g - hh - 8, 7, 7, "#f2f2ee"); px(sx + 3, g - hh - 7, 1, 5, "#d03a30"); px(sx + 1, g - hh - 5, 5, 1, "#d03a30");
     px(hx + hw / 2 - 3, g - 6, 6, 6, "#4a4a48");
     car(c, Math.round(W * 0.75), g + 6, "#e8e4d8", true, 0); px(Math.round(W * 0.75) + 4, g + 3, 2, 1, "#d03a30");
-    for (let i = 0; i < 4; i++) person(c, hx + 4 + i * 6, g + 6, i, i % 2 ? "#e8e4d8" : COAT[i]);
+    const staffing = c.partner.startsWith('clinic:') ? Math.max(0, Math.min(100, Number(c.partner.slice(7)) || 0)) : null;
+    const staffCount = staffing === null ? 2 : Math.floor(staffing / 25);
+    for (let i = 0; i < staffCount; i++) person(c, hx + 4 + i * 6, g + 6, i, "#e8e4d8");
+    const queue = staffing === null ? 2 : Math.ceil((100 - staffing) / 20);
+    for (let i = 0; i < queue; i++) person(c, Math.max(3, hx - 4 - i * 4), g + 7, i, COAT[i]);
   },
   tv(c) {
     const { px, W, H } = c;

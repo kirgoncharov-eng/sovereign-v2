@@ -418,3 +418,11 @@ button:focus-visible {
 .sv-country-receipt { border-left:3px solid var(--gold); padding-left:12px; font-family:var(--font-narrow); font-size:15px; }
 .sv-country-back { display:block; width:100%; padding:12px 16px; border:0; border-top:1px solid var(--bdr2); background:transparent; color:var(--tx2); font-family:var(--font-narrow); font-size:16px; text-align:center; }
 @media(max-width:560px) { .sv-country-toggle { align-items:flex-start; flex-direction:column; gap:4px; } .sv-country-room { padding:14px; } .sv-country-summary { grid-template-columns:1fr 1fr; } .sv-country-summary > div:last-child { grid-column:1/-1; } }
+
+.sv-agenda-projects { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:12px; border-top:1px solid var(--bdr2); }
+.sv-agenda-projects button { display:flex; flex-direction:column; gap:5px; padding:12px; background:var(--bg3); border:1px solid var(--bdr2); color:var(--txt); text-align:left; font-family:var(--font-narrow); font-size:16px; }
+.sv-agenda-projects button[aria-pressed="true"] { border-color:var(--gold); }
+.sv-agenda-projects small { color:var(--tx2); font-size:14px; }
+.sv-country-map { gap:12px; }
+.sv-country-place { flex:1; width:auto; min-width:0; }
+@media(max-width:560px) { .sv-country-map { flex-wrap:wrap; } .sv-country-place { flex-basis:42%; } .sv-country-place:first-of-type { flex-basis:100%; max-width:none; } }

@@ -28,7 +28,7 @@ export function personProfiles(gs: GameState): PersonProfile[] {
   for (const name of gs.former ?? []) if (!profiles.some(p=>p.name===name)) profiles.push({ id:`former:${name}`, name, role:'Бывший участник политической сцены', relation:null, loyalty:'нейтрал', rows:[{ label:'Статус', value:'покинул должность; текущие показатели не отслеживаются' }] });
   for (const raw of gs.world?.people ?? []) {
     const person = worldPerson(gs, raw.id)!;
-    const rows = [{ label:'В энергопроекте', value:person.role }, { label:'Компетенция в проекте', value:`${person.competence}/3` }, { label:'Собственная цель', value:person.goal }];
+    const rows = [{ label:'Должность в повестке', value:person.role }, { label:'Компетенция в проекте', value:`${person.competence}/3` }, { label:'Собственная цель', value:person.goal }];
     const existing = profiles.find(p=>p.name===person.name);
     if (existing) existing.rows.push(...rows);
     else profiles.push({ id:`world:${person.id}`, name:person.name, role:person.role, relation:person.relation, loyalty:loyaltyLabel(person.relation), rows:[{ label:'Характер', value:TRAITS[person.trait].label },...rows] });
