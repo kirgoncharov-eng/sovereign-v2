@@ -447,3 +447,13 @@ button:focus-visible {
   }
   .sv-game-grid { padding-bottom:76px; }
 }
+
+.sv-order-guide { margin:12px 0; padding:16px; border:2px solid var(--bdr2); background:var(--bg3); font-family:var(--font-narrow); font-size:17px; line-height:1.5; }
+.sv-order-guide h3, .sv-order-tour h3 { margin:6px 0; font-size:23px; line-height:1.2; }
+.sv-order-guide p, .sv-order-tour p { margin:10px 0; }
+.sv-order-guide > div:last-child, .sv-order-guide-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.sv-order-guide button, .sv-order-tour > button, .sv-order-guide-actions button { min-height:44px; padding:10px 12px; border:1px solid var(--gold); background:var(--bg2); color:var(--tx2); font-family:var(--font-narrow); font-size:17px; text-align:left; }
+.sv-order-tour { padding:16px; scroll-margin-top:145px; font-family:var(--font-narrow); font-size:17px; line-height:1.5; }
+.sv-country-body:has(.sv-order-tour) { scroll-margin-top:145px; }
+.sv-order-tour article { border-top:1px solid var(--bdr2); border-bottom:1px solid var(--bdr2); padding:12px 0; }
+.sv-order-later { display:block; margin:10px 0; }
