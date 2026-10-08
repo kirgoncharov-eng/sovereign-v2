@@ -36,6 +36,8 @@ import { runScore } from "@/lib/game/daily.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
+import WorldPanel from "./WorldPanel.jsx";
+import { openLivingWorld, interveneWorld } from "@/lib/game/living-world.ts";
 import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
 import { warningDetails } from "@/lib/client/warning-detail.ts";
 import { squareStateOf } from "@/lib/client/square-state.ts";
@@ -1760,6 +1762,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [armed, setArmed]     = useState(null); // тач: первое касание выбирает, второе — подписывает
   const [forecast, setForecast] = useState(false); // сначала дилемма, подробная цена — по запросу
   const [help, setHelp]       = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
   const [tips] = useState(() => !tutorialSeen()); // подсказки на первых ходах — пока правила не прочитаны
   const gsRef = useRef(gs);
   const startedAt = useRef(0); // когда открылся первый ход — для времени до первого решения
@@ -1817,7 +1820,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     setStamping(choice.id);
     stampFx();
     if (!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) await new Promise(r => setTimeout(r, 480));
-    setStamping(null);
+    setStamping(null); setCountryOpen(false);
     setBusy("choice"); setError(null);
     try {
       const consequence = await game.consequence(gsRef.current, choice.id);
@@ -1848,6 +1851,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   };
 
   const nextTurn = () => {
+    setCountryOpen(false);
     setBusy("event"); setError(null); setPreview(null); setArmed(null); setMarked(null);
     pageFx();
     commit({ ...gsRef.current, lastTurn: null });
@@ -1856,7 +1860,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   // Клавиши: 1–9 — фокус на вариант (с предпросмотром), Enter — подтвердить / следующий ход.
   useEffect(() => {
     const onKey = e => {
-      if (e.target.closest?.("input, textarea") || document.querySelector(".sv-modal")) return;
+      if (countryOpen || e.target.closest?.("input, textarea, [data-world-panel]") || document.querySelector(".sv-modal")) return;
       if (/^[1-9]$/.test(e.key)) {
         const el = document.getElementById(`opt-${e.key}`);
         if (el) { el.focus(); e.preventDefault(); }
@@ -1866,7 +1870,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [countryOpen]);
 
   // Выбор резолюции: на касании первое нажатие выбирает (с предпросмотром), второе — подписывает.
   const pick = (c, preview = true) => {
@@ -2049,6 +2053,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         </div>
 
         <div className="sv-main">
+          {!busy && !recap && <WorldPanel gs={gs} Scene={SquareView} onViewChange={setCountryOpen}
+            onOpen={() => { if (!inFlight.current) commit(openLivingWorld(gsRef.current)); }}
+            onAction={id => {
+              if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
+              const next = interveneWorld(gsRef.current, id);
+              prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
+            }}/>}
           {gs.turn === 0 && !busy && <BriefCard gs={gs}/>}
           {warnLevel !== "none" && !busy && !gs.ended && (
             <div className="sv-paper sv-citation" style={{ marginBottom:10, padding:"9px 16px" }}>
@@ -2182,7 +2193,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <div style={{ padding:"0 24px 12px" }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.red, marginBottom:6 }}>СРОЧНО: 25 СЕКУНД — ИНАЧЕ РЕШАТ ЗА ВАС</div>
                     <div style={{ height:6, background:G.bdr }}>
-                      {urgentTurn === turn && <div key={`u${turn}`} className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:"25s" }} onAnimationEnd={timeUp}/>}
+                      {urgentTurn === turn && <div key={`u${turn}`} className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:"25s", animationPlayState:countryOpen ? "paused" : "running" }} onAnimationEnd={timeUp}/>}
                     </div>
                   </div>
                 )}
@@ -2375,7 +2386,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       </div>
       </div>
       <ActionBar
-        mode={recap ? "recap" : busy ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
+        mode={recap ? "recap" : busy || countryOpen ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}

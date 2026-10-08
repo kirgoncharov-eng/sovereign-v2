@@ -1,0 +1,68 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {classicApi} from './classic.ts';
+import {createInitialState, planTurn, resolveTurn, seededRandom, startEvent} from './engine.ts';
+import {openLivingWorld,interveneWorld,livingActions,stepLivingWorld,validLivingWorld} from './living-world.ts';
+import {personProfiles} from '../client/people-text.ts';
+import {parseSave} from '../client/save.ts';
+import {SAVE_VERSION} from './data.ts';
+import type {GameState} from './types.ts';
+const fresh=async(country='Украина')=>{
+ const s=createInitialState(country,'debut','pragmatist',await classicApi.setup(country,'debut','pragmatist',15),seededRandom(15));
+ return {...s,factions:s.factions.map(f=>({...f,relation:30})),resources:{...s.resources,economy:70,internalLegitimacy:70}};
+};
+const tick=(s:GameState)=>{const r=stepLivingWorld(s,s.turn+1);return {...s,world:r.world,turn:s.turn+1,lastTurn:null} as GameState;};
+const event={title:'Заседание',source:'Кабинет',description:'Обычное заседание кабинета.',isCritical:false,affectedFactions:[],choices:[{id:'a',text:'Завершить заседание',hint:'',tags:[],resolvesCrisis:null,deal:{pure:true},scene:'Заседание завершено.'}],randomEvent:null};
+
+test('открытие страны свободно, детерминировано и создаёт разных людей; дело дня не изменяется',async()=>{
+ for(const country of ['Беларусь','Украина','Грузия','Молдова','Армения','Казахстан']){
+  const s=await fresh(country);const w=openLivingWorld(s);assert.deepEqual(w.resources,s.resources);assert.equal(w.turn,s.turn);assert.deepEqual(openLivingWorld(s).world,w.world);assert.equal(openLivingWorld(w),w);
+  const all=[s.leader.name,...s.advisors.map(a=>a.name),...s.keyFigures.map(f=>f.name)];
+  const newPeople=w.world!.people.filter(p=>!p.figure);assert.ok(newPeople.every(p=>!all.includes(p.name)));assert.equal(new Set(w.world!.people.map(p=>p.name)).size,3);assert.ok(validLivingWorld(w.world));
+  const daily={...s,daily:'2026-10-08'};assert.equal(openLivingWorld(daily),daily);
+ }
+});
+test('личное поручение имеет цену, не переводит ход и доступно только раз в квартал',async()=>{
+ const s=openLivingWorld(await fresh());const a=interveneWorld(s,'appoint:minister');assert.equal(a.turn,s.turn);assert.equal(a.resources.economy,s.resources.economy-4);assert.equal(a.resources.politicalCapital,s.resources.politicalCapital-2);
+ assert.throws(()=>interveneWorld(a,'inspect'),/уже использовано/);const next=tick(a);assert.ok(livingActions(next).some(a=>!a.blocked));
+ assert.throws(()=>interveneWorld({...next,lastTurn:{} as NonNullable<GameState['lastTurn']>},'inspect'),/после перехода/);
+ assert.throws(()=>interveneWorld({...next,daily:'2026-10-08'},'inspect'),/деле дня/);
+ assert.throws(()=>interveneWorld({...next,resources:{...next.resources,politicalCapital:5}},'inspect'),/Недостаточно/);
+});
+test('доклад карьериста опережает факт; проверка раскрывает проблему, смена поставщика улучшает реальное исполнение',async()=>{
+ let s=tick(interveneWorld(openLivingWorld(await fresh()),'appoint:minister'));
+ assert.ok(s.world!.project.reported>s.world!.project.progress);assert.equal(s.world!.project.verified,null);
+ s=interveneWorld(s,'inspect');assert.equal(s.world!.project.verified!.progress,s.world!.project.progress);assert.equal(s.world!.project.procurementFixed,false);
+ s=tick(s);const repaired=interveneWorld(s,'retender');const without=stepLivingWorld(s,s.turn+1),withRepair=stepLivingWorld(repaired,repaired.turn+1);
+ assert.ok(withRepair.world!.project.progress>without.world!.project.progress);
+ assert.ok(repaired.factions.some((f,i)=>f.relation<s.factions[i].relation));
+ const completed=tick(tick(repaired));assert.equal(completed.world!.project.status,'completed');
+ const settled=stepLivingWorld(completed,completed.turn+1);assert.deepEqual(settled.res,{});assert.equal(settled.story,null);
+});
+test('бездействие, доверие докладам и расследование дают разные исходы; информация переживает сохранение',async()=>{
+ const base=openLivingWorld(await fresh());let ignored=base,blind=interveneWorld(base,'appoint:minister');for(let i=0;i<4;i++){ignored=tick(ignored);blind=tick(blind);}
+ assert.equal(ignored.world!.project.status,'failed');assert.equal(blind.world!.project.status,'partial');
+ const save=JSON.stringify({version:SAVE_VERSION,screen:'game',state:blind});assert.deepEqual(parseSave(save)?.state.world,blind.world);
+ const invalid=JSON.parse(save);invalid.state.world.project.executor='ghost';assert.equal(parseSave(JSON.stringify(invalid)),null);
+ const legacy={...base};delete legacy.world;assert.ok(parseSave(JSON.stringify({version:SAVE_VERSION,screen:'game',state:legacy})));
+});
+test('компетенция, лояльность, местные группы, деньги и передача дел имеют разные эффекты',async()=>{
+ let base=interveneWorld(openLivingWorld(await fresh()),'appoint:engineer');
+ const low={...base,world:{...base.world!,people:base.world!.people.map(a=>a.id==='engineer'?{...a,competence:1 as const}:a)}};
+ assert.ok(stepLivingWorld(base,1).world!.project.progress>stepLivingWorld(low,1).world!.project.progress);
+ const hostile={...base,world:{...base.world!,people:base.world!.people.map(a=>a.id==='engineer'?{...a,relation:-40}:a)}};
+ assert.ok(stepLivingWorld(base,1).world!.project.progress>stepLivingWorld(hostile,1).world!.project.progress);
+ const groups={...base,factions:base.factions.map(f=>f.bloc==='business'?{...f,relation:-50}:f)};
+ assert.ok(stepLivingWorld(base,1).world!.project.progress>stepLivingWorld(groups,1).world!.project.progress);
+ base=tick(base);assert.ok(base.world!.project.inspected);assert.ok(livingActions(base).some(a=>a.id==='retender'));
+ const funded=interveneWorld(base,'fund');assert.ok(stepLivingWorld(funded,2).world!.project.progress>stepLivingWorld(base,2).world!.project.progress);
+ const changed=interveneWorld(base,'replace:minister');assert.ok(stepLivingWorld(changed,2).world!.project.lastFactors.includes('Передача дел новому руководителю'));
+});
+test('дело развивается при обычных решениях, входит в повествование и меняет ресурсы ровно один раз',async()=>{
+ let s=openLivingWorld(await fresh());
+ for(let i=0;i<4;i++){s=startEvent(s,event);const text=await classicApi.consequence(s,'a');assert.ok(text.narrative.includes('Из промышленного региона'));const plan=planTurn(s,'a');s=resolveTurn(s,'a',text);assert.equal(s.world!.lastTick,s.turn);assert.deepEqual(s.world,plan.world);}
+ assert.equal(s.world!.project.status,'failed');assert.deepEqual(s.lastTurn!.sources!.economy!.find(([label])=>label==='энергосеть промышленного региона'),['энергосеть промышленного региона',-4]);
+ assert.ok(s.lastTurn!.narrative.includes('не принимает сеть'));
+ s=startEvent(s,event);const next=planTurn(s,'a');assert.equal(next.worldStory,null);assert.ok(!next.sources.economy?.some(([label])=>label==='энергосеть промышленного региона'));
+ const profile=personProfiles(s).find(p=>p.name===s.world!.people[0].name)!;assert.ok(profile.rows.some(r=>r.label==='Компетенция в проекте'));
+});

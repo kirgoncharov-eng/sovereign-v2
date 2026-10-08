@@ -957,6 +957,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   }
 
   const after: string[] = [];
+  if (plan.worldStory) after.push(`Из промышленного региона. ${plan.worldStory}`);
   let electionLine: string | null = null;
   if (plan.resolvedCrisis && !arc) after.push(`Кризис «${plan.resolvedCrisis}» наконец отступает. В ситуационном центре впервые за много дней кто-то шутит.`);
   const echoed: Record<string, number> = { ...(state.echoes ?? {}) };

@@ -2,6 +2,7 @@
 import { ACTION_TAGS, END_TYPES, RESOURCE_KEYS, SAVE_VERSION } from "../game/data.ts";
 import { isObj, validCountry, validDiff, validIdeo } from "../game/sanitize.ts";
 import { validDailyMoves } from "../game/daily-run.ts";
+import { validLivingWorld } from "../game/living-world.ts";
 import type { GameState } from "../game/types.ts";
 
 const KEY = "sovereign.save";
@@ -87,6 +88,7 @@ function validState(s: Obj): boolean {
   if (s.laws !== undefined && !rows(s.laws, l => typeof l.id === "string" && integer(l.since))) return false;
   if (s.pacts !== undefined && !rows(s.pacts, p => typeof p.faction === "string" && integer(p.since) && integer(p.until) && strings(p.ban))) return false;
   if (s.former !== undefined && !strings(s.former) || s.echoes !== undefined && !isObj(s.echoes)) return false;
+  if (s.world !== undefined && !validLivingWorld(s.world)) return false;
   if (s.dailyMoves !== undefined && (!validDailyMoves(s.dailyMoves) || s.dailyMoves.length !== s.turn)) return false;
   return !s.verdict || fields(s.verdict, ["verdict", "title", "epitaph", "rating"]);
 }
