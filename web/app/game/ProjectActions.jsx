@@ -2,7 +2,7 @@
 import { worldPerson } from '@/lib/game/living-world.ts';
 const RESOURCE = { economy:'экономика', politicalCapital:'политкапитал', personalResource:'личный ресурс', externalReputation:'репутация' };
 export default function ProjectActions({ gs, actions, quota, terminal, pending, setPending, confirm, error }) {
-  if (terminal) return <p>Проект завершён. Доклады остаются в досье; последующие обязательства могут появиться в повестке.</p>;
+  if (terminal) return <p>Проект завершён. Итоги и обязательства остаются в поручениях и докладах.</p>;
   if (quota) return <p className="sv-country-receipt">Личное поручение на этот квартал уже подписано. Оба проекта продолжат работу после решения в кабинете. Новую инициативу можно дать после следующего доклада.</p>;
   return <div>
     <p className="sv-country-capacity">Одно личное поручение на оба проекта за квартал. Деньги списываются из общих ресурсов страны. Можно оставить текущий план в работе.</p>

@@ -37,6 +37,8 @@ import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.t
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
+import OrderGuide from "./OrderGuide.jsx";
+import { firstOrderLesson } from "@/lib/client/first-order.ts";
 import ResourceInfo from "./ResourceInfo.jsx";
 import { healthHasContinuation, healthNeedsAttention } from "@/lib/game/health-aftermath.ts";
 import { projectFinished } from "@/lib/game/living-health.ts";
@@ -1830,6 +1832,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     onFocus: () => setPreview(c), onBlur: () => { if (!matchMedia("(pointer:coarse)").matches) setPreview(null); },
   });
 
+  const orderLesson = firstOrderLesson(gs);
   const agendaFinished = gs.world && projectFinished(gs.world.project) && (!gs.world.health || projectFinished(gs.world.health) && !healthHasContinuation(gs.world.health));
   const { resources, prevResources, factions, prevFactions, keyFigures, prevFigures, turn, history, activeCrises, currentEvent: event, lastTurn } = gs;
   // Видна ли резолюция на экране — тогда нижней кнопке «К резолюции» показываться незачем.
@@ -2304,10 +2307,14 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               )}
 
               </div>
-              {typed && gs.world && !gs.daily && !gs.ended && <div className="sv-country-entry" style={{marginBottom:12}}>
-                <strong>Повестка · энергосеть {gs.world.project.progress}%{gs.world.health ? ` · больницы ${gs.world.health.progress}%` : ''}</strong>
-                <span>{healthNeedsAttention(gs.world.health)?'По больницам требуется ваш ответ. Срок и варианты вмешательства — в повестке.':gs.world.health?.aftermath?.phase==='working'?'Поручение по больницам исполняется. Продолжите решения в кабинете до итогового доклада.':gs.world.health?.aftermath?.phase==='scheduled'&&projectFinished(gs.world.project)?'Программы завершены; ожидается доклад о последствиях. Продолжите решения в кабинете.':agendaFinished?'Проекты завершены. Итоги и оставшиеся обязательства — в досье. Продолжите управление из кабинета.':gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
-                <button onClick={()=>countryPanel.current?.showReport()}>{agendaFinished?'Открыть итоги проектов':'Открыть повестку и поручения'} →</button>
+              {typed && orderLesson && <OrderGuide lesson={orderLesson}
+                onAssign={()=>countryPanel.current?.startHospital('assign')}
+                onReport={()=>countryPanel.current?.startHospital('report')}
+                onBrowse={()=>countryPanel.current?.showReport()} onContinue={nextTurn}/>}
+              {typed && !orderLesson && gs.world && !gs.daily && !gs.ended && <div className="sv-country-entry" style={{marginBottom:12}}>
+                <strong>Поручения · энергосеть {gs.world.project.progress}%{gs.world.health ? ` · больницы ${gs.world.health.progress}%` : ''}</strong>
+                <span>{healthNeedsAttention(gs.world.health)?'По больницам требуется ваш ответ. Срок и варианты вмешательства — в поручениях.':gs.world.health?.aftermath?.phase==='working'?'Поручение по больницам исполняется. Продолжите решения в кабинете до итогового доклада.':gs.world.health?.aftermath?.phase==='scheduled'&&projectFinished(gs.world.project)?'Программы завершены; ожидается доклад о последствиях. Продолжите решения в кабинете.':agendaFinished?'Проекты завершены. Итоги и оставшиеся обязательства — в досье. Продолжите управление из кабинета.':gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
+                <button onClick={()=>countryPanel.current?.showReport()}>{agendaFinished?'Открыть итоги проектов':'Открыть поручения и доклады'} →</button>
               </div>}
               {typed && <div style={{ textAlign:"right" }}>
                 {gs.ended
@@ -2324,12 +2331,14 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       </div>
       </div>
       <ActionBar
-        mode={recap ? "recap" : busy || countryOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (reviewedTurn !== turn ? "review" : gs.ended ? "end" : "next") : "skip") : null}
+        mode={recap ? "recap" : busy || countryOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (reviewedTurn !== turn ? "review" : gs.ended ? "end" : orderLesson?.phase === "assign" ? "guide" : orderLesson?.phase === "report" ? "guideReport" : "next") : "skip") : null}
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}
         onJump={() => document.getElementById("opt-1")?.scrollIntoView({ behavior:"smooth", block:"center" })}
         onSkip={() => window.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter" }))}
+        onGuide={() => countryPanel.current?.startHospital("assign")}
+        onGuideReport={() => countryPanel.current?.startHospital("report")}
         onReview={() => document.getElementById("sv-turn-result")?.scrollIntoView({behavior:"smooth",block:"center"})}
         onCount={() => setCountedTurn(turn)}
         onNext={nextTurn} onEnd={onEnd} onRecap={onRecapDone}/>
@@ -2346,7 +2355,7 @@ function useTelegramButtons() {
 
 // Нижняя панель на телефоне: главное действие хода всегда под большим пальцем.
 // Кнопки не забирают фокус — иначе выбранная резолюция успела бы сброситься.
-function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd, onRecap, onCount, onReview }) {
+function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd, onRecap, onCount, onReview, onGuide, onGuideReport }) {
   // В Telegram то же действие уходит на его родную кнопку внизу экрана, отмена — на «Назад».
   const tg = useTelegramButtons();
   useEffect(() => {
@@ -2360,6 +2369,8 @@ function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onE
       end:  { text: "Подвести итоги →", onClick: onEnd, color: "#a02f24", textColor: "#f1e9d2" },
       recap: { text: "Продолжить правление →", onClick: onRecap },
       count: { text: "Сразу к итогам", onClick: onCount },
+      guide: { text: "Выбрать руководителя больниц", onClick: onGuide },
+      guideReport: { text: "Первый доклад по больницам", onClick: onGuideReport },
       review: { text: "К последствиям ↓", onClick: onReview },
     };
     setMainButton(specs[mode] ?? null);
@@ -2380,6 +2391,10 @@ function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onE
         </button>
       </>}
       {mode === "jump" && <button {...keep} onClick={onJump} style={main}>К резолюции ↓</button>}
+      {(mode === "guide" || mode === "guideReport") && <>
+        <button {...keep} onClick={mode==='guide'?onGuide:onGuideReport} style={main}>{mode==='guide'?'Выбрать руководителя':'Первый доклад'}</button>
+        <button {...keep} onClick={onNext} aria-label={mode==='guide'?'Отложить назначение':'Продолжить текущий план'} style={{...main,flex:'0 0 auto',background:'transparent',color:G.tx2,fontFamily:narrow,fontSize:16}}>Позже</button>
+      </>}
       {mode === "review" && <button {...keep} onClick={onReview} style={main}>К последствиям ↓</button>}
       {mode === "count" && <button {...keep} onClick={onCount} style={{ ...main, background:"transparent", color:G.txt, border:`2px solid ${G.bdr2}`, boxShadow:"none" }}>Сразу к итогам</button>}
       {mode === "skip" && <button {...keep} onClick={onSkip} style={{ ...main, background:"transparent", color:G.txt, border:`2px solid ${G.bdr2}`, boxShadow:"none" }}>Показать текст сразу</button>}

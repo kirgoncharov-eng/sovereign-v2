@@ -5,6 +5,7 @@ import { monthYear, turnDate } from '@/lib/game/calendar.ts';
 import { livingActions, worldPerson } from '@/lib/game/living-world.ts';
 import HealthPanel from './HealthPanel.jsx';
 import ProjectActions from './ProjectActions.jsx';
+import OrderTour from './OrderTour.jsx';
 import { healthHasContinuation, healthNeedsAttention } from '@/lib/game/health-aftermath.ts';
 import { projectFinished } from '@/lib/game/living-health.ts';
 import { PeopleText } from './PeopleText.jsx';
@@ -16,6 +17,8 @@ const stamp=(gs,turn)=>monthYear(turnDate(gs.seed,COUNTRIES[gs.country].startYea
 
 export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewChange, onContinue, onCurrentCase }) {
   const [expanded,setExpanded]=useState(false);
+  const [lessonMode,setLessonMode]=useState(null);
+  const tour=useRef(null);
   const [place,setPlace]=useState('region');
   const [tab,setTab]=useState(gs.world?.project.status==='running'?'dispatches':'actions');
   const tabs=useRef(null);
@@ -36,10 +39,16 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
   const attention = healthNeedsAttention(world?.health);
   const showActions=()=>{
     if(!world?.health)onOpen();
-    setExpanded(true);if(world?.health?.aftermath&&projectFinished(world.project))setPlace('health');else if(place==='capital')setPlace('region');setTab('actions');onViewChange(true);setPending(null);
+    setLessonMode(null);setExpanded(true);if(world?.health?.aftermath&&projectFinished(world.project))setPlace('health');else if(place==='capital')setPlace('region');setTab('actions');onViewChange(true);setPending(null);
     requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));
   };
-  useImperativeHandle(ref,()=>({showReport:()=>{
+  const startHospital=(mode)=>{
+    if(!world?.health)onOpen();
+    setExpanded(true);setPlace('health');setLessonMode(mode);setPending(null);onViewChange(true);
+    requestAnimationFrame(()=>tour.current?.scrollIntoView({behavior:'smooth',block:'start'}));
+  };
+  useImperativeHandle(ref,()=>({startHospital,showReport:()=>{
+    setLessonMode(null);
     setExpanded(true);setPlace(gs.world?.dispatches.at(-1)?.project==='health'?'health':'region');setTab('dispatches');setPending(null);onViewChange(true);
     requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));
   }}));
@@ -47,24 +56,29 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
   const toggle=()=>{
     const open=!expanded;
     if(open&&!world?.health)onOpen();
-    setExpanded(open);onViewChange(open);setPending(null);setError(null);if(open&&!world)setTab('actions');
+    setLessonMode(null);setExpanded(open);onViewChange(open);setPending(null);setError(null);if(open&&!world)setTab('actions');
   };
-  const confirm=()=>{try{onAction(pending.id);setReceipt({turn:gs.turn,title:pending.title,cost:pending.cost});setPlace(pending.id.startsWith('health:')?'health':'region');setPending(null);setError(null);setTab('dispatches');}catch(e){setError(e.message);}};
+  const confirm=()=>{try{onAction(pending.id);setReceipt({turn:gs.turn,project:pending.id.startsWith('health:')?'health':'energy',title:pending.title,cost:pending.cost});setPlace(pending.id.startsWith('health:')?'health':'region');setPending(null);setError(null);setTab('dispatches');if(lessonMode)requestAnimationFrame(()=>tour.current?.scrollIntoView({behavior:'smooth',block:'start'}));}catch(e){setError(e.message);}};
   if(gs.daily)return null;
   const quota=world?.lastActionTurn===gs.turn;
   const terminal=project&&['completed','partial','failed'].includes(project.status);
   return <section data-world-panel className="sv-country">
     <button type="button" className="sv-country-toggle" aria-expanded={expanded} onClick={toggle}>
-      <span>ПОВЕСТКА ПРЕЗИДЕНТА <span className="sv-country-arrow">{expanded?'▴':'▾'}</span></span>
-      <span>{world?`В повестке: ${activeProjects}`:'Кабинет, проекты и исполнители'}</span>
+      <span>ПОРУЧЕНИЯ И ДОКЛАДЫ <span className="sv-country-arrow">{expanded?'▴':'▾'}</span></span>
+      <span>{!world?'Кабинет и исполнители':attention?'Больницы ждут ответа':world.health?.status==='unassigned'?'Больницы ждут назначения':world.health?.status==='running'?'Больницы: работа идёт':project.status==='unassigned'?'Энергосеть ждёт назначения':activeProjects?'Ожидаются доклады':'Итоги в досье'}</span>
     </button>
-    {!expanded&&attention&&<button className="sv-agenda-attention" onClick={()=>{setExpanded(true);setPlace('health');setTab('dispatches');setPending(null);onViewChange(true);}}>Больницы ждут ответа · {Math.max(0,(world.health.aftermath.bargain?.phase==='open'?world.health.aftermath.due:world.health.aftermath.deadline)-gs.turn)} кв. →</button>}
+    {!expanded&&attention&&<button className="sv-agenda-attention" onClick={()=>{setLessonMode(null);setExpanded(true);setPlace('health');setTab('dispatches');setPending(null);onViewChange(true);}}>Больницы ждут ответа · {Math.max(0,(world.health.aftermath.bargain?.phase==='open'?world.health.aftermath.due:world.health.aftermath.deadline)-gs.turn)} кв. →</button>}
     {expanded&&latestDispatch&&<div className="sv-country-latest">{stamp(gs,Math.max(world.openedTurn,latestDispatch.turn-(['report','news'].includes(latestDispatch.kind)?1:0)))} · {latestDispatch.title}</div>}
-    {expanded&&world&&<div className="sv-agenda-projects" aria-label="Проекты в повестке">{projects.map(([id,title,item])=><button key={id} data-agenda-project={id} aria-pressed={expanded&&place===id} onClick={()=>{if(!world.health)onOpen();setExpanded(true);onViewChange(true);setPlace(id);setTab(item.status==='unassigned'?'actions':'dispatches');setPending(null);}}>
+    {expanded&&!lessonMode&&world&&<div className="sv-agenda-projects" aria-label="Проекты и исполнители">{projects.map(([id,title,item])=><button key={id} data-agenda-project={id} aria-pressed={expanded&&place===id} onClick={()=>{setLessonMode(null);if(!world.health)onOpen();setExpanded(true);onViewChange(true);setPlace(id);setTab(item.status==='unassigned'?'actions':'dispatches');setPending(null);}}>
       <strong>{title}</strong><span>{id==='health'&&healthHasContinuation(item)?healthNeedsAttention(item)?'Требуется ваше решение':item.aftermath.phase==='working'?'Поручение исполняется':'Ожидается новый доклад':item.status==='unassigned'?'Ждёт назначения':item.status==='running'?`${item.progress}% · работа идёт`:item.status==='completed'?'Завершён':item.status==='partial'?'Частичный результат':'Срок сорван'}</span><small>{id==='health'&&healthHasContinuation(item)?healthNeedsAttention(item)?`${Math.max(0,(item.aftermath.bargain?.phase==='open'?item.aftermath.due:item.aftermath.deadline)-gs.turn)} кв. для ответа`:`Доклад через ${Math.max(0,(item.aftermath.phase==='settled'?item.aftermath.bargain.reviewDue:item.aftermath.due)-gs.turn)} кв.`:projectFinished(item)?item.followupTurn?'Остались обязательства':'Итоги в досье':`${Math.max(0,item.deadline-gs.turn)} кв. до срока${item.executor?' · исполнитель назначен':''}`}</small>
     </button>)}</div>}
 
-    {expanded&&world&&<div className="sv-country-body">
+    {expanded&&world&&lessonMode?<div ref={tour} className="sv-country-body">
+      <OrderTour gs={gs} mode={lessonMode} receipt={receipt}
+        actionsProps={{gs,actions:actions.filter(action=>action.id.startsWith('health:')),quota,pending,setPending,confirm,error}}
+        onAdjust={()=>{setLessonMode('adjust');setPending(null);requestAnimationFrame(()=>tour.current?.scrollIntoView({behavior:'smooth',block:'start'}));}}
+        onDesk={returnToDesk} onBrowse={()=>{setLessonMode(null);setPlace('health');setTab('dispatches');}}/>
+    </div>:expanded&&world&&<div className="sv-country-body">
       <div className="sv-country-guide">
         <div className="sv-country-label">ПОРУЧЕНИЯ · {stamp(gs,gs.turn)}</div>
         <strong>{place==='health'&&healthNeedsAttention(world.health)&&!quota?'Последствия программы требуют решения':continuation?.phase==='working'?'Подписанное поручение исполняется':continuation?.phase==='scheduled'?'Программа закончена; история продолжается':waitingConcession?'Последствия кадровой уступки ещё впереди':selectedFinished?'Проект завершён':quota?'Поручение принято. Теперь — к делу в кабинете':selected?.status==='unassigned'?'Первый шаг — назначить руководителя':gs.lastTurn?'Доклад получен. Выберите, что изменить':'Можно скорректировать исполнение'}</strong>
