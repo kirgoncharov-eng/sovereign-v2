@@ -47,3 +47,13 @@ test("сохранение: законы, обещания и данные пр�
     reign: { term: 2, counted: 1, office: "ruler" as const, ruled: 1, arcs: ["mole"], epilogues: ["Развязка"], past: [] } };
   assert.deepEqual(parseSave(wrap(s))?.state, JSON.parse(wrap(s)).state);
 });
+
+
+test("метаданные партии сохраняются; повреждённая аналитика не уничтожает игровое сохранение", async () => {
+  const { newAnalyticsRun } = await import("./run-context.ts");
+  const s = { ...await initial(), analyticsRun: newAnalyticsRun("6.2", "tg", false) };
+  assert.deepEqual(parseSave(wrap(s))?.state.analyticsRun, s.analyticsRun);
+  const damaged = { ...s, analyticsRun: { id: "bad" } } as unknown as GameState;
+  assert.equal(parseSave(wrap(damaged))?.state.analyticsRun, undefined);
+  assert.equal(parseSave(wrap(damaged))?.state.seed, s.seed);
+});

@@ -1,6 +1,7 @@
 // Анонимная аналитика: какие шаги проходит игрок — запуск, партия, ходы, финал, «поделиться».
 // Никаких имён и Telegram-идентификаторов: только случайный id браузера, тот же, что у «Дела дня».
 // События копятся и уходят пачкой; без сервера (демо, офлайн) отправка тихо ничего не делает.
+import { runProps } from "./run-context.ts";
 import { webUid } from "./daily.ts";
 import { APP_VERSION } from "../game/data.ts";
 import { inTelegram } from "./telegram.ts";
@@ -38,7 +39,7 @@ export function toggleTester(): boolean {
 export function track(e: TrackEvent, p?: Props) {
   // В демо-сборке сервера нет — события не отправляются; тестовое устройство не считается.
   if (typeof window === "undefined" || process.env.NEXT_PUBLIC_ANALYTICS === "off" || isTester()) return;
-  queue.push({ e, p: { ...p, v: APP_VERSION, src: inTelegram() ? "tg" : "web" } });
+  queue.push({ e, p: { ...p, ...(["start", "resume", "turn", "end", "share", "intro", "first"].includes(e) ? runProps() : {}), v: APP_VERSION, src: inTelegram() ? "tg" : "web" } });
   if (!hooked) {
     hooked = true;
     addEventListener("pagehide", flush);

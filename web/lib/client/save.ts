@@ -1,6 +1,7 @@
 // Автосохранение партии в localStorage с подпиской для useSyncExternalStore.
 import { ACTION_TAGS, END_TYPES, RESOURCE_KEYS, SAVE_VERSION } from "../game/data.ts";
 import { isObj, validCountry, validDiff, validIdeo } from "../game/sanitize.ts";
+import { validAnalyticsRun } from "./run-context.ts";
 import { validDailyMoves } from "../game/daily-run.ts";
 import { managementDocument } from "../game/classic.ts";
 import { validLivingWorld } from "../game/living-world.ts";
@@ -104,6 +105,8 @@ export function parseSave(raw: string | null): SaveData | null {
     if (!isObj(s) || !validState(s)) return null;
     if (d.screen === "ending" && !s.ended) return null;
     const saved=d as unknown as SaveData;
+    // Повреждение необязательной аналитики не лишает игрока сохранения.
+    if (saved.state.analyticsRun !== undefined && !validAnalyticsRun(saved.state.analyticsRun)) delete saved.state.analyticsRun;
     if(saved.state.currentEvent?.doc&&saved.state.currentEvent.choices.some(c=>c.id==='d'))saved.state={...saved.state,currentEvent:managementDocument(saved.state.currentEvent)};
     return saved;
   } catch {
