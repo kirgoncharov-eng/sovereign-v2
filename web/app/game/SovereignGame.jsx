@@ -5,7 +5,7 @@ import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, c
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
 import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
-import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, pactIncome as pactIncomeOf, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
+import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
@@ -36,6 +36,7 @@ import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.t
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
+import ResourceInfo from "./ResourceInfo.jsx";
 import { openLivingWorld, interveneWorld } from "@/lib/game/living-world.ts";
 import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
 import { warningDetails } from "@/lib/client/warning-detail.ts";
@@ -1044,60 +1045,10 @@ function Flag({ country, size = 18 }) {
 // ── HUD ───────────────────────────────────────────────────────────────────────
 const SHORT = { politicalCapital:"Политкапитал", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимность", personalResource:"Личный ресурс" };
 
-// Что значит каждая опора — одной фразой, для подсказки по нажатию на значок.
-const RES_ABOUT = {
-  politicalCapital: "Влияние в парламенте и аппарате. На нём держатся сделки и реформы.",
-  economy: "Бюджет, цены, зарплаты. Проседает от раздач, санкций и кризисов.",
-  military: "Сила армии и спецслужб. Сильная армия при враждебных силовиках — риск переворота.",
-  externalReputation: "Как к вам относятся за границей: кредиты, санкции, союзники.",
-  internalLegitimacy: "Признают ли люди вашу власть. На нуле — революция.",
-  personalResource: "Ваши силы, здоровье, деньги и личные связи.",
-};
-
-// Подсказка по значку опоры: смысл, пороги и всё, что на неё повлияет в ближайшие ходы.
-function ResInfo({ gs, k, onClose }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const away = e => { if (!ref.current?.contains(e.target) && !e.target.closest?.("[data-res]")) onClose(); };
-    document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [onClose]);
-  const cfg = RES_CONFIG.find(r => r.key === k);
-  const v = gs.resources[k];
-  const soon = [
-    ...(gs.pending ?? []).filter(p => p.res[k]).map(p => [p.res[k], `через ${plural(p.due - gs.turn, "ход", "хода", "ходов")}: ${p.label.toLowerCase()}`]),
-    ...(gs.activeCrises ?? []).filter(c => c.resourceDrain?.[k]).map(c => [c.resourceDrain[k], `каждый ход: кризис «${c.title}»`]),
-    ...(gs.pacts ?? []).filter(p => PACT_INCOME[gs.factions.find(f => f.id === p.faction)?.bloc] === k)
-      .map(p => [pactIncomeOf(p), `каждый ход: договор с «${gs.factions.find(f => f.id === p.faction)?.name}»`]),
-  ];
-  return (
-    <div ref={ref} className="sv-paper sv-fade" role="dialog" aria-label={cfg.prompt}
-      style={{ position:"absolute", left:0, right:0, marginLeft:"auto", marginRight:"auto", top:"100%", marginTop:6, width:"min(420px, calc(100vw - 24px))", padding:"12px 14px", zIndex:25 }}>
-      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
-        <ResIcon k={k} value={v} size={26} color={barColor(v)} dim="var(--bdr)"/>
-        <span style={{ fontFamily:narrow, fontWeight:700, fontSize:20, flex:1 }}>{cfg.prompt}</span>
-        <span style={{ fontFamily:narrow, fontWeight:700, fontSize:22 }}>{v}<span style={{ fontSize:15, color:G.tx3 }}> / 100</span></span>
-      </div>
-      <div style={{ fontFamily:narrow, fontSize:16, color:G.txt, lineHeight:1.35 }}>{RES_ABOUT[k]}</div>
-      <div style={{ fontFamily:narrow, fontSize:15, color:v < 20 ? G.red : G.tx3, marginTop:4 }}>
-        {v <= LIMITS.endResource ? "Опора рухнула — власть падает." : v < 20 ? "Ниже 20: кризис. На 4 и ниже — падение власти." : "Ниже 20 — кризис, на 4 и ниже — падение власти."}
-      </div>
-      {soon.length > 0 && (
-        <div style={{ marginTop:8, paddingTop:6, borderTop:`1px dashed ${G.bdr2}` }}>
-          {soon.map(([d, t], i) => (
-            <div key={i} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4 }}>
-              <b style={{ color:d > 0 ? G.grn : G.red }}>{signed(d)}</b> <span style={{ color:G.tx2 }}>{t}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // Постоянная панель статуса. При наведении на вариант показывает итог хода, посчитанный движком.
-function Hud({ gs, preview, onMenu, onHelp }) {
+function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
   const [info, setInfo] = useState(null);
+  useEffect(() => { onInfoChange?.(!!info); }, [info, onInfoChange]);
   const ci = IDEOLOGIES.find(i => i.id === gs.ideo);
   let plan = null;
   if (preview && gs.currentEvent) { try { plan = planTurn(gs, preview.id, { assumeSuccess: true }); } catch { plan = null; } }
@@ -1112,7 +1063,7 @@ function Hud({ gs, preview, onMenu, onHelp }) {
     <header className="sv-hud">
       <div style={{ maxWidth:1080, margin:"0 auto", padding:"8px 14px 6px" }}>
         <div className="sv-hud-row" style={{ position:"relative" }}>
-          {info && <ResInfo gs={gs} k={info} onClose={() => setInfo(null)}/>}
+          {info && <ResourceInfo gs={gs} kind={info} onClose={() => setInfo(null)}/>}
           <div className="sv-hud-who" style={{ minWidth:0 }}>
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, whiteSpace:"nowrap" }}>{gs.country} · {termNo ? `срок ${ROMAN[termNo] ?? termNo + 1}` : ci.label.toLowerCase()}<span className="sv-hud-turn"> · ход {local}/{TERM}</span></div>
             <div style={{ fontFamily:pixel, fontSize:15, color:G.gold, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", textTransform:"uppercase" }}>{gs.leader.name}</div>
@@ -1138,12 +1089,12 @@ function Hud({ gs, preview, onMenu, onHelp }) {
             })}
           </div>
           <div className="sv-hud-side" style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ textAlign:"right" }}>
+            <button data-rating aria-label={`Рейтинг партии: ${rating}%. Подробнее`} aria-expanded={info==='rating'} onClick={()=>setInfo(value=>value==='rating'?null:'rating')} style={{ textAlign:"right", background:"transparent", border:"none", padding:0, color:"inherit" }}>
               <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.1, marginBottom:3 }}>рейтинг</div>
               <div style={{ fontFamily:narrow, fontWeight:700, fontSize:24, color:rating >= 35 ? G.grn : rating >= 20 ? G.amb : G.red, lineHeight:1 }}>
                 {rating}%<span style={{ fontSize:16 }}>{arrow(rating, nextRating)}</span>
               </div>
-            </div>
+            </button>
             <div style={{ display:"flex", gap:6 }}>
               <button onClick={onHelp} title="Как играть" aria-label="Как играть"
                 style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, width:30, height:30, borderRadius:0, fontSize:16 }}>?</button>
@@ -1747,6 +1698,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [forecast, setForecast] = useState(false); // сначала дилемма, подробная цена — по запросу
   const [help, setHelp]       = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
+  const [resourceOpen, setResourceOpen] = useState(false);
   const countryPanel = useRef(null);
   const [tips] = useState(() => !tutorialSeen()); // подсказки на первых ходах — пока правила не прочитаны
   const gsRef = useRef(gs);
@@ -1844,7 +1796,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   // Клавиши: 1–9 — фокус на вариант (с предпросмотром), Enter — подтвердить / следующий ход.
   useEffect(() => {
     const onKey = e => {
-      if (countryOpen || e.target.closest?.("input, textarea, [data-world-panel]") || document.querySelector(".sv-modal")) return;
+      if (countryOpen || resourceOpen || e.target.closest?.("input, textarea, [data-world-panel]") || document.querySelector(".sv-modal")) return;
       if (/^[1-9]$/.test(e.key)) {
         const el = document.getElementById(`opt-${e.key}`);
         if (el) { el.focus(); e.preventDefault(); }
@@ -1854,7 +1806,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [countryOpen]);
+  }, [countryOpen, resourceOpen]);
 
   // Выбор резолюции: на касании первое нажатие выбирает (с предпросмотром), второе — подписывает.
   const pick = (c, preview = true) => {
@@ -1913,7 +1865,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   return (
     <div style={{ minHeight:"100vh", background:G.bg }}>
       <div className="sv-window"><SquareView gs={gs} height={64} describe/></div>
-      <Hud gs={gs} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => { setHelp(true); track("help"); }}/>
+      <Hud gs={gs} onInfoChange={setResourceOpen} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => { setHelp(true); track("help"); }}/>
       {help && <HowToPlay onClose={() => setHelp(false)}/>}
       {recap && <Recap gs={gs} onClose={onRecapDone}/>}
       <div style={{ display:"flex", justifyContent:"center", padding:"14px" }}>
@@ -2177,7 +2129,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <div style={{ padding:"0 24px 12px" }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.red, marginBottom:6 }}>СРОЧНО: 25 СЕКУНД — ИНАЧЕ РЕШАТ ЗА ВАС</div>
                     <div style={{ height:6, background:G.bdr }}>
-                      {urgentTurn === turn && <div key={`u${turn}`} className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:"25s", animationPlayState:countryOpen ? "paused" : "running" }} onAnimationEnd={timeUp}/>}
+                      {urgentTurn === turn && <div key={`u${turn}`} className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:"25s", animationPlayState:countryOpen || resourceOpen || help ? "paused" : "running" }} onAnimationEnd={timeUp}/>}
                     </div>
                   </div>
                 )}
@@ -2358,7 +2310,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       </div>
       </div>
       <ActionBar
-        mode={recap ? "recap" : busy || countryOpen ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
+        mode={recap ? "recap" : busy || countryOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}
@@ -2855,7 +2807,7 @@ export default function App() {
   }, [gs, screen]);
 
   const [recap, setRecap] = useState(false); // «Ранее в Суверене» — после возвращения к сохранённой партии
-  const resume = () => { if (saved) { track("resume", { turn: saved.state.turn }); setGs(saved.state); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
+  const resume = () => { if (saved) { track("resume", { turn: saved.state.turn }); setGs(openLivingWorld(saved.state)); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
   const restart = () => { clearSave(); setGs(null); setScreen("setup"); };
 
   return (
@@ -2863,10 +2815,10 @@ export default function App() {
       {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={(d, quick)=>{
         track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily, quick:!!quick });
         // Быстрая партия и дело дня — сразу в кабинет: обещания берутся подсказанные, досье открывается в игре.
-        if (quick) { setGs({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) }); setScreen("game"); }
+        if (quick) { setGs(openLivingWorld({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) })); setScreen("game"); }
         else { setGs(d); setScreen("intro"); track("intro"); }
       }}/>}
-      {screen==="intro"  && <Intro  gs={gs} onGo={picks=>{ setGs(g => ({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>}
+      {screen==="intro"  && <Intro  gs={gs} onGo={picks=>{ setGs(g => openLivingWorld({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>}
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
     </PeopleProvider>
