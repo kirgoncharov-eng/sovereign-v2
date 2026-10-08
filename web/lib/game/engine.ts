@@ -85,7 +85,7 @@ export function computePolls(country: string, factions: Faction[], resources: Re
 export const leaderRating = (factions: Faction[], resources: Resources) =>
   computePolls("", factions, resources).leader;
 
-const securityRelation = (factions: Faction[]) => {
+export const securityRelation = (factions: Faction[]) => {
   const sec = factions.filter(f => f.bloc === "security");
   return sec.length ? sec.reduce((s, f) => s + f.relation, 0) / sec.length : 0;
 };
@@ -115,13 +115,22 @@ export function applyFigureChanges(figures: Figure[], changes: Record<string, nu
 
 export type WarningLevel = "none" | "warning" | "critical";
 
-export function warningLevel(state: Pick<GameState, "resources" | "factions">): WarningLevel {
-  const minRes = Math.min(...RESOURCE_KEYS.map(k => state.resources[k]));
+export interface WarningSignal { id: ResourceKey | "rating" | "security"; value: number; threshold: number; level: Exclude<WarningLevel, "none"> }
+
+export function warningSignals(state: Pick<GameState, "resources" | "factions">): WarningSignal[] {
+  const signals: WarningSignal[] = RESOURCE_KEYS.flatMap(id => {
+    const value = state.resources[id];
+    return value <= 22 ? [{ id, value, threshold: value <= 10 ? 10 : 22, level: value <= 10 ? "critical" as const : "warning" as const }] : [];
+  });
   const rating = leaderRating(state.factions, state.resources);
   const sec = securityRelation(state.factions);
-  if (minRes <= 10 || rating <= 15 || sec <= COUP_RELATION + 5) return "critical";
-  if (minRes <= 22 || rating <= 25 || sec <= COUP_RELATION + 15) return "warning";
-  return "none";
+  if (rating <= 25) signals.push({ id: "rating", value: rating, threshold: rating <= 15 ? 15 : 25, level: rating <= 15 ? "critical" : "warning" });
+  if (sec <= COUP_RELATION + 15) signals.push({ id: "security", value: sec, threshold: sec <= COUP_RELATION + 5 ? COUP_RELATION + 5 : COUP_RELATION + 15, level: sec <= COUP_RELATION + 5 ? "critical" : "warning" });
+  return signals.sort((a, b) => Number(b.level === "critical") - Number(a.level === "critical"));
+}
+
+export function warningLevel(state: Pick<GameState, "resources" | "factions">): WarningLevel {
+  return warningSignals(state)[0]?.level ?? "none";
 }
 
 export const isSurvival = (e: EndType | null) => !!e && SURVIVAL_ENDS.includes(e);

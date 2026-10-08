@@ -1,4 +1,6 @@
 import { computePolls } from "../game/engine.ts";
+import { turnDate } from "../game/calendar.ts";
+import { COUNTRIES } from "../game/data.ts";
 import type { GameState } from "../game/types.ts";
 import type { SquareState } from "./square.ts";
 
@@ -14,6 +16,7 @@ export function squareStateOf(gs: GameState, phase?: number): SquareState {
   const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
   return {
     country: gs.country, seed: gs.seed, turn: gs.turn, phase,
+    season: turnDate(gs.seed, COUNTRIES[gs.country].startYear, gs.lastTurn || gs.ended ? Math.max(0, gs.turn - 1) : gs.turn).season,
     legitimacy: gs.resources.internalLegitimacy, economy: gs.resources.economy,
     military: gs.resources.military, rating, security,
     crises: gs.activeCrises.length, election: !!justVoted,
