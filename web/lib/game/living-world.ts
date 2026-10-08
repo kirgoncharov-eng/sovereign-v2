@@ -1,6 +1,6 @@
 // Первый живой регион: поручение развивается вместе с кварталами основной партии.
 // Модель не знает React и не бросает скрытый кубик: причины исполнения сохраняются в докладах.
-import { healthActions, healthDecision, newHealthProject, projectFinished, stepHealthProject, validHealthProject, type HealthProject } from './living-health.ts';
+import { cloneHealthProject, healthActions, healthDecision, newHealthProject, projectFinished, stepHealthProject, validHealthProject, type HealthProject } from './living-health.ts';
 import { NAMES } from '../content/narration.ts';
 import { traitOf } from './people.ts';
 import type { TraitId } from './people.ts';
@@ -207,9 +207,7 @@ export function interveneWorld(gs: GameState, id: string): GameState {
         ...gs.world!, lastActionTurn: gs.turn, project: {
             ...gs.world!.project
         }, ...(gs.world!.health ? {
-            health: {
-                ...gs.world!.health
-            }
+            health: cloneHealthProject(gs.world!.health)
         } : {}), people: gs.world!.people.map(project => ({
             ...project
         }))
@@ -221,7 +219,7 @@ export function interveneWorld(gs: GameState, id: string): GameState {
     if (id.startsWith('health:'))
         text = healthDecision(world, id, personId => worldPerson({
             ...gs, world: world
-        }, personId)!);
+        }, personId)!, gs.turn);
     if (id.startsWith('appoint:')) {
         project.executor = id.slice(8) as WorldPersonId;
         project.status = 'running';
@@ -476,16 +474,14 @@ export function stepLivingWorld(gs: GameState, nextTurn: number): {
     const energy = stepEnergyProject(gs, nextTurn);
     let world = {
         ...energy.world!, ...(gs.world.health ? {
-            health: {
-                ...gs.world.health
-            }
+            health: cloneHealthProject(gs.world.health)
         } : {})
     };
     const healthExecutor = world.health?.executor ? worldPerson(gs, world.health.executor) : undefined;
     const health = stepHealthProject(gs, world, nextTurn, healthExecutor);
     if (health.story)
         world = append(world, {
-            project: 'health', turn: nextTurn, kind: projectFinished(world.health!) ? 'news' : 'report', title: projectFinished(world.health!) ? 'Больницы · результат и обязательства' : 'Больницы · квартальный доклад', text: health.story
+            project: 'health', turn: nextTurn, kind: projectFinished(world.health!) ? 'news' : 'report', title: world.health!.aftermath?.phase === 'open' ? 'Больницы · требуется решение' : world.health!.aftermath?.phase === 'working' ? 'Больницы · исполнение поручения' : projectFinished(world.health!) ? 'Больницы · результат и обязательства' : 'Больницы · квартальный доклад', text: health.story
         });
     const res = {
         ...energy.res
@@ -493,7 +489,7 @@ export function stepLivingWorld(gs: GameState, nextTurn: number): {
     for (const [key, delta] of Object.entries(health.res))
         res[key as keyof ResourceDelta] = (res[key as keyof ResourceDelta] ?? 0) + (delta ?? 0);
     return {
-        world, res, story: [energy.story, health.story ? `Районные больницы. ${health.story}` : null].filter(Boolean).join('\n\n') || null,
+        world, res, story: [energy.story ? `Из промышленного региона. ${energy.story}` : null, health.story ? `Районные больницы. ${health.story}` : null].filter(Boolean).join('\n\n') || null,
         effects: [{
                 label: 'энергосеть промышленного региона', res: energy.res
             }, {

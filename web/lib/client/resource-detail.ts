@@ -29,7 +29,13 @@ export function resourceDetail(gs: GameState, key: ResourceKey) {
     if (def?.perTurn[key]) upcoming.push({ delta: def.perTurn[key]!, text: `Каждый квартал: закон «${def.title}»` });
   }
   const health = gs.world?.health;
-  if (health?.followupTurn !== null && health?.followupTurn !== undefined) {
+  const continuation = health?.aftermath;
+  if (continuation?.phase === 'open') {
+    const costs = continuation.branch === 'permanent' ? { economy: 1, internalLegitimacy: -4 } : continuation.branch === 'rotation' ? { economy: -2, internalLegitimacy: -3 } : { internalLegitimacy: -4, politicalCapital: -2 };
+    const delta = (costs as Partial<Record<ResourceKey, number>>)[key];
+    if (delta) upcoming.push({ delta, text: `Если не ответить на доклад по больницам за ${Math.max(1, continuation.deadline - gs.turn)} кв.` });
+  }
+  if (!continuation && health?.followupTurn !== null && health?.followupTurn !== undefined) {
     const delta = key === 'economy' ? health.approach === 'rotation' ? -2 : -1 : key === 'internalLegitimacy' && health.approach === 'rotation' ? -2 : 0;
     if (delta) upcoming.push({ delta, text: `После ${Math.max(1, health.followupTurn - gs.turn)} кв.: ${health.approach === 'rotation' ? 'замена врачей в областных больницах' : 'содержание постоянных ставок в районах'}` });
   }
