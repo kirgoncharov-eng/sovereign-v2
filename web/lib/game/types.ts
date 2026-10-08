@@ -1,5 +1,6 @@
 // Общие типы игрового состояния. Используются и клиентом, и сервером.
 import type { SceneKey } from "../content/scene-map.ts";
+import type { LivingWorld } from "./living-world.ts";
 
 export type ResourceKey =
   | "politicalCapital"
@@ -288,6 +289,7 @@ export interface Verdict {
 }
 
 export interface GameState {
+  world?: LivingWorld;
   version: number;
   country: string;
   diff: DifficultyId;

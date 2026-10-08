@@ -11,6 +11,7 @@ import { NAMES } from "../content/narration.ts";
 import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE_BONUS, bondOf, breaches, pactIncome, personalDelta } from "./people.ts";
 import { stepPromises } from "./promises.ts";
 import { stepLaws } from "./laws.ts";
+import { stepLivingWorld, type LivingWorld } from "./living-world.ts";
 import { electionKind, isTermEnd, nextReign, pathEnd, reignOf } from "./terms.ts";
 import type {
   Advisor, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
@@ -432,6 +433,8 @@ export function figureDeltas(
 }
 
 export interface TurnPlan {
+  world?: LivingWorld;
+  worldStory: string | null;
   choice: Choice;
   success: boolean;
   chance: number;
@@ -563,6 +566,9 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     && !keyFigures.some(fig => fig.faction === f.id && bondOf(fig, f) === "insider"));
   for (const f of hostile) add(`вредят «${f.name}»`, HOSTILE_DRAIN[f.bloc]);
 
+  const worldStep = stepLivingWorld({ ...state, resources, factions, keyFigures }, turn);
+  add("энергосеть промышленного региона", worldStep.res);
+
   // Институты понемногу восстанавливаются: просевшие ресурсы подтягиваются вверх.
   const beforeRecovery = { ...resources };
   for (const k of RESOURCE_KEYS) {
@@ -634,6 +640,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     promises: promiseStep.promises, promiseNews: promiseStep.news,
     laws: lawStep.laws, lawNews: lawStep.news,
     path, reign: nextR, termResult, sources,
+    world: worldStep.world, worldStory: worldStep.story,
   };
 }
 
@@ -658,6 +665,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
   return {
     ...state,
     resources: plan.resources, prevResources: { ...state.resources },
+    ...(plan.world ? { world: plan.world } : {}),
     factions: plan.factions, prevFactions: state.factions.map(f => ({ ...f })),
     keyFigures: plan.keyFigures, prevFigures: state.keyFigures.map(f => ({ ...f })),
     activeCrises: crises,
