@@ -33,6 +33,7 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
   const selectedFinished=selected&&projectFinished(selected)&&!(place==='health'&&healthHasContinuation(world?.health));
   const projects=world?[['region','Энергосеть',world.project],...(world.health?[['health','Районные больницы',world.health]]:[])]:[];
   const activeProjects = projects.filter(([, , item]) => !projectFinished(item)||(item===world?.health&&healthHasContinuation(world.health))).length;
+  const attention = healthNeedsAttention(world?.health);
   const showActions=()=>{
     if(!world?.health)onOpen();
     setExpanded(true);if(world?.health?.aftermath&&projectFinished(world.project))setPlace('health');else if(place==='capital')setPlace('region');setTab('actions');onViewChange(true);setPending(null);
@@ -57,11 +58,12 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
       <span>ПОВЕСТКА ПРЕЗИДЕНТА <span className="sv-country-arrow">{expanded?'▴':'▾'}</span></span>
       <span>{world?`В повестке: ${activeProjects}`:'Кабинет, проекты и исполнители'}</span>
     </button>
-    {!expanded&&latestDispatch&&<div className="sv-country-latest">{stamp(gs,Math.max(world.openedTurn,latestDispatch.turn-(['report','news'].includes(latestDispatch.kind)?1:0)))} · {latestDispatch.title}</div>}
-    {world&&<div className="sv-agenda-projects" aria-label="Проекты в повестке">{projects.map(([id,title,item])=><button key={id} data-agenda-project={id} aria-pressed={expanded&&place===id} onClick={()=>{if(!world.health)onOpen();setExpanded(true);onViewChange(true);setPlace(id);setTab(item.status==='unassigned'?'actions':'dispatches');setPending(null);}}>
+    {!expanded&&attention&&<button className="sv-agenda-attention" onClick={()=>{setExpanded(true);setPlace('health');setTab('dispatches');setPending(null);onViewChange(true);}}>Больницы ждут ответа · {Math.max(0,(world.health.aftermath.bargain?.phase==='open'?world.health.aftermath.due:world.health.aftermath.deadline)-gs.turn)} кв. →</button>}
+    {expanded&&latestDispatch&&<div className="sv-country-latest">{stamp(gs,Math.max(world.openedTurn,latestDispatch.turn-(['report','news'].includes(latestDispatch.kind)?1:0)))} · {latestDispatch.title}</div>}
+    {expanded&&world&&<div className="sv-agenda-projects" aria-label="Проекты в повестке">{projects.map(([id,title,item])=><button key={id} data-agenda-project={id} aria-pressed={expanded&&place===id} onClick={()=>{if(!world.health)onOpen();setExpanded(true);onViewChange(true);setPlace(id);setTab(item.status==='unassigned'?'actions':'dispatches');setPending(null);}}>
       <strong>{title}</strong><span>{id==='health'&&healthHasContinuation(item)?healthNeedsAttention(item)?'Требуется ваше решение':item.aftermath.phase==='working'?'Поручение исполняется':'Ожидается новый доклад':item.status==='unassigned'?'Ждёт назначения':item.status==='running'?`${item.progress}% · работа идёт`:item.status==='completed'?'Завершён':item.status==='partial'?'Частичный результат':'Срок сорван'}</span><small>{id==='health'&&healthHasContinuation(item)?healthNeedsAttention(item)?`${Math.max(0,(item.aftermath.bargain?.phase==='open'?item.aftermath.due:item.aftermath.deadline)-gs.turn)} кв. для ответа`:`Доклад через ${Math.max(0,(item.aftermath.phase==='settled'?item.aftermath.bargain.reviewDue:item.aftermath.due)-gs.turn)} кв.`:projectFinished(item)?item.followupTurn?'Остались обязательства':'Итоги в досье':`${Math.max(0,item.deadline-gs.turn)} кв. до срока${item.executor?' · исполнитель назначен':''}`}</small>
     </button>)}</div>}
-    {!expanded&&!gs.ended&&<div className="sv-country-entry"><button onClick={showActions}>{!world?'Открыть проекты страны':!activeProjects?'Посмотреть итоги проектов':!actions.length?'Посмотреть ожидаемый доклад':quota?'Посмотреть ход проектов':'Выбрать личное поручение'} →</button><span>{world&&activeProjects&&!actions.length?'Следующий доклад придёт после решений в кабинете. Сейчас нового поручения не требуется.':world&&!activeProjects?'Проекты завершены. Следующее дело — в кабинете.':quota?'Поручение на этот квартал уже подписано':'Сроки обоих дел идут после решения в кабинете. Чтение свободно.'}</span></div>}
+
     {expanded&&world&&<div className="sv-country-body">
       <div className="sv-country-guide">
         <div className="sv-country-label">ПОРУЧЕНИЯ · {stamp(gs,gs.turn)}</div>
@@ -81,7 +83,7 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
         </button>
         {world.health&&<button className="sv-country-place" aria-pressed={place==='health'} onClick={()=>{setPlace('health');setPending(null);setTab('dispatches');}}><span aria-hidden="true">✚</span><strong>Районные больницы</strong><small>{world.health.progress}% · кадры</small></button>}
       </div>
-      {place==='health'&&world.health?<HealthPanel gs={gs} Scene={Scene} tab={tab} setTab={setTab} tabs={tabs} stamp={stamp} actionsProps={{actions:actions.filter(action=>action.id.startsWith('health:')),quota,pending,setPending,confirm,error}}/>:place==='capital'?<div className="sv-country-room">
+      {place==='health'&&world.health?<HealthPanel gs={gs} Scene={Scene} tab={tab} setTab={setTab} tabs={tabs} stamp={stamp} actionsProps={{gs,actions:actions.filter(action=>action.id.startsWith('health:')),quota,pending,setPending,confirm,error}}/>:place==='capital'?<div className="sv-country-room">
         <div className="sv-country-label">КАБИНЕТ ПРЕЗИДЕНТА</div>
         <h3>На столе в резиденции</h3>
         <p>{gs.currentEvent?`Входящее дело: «${gs.currentEvent.title}».`:gs.lastTurn?'Газета с последствиями вашего последнего решения.':'Канцелярия готовит новое дело.'}</p>
@@ -114,7 +116,7 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
           {tab==='people'&&<div className="sv-country-people">
             {world.people.filter(person=>['minister','governor','engineer'].includes(person.id)).map(a=>{const p=worldPerson(gs,a.id);return <article key={p.id}><h4><PeopleText>{p.name}</PeopleText></h4><div>{p.role}{project.executor===p.id?' · руководит проектом':''}</div><div className="sv-country-person-stats">Компетенция {p.competence}/3 · к вам {p.relation>0?'+':''}{p.relation} · {TRAIT[p.trait]}</div><p>{p.goal}.</p>{world.health?.status==='running'&&world.health.executor===p.id&&<p className="sv-country-receipt">Уже руководит больницами. Второе назначение замедлит оба проекта.</p>}</article>;})}
           </div>}
-          {tab==='actions'&&<ProjectActions actions={actions.filter(action=>!action.id.startsWith('health:'))} quota={quota} terminal={terminal} pending={pending} setPending={setPending} confirm={confirm} error={error}/>}
+          {tab==='actions'&&<ProjectActions gs={gs} actions={actions.filter(action=>!action.id.startsWith('health:'))} quota={quota} terminal={terminal} pending={pending} setPending={setPending} confirm={confirm} error={error}/>}
 
         </div>
       </div>}
