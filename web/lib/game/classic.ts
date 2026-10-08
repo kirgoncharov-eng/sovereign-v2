@@ -2,6 +2,7 @@
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
 import { promisesBroken, promisesKept } from "./promises.ts";
 import { ARCS } from "../content/arcs.ts";
+import { EARLY_THREADS } from "../content/early-threads.ts";
 import { COUNCIL_A } from "../content/council-a.ts";
 import { FAIL_A } from "../content/fail-a.ts";
 import { BEAT_FAILS } from "../content/fail-beats.ts";
@@ -196,6 +197,7 @@ export function beatEvent(state: GameState): GameEvent | null {
     affectedFactions: [],
     choices: variant.choices.map((c, i) => ({
       id: ["a", "b", "c"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags, resolvesCrisis: null,
+      ...(c.costReasons ? { costReasons: Object.fromEntries(Object.entries(c.costReasons).map(([k, v]) => [k, fill(v!, state)])) } : {}),
       ...(c.removes && villain ? { deal: { figure: villain.id, replace: heir } } : {}),
       arc: { flag: c.flag, ok: fill(c.ok, state) + (c.removes ? heirLine : ""), ...(c.fail ?? BEAT_FAILS[c.text] ? { fail: fill(c.fail ?? BEAT_FAILS[c.text], state) } : {}), effect: c.effect ?? {}, ...(c.epilogue ? { epilogue: fill(c.epilogue, state) } : {}) },
       ...headlines(BEAT_HEADLINES[c.text], state),
@@ -412,9 +414,9 @@ export function lawEvent(state: GameState): SpecialEvent | null {
     description: chapter(dateline(state, "parliament"), f(def.pitch)),
     isCritical: false, affectedFactions: state.factions.filter(x => x.bloc === def.bloc || def.drift?.[x.bloc]).map(x => x.id).slice(0, 4),
     choices: [
-      { id: "a", text: BILL.enact.text, hint: BILL.enact.hint, tags: def.tags, resolvesCrisis: null, law: { id: def.id, act: "enact" }, stance: stance(def, 8, 5, -6),
+      { id: "a", text: BILL.enact.text, hint: BILL.enact.hint, tags: def.tags, costReasons: def.costs, resolvesCrisis: null, law: { id: def.id, act: "enact" }, stance: stance(def, 8, 5, -6),
         scene: f(def.passed), sceneFail: f(def.failed), headline: f(def.head.passed), headlineFail: f(def.head.failed) },
-      { id: "b", text: BILL.veto.text, hint: BILL.veto.hint, tags: def.veto, resolvesCrisis: null, stance: stance(def, -8, -3, 5),
+      { id: "b", text: BILL.veto.text, hint: BILL.veto.hint, tags: def.veto, costReasons: def.vetoCosts, resolvesCrisis: null, stance: stance(def, -8, -3, 5),
         scene: f(def.vetoed), sceneFail: f(def.vetoed), headline: f(def.head.vetoed), headlineFail: f(def.head.vetoed) },
       { id: "c", text: BILL.delay.text, hint: BILL.delay.hint, tags: ["delay"], resolvesCrisis: null, stance: { [def.bloc]: -3 },
         scene: f(BILL.delayScene), sceneFail: f(BILL.delayScene), headline: f(BILL.delayHead), headlineFail: f(BILL.delayHead) },
@@ -808,6 +810,7 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
     affectedFactions: state.factions.filter(f => blocs.has(f.bloc)).slice(0, 4).map(f => f.id),
     choices: card.choices.map((c, i) => ({
       id: ["a", "b", "c", "d"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags,
+      ...(c.costReasons ? { costReasons: Object.fromEntries(Object.entries(c.costReasons).map(([k, v]) => [k, fill(v!, state)])) } : {}),
       resolvesCrisis: c.resolves ? crisisId : null,
       ...(escalated
         ? { scene: fill(CRISIS_SCENES[crisisKey!][i][0], state), sceneFail: fill(CRISIS_SCENES[crisisKey!][i][1], state) }
@@ -856,6 +859,22 @@ const headlines = (pair: HeadlinePair | undefined, state: GameState) =>
   pair ? { headline: fill(pair[0], state), headlineFail: fill(pair[1], state) } : {};
 
 const MAX_ECHOES = 2;
+// Ходы 2, 4 и 6: продолжение выбранного пути между ранними эпизодами.
+// Флаг хранит намерение и при провале, поэтому отдельно проверяем результат в хронике.
+export function earlyArcHook(state: GameState): string | null {
+  const turn = localTurn(state.turn + 1);
+  if (![2, 4, 6].includes(turn) || !state.arc || state.currentEvent?.beat || state.arc.epilogue) return null;
+  const thread = EARLY_THREADS[state.arc.id];
+  const beat = state.arc.done.at(-1);
+  if (!thread || beat !== (turn === 2 ? 1 : 3)) return null;
+  const result = state.history[termIndex(state.turn + 1) * TERM + beat - 1];
+  if (!result || result.success === undefined) return null;
+  const flag = state.arc.flags.at(-1);
+  const text = result.success === false ? thread.failed[turn === 2 ? 0 : turn === 4 ? 1 : 2]
+    : turn === 2 ? thread.opening[flag ?? ""] : thread.followUp[flag ?? ""]?.[turn === 4 ? 0 : 1];
+  return text ? fill(text, state) : null;
+}
+
 // «Аукается апрельское дело «Студенты захватили университет».» — откуда пришло последствие.
 function echoLead(state: GameState, m: { from?: number; event?: string }): string {
   if (m.from === undefined || !m.event) return "";
@@ -1009,11 +1028,11 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // Нить интриги: между эпизодами — зловещая строка-предвестие.
   const arcDef = ARCS.find(a => a.id === state.arc?.id);
   // Через ход и без повторов: предвестие должно тревожить, а не надоедать.
-  const hookIdx = (state.turn - 1) / 2;
+  const hookIdx = (localTurn(state.turn + 1) - 2) / 2;
   // После развязки интрига молчит: ни предвестий, ни перехватов.
   const arcOpen = !!arcDef && (state.arc?.done.length ?? 0) < arcDef.beats.length;
   const hook = arcDef && arcOpen && !arc && !plan.endType && state.turn % 2 === 1 && hookIdx < arcDef.hooks.length
-    ? fill(cycle(arcDef.hooks, state.seed, "hook", hookIdx), state) : null;
+    ? earlyArcHook(state) ?? fill(cycle(arcDef.hooks, state.seed, "hook", hookIdx), state) : null;
   const died = plan.endType === "died" ? { head: pick(r, DIED.head), text: pick(r, DIED.text) } : null;
   const finale = died ?? finaleOf(state, plan);
   const parts = [scene, ...after, finale?.text ?? electionLine, intercut, hook];

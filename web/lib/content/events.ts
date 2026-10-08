@@ -21,6 +21,7 @@ export interface CardChoice {
   text: string;
   hint: string;
   tags: ActionTag[];
+  costReasons?: Partial<Record<ResourceKey, string>>;
   resolves?: boolean;      // закрывает первый активный кризис
   // Сцены прямо в карточке (дела-последствия законов); у остальных карточек — в scenes.ts, fail-*.ts, headlines-cards.ts.
   scene?: string;

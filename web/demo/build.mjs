@@ -38,7 +38,8 @@ const inlined = await Promise.all([...globals.matchAll(/url\(\/fonts\/([\w.-]+)\
 const css = (await readFile(path.join(here, "page.css"), "utf8")) + inlined.reduce((acc, [from, to]) => acc.replaceAll(from, to), globals);
 const fonts = "https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Mono&family=Marck+Script&display=swap";
 
-const html = `<title>Суверен</title>
+const html = `<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Суверен</title>
 <link rel="stylesheet" href="${fonts}">
 <style>${css}</style>
 <div id="root"></div>

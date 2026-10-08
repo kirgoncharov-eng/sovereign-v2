@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EVENT_CARDS } from "../content/events.ts";
-import { classicApi, cardAvailable, fill } from "./classic.ts";
+import { classicApi, cardAvailable, earlyArcHook, fill } from "./classic.ts";
 import { ACTION_TAGS, COUNTRIES, TERM } from "./data.ts";
 import { choiceEffects, createInitialState, resolveTurn, startEvent, successChance } from "./engine.ts";
 import type { GameState } from "./types.ts";
@@ -110,9 +110,9 @@ test("в тексте итога нет роботизированных фра�
   s = startEvent(s, await classicApi.event(s));
   const n = await classicApi.consequence(s, "a");
   assert.ok(!n.narrative.startsWith("Решение принято"));
-  const { ARCS } = await import("../content/arcs.ts");
-  const hooks = ARCS.find(a => a.id === s.arc!.id)!.hooks.map(h => fill(h, s));
-  assert.ok(hooks.some(h => n.narrative.includes(h)));
+  const continuation = earlyArcHook(s);
+  assert.ok(continuation);
+  assert.ok(n.narrative.includes(continuation));
 });
 
 test("каждая интрига проходит все 5 эпизодов, тексты заполнены, у эпизодов есть второй абзац", async () => {
