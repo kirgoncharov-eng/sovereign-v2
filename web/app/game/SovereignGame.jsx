@@ -46,6 +46,8 @@ import { openLivingWorld, interveneWorld } from "@/lib/game/living-world.ts";
 import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
 import { warningDetails } from "@/lib/client/warning-detail.ts";
 import { squareStateOf } from "@/lib/client/square-state.ts";
+import QuarterTransition from "./QuarterTransition.jsx";
+import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
@@ -1712,6 +1714,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const startedAt = useRef(0); // когда открылся первый ход — для времени до первого решения
   useEffect(() => { if (gsRef.current?.turn === 0) startedAt.current = nowMs(); }, []);
   const inFlight = useRef(false);
+  const [transition, setTransition] = useState(null);
+  const finishTransition = useCallback(() => { setTransition(null); window.scrollTo({top:0}); }, []);
   const [stamping, setStamping] = useState(null); // резолюция, на которую опускается печать
   const [dossier, setDossier] = useState(false);   // телефон: досье под игрой свёрнуто
   const [resolutionInView, setResolutionInView] = useState(false);
@@ -1758,7 +1762,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const retryEvent = () => { setBusy("event"); setError(null); setAttempt(a => a + 1); };
 
   const choose = async (choice, details = {}) => {
-    if (busy || inFlight.current) return;
+    if (busy || transition || inFlight.current) return;
     inFlight.current = true;
     const dailyMove = { id: choice.id, ...details, ...(gsRef.current.currentEvent?.council?.length ? { council:true } : {}) };
     setStamping(choice.id);
@@ -1772,6 +1776,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       if (next.daily && gsRef.current.dailyMoves) {
         next = { ...next, dailyMoves: [...gsRef.current.dailyMoves, dailyMove] };
       }
+      if (!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) setTransition(quarterTransition(gsRef.current, next));
       commit(next);
       track("turn", { n: next.turn });
       if (next.turn === 1 && startedAt.current) {
@@ -1795,6 +1800,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   };
 
   const nextTurn = () => {
+    if (transition || inFlight.current || !gsRef.current.lastTurn || gsRef.current.ended) return;
     setCountryOpen(false);
     setBusy("event"); setError(null); setPreview(null); setArmed(null);
     pageFx();
@@ -1804,7 +1810,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   // Клавиши: 1–9 — фокус на вариант (с предпросмотром), Enter — подтвердить / следующий ход.
   useEffect(() => {
     const onKey = e => {
-      if (countryOpen || resourceOpen || e.target.closest?.("input, textarea, [data-world-panel]") || document.querySelector(".sv-modal")) return;
+      if (transition || countryOpen || resourceOpen || e.target.closest?.("input, textarea, [data-world-panel]") || document.querySelector(".sv-modal")) return;
       if (/^[1-9]$/.test(e.key)) {
         const el = document.getElementById(`opt-${e.key}`);
         if (el) { el.focus(); e.preventDefault(); }
@@ -1814,7 +1820,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [countryOpen, resourceOpen]);
+  }, [countryOpen, resourceOpen, transition]);
 
   // Касание выбирает; отдельная кнопка подписывает. Повторное касание не исполняет приказ.
   const pick = (c, preview = true) => {
@@ -1844,7 +1850,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       const el = document.getElementById("sv-resolution");
       setResolutionInView(!!el && el.getBoundingClientRect().top < window.innerHeight * 0.65);
       const report = document.getElementById('sv-turn-result');
-      if (report && !recap && !countryOpen && !resourceOpen && !help) {
+      if (report && !transition && !recap && !countryOpen && !resourceOpen && !help) {
         const box = report.getBoundingClientRect();
         if (box.top < window.innerHeight * .75 && box.bottom > (document.querySelector(".sv-hud")?.getBoundingClientRect().bottom ?? 0)) setReviewedTurn(gs.turn);
       }
@@ -1854,7 +1860,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
-  }, [event, busy, gs.turn, gs.lastTurn, counted, recap, countryOpen, resourceOpen, help]);
+  }, [event, busy, gs.turn, gs.lastTurn, counted, recap, countryOpen, resourceOpen, help, transition]);
   // Срочное дело: власть под угрозой — на резолюцию 25 секунд с момента, как варианты на экране.
   const urgent = !!event && event.isCritical && !event.beat && !event.special && !recap && !busy;
   if (urgent && resolutionInView && urgentTurn !== gs.turn) setUrgentTurn(gs.turn);
@@ -1876,6 +1882,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     { id:"fig", label:"Люди", title:"Ключевые игроки" },
     { id:"log", label:"Хроника", title:"Хроника правления" },
   ];
+
+  if (transition) return <>
+    <QuarterTransition scene={transition} onDone={finishTransition}/>
+    <ActionBar mode="transition" onSkip={finishTransition}/>
+  </>;
 
   return (
     <div style={{ minHeight:"100vh", background:G.bg }}>
@@ -2365,6 +2376,7 @@ function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onE
       sign: { text: `Подписать: ${short(choice?.text ?? "")}`, onClick: onSign },
       jump: { text: "К резолюции ↓", onClick: onJump },
       skip: { text: "Показать текст сразу", onClick: onSkip },
+      transition: { text: "К итогам решения →", onClick: onSkip },
       next: { text: "Следующий ход →", onClick: onNext },
       end:  { text: "Подвести итоги →", onClick: onEnd, color: "#a02f24", textColor: "#f1e9d2" },
       recap: { text: "Продолжить правление →", onClick: onRecap },
@@ -2377,7 +2389,7 @@ function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onE
     setBackButton(mode === "sign" ? onCancel : null);
   });
   useEffect(() => () => { setMainButton(null); setBackButton(null); }, [tg]);
-  if (!mode || mode === "recap" || tg) return null; // у сводки своя кнопка
+  if (!mode || mode === "recap" || mode === "transition" || tg) return null; // у сводки своя кнопка
   const keep = { onPointerDown: e => e.preventDefault(), onMouseDown: e => e.preventDefault() };
   const main = { flex:1, minHeight:48, background:G.gold, color:"var(--on-gold)", border:"2px solid #000", fontFamily:pixel, fontSize:15, textTransform:"uppercase", padding:"0 14px", boxShadow:"var(--hard)" };
   return (
