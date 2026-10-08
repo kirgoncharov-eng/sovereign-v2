@@ -94,5 +94,18 @@ test("особые дела: появляются, без пустых слот�
       s = resolveTurn(s, id, await classicApi.consequence(s, id));
     }
   }
-  for (const k of ["pact", "overture"]) assert.ok(kinds.has(k), `нет дела ${k}`);
+  assert.ok(kinds.has("pact"), "нет дела pact");
+});
+
+test("предложение человека из враждебного лагеря возникает при разрыве личного и группового отношения", async () => {
+  const base=await newGame();const figure=base.keyFigures[0];let found=false;
+  // Условия предложения задаём явно: прохождение всех первых вариантов больше не обязано создавать этот разрыв.
+  for(let seed=1;seed<=100;seed++){
+    const state={...base,seed,turn:6,arc:null,activeCrises:[],usedEvents:[],keyFigures:base.keyFigures.map(f=>({...f,relation:f.id===figure.id?25:0})),factions:base.factions.map(f=>({...f,relation:f.id===figure.faction?-10:10}))};
+    const ev=specialEvent(state);if(ev?.special?.kind!=='overture')continue;
+    assert.equal(ev.special.figure,figure.id);assert.ok(!/\{\w+(:\w+)?\}/.test([ev.description,...ev.choices.map(c=>c.scene)].join(' ')));
+    const saved=sanitizeState(JSON.parse(JSON.stringify(startEvent(state,ev))))!;
+    assert.deepEqual(saved.currentEvent!.choices.map(c=>c.deal),ev.choices.map(c=>c.deal));found=true;break;
+  }
+  assert.ok(found,'предложение должно возникнуть при подходящих отношениях');
 });

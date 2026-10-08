@@ -2,6 +2,7 @@
 import { ACTION_TAGS, END_TYPES, RESOURCE_KEYS, SAVE_VERSION } from "../game/data.ts";
 import { isObj, validCountry, validDiff, validIdeo } from "../game/sanitize.ts";
 import { validDailyMoves } from "../game/daily-run.ts";
+import { managementDocument } from "../game/classic.ts";
 import { validLivingWorld } from "../game/living-world.ts";
 import type { GameState } from "../game/types.ts";
 
@@ -102,7 +103,9 @@ export function parseSave(raw: string | null): SaveData | null {
     const s = d.state;
     if (!isObj(s) || !validState(s)) return null;
     if (d.screen === "ending" && !s.ended) return null;
-    return d as unknown as SaveData;
+    const saved=d as unknown as SaveData;
+    if(saved.state.currentEvent?.doc&&saved.state.currentEvent.choices.some(c=>c.id==='d'))saved.state={...saved.state,currentEvent:managementDocument(saved.state.currentEvent)};
+    return saved;
   } catch {
     return null;
   }

@@ -24,22 +24,19 @@ test('открытие страны свободно, детерминирова
 });
 test('личное поручение имеет цену, не переводит ход и доступно только раз в квартал',async()=>{
  const s=openLivingWorld(await fresh());const a=interveneWorld(s,'appoint:minister');assert.equal(a.turn,s.turn);assert.equal(a.resources.economy,s.resources.economy-4);assert.equal(a.resources.politicalCapital,s.resources.politicalCapital-2);
- assert.throws(()=>interveneWorld(a,'inspect'),/уже использовано/);const next=tick(a);assert.ok(livingActions(next).some(a=>!a.blocked));
- assert.throws(()=>interveneWorld({...next,lastTurn:{} as NonNullable<GameState['lastTurn']>},'inspect'),/после перехода/);
- assert.throws(()=>interveneWorld({...next,daily:'2026-10-08'},'inspect'),/деле дня/);
- assert.throws(()=>interveneWorld({...next,resources:{...next.resources,politicalCapital:5}},'inspect'),/Недостаточно/);
+ assert.throws(()=>interveneWorld(a,'visit'),/уже использовано/);const next=tick(a);assert.ok(livingActions(next).some(a=>!a.blocked));
+
+ assert.throws(()=>interveneWorld({...next,daily:'2026-10-08'},'visit'),/деле дня/);
+ assert.throws(()=>interveneWorld({...next,resources:{...next.resources,politicalCapital:5}},'retender'),/Недостаточно/);
 });
-test('доклад карьериста опережает факт; проверка раскрывает проблему, смена поставщика улучшает реальное исполнение',async()=>{
- let s=tick(interveneWorld(openLivingWorld(await fresh()),'appoint:minister'));
- assert.ok(s.world!.project.reported>s.world!.project.progress);assert.equal(s.world!.project.verified,null);
- s=interveneWorld(s,'inspect');assert.equal(s.world!.project.verified!.progress,s.world!.project.progress);assert.equal(s.world!.project.procurementFixed,false);
- s=tick(s);const repaired=interveneWorld(s,'retender');const without=stepLivingWorld(s,s.turn+1),withRepair=stepLivingWorld(repaired,repaired.turn+1);
- assert.ok(withRepair.world!.project.progress>without.world!.project.progress);
- assert.ok(repaired.factions.some((f,i)=>f.relation<s.factions[i].relation));
- const completed=tick(tick(repaired));assert.equal(completed.world!.project.status,'completed');
- const settled=stepLivingWorld(completed,completed.turn+1);assert.deepEqual(settled.res,{});assert.equal(settled.story,null);
+test('доклад показывает выполненную работу; выбор поставщика доступен без поиска ошибки',async()=>{
+ const s=tick(interveneWorld(openLivingWorld(await fresh()),'appoint:minister'));
+ assert.equal(s.world!.project.reported,s.world!.project.progress);assert.ok(!livingActions(s).some(a=>a.id==='inspect'));assert.ok(livingActions(s).some(a=>a.id==='retender'&&!a.blocked));
+ const repaired=interveneWorld(s,'retender');assert.ok(stepLivingWorld(repaired,2).world!.project.progress>stepLivingWorld(s,2).world!.project.progress);assert.ok(repaired.factions.some((f,i)=>f.relation<s.factions[i].relation));
+ const completed=tick(tick(tick(repaired)));assert.equal(completed.world!.project.status,'completed');const settled=stepLivingWorld(completed,completed.turn+1);assert.deepEqual(settled.res,{});assert.equal(settled.story,null);
+ const bargain=interveneWorld(s,'negotiate');assert.ok(bargain.factions.some((f,i)=>f.relation>s.factions[i].relation));assert.ok(!livingActions(bargain).some(a=>a.id==='retender'));
 });
-test('бездействие, доверие докладам и расследование дают разные исходы; информация переживает сохранение',async()=>{
+test('бездействие и незавершённое исполнение дают разные исходы; информация переживает сохранение',async()=>{
  const base=openLivingWorld(await fresh());let ignored=base,blind=interveneWorld(base,'appoint:minister');for(let i=0;i<4;i++){ignored=tick(ignored);blind=tick(blind);}
  assert.equal(ignored.world!.project.status,'failed');assert.equal(blind.world!.project.status,'partial');
  const save=JSON.stringify({version:SAVE_VERSION,screen:'game',state:blind});assert.deepEqual(parseSave(save)?.state.world,blind.world);
@@ -54,7 +51,7 @@ test('компетенция, лояльность, местные группы,
  assert.ok(stepLivingWorld(base,1).world!.project.progress>stepLivingWorld(hostile,1).world!.project.progress);
  const groups={...base,factions:base.factions.map(f=>f.bloc==='business'?{...f,relation:-50}:f)};
  assert.ok(stepLivingWorld(base,1).world!.project.progress>stepLivingWorld(groups,1).world!.project.progress);
- base=tick(base);assert.ok(base.world!.project.inspected);assert.ok(livingActions(base).some(a=>a.id==='retender'));
+ base=tick(base);assert.ok(livingActions(base).some(a=>a.id==='retender'));
  const funded=interveneWorld(base,'fund');assert.ok(stepLivingWorld(funded,2).world!.project.progress>stepLivingWorld(base,2).world!.project.progress);
  const changed=interveneWorld(base,'replace:minister');assert.ok(stepLivingWorld(changed,2).world!.project.lastFactors.includes('Передача дел новому руководителю'));
 });
@@ -65,4 +62,19 @@ test('дело развивается при обычных решениях, в
  assert.ok(s.lastTurn!.narrative.includes('не принимает сеть'));
  s=startEvent(s,event);const next=planTurn(s,'a');assert.equal(next.worldStory,null);assert.ok(!next.sources.economy?.some(([label])=>label==='энергосеть промышленного региона'));
  const profile=personProfiles(s).find(p=>p.name===s.world!.people[0].name)!;assert.ok(profile.rows.some(r=>r.label==='Компетенция в проекте'));
+});
+
+test('после доклада доступно поручение нового квартала; переход и загрузка не дают вторую попытку',async()=>{
+ let s=interveneWorld(openLivingWorld(await fresh()),'appoint:minister');s=startEvent(s,event);s=resolveTurn(s,'a',await classicApi.consequence(s,'a'));
+ assert.ok(s.lastTurn);const next=interveneWorld(s,'retender');assert.equal(next.turn,s.turn);assert.equal(next.world!.lastTick,s.world!.lastTick);assert.equal(next.lastTurn!.narrative,s.lastTurn!.narrative);
+ assert.equal(next.resources.economy,s.resources.economy-3);assert.ok(next.lastTurn!.sources!.economy!.some(([label,n])=>label.startsWith('поручение нового квартала')&&n===-3));assert.equal(s.world!.project.procurementFixed,false);
+ assert.throws(()=>interveneWorld({...next,lastTurn:null},'fund'),/уже использовано/);
+ const restored=parseSave(JSON.stringify({version:SAVE_VERSION,screen:'game',state:next}))!.state;assert.throws(()=>interveneWorld(restored,'fund'),/уже использовано/);
+});
+test('приоритет заводов и жилых районов меняет темп, повествование и итоговую пользу',async()=>{
+ const s=tick(interveneWorld(openLivingWorld(await fresh()),'appoint:minister'));const industry=interveneWorld(s,'priority:industry'),homes=interveneWorld(s,'priority:households');
+ const a=stepLivingWorld(industry,2),b=stepLivingWorld(homes,2);assert.ok(a.world!.project.progress>b.world!.project.progress);assert.ok(a.story!.includes('жилые районы ждут'));assert.ok(b.story!.includes('жилые районы'));
+ const finish=(gs:GameState)=>stepLivingWorld({...gs,world:{...gs.world!,project:{...gs.world!.project,progress:99,procurementFixed:true}}},gs.turn+1);
+ const x=finish(industry),y=finish(homes);assert.equal(x.world!.project.status,'completed');assert.equal(y.world!.project.status,'completed');assert.ok(x.res.economy!>y.res.economy!);assert.ok(x.res.internalLegitimacy!<y.res.internalLegitimacy!);
+ const legacy={...s,world:{...s.world!,project:{...s.world!.project}}};delete legacy.world.project.priority;assert.ok(validLivingWorld(legacy.world));assert.ok(stepLivingWorld(legacy,2).story);
 });

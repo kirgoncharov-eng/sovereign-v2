@@ -9,29 +9,16 @@ const newGame = async (seed = 3, bio?: string): Promise<GameState> =>
   createInitialState("Украина", "coalition", "liberal", await classicApi.setup("Украина", "coalition", "liberal", seed), () => 0.4, "classic", bio);
 const at = (s: GameState, turn: number): GameState => ({ ...s, turn: turn - 1, arc: null });
 
-test("проверка документа: два доклада за партию, первый лжёт, исходы зависят от отмеченной строки", async () => {
-  // зерно, при котором второй доклад честный: так в одной партии есть и ложь, и правда
-  let s0 = await newGame();
-  for (let seed = 4; inspectEvent(at(s0, inspectTurns(s0.seed)[1]))!.doc!.key !== null; seed++) s0 = await newGame(seed);
-  const turns = inspectTurns(s0.seed);
-  assert.equal(turns.length, 2);
-  const docs = turns.map(t => inspectEvent(at(s0, t)));
-  assert.ok(docs.every(Boolean));
-  assert.notEqual(docs[0]!.doc!.key, null, "первый доклад лжёт");
-  const ev = docs[0]!;
-  const s = startEvent(at(s0, turns[0]), ev);
-  // подписать ложь: сейчас выгодно, через два хода всплывёт со своей сценой
-  const accept = planTurn(s, "a");
-  assert.equal(accept.success, true);
-  assert.ok(accept.scheduled.some(p => p.story && p.due === s.turn + 3));
-  // уличить верно — легитимность растёт, ошибиться — падает
-  assert.ok((planTurn(s, "c").effects.resources.internalLegitimacy ?? 0) > 0);
-  assert.ok((planTurn(s, "d").effects.resources.internalLegitimacy ?? 0) < 0);
-  // предпросмотр «Утвердить» и «Вернуть» не выдаёт, лжёт ли доклад
-  const honest = docs.find(d => d!.doc!.key === null)!;
-  const pick = (e: typeof ev, id: string) => e.choices.find(c => c.id === id)!.deal;
-  assert.deepEqual(pick(ev, "a")!.res, pick(honest, "a")!.res);
-  assert.deepEqual(pick(ev, "b")!.res, pick(honest, "b")!.res);
+test("доклады: три управленческих решения без угадывания строки; цена и отложенные последствия", async () => {
+ const s0=await newGame();const turns=inspectTurns(s0.seed);assert.equal(turns.length,2);
+ for(const turn of turns){const ev=inspectEvent(at(s0,turn))!;assert.ok(ev.doc);assert.equal(ev.doc.key,null);assert.deepEqual(ev.choices.map(c=>c.id),['a','b','c']);const s=startEvent(at(s0,turn),ev);
+ for(const id of ['a','b','c']){const p=planTurn(s,id);assert.equal(p.success,true);assert.ok(p.scheduled.some(p=>p.due===s.turn+3&&p.story));}
+ assert.ok(ev.choices.some(c=>(c.deal!.res!.economy??0)<0));assert.ok((planTurn(s,'c').effects.resources.politicalCapital??0)<0);assert.ok(!ev.choices.some(c=>c.text.includes('лжи')));}
+});
+test("старый документ переводится в совещание без ловушки неверной строки",async()=>{
+ const {parseSave}=await import('../client/save.ts');const {SAVE_VERSION}=await import('./data.ts');const s0=await newGame();const ev=inspectEvent(at(s0,inspectTurns(s0.seed)[0]))!;
+ const legacy={...ev,doc:{...ev.doc!,key:2},choices:[...ev.choices,{...ev.choices[2],id:'d',text:'Уличить во лжи'}]};const s=startEvent(at(s0,inspectTurns(s0.seed)[0]),legacy);
+ const loaded=parseSave(JSON.stringify({version:SAVE_VERSION,screen:'game',state:s}))!.state;assert.deepEqual(loaded.currentEvent!.choices.map(c=>c.id),['a','b','c']);assert.equal(loaded.currentEvent!.doc!.key,null);assert.ok(planTurn(loaded,'c').success);
 });
 
 test("пресс-конференция: накануне выборов, три вопроса без повторов, молчание наказуемо", async () => {
@@ -77,15 +64,11 @@ test("звонок: дважды за партию, разные собесед�
 });
 
 test("контент вставок полон: доклады, вопросы прессы, требования в звонках", async () => {
-  const { INSPECT_DOCS } = await import("../content/inspect.ts");
+  const { MANAGEMENT_DOSSIERS } = await import("../content/management.ts");
   const { PRESS_QUESTIONS } = await import("../content/press.ts");
   const { CALL_DEMANDS, CALL_REPLIES } = await import("../content/calls.ts");
-  for (const d of INSPECT_DOCS) {
-    assert.ok(d.facts.length >= 2 && d.lines.length === 6, d.id);
-    if (d.lie === null) assert.ok(!d.reveal && !d.exposed, `${d.id}: у честного доклада нет разоблачения`);
-    else assert.ok(d.reveal && d.head && d.exposed?.story && d.lie < d.lines.length, `${d.id}: разоблачение и последствие`);
-  }
-  assert.equal(new Set(INSPECT_DOCS.map(d => d.id)).size, INSPECT_DOCS.length);
+  for(const d of MANAGEMENT_DOSSIERS){assert.ok(d.facts.length>=3&&d.lines.length>=2,d.id);assert.equal(d.options.length,3);for(const o of d.options){assert.ok(o.scene.length>100&&o.later.story.length>50,d.id);assert.ok(o.hint&&Object.keys(o.res).length);}}
+  assert.equal(new Set(MANAGEMENT_DOSSIERS.map(d=>d.id)).size,MANAGEMENT_DOSSIERS.length);
   for (const q of PRESS_QUESTIONS) {
     assert.equal(new Set(q.answers.map(a => a.tone)).size, 3, `${q.id}: три разных тона`);
   }

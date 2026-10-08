@@ -49,11 +49,11 @@ export async function applyDailyMove(state: GameState, move: DailyMove): Promise
     s = conveneCouncil(s, await classicApi.council(s));
   }
   let id = move.id;
-  if (move.marked !== undefined) {
+  if (event.doc && event.choices.some(c=>c.id==='d') && move.marked !== undefined) {
     if (!event.doc || !["c", "d"].includes(id)) throw new Error("Нет доклада");
     id = move.marked === event.doc.key ? "c" : "d";
     if (id !== move.id) throw new Error("Неверный исход проверки доклада");
-  } else if (event.doc && ["c", "d"].includes(id)) throw new Error("Не выбрана строка доклада");
+  } else if (event.doc && event.choices.some(c=>c.id==='d') && ["c", "d"].includes(id)) throw new Error("Не выбрана строка доклада");
   const final = move.press ? event.press ? pressChoice(s, move.press) : null
     : move.budget ? event.budget ? budgetChoice(s, move.budget.alloc, move.budget.debt) : null
     : move.call ? event.call ? callChoice(s, move.call.approach, move.call.ending) : null : undefined;

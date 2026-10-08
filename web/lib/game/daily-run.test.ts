@@ -20,7 +20,7 @@ async function play(date: string) {
     if (ev.budget) { move.budget = { alloc: { army: 2, social: 2, economy: 2, apparatus: 2, culture: 2 }, debt: false }; choice = budgetChoice(s, move.budget.alloc, false); kinds.add("budget"); }
     else if (ev.call) { move.call = { approach: "numbers", ending: "deal" }; choice = callChoice(s, "numbers", "deal"); kinds.add("call"); }
     else if (ev.press) { move.press = [0, -1, 2]; choice = pressChoice(s, move.press); kinds.add("press"); }
-    else if (ev.doc) { move.marked = 0; choice = ev.choices.find(c => c.id === (ev.doc!.key === 0 ? "c" : "d"))!; kinds.add("inspect"); }
+    else if (ev.doc) { choice = ev.choices.find(c => c.id === "c")!; kinds.add("inspect"); }
     else if (!ev.beat && !ev.special && s.councilCharges > 0) {
       const proposals = await classicApi.council(s);
       s = conveneCouncil(s, proposals);
