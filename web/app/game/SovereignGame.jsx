@@ -2339,9 +2339,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
               </div>
               {typed && gs.world && !gs.daily && !gs.ended && <div className="sv-country-entry" style={{marginBottom:12}}>
-                <strong>Из промышленного региона · восстановлено {gs.world.project.progress}% сети</strong>
-                <span>{gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':['completed','partial','failed'].includes(gs.world.project.status)?'Проект завершён. Итоги и причины сохранены в досье.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
-                <button onClick={()=>countryPanel.current?.showReport()}>Открыть доклад и поручения →</button>
+                <strong>Повестка · энергосеть {gs.world.project.progress}%{gs.world.health ? ` · больницы ${gs.world.health.progress}%` : ''}</strong>
+                <span>{gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
+                <button onClick={()=>countryPanel.current?.showReport()}>Открыть повестку и поручения →</button>
               </div>}
               {typed && <div style={{ textAlign:"right" }}>
                 {gs.ended

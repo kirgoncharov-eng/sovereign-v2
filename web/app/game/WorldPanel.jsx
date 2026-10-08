@@ -3,6 +3,9 @@ import { useImperativeHandle, useRef, useState } from 'react';
 import { COUNTRIES } from '@/lib/game/data.ts';
 import { monthYear, turnDate } from '@/lib/game/calendar.ts';
 import { livingActions, worldPerson } from '@/lib/game/living-world.ts';
+import HealthPanel from './HealthPanel.jsx';
+import ProjectActions from './ProjectActions.jsx';
+import { projectFinished } from '@/lib/game/living-health.ts';
 import { PeopleText } from './PeopleText.jsx';
 
 const STATUS={unassigned:'Ожидает поручения',running:'Работа продолжается',completed:'Сеть восстановлена',partial:'Восстановлена частично',failed:'Срок сорван'};
@@ -20,42 +23,50 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
   const [receipt,setReceipt]=useState(null);
   const world=gs.world, project=world?.project;
   const actions=livingActions(gs);
-  const latest=world?.dispatches.at(-1);
+  const energyReports=world?.dispatches.filter(report=>report.project!=='health')??[];
+  const latest=energyReports.at(-1);
+  const latestDispatch=world?.dispatches.at(-1);
+  const selected=place==='health'?world?.health:project;
+  const selectedFinished=selected&&projectFinished(selected);
+  const projects=world?[['region','Энергосеть',world.project],...(world.health?[['health','Районные больницы',world.health]]:[])]:[];
   const showActions=()=>{
-    if(!world)onOpen();
-    setExpanded(true);setPlace('region');setTab('actions');onViewChange(true);setPending(null);
+    if(!world?.health)onOpen();
+    setExpanded(true);if(place==='capital')setPlace('region');setTab('actions');onViewChange(true);setPending(null);
     requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));
   };
   useImperativeHandle(ref,()=>({showReport:()=>{
-    setExpanded(true);setPlace('region');setTab('dispatches');setPending(null);onViewChange(true);
+    setExpanded(true);setPlace(gs.world?.dispatches.at(-1)?.project==='health'?'health':'region');setTab('dispatches');setPending(null);onViewChange(true);
     requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));
   }}));
   const returnToDesk=()=>{setExpanded(false);onViewChange(false);setPending(null);if(gs.lastTurn&&!gs.ended)onContinue();else requestAnimationFrame(onCurrentCase);};
   const toggle=()=>{
     const open=!expanded;
-    if(open&&!world)onOpen();
+    if(open&&!world?.health)onOpen();
     setExpanded(open);onViewChange(open);setPending(null);setError(null);if(open&&!world)setTab('actions');
   };
-  const confirm=()=>{try{onAction(pending.id);setReceipt({turn:gs.turn,title:pending.title,cost:pending.cost});setPending(null);setError(null);setTab('dispatches');}catch(e){setError(e.message);}};
+  const confirm=()=>{try{onAction(pending.id);setReceipt({turn:gs.turn,title:pending.title,cost:pending.cost});setPlace(pending.id.startsWith('health:')?'health':'region');setPending(null);setError(null);setTab('dispatches');}catch(e){setError(e.message);}};
   if(gs.daily)return null;
   const quota=world?.lastActionTurn===gs.turn;
   const terminal=project&&['completed','partial','failed'].includes(project.status);
   return <section data-world-panel className="sv-country">
     <button type="button" className="sv-country-toggle" aria-expanded={expanded} onClick={toggle}>
-      <span>СТРАНА <span className="sv-country-arrow">{expanded?'▴':'▾'}</span></span>
-      <span>{project?`Энергосеть · ${STATUS[project.status]}`:'Карта, люди и личные поручения'}</span>
+      <span>ПОВЕСТКА ПРЕЗИДЕНТА <span className="sv-country-arrow">{expanded?'▴':'▾'}</span></span>
+      <span>{world?`${projects.filter(([, , item])=>!projectFinished(item)).length} дела в работе`:'Кабинет, проекты и исполнители'}</span>
     </button>
-    {!expanded&&latest&&<div className="sv-country-latest">{stamp(gs,Math.max(world.openedTurn,latest.turn-(latest.kind==='report'||latest.kind==='news'?1:0)))} · {latest.title}</div>}
-    {!expanded&&!gs.ended&&<div className="sv-country-entry"><button onClick={showActions}>{!project||project.status==='unassigned'?'Назначить руководителя':terminal?'Открыть итог проекта':quota?'Посмотреть ход работ':'Дать поручение по региону'} →</button><span>{quota?'Поручение на этот квартал уже подписано':gs.lastTurn&&!terminal?'Доклад получен. Можно действовать сейчас.':'Работы идут параллельно делам в кабинете'}</span></div>}
+    {!expanded&&latestDispatch&&<div className="sv-country-latest">{stamp(gs,Math.max(world.openedTurn,latestDispatch.turn-(['report','news'].includes(latestDispatch.kind)?1:0)))} · {latestDispatch.title}</div>}
+    {world&&<div className="sv-agenda-projects" aria-label="Проекты в повестке">{projects.map(([id,title,item])=><button key={id} data-agenda-project={id} aria-pressed={expanded&&place===id} onClick={()=>{if(!world.health)onOpen();setExpanded(true);onViewChange(true);setPlace(id);setTab(item.status==='unassigned'?'actions':'dispatches');setPending(null);}}>
+      <strong>{title}</strong><span>{item.status==='unassigned'?'Ждёт назначения':item.status==='running'?`${item.progress}% · работа идёт`:item.status==='completed'?'Завершён':item.status==='partial'?'Частичный результат':'Срок сорван'}</span><small>{projectFinished(item)?item.followupTurn?'Остались обязательства':'Итоги в досье':`${Math.max(0,item.deadline-gs.turn)} кв. до срока${item.executor?' · исполнитель назначен':''}`}</small>
+    </button>)}</div>}
+    {!expanded&&!gs.ended&&<div className="sv-country-entry"><button onClick={showActions}>{!world?'Открыть проекты страны':quota?'Посмотреть ход проектов':'Выбрать личное поручение'} →</button><span>{quota?'Поручение на этот квартал уже подписано':'Оба проекта исполняются параллельно. Чтение и переходы свободны.'}</span></div>}
     {expanded&&world&&<div className="sv-country-body">
       <div className="sv-country-guide">
         <div className="sv-country-label">ПОРУЧЕНИЯ · {stamp(gs,gs.turn)}</div>
-        <strong>{terminal?'Проект завершён':project.status==='unassigned'?'Первый шаг — назначить руководителя':quota?'Поручение принято. Теперь — к делу в кабинете':gs.lastTurn?'Доклад получен. Выберите, что изменить':'Можно скорректировать исполнение'}</strong>
-        <p>{terminal?'Итоги остаются в досье. Продолжайте управлять страной в кабинете.':project.status==='unassigned'?'Выберите человека во вкладке «Поручения». Он получит финансирование на год.':quota?'Работы продолжатся, когда вы примете основное решение. Следующий доклад придёт после завершения квартала.':'Прочитайте доклад и решите, нужны ли новое поручение, деньги или другой приоритет. Можно оставить текущий план в работе.'}</p>
-        <div>{!terminal&&!quota&&<button onClick={showActions}>{project.status==='unassigned'?'Выбрать руководителя':'Выбрать поручение'} →</button>}<button onClick={returnToDesk}>{gs.lastTurn&&!gs.ended?'Открыть дело нового квартала':'К текущему делу в кабинете'} →</button></div>
-        <small>Карта и доклады доступны свободно. Одно личное поручение за квартал; время идёт после решения в кабинете.</small>
+        <strong>{selectedFinished?'Проект завершён':selected?.status==='unassigned'?'Первый шаг — назначить руководителя':quota?'Поручение принято. Теперь — к делу в кабинете':gs.lastTurn?'Доклад получен. Выберите, что изменить':'Можно скорректировать исполнение'}</strong>
+        <p>{selectedFinished?'Итоги остаются в досье. Другие проекты и обязательства продолжаются.':selected?.status==='unassigned'?'Выберите человека во вкладке «Поручения». Он получит финансирование на год.':quota?'Работы продолжатся, когда вы примете основное решение. Следующий доклад придёт после завершения квартала.':'Прочитайте доклад и решите, нужны ли новое поручение, деньги или другой приоритет. Можно оставить текущий план в работе.'}</p>
+        <div>{!selectedFinished&&!quota&&<button onClick={showActions}>{selected?.status==='unassigned'?'Выбрать руководителя':'Выбрать поручение'} →</button>}<button onClick={returnToDesk}>{gs.lastTurn&&!gs.ended?'Открыть дело нового квартала':'К текущему делу в кабинете'} →</button></div>
+        <small>Карта и доклады доступны свободно. Одно личное поручение на оба проекта за квартал. Общий резерв экономики: {gs.resources.economy}. Время идёт после решения в кабинете.</small>
       </div>
-      <div className="sv-country-map" aria-label="Резиденция и промышленный регион">
+      <div className="sv-country-map" aria-label="Резиденция и два проекта страны">
         <div className="sv-country-river" aria-hidden="true"/>
         <div className="sv-country-route" aria-hidden="true"/>
         <button className="sv-country-place" aria-pressed={place==='capital'} onClick={()=>{setPlace('capital');setPending(null);}}>
@@ -64,13 +75,14 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
         <button className="sv-country-place" aria-pressed={place==='region'} onClick={()=>{setPlace('region');setPending(null);}}>
           <span aria-hidden="true">▤</span><strong>Промышленный регион</strong><small>{terminal?STATUS[project.status]:'Отключения электричества'}</small>
         </button>
+        {world.health&&<button className="sv-country-place" aria-pressed={place==='health'} onClick={()=>{setPlace('health');setPending(null);setTab('dispatches');}}><span aria-hidden="true">✚</span><strong>Районные больницы</strong><small>{world.health.progress}% · кадры</small></button>}
       </div>
-      {place==='capital'?<div className="sv-country-room">
+      {place==='health'&&world.health?<HealthPanel gs={gs} Scene={Scene} tab={tab} setTab={setTab} tabs={tabs} stamp={stamp} actionsProps={{actions:actions.filter(action=>action.id.startsWith('health:')),quota,pending,setPending,confirm,error}}/>:place==='capital'?<div className="sv-country-room">
         <div className="sv-country-label">КАБИНЕТ ПРЕЗИДЕНТА</div>
         <h3>На столе в резиденции</h3>
         <p>{gs.currentEvent?`Входящее дело: «${gs.currentEvent.title}».`:gs.lastTurn?'Газета с последствиями вашего последнего решения.':'Канцелярия готовит новое дело.'}</p>
-        <p>Из промышленного региона поступают отдельные доклады. Поручения по энергосети продолжают исполняться, пока вы заняты другими вопросами.</p>
-        <button className="sv-country-back" onClick={returnToDesk}>{gs.lastTurn?'Открыть дело нового квартала':'Вернуться к делу на столе'} ↓</button>
+        <p>Из промышленного региона поступают отдельные доклады. Поручения по энергосети и районным больницам продолжают исполняться, пока вы заняты другими вопросами.</p>
+      <button className="sv-country-back" onClick={returnToDesk}>{gs.lastTurn?'Открыть дело нового квартала':'Вернуться к делу на столе'} ↓</button>
       </div>:<div className="sv-country-room">
         <div className="sv-country-label">ПРОМЫШЛЕННЫЙ РЕГИОН · ЭНЕРГОСЕТЬ</div>
         <h3>Свет в окнах, работа на заводах</h3>
@@ -91,31 +103,18 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
               <small>{stamp(gs,Math.max(world.openedTurn,d.turn-(d.kind==='report'||d.kind==='news'?1:0)))} · {{letter:'Письмо',decision:'Ваша инициатива',report:'Доклад исполнителя',inspection:'Проверенные сведения',news:'Итог дела'}[d.kind]}</small>
               <h4><PeopleText>{d.title}</PeopleText></h4><p><PeopleText>{d.text}</PeopleText></p>
             </article>)}
-            {world.dispatches.length>1&&<details className="sv-country-history"><summary>Предыдущие доклады и поручения ({world.dispatches.length-1})</summary>{world.dispatches.slice(0,-1).reverse().map(d=><article key={d.id}><small>{stamp(gs,Math.max(world.openedTurn,d.turn-(d.kind==='report'||d.kind==='news'?1:0)))}</small><h4><PeopleText>{d.title}</PeopleText></h4><p><PeopleText>{d.text}</PeopleText></p></article>)}</details>}
+            {energyReports.length>1&&<details className="sv-country-history"><summary>Предыдущие доклады и поручения ({energyReports.length-1})</summary>{energyReports.slice(0,-1).reverse().map(d=><article key={d.id}><small>{stamp(gs,Math.max(world.openedTurn,d.turn-(d.kind==='report'||d.kind==='news'?1:0)))}</small><h4><PeopleText>{d.title}</PeopleText></h4><p><PeopleText>{d.text}</PeopleText></p></article>)}</details>}
             {project.status==='running'&&project.lastFactors.length>0&&<article><h4>Что влияет на работу сейчас</h4><ul>{project.lastFactors.map((f,i)=><li key={i}><PeopleText>{f}</PeopleText></li>)}</ul></article>}
             {terminal&&project.lastFactors.length>0&&<article><h4>Что повлияло на исполнение</h4><ul>{project.lastFactors.map((f,i)=><li key={i}><PeopleText>{f}</PeopleText></li>)}</ul></article>}
           </div>}
           {tab==='people'&&<div className="sv-country-people">
-            {world.people.map(a=>{const p=worldPerson(gs,a.id);return <article key={p.id}><h4><PeopleText>{p.name}</PeopleText></h4><div>{p.role}{project.executor===p.id?' · руководит проектом':''}</div><div className="sv-country-person-stats">Компетенция {p.competence}/3 · к вам {p.relation>0?'+':''}{p.relation} · {TRAIT[p.trait]}</div><p>{p.goal}.</p></article>;})}
+            {world.people.filter(person=>['minister','governor','engineer'].includes(person.id)).map(a=>{const p=worldPerson(gs,a.id);return <article key={p.id}><h4><PeopleText>{p.name}</PeopleText></h4><div>{p.role}{project.executor===p.id?' · руководит проектом':''}</div><div className="sv-country-person-stats">Компетенция {p.competence}/3 · к вам {p.relation>0?'+':''}{p.relation} · {TRAIT[p.trait]}</div><p>{p.goal}.</p>{world.health?.status==='running'&&world.health.executor===p.id&&<p className="sv-country-receipt">Уже руководит больницами. Второе назначение замедлит оба проекта.</p>}</article>;})}
           </div>}
-          {tab==='actions'&&<div>
-            {terminal?<p>Работа по этому поручению завершена. Доклады и участники остаются в досье региона.</p>:<>
-              <p className="sv-country-capacity">Одно личное вмешательство за квартал. Оно не закрывает дело на столе и не переводит время вперёд. Чтение карты и докладов свободно.</p>
-              {quota?<p className="sv-country-receipt">Вы уже дали поручение на этот квартал. Оно остаётся в работе после перехода к следующему делу. Примите решение в кабинете, чтобы получить новый доклад и возможность вмешаться ещё раз.</p>:actions.map(a=><div key={a.id}>
-                <button type="button" className="sv-country-action" disabled={!!a.blocked} onClick={()=>{setPending(a);setError(null);}} aria-expanded={pending?.id===a.id}>
-                  <strong>{a.title}</strong><span>{a.detail}</span><small>{Object.entries(a.cost).map(([k,v])=>`${RESOURCE[k]??k} ${v}`).join(' · ')}{a.blocked?` · ${a.blocked}`:''}</small>
-                </button>
-                {pending?.id===a.id&&<div className="sv-country-confirm" role="group" aria-label="Подписать личное поручение">
-                  <h4>{pending.title}</h4><p>Поручение начнёт исполняться в текущем квартале. Расходы списываются сейчас; результат увидите после решения в кабинете.</p>
-                  <div><button onClick={confirm}>Подписать поручение</button><button onClick={()=>setPending(null)}>Отложить</button></div>
-                </div>}
-              </div>)}
-            </>}
-            {error&&<p role="alert">{error}</p>}
-          </div>}
-          {receipt?.turn===gs.turn&&<p className="sv-country-receipt" role="status">Подписано: {receipt.title}. {Object.entries(receipt.cost).map(([k,v])=>`${RESOURCE[k]??k} ${v}`).join(' · ')}. Поручение относится к текущему кварталу. Теперь откройте дело в кабинете; новый доклад придёт после его завершения.</p>}
+          {tab==='actions'&&<ProjectActions actions={actions.filter(action=>!action.id.startsWith('health:'))} quota={quota} terminal={terminal} pending={pending} setPending={setPending} confirm={confirm} error={error}/>}
+
         </div>
       </div>}
+          {receipt?.turn===gs.turn&&<p className="sv-country-receipt" role="status">Подписано: {receipt.title}. {Object.entries(receipt.cost).map(([k,v])=>`${RESOURCE[k]??k} ${v}`).join(' · ')}. Поручение относится к текущему кварталу. Теперь откройте дело в кабинете; новый доклад придёт после его завершения.</p>}
       <button className="sv-country-back" onClick={returnToDesk}>{gs.lastTurn&&!gs.ended?'Продолжить — открыть дело нового квартала':'Продолжить — к текущему делу в кабинете'} →</button>
     </div>}
   </section>;
