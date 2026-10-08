@@ -1,3 +1,4 @@
+import { decideHealthBargain, type HealthBargainChoice } from './health-bargain.ts';
 import { aftermathActions, decideHealthAftermath, scheduleHealthAftermath, stepHealthAftermath, validHealthAftermath, type HealthAftermath, type HealthResponse } from './health-aftermath.ts';
 import type { GameState, ResourceDelta } from './types.ts';
 import type { LivingWorld, WorldAction, WorldPerson, WorldPersonId } from './living-world.ts';
@@ -64,6 +65,7 @@ export function healthActions(world: LivingWorld, people: WorldPerson[]): Omit<W
 
 export function healthDecision(world: LivingWorld, id: string, person: (id: WorldPersonId) => WorldPerson, turn: number): string {
   const project = world.health!;
+  if (id.startsWith('health:bargain:')) return decideHealthBargain(world, id.slice(15) as HealthBargainChoice);
   if (id.startsWith('health:response:')) return decideHealthAftermath(world, id.slice(16) as HealthResponse, turn, person);
   if (id.startsWith('health:appoint:') || id.startsWith('health:replace:')) {
     const replace = id.startsWith('health:replace:');
@@ -164,5 +166,5 @@ export function validHealthProject(value: unknown, turn: number): value is Healt
 }
 
 export function cloneHealthProject(project: HealthProject): HealthProject {
-  return { ...project, lastFactors: [...project.lastFactors], ...(project.aftermath ? { aftermath: { ...project.aftermath, factors: [...project.aftermath.factors] } } : {}) };
+  return { ...project, lastFactors: [...project.lastFactors], ...(project.aftermath ? { aftermath: { ...project.aftermath, factors: [...project.aftermath.factors], ...(project.aftermath.bargain ? { bargain: { ...project.aftermath.bargain } } : {}) } } : {}) };
 }

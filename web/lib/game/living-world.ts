@@ -1,3 +1,4 @@
+import { healthNeedsAttention } from './health-aftermath.ts';
 // Первый живой регион: поручение развивается вместе с кварталами основной партии.
 // Модель не знает React и не бросает скрытый кубик: причины исполнения сохраняются в докладах.
 import { cloneHealthProject, healthActions, healthDecision, newHealthProject, projectFinished, stepHealthProject, validHealthProject, type HealthProject } from './living-health.ts';
@@ -481,7 +482,7 @@ export function stepLivingWorld(gs: GameState, nextTurn: number): {
     const health = stepHealthProject(gs, world, nextTurn, healthExecutor);
     if (health.story)
         world = append(world, {
-            project: 'health', turn: nextTurn, kind: projectFinished(world.health!) ? 'news' : 'report', title: world.health!.aftermath?.phase === 'open' ? 'Больницы · требуется решение' : world.health!.aftermath?.phase === 'working' ? 'Больницы · исполнение поручения' : projectFinished(world.health!) ? 'Больницы · результат и обязательства' : 'Больницы · квартальный доклад', text: health.story
+            project: 'health', turn: nextTurn, kind: projectFinished(world.health!) ? 'news' : 'report', title: healthNeedsAttention(world.health) ? 'Больницы · требуется решение' : world.health!.aftermath?.phase === 'working' ? 'Больницы · исполнение поручения' : projectFinished(world.health!) ? 'Больницы · результат и обязательства' : 'Больницы · квартальный доклад', text: health.story
         });
     const res = {
         ...energy.res

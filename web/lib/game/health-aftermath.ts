@@ -1,3 +1,4 @@
+import { bargainActions, bargainFactors, newHealthBargain, validHealthBargain, type HealthBargain } from './health-bargain.ts';
 // Одна история после кадровой программы: память о решении, срок ответа и исполнение.
 import type { GameState, ResourceDelta } from './types.ts';
 import type { HealthProject } from './living-health.ts';
@@ -15,6 +16,7 @@ export interface HealthAftermath {
   executor: WorldPersonId | null;
   outcome: 'fulfilled' | 'limited' | 'neglected' | null;
   factors: string[];
+  bargain?: HealthBargain;
 }
 export const AFTERMATH_TITLE: Record<HealthBranch, string> = {
   permanent: 'Кто оплатит открытые отделения',
@@ -47,8 +49,8 @@ export function scheduleHealthAftermath(project: HealthProject, turn: number): H
       : `Вы выбрали постоянный набор. Районная программа достигла ${project.progress}%; новые ставки и жильё требуют содержания после окончания стартового бюджета.`;
   return { branch, phase: 'scheduled', due, deadline: due + 2, cause, response: null, executor: null, outcome: null, factors: [] };
 }
-export const healthNeedsAttention = (project?: HealthProject) => project?.aftermath?.phase === 'open';
-export const healthHasContinuation = (project?: HealthProject) => !!project?.aftermath && project.aftermath.phase !== 'settled';
+export const healthNeedsAttention = (project?: HealthProject) => project?.aftermath?.phase === 'open' || project?.aftermath?.bargain?.phase === 'open';
+export const healthHasContinuation = (project?: HealthProject) => !!project?.aftermath && (project.aftermath.phase !== 'settled' || project.aftermath.bargain?.reviewDue != null);
 
 function responseExecutor(project: HealthProject, response: HealthResponse): WorldPersonId {
   if (['mediate', 'pilot', 'audit'].includes(response)) return 'doctor';
@@ -58,6 +60,7 @@ function responseExecutor(project: HealthProject, response: HealthResponse): Wor
 export function aftermathActions(world: LivingWorld, people: WorldPerson[]): Omit<WorldAction, 'blocked'>[] {
   const project = world.health;
   if (!project || !healthNeedsAttention(project)) return [];
+  if (project.aftermath!.phase === 'working') return bargainActions(world);
   return RESPONSES[project.aftermath!.branch].map(response => {
     const plan = PLANS[response], person = people.find(p => p.id === responseExecutor(project, response))!;
     return {
@@ -73,6 +76,7 @@ export function decideHealthAftermath(world: LivingWorld, response: HealthRespon
   story.executor = responseExecutor(project, response);
   story.phase = 'working';
   story.due = turn + 2;
+  if (response === 'mediate') story.bargain = newHealthBargain(world.people.map(p => person(p.id)));
   return `${person(story.executor).name} получает поручение «${PLANS[response].title}». ${story.cause} Секретарь вписывает в журнал: доклад через два квартала. До доклада результат программы не меняется; исполнитель должен провести решение через учреждения, а не только подписать бумагу.`;
 }
 
@@ -102,6 +106,8 @@ function executionFactors(state: GameState, story: HealthAftermath, actor: World
   if (state.resources.economy < 25 && ['payroll', 'replacement', 'pilot'].includes(story.response!)) {
     score--; factors.push('Слабая экономика затрудняет исполнение кадрового бюджета');
   }
+  const bargain = bargainFactors(story.bargain, people, state.resources.economy);
+  score += bargain.score; factors.push(...bargain.factors);
   return { good: score >= 4, factors };
 }
 function reduceDistricts(project: HealthProject, amount: number) {
@@ -112,7 +118,14 @@ function reduceDistricts(project: HealthProject, amount: number) {
 export function stepHealthAftermath(state: GameState, world: LivingWorld, turn: number, people: WorldPerson[]): { res: ResourceDelta; story: string | null } {
   const project = world.health!, continuation = project.aftermath!;
   const minister = people.find(p => p.id === 'healthMinister')!, doctor = people.find(p => p.id === 'doctor')!;
-  if (continuation.phase === 'settled') return { res: {}, story: null };
+  if (continuation.phase === 'settled') {
+    const bargain = continuation.bargain;
+    if (bargain?.reviewDue != null && turn >= bargain.reviewDue) {
+      bargain.reviewDue = null;
+      return { res: { politicalCapital: -2 }, story: `${minister.name} представил назначения по согласованному вами порядку. Руководители больниц теперь обязаны карьерой министру; он опирается на них в торге с резиденцией. Политкапитал −2 — цена переданного контроля над кадрами, а не новый штраф за больничную программу.` };
+    }
+    return { res: {}, story: null };
+  }
   if (continuation.phase === 'scheduled') {
     if (turn < continuation.due) return { res: {}, story: null };
     continuation.phase = 'open';
@@ -135,6 +148,11 @@ export function stepHealthAftermath(state: GameState, world: LivingWorld, turn: 
       ? { res: { economy: -2, internalLegitimacy: -3 }, story: `Срок ответа прошёл без поручения. Областные больницы нанимают срочную замену, отменяя плановые приёмы; районы сохраняют переведённых врачей, но очередь переместилась в область. ${minister.name} сохраняет показатели районной программы, жители области требуют ответа. Причина: ${continuation.cause}` }
       : { res: { internalLegitimacy: -4, politicalCapital: -2 }, story: `Срок ответа прошёл без поручения. Закрытые кабинеты становятся местом еженедельных собраний. Оппозиция связывает пустые ставки с молчанием резиденции; ${doctor.name} прекращает обещать людям скорое открытие. Укомплектовано по-прежнему ${project.progress}%. Причина: ${continuation.cause}` };
   }
+  if (turn < continuation.due && continuation.bargain?.phase === 'waiting') {
+    continuation.bargain.phase = 'open';
+    return { res: {}, story: `Согласование остановилось на двух подписях. ${continuation.bargain.ministerCondition} ${continuation.bargain.doctorCondition} До итогового доклада остался один квартал. Выберите, чьи полномочия закрепить, в поручениях районных больниц. Без ответа министерство задержит график; лояльность сама по себе не снимает спор об интересах.` };
+  }
+  if (turn >= continuation.due && continuation.bargain?.phase === 'open') continuation.bargain.phase = 'ignored';
   const actor = people.find(p => p.id === continuation.executor)!;
   if (turn < continuation.due) return { res: {}, story: `${actor.name} исполняет поручение «${PLANS[continuation.response!].title}». Решение проходит согласования; итоговый доклад — после следующего решения в кабинете.` };
   const response = continuation.response!;
@@ -191,6 +209,15 @@ export function validHealthAftermath(value: unknown, turn: number): value is Hea
   if (!Object.hasOwn(RESPONSES, s.branch) || !['scheduled', 'open', 'working', 'settled'].includes(s.phase)
     || !int(s.due) || !int(s.deadline) || s.deadline < 2 || typeof s.cause !== 'string' || !s.cause
     || !Array.isArray(s.factors) || !s.factors.every(f => typeof f === 'string')) return false;
+  if (s.bargain !== undefined) {
+    if (!validHealthBargain(s.bargain) || s.response !== 'mediate' || s.branch !== 'rotation' || !['working', 'settled'].includes(s.phase)) return false;
+    const b = s.bargain;
+    if (s.phase === 'working' && (!['waiting', 'open', 'answered'].includes(b.phase) || b.phase === 'waiting' && s.due !== turn + 2 || b.phase === 'open' && s.due !== turn + 1)) return false;
+    if (s.phase === 'settled' && !['answered', 'ignored'].includes(b.phase)) return false;
+    if (s.executor !== (b.choice === 'minister' ? 'healthMinister' : 'doctor')) return false;
+    if (b.choice === 'minister' && s.phase === 'working' && b.reviewDue === null) return false;
+    if (b.reviewDue !== null && (b.reviewDue !== s.due + 2 || b.reviewDue <= turn)) return false;
+  }
   if (s.phase === 'scheduled' || s.phase === 'open') return s.response === null && s.executor === null && s.outcome === null && s.deadline === s.due + 2 && (s.phase === 'scheduled' ? s.due > turn && s.due <= turn + 2 : s.due <= turn && s.deadline > turn);
   if (s.phase === 'working') return RESPONSES[s.branch].includes(s.response!) && ['healthMinister', 'doctor', 'governor'].includes(s.executor!) && s.outcome === null && s.due > turn && s.due <= turn + 2;
   return ['fulfilled', 'limited', 'neglected'].includes(s.outcome!) && (s.outcome === 'neglected' ? s.response === null && s.executor === null && s.deadline <= turn : RESPONSES[s.branch].includes(s.response!) && ['healthMinister', 'doctor', 'governor'].includes(s.executor!) && s.due <= turn);

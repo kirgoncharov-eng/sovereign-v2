@@ -1,4 +1,5 @@
 "use client";
+import { BARGAIN_PLANS } from '@/lib/game/health-bargain.ts';
 import { AFTERMATH_TITLE, healthNeedsAttention } from '@/lib/game/health-aftermath.ts';
 import { HEALTH_PEOPLE, projectFinished } from '@/lib/game/living-health.ts';
 import { worldPerson } from '@/lib/game/living-world.ts';
@@ -9,6 +10,7 @@ export default function HealthPanel({ gs, Scene, tab, setTab, tabs, stamp, actio
   const project = gs.world.health;
   const finished = projectFinished(project);
   const continuation = project.aftermath;
+  const bargain = continuation?.bargain;
   const reports = gs.world.dispatches.filter(report => report.project === 'health');
   const latest = reports.at(-1);
   const date = report => stamp(gs, Math.max(project.openedTurn, report.turn - (['report','news'].includes(report.kind) ? 1 : 0)));
@@ -29,7 +31,16 @@ export default function HealthPanel({ gs, Scene, tab, setTab, tabs, stamp, actio
       <p><strong>Почему это произошло.</strong> <PeopleText>{continuation.cause}</PeopleText></p>
       <p>{continuation.phase==='scheduled'?`Новый доклад через ${Math.max(0,continuation.due-gs.turn)} кв.`:continuation.phase==='open'?`Требуется ваш ответ. Осталось ${Math.max(0,continuation.deadline-gs.turn)} кв.; без ответа ситуация изменится сама.`:continuation.phase==='working'?`Поручение исполняется. Доклад через ${Math.max(0,continuation.due-gs.turn)} кв.`:continuation.outcome==='neglected'?'Срок прошёл без вмешательства. Последствия — в итоговом докладе.':continuation.outcome==='fulfilled'?'Поручение исполнено. Результат — в итоговом докладе.':'Получен ограниченный результат. Причины — в итоговом докладе.'}</p>
       {continuation.executor&&<p>Исполнитель: <PeopleText>{worldPerson(gs,continuation.executor).name}</PeopleText>.</p>}
-      {healthNeedsAttention(project)&&<button className="sv-health-response" onClick={()=>setTab('actions')}>Выбрать ответ на доклад →</button>}
+      {continuation.phase==='open'&&<button className="sv-health-response" onClick={()=>setTab('actions')}>Выбрать ответ на доклад →</button>}
+    </article>}
+    {bargain&&bargain.phase!=='waiting'&&<article className="sv-country-receipt" data-health-bargain>
+      <div className="sv-country-label">СПОР О ПОЛНОМОЧИЯХ</div><h4>Кто управляет графиком</h4>
+      <p><PeopleText>{bargain.ministerCondition}</PeopleText></p>
+      <p><PeopleText>{bargain.doctorCondition}</PeopleText></p>
+      <p>К вам сейчас: министр {worldPerson(gs,'healthMinister').relation > 0 ? '+' : ''}{worldPerson(gs,'healthMinister').relation}, главный врач {worldPerson(gs,'doctor').relation > 0 ? '+' : ''}{worldPerson(gs,'doctor').relation}. Поддержка не отменяет собственных интересов.</p>
+      <p>{bargain.phase==='open'?`Нужен ответ до итогового доклада: ${Math.max(0,continuation.due-gs.turn)} кв. Без ответа ведомство задержит график.`:bargain.phase==='ignored'?'Вы оставили спор без ответа. Его влияние объяснено в итоговом докладе.':`Вы подписали: «${BARGAIN_PLANS[bargain.choice].title}».`}</p>
+      {bargain.reviewDue!==null&&<p>Цена уступки ещё впереди: −2 политкапитала через {Math.max(0,bargain.reviewDue-gs.turn)} кв. Министр укрепит собственную сеть назначениями.</p>}
+      {bargain.phase==='open'&&<button className="sv-health-response" onClick={()=>{setTab('actions');actionsProps.setPending(null);}}>Разрешить спор исполнителей →</button>}
     </article>}
     <div ref={tabs} className="sv-country-tabs" role="tablist" aria-label="Досье районных больниц">
       {[['dispatches','Доклады'],['people','Люди'],['actions','Поручения']].map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} onClick={()=>{setTab(id);actionsProps.setPending(null);}}>{label}</button>)}
@@ -40,6 +51,6 @@ export default function HealthPanel({ gs, Scene, tab, setTab, tabs, stamp, actio
       {reports.length>1&&<details className="sv-country-history"><summary>Предыдущие доклады и поручения ({reports.length-1})</summary>{reports.slice(0,-1).reverse().map(report=><article key={report.id}><small>{date(report)}</small><h4><PeopleText>{report.title}</PeopleText></h4><p><PeopleText>{report.text}</PeopleText></p></article>)}</details>}
     </div>}
     {tab==='people'&&<div className="sv-country-people" role="tabpanel">{gs.world.people.filter(person=>HEALTH_PEOPLE.includes(person.id)).map(raw=>{const person=worldPerson(gs,raw.id);return <article key={person.id}><h4><PeopleText>{person.name}</PeopleText></h4><div>{person.role}</div><p className="sv-country-person-stats">Компетенция {person.competence}/3 · к вам {person.relation>0?'+':''}{person.relation}</p><p>{person.goal}.</p>{gs.world.project.status==='running'&&gs.world.project.executor===person.id&&<p className="sv-country-receipt">Уже руководит энергосетью. Второе назначение замедлит оба проекта.</p>}</article>;})}</div>}
-    {tab==='actions'&&<div role="tabpanel">{continuation&&!healthNeedsAttention(project)?<p>{continuation.phase==='scheduled'?'Сейчас ожидается новый доклад. Продолжите управление из кабинета.':continuation.phase==='working'?'Поручение уже исполняется; следующий доклад покажет результат.': 'История этого поручения завершена. Итоги остаются в досье.'}</p>:<ProjectActions {...actionsProps} terminal={finished&&!healthNeedsAttention(project)}/>}</div>}
+    {tab==='actions'&&<div role="tabpanel">{continuation&&!healthNeedsAttention(project)?<p>{continuation.phase==='scheduled'?'Сейчас ожидается новый доклад. Продолжите управление из кабинета.':continuation.phase==='working'?'Поручение уже исполняется; следующий доклад покажет результат.':bargain?.reviewDue!=null?'Поручение завершено; ожидается политическая цена переданного министру контроля над кадрами. Срок указан выше.': 'История этого поручения завершена. Итоги остаются в досье.'}</p>:<ProjectActions {...actionsProps} terminal={finished&&!healthNeedsAttention(project)}/>}</div>}
   </div>;
 }
