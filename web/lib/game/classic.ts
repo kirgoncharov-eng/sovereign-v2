@@ -1,3 +1,4 @@
+import { mandatePublicEvent } from './minister-public.ts';
 import { governmentReviewEvent } from './government.ts';
 // Режим «Сценарии»: та же игра без обращения к модели. Событие выбирается из библиотеки
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
@@ -780,6 +781,8 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
   if (terms) return terms;
   const beat = beatEvent(state);
   if (beat) return beat;
+  const publicQuestion = mandatePublicEvent(state);
+  if (publicQuestion) return publicQuestion;
   const review = governmentReviewEvent(state);
   if (review) return review;
   const interlude = inspectEvent(state) ?? pressEvent(state) ?? callEvent(state) ?? budgetEvent(state);
@@ -1159,6 +1162,8 @@ const COUNCIL_CARDS = { ...COUNCIL_A, ...COUNCIL_B };
 const FAIL_SCENES: Record<string, string[]> = { ...FAIL_A, ...FAIL_B };
 
 function buildCouncil(state: GameState): Choice[] {
+  // A generic policy proposal cannot answer a factual question about this signature.
+  if (state.currentEvent?.choices.some(c => c.mandateResponse)) return [];
   const r = seededRandom(hashSeed(state.seed, "council", state.turn));
   // Авторский совет для конкретного дела: у каждого советника свой ход и свои последствия.
   const authored = state.currentEvent?.card ? COUNCIL_CARDS[state.currentEvent.card] : undefined;

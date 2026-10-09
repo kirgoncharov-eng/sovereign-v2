@@ -8,6 +8,8 @@ export interface MinisterMandate {
     changed: number;
     text: string;
     handover: boolean;
+    usedAt?: number;
+    publicPhase?: 'pending' | 'checking' | 'closed';
 }
 export const mandatePresent = (world: LivingWorld) => !!world.mandate && world.people.some(p => p.id === 'minister' && p.name === world.mandate!.name);
 export const mandateEnergyHelp = (world: LivingWorld) => mandatePresent(world) && ['accepted', 'used'].includes(world.mandate!.phase) && world.project.executor === 'minister';
@@ -71,6 +73,8 @@ export function stepMinister(world: LivingWorld, turn: number): string | null {
     }
     else if (m.phase === 'accepted' && world.government?.programs.some(p => p.id === 'housing' && p.status === 'running')) {
         m.phase = 'used';
+        m.usedAt = turn;
+        m.publicPhase = 'pending';
         actor!.relation = Math.min(100, actor!.relation + 3);
         text = `${m.name} воспользовался полученным правом без новой просьбы: направил жилищные заказы местным подрядчикам своего круга. Они ускоряют работу на 5 пунктов, но каждый квартал стоит экономики −1. Координатор кабинета продолжает вести программу; закупки контролирует министр. Проверяющим нужны документы — без прямого доступа работа проверки замедлится на 5 пунктов. Можно отозвать мандат или защитить проверку. Отношение министра +3.`;
     }
@@ -88,6 +92,8 @@ export function validMinister(value: unknown, turn: number): value is MinisterMa
     if (!value || typeof value !== 'object')
         return false;
     const m = value as MinisterMandate;
+    if (m.usedAt !== undefined && (!Number.isSafeInteger(m.usedAt) || m.usedAt <= m.offered || !['used', 'withdrawn', 'fulfilled', 'departed'].includes(m.phase) || m.usedAt > turn || !['pending', 'checking', 'closed'].includes(m.publicPhase!))) return false;
+    if (m.publicPhase !== undefined && m.usedAt === undefined) return false;
     return typeof m.handover === 'boolean' && typeof m.name === 'string' && !!m.name && typeof m.text === 'string' && !!m.text
         && ['offered', 'accepted', 'used', 'refused', 'expired', 'withdrawn', 'fulfilled', 'departed'].includes(m.phase)
         && Number.isSafeInteger(m.offered) && m.offered >= 0 && m.offered <= turn

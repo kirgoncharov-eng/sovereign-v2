@@ -566,7 +566,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     && !keyFigures.some(fig => fig.faction === f.id && bondOf(fig, f) === "insider"));
   for (const f of hostile) add(`вредят «${f.name}»`, HOSTILE_DRAIN[f.bloc]);
 
-  const worldStep = stepLivingWorld({ ...state, resources, factions, keyFigures }, turn, success ? choice.projectReview : undefined);
+  const worldStep = stepLivingWorld({ ...state, resources, factions, keyFigures }, turn, success ? choice.projectReview : undefined, success ? choice.mandateResponse : undefined);
   for (const effect of worldStep.effects) add(effect.label, effect.res);
 
   // Институты понемногу восстанавливаются: просевшие ресурсы подтягиваются вверх.
