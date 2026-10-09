@@ -2038,7 +2038,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             onProject={id => countryPanel.current?.showProject(id)} onAction={id => {
             if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
             let next = interveneWorld(gsRef.current, id);
-            if (id.startsWith("sponsor:") || id.startsWith("minister:")) { const action = id.split(":")[0]; const person = presidentialMessages(next).find(m => m.action === action)?.person; if (person) next = readPresidentialMessages(next, person); }
+            if (id.startsWith("sponsor:") || id.startsWith("minister:") || id.startsWith("evidence:")) { const action = id.split(":")[0]; const person = presidentialMessages(next).find(m => m.action === action)?.person; if (person) next = readPresidentialMessages(next, person); }
             prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
           }}/>}
           {!busy && !recap && <WorldPanel compact ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}

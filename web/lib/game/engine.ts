@@ -187,13 +187,15 @@ export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "fact
 }
 
 // Эпизод интриги, который должен случиться на следующем ходу (если есть).
-export function dueBeat(state: Pick<GameState, "arc" | "turn">) {
+export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<GameState, "world" | "daily">>) {
   const arc = ARCS.find(a => a.id === state.arc?.id);
   if (!arc || !state.arc) return null;
   const idx = arc.beats.findIndex(b => b.turn === localTurn(state.turn + 1) && !state.arc!.done.includes(b.turn));
   if (idx < 0) return null;
   const beat = arc.beats[idx];
-  const variant = beat.variants.find(v => !v.requires || v.requires.some(f => state.arc!.flags.includes(f))) ?? beat.variants[beat.variants.length - 1];
+  const documentedNetwork = !state.daily && arc.id === 'money' && beat.turn === 16
+    && state.world?.evidence?.target === state.arc.target && state.world.evidence.networkVerifiedAt !== undefined;
+  const variant = documentedNetwork ? beat.variants[0] : beat.variants.find(v => !v.requires || v.requires.some(f => state.arc!.flags.includes(f))) ?? beat.variants[beat.variants.length - 1];
   return { arc, beat, variant, episode: idx + 1, total: arc.beats.length };
 }
 
@@ -566,7 +568,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     && !keyFigures.some(fig => fig.faction === f.id && bondOf(fig, f) === "insider"));
   for (const f of hostile) add(`вредят «${f.name}»`, HOSTILE_DRAIN[f.bloc]);
 
-  const worldStep = stepLivingWorld({ ...state, resources, factions, keyFigures }, turn, success ? choice.projectReview : undefined, success ? choice.mandateResponse : undefined);
+  const worldStep = stepLivingWorld({ ...state, resources, factions, keyFigures }, turn, success ? choice.projectReview : undefined, success ? choice.mandateResponse : undefined, success ? choice.evidenceResponse : undefined);
   for (const effect of worldStep.effects) add(effect.label, effect.res);
 
   // Институты понемногу восстанавливаются: просевшие ресурсы подтягиваются вверх.

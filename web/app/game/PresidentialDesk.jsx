@@ -5,6 +5,7 @@ import { messageUnread, presidentialMessages } from '@/lib/client/presidential-i
 import CommitmentBrief from './CommitmentBrief.jsx';
 import { commitmentBriefs } from '@/lib/client/commitment-brief.ts';
 import { governmentLoad } from '@/lib/game/government.ts';
+import EvidencePanel from './EvidencePanel.jsx';
 import MinisterPanel from './MinisterPanel.jsx';
 import SponsorPanel from './SponsorPanel.jsx';
 import GovernmentPanel from './GovernmentPanel.jsx';
@@ -68,10 +69,10 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
           {!incoming.length && <p>Обращений нет. Его досье можно открыть по имени.</p>}
           {incoming.length > 1 && <nav className="sv-desk-message-list" aria-label="Обращения человека">{incoming.map(m => <button key={m.key} aria-pressed={selected?.key === m.key} onClick={() => setMessageKey(m.key)}><strong>{m.title}</strong><span>{m.needsReply ? 'Ждёт ответа' : m.key === 'minister-mandate' || m.key === 'sponsor' ? 'Договорённость' : 'Доклад'}</span></button>)}</nav>}
           {selected && <article key={selected.key} className="sv-desk-message"><small>{selected.needsReply ? 'ЖДЁТ ВАШЕГО ОТВЕТА' : 'ДОГОВОРЁННОСТЬ ИЛИ ДОКЛАД'}{selected.deadline ? ` · до конца квартала ${selected.deadline}` : ''}</small><h4>{selected.title}</h4>
-            {selected.action === 'minister' ? <MinisterPanel gs={gs} Scene={Scene} onAction={onAction} onClose={() => close()}/> : selected.action === 'sponsor' ? <SponsorPanel embedded gs={gs} Scene={Scene} onAction={onAction} onViewChange={onViewChange} onClose={() => close()}/> : <><p><PeopleText>{selected.text}</PeopleText></p><button className="sv-desk-link" onClick={() => selected.action === 'government' ? government(selected.key==='housing-next'?'housing':selected.key.startsWith('program:')?selected.key.split(':')[1]:'energy') : project(selected.action)}>{selected.action === 'government' ? 'Рассмотреть проекты правительства' : 'Открыть поручения и доклады'} →</button></>}
+            {selected.action === 'evidence' ? <EvidencePanel gs={gs} onAction={onAction} onClose={() => close()}/> : selected.action === 'minister' ? <MinisterPanel gs={gs} Scene={Scene} onAction={onAction} onClose={() => close()}/> : selected.action === 'sponsor' ? <SponsorPanel embedded gs={gs} Scene={Scene} onAction={onAction} onViewChange={onViewChange} onClose={() => close()}/> : <><p><PeopleText>{selected.text}</PeopleText></p><button className="sv-desk-link" onClick={() => selected.action === 'government' ? government(selected.key==='housing-next'?'housing':selected.key.startsWith('program:')?selected.key.split(':')[1]:'energy') : project(selected.action)}>{selected.action === 'government' ? 'Рассмотреть проекты правительства' : 'Открыть поручения и доклады'} →</button></>}
           </article>}
         </div>}
-        {!(person && ['minister', 'sponsor'].includes(selected?.action)) && view !== 'government' && <button className="sv-desk-link" onClick={() => close()}>Вернуться к главному делу →</button>}
+        {!(person && ['minister', 'sponsor', 'evidence'].includes(selected?.action)) && view !== 'government' && <button className="sv-desk-link" onClick={() => close()}>Вернуться к главному делу →</button>}
       </div>
     </dialog>
   </section>;

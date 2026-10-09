@@ -7,7 +7,7 @@ export interface PresidentialMessage {
   person: string;
   title: string;
   text: string;
-  action: 'sponsor' | 'government' | 'energy' | 'health' | 'minister';
+  action: 'sponsor' | 'government' | 'energy' | 'health' | 'minister' | 'evidence';
   needsReply: boolean;
   deadline?: number;
 }
@@ -16,6 +16,11 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
   const world = gs.world, profiles = personProfiles(gs);
   const personId = (name: string) => profiles.find(p => p.name === name)?.id;
   const messages: PresidentialMessage[] = [];
+  const source = world.evidence;
+  if (source) {
+    const person = personId(source.name);
+    if (person) messages.push({ key: 'private-evidence', token: `${source.name}:${source.phase}:${source.authority}:${source.changed}`, person, title: source.usedAt !== undefined ? 'Документы стали делом' : source.phase === 'verified' ? 'Подтверждение переводов кампании' : source.phase === 'checking' ? 'Проверка финансового следа' : 'Архивная копия: кому принадлежали деньги', text: source.text, action: 'evidence', needsReply: false });
+  }
   const mandate = world.mandate;
   if (mandate) {
     const person = personId(mandate.name);
