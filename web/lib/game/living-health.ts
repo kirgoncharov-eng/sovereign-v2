@@ -1,3 +1,4 @@
+import { priorityWork } from './government.ts';
 import { decideHealthBargain, type HealthBargainChoice } from './health-bargain.ts';
 import { aftermathActions, decideHealthAftermath, scheduleHealthAftermath, stepHealthAftermath, validHealthAftermath, type HealthAftermath, type HealthResponse } from './health-aftermath.ts';
 import type { GameState, ResourceDelta } from './types.ts';
@@ -109,6 +110,8 @@ export function stepHealthProject(state: GameState, world: LivingWorld, turn: nu
   let gain = 0;
   if (project.status === 'running' && executor) {
     gain = 10 + executor.competence * 8;
+    const presidential = priorityWork(state, world, 'health');
+    if (presidential) { gain += presidential; factors.push('Личный приоритет президента ускоряет согласования: +5'); }
     factors.push(`Компетенция ${executor.name}: ${executor.competence}/3`);
     if (executor.relation >= 30) { gain += 4; factors.push('Руководитель поддерживает ваше поручение'); }
     if (executor.relation <= -20) { gain -= 8; factors.push('Руководитель затягивает согласования'); }

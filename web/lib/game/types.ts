@@ -74,6 +74,7 @@ export interface Crisis {
 }
 
 export interface Choice {
+  projectReview?: { id: 'procurement' | 'exports' | 'housing' };
   id: string;
   text: string;
   hint: string;

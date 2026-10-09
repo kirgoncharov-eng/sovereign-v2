@@ -48,7 +48,8 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
     setExpanded(true);setPlace('health');setLessonMode(mode);setPending(null);onViewChange(true);
     requestAnimationFrame(()=>tour.current?.scrollIntoView({behavior:'smooth',block:'start'}));
   };
-  useImperativeHandle(ref,()=>({startHospital,showReport:()=>{
+  useImperativeHandle(ref,()=>({
+    showProject: id => {setExpanded(true);setPlace(id==='health'?'health':'region');setLessonMode(null);setTab('actions');setPending(null);onViewChange(true);requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));},startHospital,showReport:()=>{
     setLessonMode(null);
     setExpanded(true);setPlace(gs.world?.dispatches.at(-1)?.project==='health'?'health':'region');setTab('dispatches');setPending(null);onViewChange(true);
     requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));
