@@ -47,6 +47,7 @@ import ResourceInfo from "./ResourceInfo.jsx";
 import { healthHasContinuation, healthNeedsAttention } from "@/lib/game/health-aftermath.ts";
 import { projectFinished } from "@/lib/game/living-health.ts";
 import { openLivingWorld, interveneWorld } from "@/lib/game/living-world.ts";
+import { openDeskWhenDue } from "@/lib/game/desk-timing.ts";
 import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
 import { warningDetails } from "@/lib/client/warning-detail.ts";
 import { squareStateOf } from "@/lib/client/square-state.ts";
@@ -1794,7 +1795,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     setBusy("choice"); setError(null);
     try {
       const consequence = await game.consequence(gsRef.current, choice.id);
-      let next = resolveTurn(gsRef.current, choice.id, consequence);
+      let next = openDeskWhenDue(resolveTurn(gsRef.current, choice.id, consequence));
       if (next.daily && gsRef.current.dailyMoves) {
         next = { ...next, dailyMoves: [...gsRef.current.dailyMoves, dailyMove] };
       }
@@ -2037,7 +2038,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         </div>
 
         <div className="sv-main">
-          {!busy && !recap && <PresidentialDesk gs={gs} Portrait={Portrait} Scene={SquareView} onViewChange={open => {if(open)countryPanel.current?.close();setContactOpen(open);}}
+          {!busy && !recap && gs.world && <PresidentialDesk gs={gs} Portrait={Portrait} Scene={SquareView} onViewChange={open => {if(open)countryPanel.current?.close();setContactOpen(open);}}
             onRead={person => { if (!inFlight.current) commit(readPresidentialMessages(gsRef.current, person)); }}
             onDesk={() => document.getElementById("sv-main-case")?.scrollIntoView({behavior:"smooth",block:"start"})}
             onProject={id => countryPanel.current?.showProject(id)} onAction={id => {
@@ -2046,7 +2047,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             if (id.startsWith("sponsor:") || id.startsWith("minister:") || id.startsWith("evidence:")) { const action = id.split(":")[0]; const person = presidentialMessages(next).find(m => m.action === action)?.person; if (person) next = readPresidentialMessages(next, person); }
             prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
           }}/>}
-          {!busy && !recap && <WorldPanel compact ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}
+          {!busy && !recap && gs.world && <WorldPanel compact ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}
             onOpen={() => { if (!inFlight.current) commit(openLivingWorld(gsRef.current)); }}
             onAction={id => {
               if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
@@ -2376,7 +2377,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       </div>
       </div>
       <ActionBar
-        mode={recap ? "recap" : busy || countryOpen || contactOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (reviewedTurn !== turn ? "review" : gs.ended ? "end" : orderLesson?.phase === "assign" ? "guide" : orderLesson?.phase === "report" ? "guideReport" : "next") : "skip") : null}
+        mode={recap ? "recap" : busy || countryOpen || contactOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (reviewedTurn !== turn ? "review" : gs.ended ? "end" : "next") : "skip") : null}
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}
@@ -2887,7 +2888,7 @@ export default function App() {
   }, [gs, screen]);
 
   const [recap, setRecap] = useState(false); // «Ранее в Суверене» — после возвращения к сохранённой партии
-  const resume = () => { if (saved) { setRunContext(saved.state.analyticsRun); track("resume", { turn: saved.state.turn }); setGs(openLivingWorld(saved.state)); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
+  const resume = () => { if (saved) { setRunContext(saved.state.analyticsRun); track("resume", { turn: saved.state.turn }); setGs(openDeskWhenDue(saved.state)); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
   const restart = () => { setRunContext(undefined); clearSave(); setGs(null); setScreen("setup"); };
 
   return (
@@ -2897,10 +2898,10 @@ export default function App() {
         setRunContext(d.analyticsRun);
         track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily, quick:!!quick });
         // Быстрая партия и дело дня — сразу в кабинет: обещания берутся подсказанные, досье открывается в игре.
-        if (quick) { setGs(openLivingWorld({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) })); setScreen("game"); }
+        if (quick) { setGs(openDeskWhenDue({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) })); setScreen("game"); }
         else { setGs(d); setScreen("intro"); track("intro"); }
       }}/>}
-      {screen==="intro"  && <Intro  gs={gs} onGo={picks=>{ setGs(g => openLivingWorld({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>}
+      {screen==="intro"  && <Intro  gs={gs} onGo={picks=>{ setGs(g => openDeskWhenDue({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>}
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
     </PeopleProvider>

@@ -135,6 +135,7 @@ export function stepHealthProject(state: GameState, world: LivingWorld, turn: nu
   project.lastFactors = factors;
   let story = executor && project.status === 'running'
     ? `${executor.name} сообщает: программа укомплектована на ${project.progress}%. ${project.approach === 'rotation' ? 'Врачи приезжают по временным переводам; областные центры ждут замены.' : 'Идёт набор на постоянные ставки; без специалиста отделение остаётся закрытым.'} ${factors.slice(1).join('. ')}.`
+    : (turn - project.openedTurn) % 3 !== 1 ? '' // напоминание раз в три квартала, а не в каждой газете
     : 'Районные больницы ждут решения резиденции. Койки есть, но кабинеты без специалистов закрыты; пациентов направляют в областной центр.';
   let res: ResourceDelta = {};
   if (project.progress >= 100 || turn >= project.deadline) {
