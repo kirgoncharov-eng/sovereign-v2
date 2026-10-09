@@ -1,3 +1,4 @@
+import { withEvidenceChoice } from './private-evidence.ts';
 import { mandatePublicEvent } from './minister-public.ts';
 import { calendarEpisode, calendarSlot } from './political-calendar.ts';
 // Режим «Сценарии»: та же игра без обращения к модели. Событие выбирается из библиотеки
@@ -190,7 +191,7 @@ export function beatEvent(state: GameState): GameEvent | null {
   const villain = state.keyFigures.find(f => f.name === state.arc?.target);
   const heir = villain ? successorName(state, villain) : "";
   const heirLine = heir ? ` Новый ${lower(villain!.role)} — ${heir}.` : "";
-  return {
+  return withEvidenceChoice(state, {
     title: fill(variant.title, state),
     source: "Секретно",
     description: chapter(dateline(state, "beat"), fill(variant.description, state), BEAT_EXT[variant.title] && fill(BEAT_EXT[variant.title], state)),
@@ -206,7 +207,7 @@ export function beatEvent(state: GameState): GameEvent | null {
     council: null,
     beat: { arcId: arc.id, arcTitle: arc.title, turn: beat.turn, episode, total },
     randomEvent: null,
-  };
+  });
 }
 
 // ── Люди и союзы ─────────────────────────────────────────────────────────────
@@ -560,7 +561,13 @@ export function pressEvent(state: GameState): SpecialEvent | null {
   const picked = [...topical.slice(0, 1), ...rest].slice(0, 3);
   if (picked.length < 3) return null;
   const pactName = state.factions.find(f => f.id === state.pacts?.[0]?.faction)?.name ?? "";
-  const questions = picked.map(q => ({ id: q.id, who: q.who, topic: q.topic, answers: q.answers, text: fill(q.text, state, { pact: pactName }) }));
+  const questions = picked.map(q => {
+    const enactedPension = q.id === 'pension' && state.laws?.some(l => l.id === 'pension_reform');
+    return { id: q.id, who: q.who, topic: q.topic,
+      answers: enactedPension ? q.answers.map(a => ({ ...a, text: a.tone === 'honest' ? '«Я подписал этот закон. Для людей это тяжёлая перемена, и я не стану выдавать её за подарок»' : a.tone === 'hard' ? '«Решение принято: иначе через десять лет платить будет нечем»' : '«Вопросы исполнения вам разъяснит правительство»' })) : q.answers,
+      text: enactedPension ? 'Вы уже приняли закон о повышении пенсионного возраста. Что скажете людям, которым теперь работать дольше?' : fill(q.text, state, { pact: pactName }),
+    };
+  });
   const skip: Choice = {
     id: "b", text: PRESS_TEXT.skip.text, hint: PRESS_TEXT.skip.hint, tags: ["delay"], resolvesCrisis: null,
     deal: { pure: true, res: { internalLegitimacy: -3, politicalCapital: -2 } },
@@ -644,6 +651,8 @@ export function callEvent(state: GameState): SpecialEvent | null {
     : [...pool].sort((a, b) => hashSeed(state.seed, "call", a.id) - hashSeed(state.seed, "call", b.id))[0];
   const fac = facOf(fig)!;
   const slots = { name: fig.name, role: lower(fig.role), camp: fac.name };
+  const selectedDemand = cycle(CALL_DEMANDS[fac.bloc], state.seed, `demand${fig.id}`, k);
+  const demand = typeof selectedDemand === 'string' ? selectedDemand : state.laws?.some(l => l.id === selectedDemand.law) ? selectedDemand.text : selectedDemand.otherwise;
   const hang: Choice = {
     id: "b", text: CALL_TEXT.hangup.text, hint: CALL_TEXT.hangup.hint, tags: ["delay"], resolvesCrisis: null,
     deal: { pure: true, figure: fig.id, figureRel: -10, factionRel: { [fac.id]: -3 } },
@@ -661,7 +670,7 @@ export function callEvent(state: GameState): SpecialEvent | null {
     choices: [{ ...hang, id: "a" }, hang],
     council: null,
     special: { kind: "call", figure: fig.id, faction: fac.id },
-    call: { figure: fig.id, trait: traitOf(state.seed, fig, fac.bloc), demand: fill(cycle(CALL_DEMANDS[fac.bloc], state.seed, `demand${fig.id}`, k), state) },
+    call: { figure: fig.id, trait: traitOf(state.seed, fig, fac.bloc), demand: fill(demand, state) },
     randomEvent: null,
   };
 }

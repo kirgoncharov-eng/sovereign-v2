@@ -74,6 +74,7 @@ export interface Crisis {
 }
 
 export interface Choice {
+  evidenceResponse?: 'refer' | 'port';
   mandateResponse?: 'check' | 'defend' | 'withdraw' | 'publish';
   projectReview?: { id: 'procurement' | 'exports' | 'housing' | 'housing-next' };
   id: string;

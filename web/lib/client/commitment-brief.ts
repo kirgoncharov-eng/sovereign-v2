@@ -34,6 +34,15 @@ export function commitmentBriefs(gs: GameState): CommitmentBrief[] {
         const action = actions.find(a => a.id === id);
         return action ? `${title ?? action.title}.${action.blocked ? ` Сейчас: ${world.lastActionTurn === gs.turn ? 'личное поручение квартала уже подписано' : action.blocked}.` : ' Доступно в этом квартале.'}` : fallback;
     };
+    const source = world.evidence;
+    if (source && source.phase !== 'offered') result.push({
+        id: 'private-evidence', title: `${source.name} · банковские сведения`, active: source.authority === 'active' || source.phase === 'checking',
+        received: source.phase === 'checking' ? `Проверка документов завершится в квартале ${source.due}.` : source.usedAt === undefined ? source.networkVerifiedAt !== undefined ? 'Переводы и иностранная цепочка подтверждены; документы дают ответ на требование портовой концессии.' : 'Переводы подтверждены. Это ответ на требование назначения; источник иностранного счёта ещё устанавливается.' : 'Материалы зарегистрированы в прокуратуре; требование концессии отклонено.',
+        promised: source.authority === 'active' ? 'Постоянное право службы на банковские запросы без независимой санкции, включая запросы о ваших сторонниках.' : source.route === 'service' ? 'Расширенный личный допуск уже закрыт; документы сохраняются.' : 'Расширенных полномочий вы не передавали.',
+        price: source.authority === 'active' ? 'Легитимность −1 каждый квартал, пока право не отозвано. Отзыв: политкапитал −1 и отношение источника −15.' : 'Квартального списания за допуск нет. Прежние затраты на проверку сохраняются.',
+        next: source.authority === 'active' ? nextAction('evidence:withdraw', 'Допуск будет закрыт при уходе руководителя.', 'Вернуть независимую санкцию') : source.phase === 'checking' ? 'Ответ придёт сам после главного решения; ещё одно поручение не нужно.' : 'Документы остаются доступными, даже если источник покинет должность.',
+        target: { kind: 'person', name: source.name, message: 'private-evidence' },
+    });
     if (m && m.phase !== 'offered') {
         const housing = world.government?.programs.find(p => p.id === 'housing');
         const active = mandatePresent(world) && (m.phase === 'accepted' || m.phase === 'used' && housing?.status === 'running');

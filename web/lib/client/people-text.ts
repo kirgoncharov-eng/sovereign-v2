@@ -33,6 +33,16 @@ export function personProfiles(gs: GameState): PersonProfile[] {
     if (existing) existing.rows.push(...rows);
     else profiles.push({ id:`world:${person.id}`, name:person.name, role:person.role, relation:person.relation, loyalty:loyaltyLabel(person.relation), rows:[{ label:'Характер', value:TRAITS[person.trait].label },...rows] });
   }
+  const source = gs.world?.evidence;
+  if (source) {
+    let profile = profiles.find(p => p.name === source.name);
+    if (!profile) {
+      profile = { id: `evidence:${source.name}`, name: source.name, role: 'Прежний источник финансовых материалов', relation: null, loyalty: 'нейтрал', rows: [] };
+      profiles.push(profile);
+    }
+    if (profile.id.startsWith('former:')) profile.id = `evidence:${source.name}`;
+    profile.rows.push({ label: 'До нынешней должности', value: source.biography }, { label: 'Интерес в этом деле', value: 'Самостоятельный доступ к банковским сведениям; меньше зависимости от чужой санкции' });
+  }
   return profiles;
 }
 export type NamePart = { text: string; person?: PersonProfile };
