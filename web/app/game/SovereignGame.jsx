@@ -2026,7 +2026,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         </div>
 
         <div className="sv-main">
-          {!busy && !recap && <PresidentialDesk gs={gs} Portrait={Portrait} Scene={SquareView} onViewChange={setContactOpen}
+          {!busy && !recap && <PresidentialDesk gs={gs} Portrait={Portrait} Scene={SquareView} onViewChange={open => {if(open)countryPanel.current?.close();setContactOpen(open);}}
             onRead={person => { if (!inFlight.current) commit(readPresidentialMessages(gsRef.current, person)); }}
             onDesk={() => document.getElementById("sv-main-case")?.scrollIntoView({behavior:"smooth",block:"start"})}
             onProject={id => countryPanel.current?.showProject(id)} onAction={id => {
@@ -2035,7 +2035,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             if (id.startsWith("sponsor:") || id.startsWith("minister:")) { const action = id.split(":")[0]; const person = presidentialMessages(next).find(m => m.action === action)?.person; if (person) next = readPresidentialMessages(next, person); }
             prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
           }}/>}
-          {!busy && !recap && <WorldPanel ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}
+          {!busy && !recap && <WorldPanel compact ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}
             onOpen={() => { if (!inFlight.current) commit(openLivingWorld(gsRef.current)); }}
             onAction={id => {
               if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");

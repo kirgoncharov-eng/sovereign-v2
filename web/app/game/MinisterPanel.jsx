@@ -27,7 +27,7 @@ export default function MinisterPanel({ gs, Scene, onAction, onClose }) {
     <div className="sv-sponsor-person">{person ? `Министр энергетики · отношение ${person.relation > 0 ? '+' : ''}${person.relation} · интерес: контроль строительных закупок` : 'Прежний министр больше не занимает должность'}</div>
     <p><PeopleText>{mandate.text}</PeopleText></p>
     <p className="sv-sponsor-help">Чтение бесплатно. Подпись использует одно личное вмешательство квартала, общее с другими поручениями. Координатор программы и распорядитель закупок — разные роли.</p>
-    <div className="sv-sponsor-options">{actions.map(a => <button key={a.id} data-minister-action={a.id} aria-pressed={selected === a.id} disabled={!!a.blocked} onClick={() => { setSelected(a.id); setReceipt(''); setError(''); }}><strong>{a.title}</strong><span>{a.detail}</span><em>{governmentPrice(a.cost)}</em>{a.blocked && <em>{a.blocked}</em>}</button>)}</div>
+    <div className="sv-sponsor-options">{actions.map(a => <button key={a.id} data-minister-action={a.id} aria-pressed={selected === a.id} disabled={!!a.blocked} onClick={() => { setSelected(a.id); setReceipt(''); setError(''); }}><strong>{a.title}</strong>{selected === a.id && <span>{a.detail}</span>}<em>{governmentPrice(a.cost)}</em>{a.blocked && <em>{a.blocked}</em>}</button>)}</div>
     {chosen && <div className="sv-sponsor-sign"><p>Подтвердить: {chosen.title}</p><strong>{governmentPrice(chosen.cost)}</strong><button disabled={!!chosen.blocked} onClick={confirm}>Подтвердить поручение</button><button onClick={() => setSelected(null)}>Отложить</button></div>}
     {receipt && <p className="sv-sponsor-receipt" role="status">{receipt}</p>}
     {error && <p role="alert">{error}</p>}
