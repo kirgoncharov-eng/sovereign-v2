@@ -37,6 +37,7 @@ import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.t
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
+import SponsorPanel from "./SponsorPanel.jsx";
 import OrderGuide from "./OrderGuide.jsx";
 import { firstOrderLesson } from "@/lib/client/first-order.ts";
 import ResourceInfo from "./ResourceInfo.jsx";
@@ -1372,16 +1373,20 @@ function Setup({ onStart, saved, onResume }) {
   const meta = useMemo(() => parseMeta(metaRaw), [metaRaw]);
   const open = unlockedCountries(meta);
   const ready = country && diff && ideo;
+  const playtest = useSyncExternalStore(subscribeMeta, () => new URLSearchParams(window.location.search).get("playtest") === "sponsor", () => false);
 
   const go = async (c = country, d = diff, i = ideo, daily = null, b = bio, quick = false) => {
     if (!(c && d && i) || loading) return;
     setLoading(true); setErr(null);
     try {
       // Биография: выбранная в анкете, у дела дня — общая для всех, иначе случайная.
+      const trial = !daily && playtest && c === "Украина";
+      const seed = daily?.seed ?? (trial ? 11 : undefined);
+      if (trial) { try { localStorage.setItem("sovereign.tester", "1"); } catch {} }
       const B = daily ? BIOGRAPHIES[daily.seed % BIOGRAPHIES.length] : BIOGRAPHIES.find(x => x.id === b) ?? BIOGRAPHIES[Math.floor(Math.random() * BIOGRAPHIES.length)];
-      const raw = await game.setup(c, d, i, daily?.seed);
+      const raw = await game.setup(c, d, i, seed);
       const intro = { ...raw, leader: { ...raw.leader, bio: B.text } };
-      const st = createInitialState(c, d, i, intro, daily ? seededRandom(daily.seed) : Math.random, "classic", B.id);
+      const st = createInitialState(c, d, i, intro, seed !== undefined ? seededRandom(seed) : Math.random, "classic", B.id);
       onStart(daily ? { ...st, daily: daily.date, dailyMoves: [] } : st, quick || !!daily);
     } catch (e) {
       console.error(e);
@@ -1456,6 +1461,11 @@ function Setup({ onStart, saved, onResume }) {
         <button onClick={() => setCustom(v => !v)} aria-expanded={custom} aria-controls="sv-custom-setup" style={{ width:"100%", background:"transparent", border:`1px solid ${G.bdr}`, padding:"12px 16px", color:G.tx2, fontFamily:narrow, fontSize:18, marginBottom:12 }}>
           {custom ? "Свернуть анкету ▴" : "Выбрать страну, курс и сложность ▾"}
         </button>
+        {playtest && <Card style={{ marginBottom:18 }}>
+          <Label>ПРОВЕРКА МИРА · ЧУЖИЕ ДЕНЬГИ</Label>
+          <p style={{ fontFamily:serif, fontSize:14, lineHeight:1.5, marginBottom:12 }}>Обычное правление с известной начальной ситуацией. Спонсор кампании, энергосеть и больницы существуют одновременно. Можно самим выйти на контакт; партия продолжается после этого столкновения.</p>
+          <PrimaryBtn disabled={loading} onClick={() => go("Украина", "debut", "pragmatist", null, "economist", true)}>НАЧАТЬ ПРОБНУЮ ПАРТИЮ</PrimaryBtn>
+        </Card>}
         {err && <div role="alert" style={{ color:G.red, marginBottom:12 }}>{err} <button onClick={quick}>Попробовать снова</button></div>}
         {custom && <Card id="sv-custom-setup" style={{ padding:"18px 20px 22px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10 }}>
@@ -1707,6 +1717,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [forecast, setForecast] = useState(false); // сначала дилемма, подробная цена — по запросу
   const [help, setHelp]       = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [resourceOpen, setResourceOpen] = useState(false);
   const countryPanel = useRef(null);
   const [tips] = useState(() => !tutorialSeen()); // подсказки на первых ходах — пока правила не прочитаны
@@ -1768,7 +1779,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     setStamping(choice.id);
     stampFx();
     if (!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) await new Promise(r => setTimeout(r, 480));
-    setStamping(null); setCountryOpen(false);
+    setStamping(null); setCountryOpen(false); setContactOpen(false);
     setBusy("choice"); setError(null);
     try {
       const consequence = await game.consequence(gsRef.current, choice.id);
@@ -1801,7 +1812,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
   const nextTurn = () => {
     if (transition || inFlight.current || !gsRef.current.lastTurn || gsRef.current.ended) return;
-    setCountryOpen(false);
+    setCountryOpen(false); setContactOpen(false);
     setBusy("event"); setError(null); setPreview(null); setArmed(null);
     pageFx();
     commit({ ...gsRef.current, lastTurn: null });
@@ -1810,7 +1821,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   // Клавиши: 1–9 — фокус на вариант (с предпросмотром), Enter — подтвердить / следующий ход.
   useEffect(() => {
     const onKey = e => {
-      if (transition || countryOpen || resourceOpen || e.target.closest?.("input, textarea, [data-world-panel]") || document.querySelector(".sv-modal")) return;
+      if (transition || countryOpen || contactOpen || resourceOpen || e.target.closest?.("input, textarea, [data-world-panel], [data-sponsor-panel]") || document.querySelector(".sv-modal")) return;
       if (/^[1-9]$/.test(e.key)) {
         const el = document.getElementById(`opt-${e.key}`);
         if (el) { el.focus(); e.preventDefault(); }
@@ -1820,7 +1831,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [countryOpen, resourceOpen, transition]);
+  }, [countryOpen, contactOpen, resourceOpen, transition]);
 
   // Касание выбирает; отдельная кнопка подписывает. Повторное касание не исполняет приказ.
   const pick = (c, preview = true) => {
@@ -1850,7 +1861,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       const el = document.getElementById("sv-resolution");
       setResolutionInView(!!el && el.getBoundingClientRect().top < window.innerHeight * 0.65);
       const report = document.getElementById('sv-turn-result');
-      if (report && !transition && !recap && !countryOpen && !resourceOpen && !help) {
+      if (report && !transition && !recap && !countryOpen && !contactOpen && !resourceOpen && !help) {
         const box = report.getBoundingClientRect();
         if (box.top < window.innerHeight * .75 && box.bottom > (document.querySelector(".sv-hud")?.getBoundingClientRect().bottom ?? 0)) setReviewedTurn(gs.turn);
       }
@@ -1860,7 +1871,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
-  }, [event, busy, gs.turn, gs.lastTurn, counted, recap, countryOpen, resourceOpen, help, transition]);
+  }, [event, busy, gs.turn, gs.lastTurn, counted, recap, countryOpen, contactOpen, resourceOpen, help, transition]);
   // Срочное дело: власть под угрозой — на резолюцию 25 секунд с момента, как варианты на экране.
   const urgent = !!event && event.isCritical && !event.beat && !event.special && !recap && !busy;
   if (urgent && resolutionInView && urgentTurn !== gs.turn) setUrgentTurn(gs.turn);
@@ -2015,6 +2026,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         </div>
 
         <div className="sv-main">
+          {!busy && !recap && <SponsorPanel gs={gs} Scene={SquareView} onViewChange={setContactOpen} onAction={id => {
+            if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
+            const next = interveneWorld(gsRef.current, id);
+            prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
+          }}/>}
           {!busy && !recap && <WorldPanel ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}
             onOpen={() => { if (!inFlight.current) commit(openLivingWorld(gsRef.current)); }}
             onAction={id => {
@@ -2155,7 +2171,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <div style={{ padding:"0 24px 12px" }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.red, marginBottom:6 }}>СРОЧНО: 25 СЕКУНД — ИНАЧЕ РЕШАТ ЗА ВАС</div>
                     <div style={{ height:6, background:G.bdr }}>
-                      {urgentTurn === turn && <div key={`u${turn}`} className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:"25s", animationPlayState:countryOpen || resourceOpen || help ? "paused" : "running" }} onAnimationEnd={timeUp}/>}
+                      {urgentTurn === turn && <div key={`u${turn}`} className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:"25s", animationPlayState:countryOpen || contactOpen || resourceOpen || help ? "paused" : "running" }} onAnimationEnd={timeUp}/>}
                     </div>
                   </div>
                 )}
@@ -2342,7 +2358,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       </div>
       </div>
       <ActionBar
-        mode={recap ? "recap" : busy || countryOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (reviewedTurn !== turn ? "review" : gs.ended ? "end" : orderLesson?.phase === "assign" ? "guide" : orderLesson?.phase === "report" ? "guideReport" : "next") : "skip") : null}
+        mode={recap ? "recap" : busy || countryOpen || contactOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (reviewedTurn !== turn ? "review" : gs.ended ? "end" : orderLesson?.phase === "assign" ? "guide" : orderLesson?.phase === "report" ? "guideReport" : "next") : "skip") : null}
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}

@@ -470,3 +470,25 @@ button:focus-visible {
 .sv-quarter-time span{display:block;height:100%;background:var(--gold);transform-origin:left;animation:sv-quarter-pass linear forwards}
 @keyframes sv-quarter-pass{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @media(prefers-reduced-motion:reduce){.sv-quarter-time span{animation:none}}
+
+/* A self-initiated political contact in the ordinary cabinet. */
+.sv-sponsor { margin:0 0 12px; padding:14px 16px; border:1px solid var(--bdr2); background:var(--bg2); }
+.sv-sponsor-heading { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px; font-family:var(--font-narrow); color:var(--tx3); font-size:14px; }
+.sv-sponsor-heading small { font-size:13px; letter-spacing:.04em; color:var(--amb); }
+.sv-sponsor h3 { margin:8px 0; font-family:var(--font-serif); font-size:17px; }
+.sv-sponsor p { font-family:var(--font-serif); font-size:13px; line-height:1.6; margin:10px 0; }
+.sv-sponsor button { min-height:44px; touch-action:manipulation; }
+.sv-sponsor-open { border:1px solid var(--bdr2); padding:9px 12px; color:var(--txt); background:var(--bg3); font-family:var(--font-narrow); font-size:17px; }
+.sv-sponsor-body { margin-top:14px; border-top:1px solid var(--bdr); padding-top:14px; }
+.sv-sponsor-person { font-family:var(--font-narrow); font-size:16px; color:var(--tx2); margin:10px 0; }
+.sv-sponsor p.sv-sponsor-help { font-family:var(--font-narrow); font-size:16px; color:var(--tx3); }
+.sv-sponsor-options button { width:100%; text-align:left; margin:6px 0; border:1px solid var(--bdr2); background:var(--bg3); color:var(--txt); padding:12px; }
+.sv-sponsor-options button strong { display:block; font-family:var(--font-serif); font-size:14px; }
+.sv-sponsor-options button span,.sv-sponsor-options button em { display:block; margin-top:6px; font-family:var(--font-narrow); font-size:16px; line-height:1.4; font-style:normal; }
+.sv-sponsor-options button em { color:var(--amb); }
+.sv-sponsor-options button[aria-pressed=true] { border:2px solid var(--amb); padding:11px; background:var(--bg2); }
+.sv-sponsor button:disabled { opacity:.5; cursor:default; }
+.sv-sponsor-sign { padding:10px; border:1px solid var(--amb); margin-top:10px; }
+.sv-sponsor-sign button { padding:9px 14px; border:0; background:var(--amb); color:var(--bg); font-family:var(--font-narrow); font-size:18px; }
+.sv-sponsor .sv-sponsor-receipt { font-family:var(--font-narrow); font-size:16px; color:var(--grn); }
+.sv-sponsor button:focus-visible { outline:2px solid var(--amb); outline-offset:3px; }

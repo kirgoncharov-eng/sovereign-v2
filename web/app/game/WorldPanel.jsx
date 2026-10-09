@@ -7,6 +7,7 @@ import HealthPanel from './HealthPanel.jsx';
 import ProjectActions from './ProjectActions.jsx';
 import OrderTour from './OrderTour.jsx';
 import { healthHasContinuation, healthNeedsAttention } from '@/lib/game/health-aftermath.ts';
+import { sponsorSupport } from '@/lib/game/sponsor-world.ts';
 import { projectFinished } from '@/lib/game/living-health.ts';
 import { PeopleText } from './PeopleText.jsx';
 
@@ -113,7 +114,7 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
           <div><small>Руководитель</small><strong>{project.executor?<PeopleText>{worldPerson(gs,project.executor).name}</PeopleText>:'Не назначен'}</strong><span>{project.executor?worldPerson(gs,project.executor).role:'Дело ждёт вашей инициативы'}</span></div>
           <div><small>{project.status==='unassigned'?'Работы':'Восстановлено'}</small><strong>{project.status==='unassigned'?'Не начаты':`${project.progress}%`}</strong><span>{project.status==='unassigned'?'Нужны руководитель и финансирование':({balanced:'Заводы и жилые районы',industry:'Первыми подключают заводы',households:'Первыми подключают жилые районы'}[project.priority??'balanced'])}</span></div>
         </div>
-        {project.status==='running'&&<div className="sv-country-capacity">Финансирование осталось на {project.funds} кв.{project.secured?' · дополнительные бригады работают':''}{project.procurementFixed?' · поставщик заменён':project.deal?' · согласована адаптация оборудования':''}</div>}
+        {project.status==='running'&&<div className="sv-country-capacity">Финансирование осталось на {project.funds} кв.{project.secured?' · дополнительные бригады работают':''}{project.procurementFixed?' · поставщик заменён':sponsorSupport(world)?' · адаптация по соглашению со спонсором':project.deal?' · согласована адаптация оборудования':''}</div>}
         <div ref={tabs} className="sv-country-tabs" role="tablist" aria-label="Досье промышленного региона">
           {[['dispatches','Доклады'],['people','Люди'],['actions','Поручения']].map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} onClick={()=>{setTab(id);setPending(null);setError(null);}}>{label}</button>)}
         </div>
@@ -130,7 +131,7 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
           {tab==='people'&&<div className="sv-country-people">
             {world.people.filter(person=>['minister','governor','engineer'].includes(person.id)).map(a=>{const p=worldPerson(gs,a.id);return <article key={p.id}><h4><PeopleText>{p.name}</PeopleText></h4><div>{p.role}{project.executor===p.id?' · руководит проектом':''}</div><div className="sv-country-person-stats">Компетенция {p.competence}/3 · к вам {p.relation>0?'+':''}{p.relation} · {TRAIT[p.trait]}</div><p>{p.goal}.</p>{world.health?.status==='running'&&world.health.executor===p.id&&<p className="sv-country-receipt">Уже руководит больницами. Второе назначение замедлит оба проекта.</p>}</article>;})}
           </div>}
-          {tab==='actions'&&<ProjectActions gs={gs} actions={actions.filter(action=>!action.id.startsWith('health:'))} quota={quota} terminal={terminal} pending={pending} setPending={setPending} confirm={confirm} error={error}/>}
+          {tab==='actions'&&<ProjectActions gs={gs} actions={actions.filter(action=>!action.id.startsWith('health:')&&!action.id.startsWith('sponsor:'))} quota={quota} terminal={terminal} pending={pending} setPending={setPending} confirm={confirm} error={error}/>}
 
         </div>
       </div>}
