@@ -17,7 +17,7 @@ export function PeopleProvider({ gs, Portrait, children }) {
   useEffect(()=>{
     if(!active)return;
     const outside=e=>{if(!card.current?.contains(e.target)&&!active.anchor.contains(e.target))setActive(null);};
-    const key=e=>{if(e.key==='Escape'){e.stopPropagation();active.anchor.focus();setActive(null);}};
+    const key=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();active.anchor.focus();setActive(null);}};
     const scroll=e=>{if(!card.current?.contains(e.target))setActive(null);};
     document.addEventListener('pointerdown',outside);document.addEventListener('keydown',key,true);
     window.addEventListener('scroll',scroll,true);window.addEventListener('resize',scroll);
@@ -49,7 +49,7 @@ export function PeopleProvider({ gs, Portrait, children }) {
         <small>От −100 до +100</small>
       </div>}
       <dl>{person.rows.map((row,i)=><div key={i}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
-    </aside>,document.body)}
+    </aside>,active.anchor.closest('dialog[open]') ?? document.body)}
   </People.Provider>;
 }
 

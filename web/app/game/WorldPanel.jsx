@@ -16,7 +16,7 @@ const RESOURCE={economy:'экономика',politicalCapital:'политкап�
 const TRAIT={careerist:'карьерист',idealist:'идеалист',apparatchik:'аппаратчик',pragmatist:'прагматик',hawk:'ястреб',populist:'популист'};
 const stamp=(gs,turn)=>monthYear(turnDate(gs.seed,COUNTRIES[gs.country].startYear,Math.max(0,turn)));
 
-export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewChange, onContinue, onCurrentCase }) {
+export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewChange, onContinue, onCurrentCase, compact = false }) {
   const [expanded,setExpanded]=useState(false);
   const [lessonMode,setLessonMode]=useState(null);
   const tour=useRef(null);
@@ -49,6 +49,7 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
     requestAnimationFrame(()=>tour.current?.scrollIntoView({behavior:'smooth',block:'start'}));
   };
   useImperativeHandle(ref,()=>({
+    close: () => {setExpanded(false);setLessonMode(null);setPending(null);onViewChange(false);},
     showProject: id => {setExpanded(true);setPlace(id==='health'?'health':'region');setLessonMode(null);setTab('actions');setPending(null);onViewChange(true);requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));},startHospital,showReport:()=>{
     setLessonMode(null);
     setExpanded(true);setPlace(gs.world?.dispatches.at(-1)?.project==='health'?'health':'region');setTab('dispatches');setPending(null);onViewChange(true);
@@ -61,7 +62,7 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
     setLessonMode(null);setExpanded(open);onViewChange(open);setPending(null);setError(null);if(open&&!world)setTab('actions');
   };
   const confirm=()=>{try{onAction(pending.id);setReceipt({turn:gs.turn,project:pending.id.startsWith('health:')?'health':'energy',title:pending.title,cost:pending.cost});setPlace(pending.id.startsWith('health:')?'health':'region');setPending(null);setError(null);setTab('dispatches');if(lessonMode)requestAnimationFrame(()=>tour.current?.scrollIntoView({behavior:'smooth',block:'start'}));}catch(e){setError(e.message);}};
-  if(gs.daily)return null;
+  if(gs.daily || compact && !expanded)return null;
   const quota=world?.lastActionTurn===gs.turn;
   const terminal=project&&['completed','partial','failed'].includes(project.status);
   return <section data-world-panel className="sv-country">
@@ -132,7 +133,7 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
           {tab==='people'&&<div className="sv-country-people">
             {world.people.filter(person=>['minister','governor','engineer'].includes(person.id)).map(a=>{const p=worldPerson(gs,a.id);return <article key={p.id}><h4><PeopleText>{p.name}</PeopleText></h4><div>{p.role}{project.executor===p.id?' · руководит проектом':''}</div><div className="sv-country-person-stats">Компетенция {p.competence}/3 · к вам {p.relation>0?'+':''}{p.relation} · {TRAIT[p.trait]}</div><p>{p.goal}.</p>{world.health?.status==='running'&&world.health.executor===p.id&&<p className="sv-country-receipt">Уже руководит больницами. Второе назначение замедлит оба проекта.</p>}</article>;})}
           </div>}
-          {tab==='actions'&&<ProjectActions gs={gs} actions={actions.filter(action=>!action.id.startsWith('health:')&&!action.id.startsWith('sponsor:'))} quota={quota} terminal={terminal} pending={pending} setPending={setPending} confirm={confirm} error={error}/>}
+          {tab==='actions'&&<ProjectActions gs={gs} actions={actions.filter(action=>!['health:', 'sponsor:', 'government:', 'minister:'].some(prefix=>action.id.startsWith(prefix)))} quota={quota} terminal={terminal} pending={pending} setPending={setPending} confirm={confirm} error={error}/>}
 
         </div>
       </div>}

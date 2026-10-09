@@ -35,7 +35,7 @@ export default function SponsorPanel({ gs, onAction, Scene, onViewChange, embedd
       <p><PeopleText>{s.lastMove}</PeopleText></p>
       <p className="sv-sponsor-help">Открытие встречи и чтение не двигают календарь. Подтверждённое поручение использует одно личное вмешательство квартала — то же, что больницы и энергосеть.</p>
       {!sponsorPresent(gs) && <p>Прежний контрагент утратил доступ. В следующем докладе договорённость будет пересмотрена по его реальным возможностям.</p>}
-      <div className="sv-sponsor-options">{actions.map(a => <button key={a.id} aria-pressed={selected === a.id} disabled={!!a.blocked} onClick={() => { setSelected(a.id); setError(''); setReceipt(''); }}><strong>{a.title}</strong><span>{a.detail}</span><em>{Object.entries(a.cost).map(([k, v]) => `${RES[k] ?? k} ${v}`).join(' · ') || 'Без списания ресурсов'}</em>{a.blocked && <em>{a.blocked}</em>}</button>)}</div>
+      <div className="sv-sponsor-options">{actions.map(a => <button key={a.id} aria-pressed={selected === a.id} disabled={!!a.blocked} onClick={() => { setSelected(a.id); setError(''); setReceipt(''); }}><strong>{a.title}</strong>{selected === a.id && <span>{a.detail}</span>}<em>{Object.entries(a.cost).map(([k, v]) => `${RES[k] ?? k} ${v}`).join(' · ') || 'Без списания ресурсов'}</em>{a.blocked && <em>{a.blocked}</em>}</button>)}</div>
       {chosen && <div className="sv-sponsor-sign"><p>Подтвердить: {chosen.title}</p><button disabled={!!chosen.blocked} onClick={confirm}>Подтвердить поручение</button></div>}
       {receipt && <p className="sv-sponsor-receipt" role="status">{receipt}</p>}
       {error && <p role="alert">{error}</p>}
