@@ -1,3 +1,4 @@
+import { ensureSponsor, sponsorActions, sponsorDecision, sponsorPressure, sponsorSupport, stepSponsor, validSponsor, type SponsorState } from './sponsor-world.ts';
 import { healthNeedsAttention } from './health-aftermath.ts';
 // Первый живой регион: поручение развивается вместе с кварталами основной партии.
 // Модель не знает React и не бросает скрытый кубик: причины исполнения сохраняются в докладах.
@@ -46,6 +47,7 @@ export interface EnergyProject {
 }
 export interface LivingWorld {
     version: 1;
+    sponsor?: SponsorState;
     openedTurn: number;
     lastTick: number;
     lastActionTurn: number | null;
@@ -70,8 +72,8 @@ const append = (world: LivingWorld, d: Omit<WorldDispatch, 'id'>): LivingWorld =
         }].slice(-24)
 });
 export function openLivingWorld(gs: GameState): GameState {
-    if (gs.daily || gs.ended || gs.world?.health)
-        return gs;
+    if (gs.daily || gs.ended) return gs;
+    if (gs.world?.health) return ensureSponsor(gs);
     const previous = gs.world;
     const used = new Set([...(previous?.people.map(person => person.name) ?? []), gs.leader.name, ...gs.keyFigures.map(f => f.name), ...gs.advisors.map(entry => entry.name), ...(gs.former ?? [])]);
     const pool = NAMES[gs.country] ?? NAMES['Беларусь'];
@@ -119,9 +121,7 @@ export function openLivingWorld(gs: GameState): GameState {
     world = append(world, {
         project: 'health', turn: gs.turn, kind: 'letter', title: 'Районные больницы · письмо главного врача', text: `${people.find(person => person.id === 'doctor')!.name} просит укомплектовать районные отделения в течение года. Кабинеты и койки есть, но специалистов не хватает. ${people.find(person => person.id === 'healthMinister')!.name} предлагает постоянный набор; местные власти могут согласовать назначения, но уже участвуют в восстановлении энергосети. Временный перевод врачей даст быстрый результат за счёт областных больниц.`
     });
-    return {
-        ...gs, world
-    };
+    return ensureSponsor({ ...gs, world });
 }
 export function worldPerson(gs: GameState, id: WorldPersonId): WorldPerson | undefined {
     const person = gs.world?.people.find(project => project.id === id);
@@ -162,7 +162,7 @@ export function livingActions(gs: GameState): WorldAction[] {
                 personalResource: -2, politicalCapital: -1
             }
         });
-        if (!project.procurementFixed && !project.deal)
+        if (!project.procurementFixed && !project.deal && !sponsorSupport(world))
             list.push({
                 id: 'retender', title: 'Расторгнуть договор и сменить поставщика', detail: 'Совместимое оборудование уберёт задержки. Новый договор стоит дороже, местные подрядчики потеряют заказы.', cost: {
                     economy: -3, politicalCapital: -2
@@ -174,7 +174,7 @@ export function livingActions(gs: GameState): WorldAction[] {
                     economy: -4
                 }
             });
-        if (!project.deal && !project.procurementFixed)
+        if (!project.deal && !project.procurementFixed && !sponsorSupport(world))
             list.push({
                 id: 'negotiate', title: 'Договориться с местными влиятельными людьми', detail: 'Поставки получат политическую поддержку, в обмен на сохранение части местных заказов.', cost: {
                     politicalCapital: -2, externalReputation: -1
@@ -195,6 +195,7 @@ export function livingActions(gs: GameState): WorldAction[] {
                     }
                 });
     }
+    list.push(...sponsorActions(gs));
     list.push(...healthActions(world, world.people.map(person => worldPerson(gs, person.id)!)));
     return list.map(entry => ({
         ...entry, blocked: gs.daily ? 'В деле дня личные поручения недоступны' : gs.ended ? 'Правление завершено' : world.lastActionTurn === gs.turn ? 'Личное вмешательство в этом квартале уже использовано' : Object.entries(entry.cost).some(([k, value]) => gs.resources[k as keyof typeof gs.resources] + (value ?? 0) <= 4) ? 'Недостаточно запаса ресурса для этого поручения' : null
@@ -205,7 +206,7 @@ export function interveneWorld(gs: GameState, id: string): GameState {
     if (!action || action.blocked)
         throw Error(action?.blocked ?? 'Поручение недоступно');
     let world: LivingWorld = {
-        ...gs.world!, lastActionTurn: gs.turn, project: {
+        ...gs.world!, ...(gs.world!.sponsor ? { sponsor: { ...gs.world!.sponsor } } : {}), lastActionTurn: gs.turn, project: {
             ...gs.world!.project
         }, ...(gs.world!.health ? {
             health: cloneHealthProject(gs.world!.health)
@@ -214,9 +215,15 @@ export function interveneWorld(gs: GameState, id: string): GameState {
         }))
     };
     const project = world.project;
+    let sponsorRelation = 0;
     let text = '';
     const kind: WorldDispatch['kind'] = 'decision';
     let factionRel: Record<string, number> = {};
+    if (id.startsWith('sponsor:')) {
+        const decision = sponsorDecision(gs, world, id);
+        text = decision.text; sponsorRelation = decision.relation;
+        if (id === 'sponsor:independent') factionRel = Object.fromEntries(gs.factions.filter(f => f.bloc === 'business' || f.bloc === 'regional').map(f => [f.id, -5]));
+    }
     if (id.startsWith('health:'))
         text = healthDecision(world, id, personId => worldPerson({
             ...gs, world: world
@@ -269,7 +276,7 @@ export function interveneWorld(gs: GameState, id: string): GameState {
     };
     const price = Object.entries(action.cost).map(([k, value]) => `${labels[k as keyof ResourceDelta] ?? k} ${value}`).join(', ');
     world = append(world, {
-        project: id.startsWith('health:') ? 'health' : 'energy', turn: gs.turn, kind, title: action.title, text: `${text.trim()} Цена поручения: ${price}.`
+        project: id.startsWith('health:') ? 'health' : 'energy', turn: gs.turn, kind, title: action.title, text: `${text.trim()} Цена поручения: ${price || "без списания ресурсов; использовано личное вмешательство"}.`
     });
     const factions = gs.factions.map(f => ({
         ...f, relation: bounded(f.relation + (factionRel[f.id] ?? 0), -100, 100)
@@ -297,7 +304,8 @@ export function interveneWorld(gs: GameState, id: string): GameState {
                 lastTurn.factionRelChanges[f.id] = (lastTurn.factionRelChanges[f.id] ?? 0) + delta;
         }
     return {
-        ...gs, lastTurn, world: world, resources, factions
+        ...gs, lastTurn, world: world, resources, factions,
+        keyFigures: sponsorRelation ? gs.keyFigures.map(f => f.id === world.sponsor!.figure && f.name === world.sponsor!.name ? { ...f, relation: bounded(f.relation + sponsorRelation, -100, 100) } : f) : gs.keyFigures
     };
 }
 function stepEnergyProject(gs: GameState, nextTurn: number): {
@@ -310,16 +318,18 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
             world: gs.world, res: {}, story: null
         };
     let world: LivingWorld = {
-        ...gs.world, lastTick: nextTurn, project: {
+        ...gs.world, ...(gs.world.sponsor ? { sponsor: { ...gs.world.sponsor } } : {}), lastTick: nextTurn, project: {
             ...gs.world.project
         }, people: gs.world.people.map(project => ({
             ...project
         }))
     };
     const project = world.project;
+    const politicalStory = stepSponsor(gs, world, nextTurn);
+    if (politicalStory) world = append(world, { turn: nextTurn, kind: 'decision', title: 'Политический участник · собственный ход', text: politicalStory });
     if (done(project))
         return {
-            world: world, res: {}, story: null
+            world: world, res: {}, story: politicalStory
         };
     let story = '';
     const factors: string[] = [];
@@ -352,10 +362,12 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
             gain -= 6;
             factors.push('Слабая экономика затрудняет закупки');
         }
-        if (!project.procurementFixed && !project.deal && nextTurn >= world.openedTurn + 2) {
+        if (!project.procurementFixed && !project.deal && !sponsorSupport(world) && nextTurn >= world.openedTurn + 2) {
             gain -= 10;
             factors.push('Адаптация оборудования задерживает подключение');
         }
+        if (sponsorSupport(world)) { gain += 5; factors.push('Спонсор кампании согласовал адаптацию: помощь за сохранение заказов'); }
+        if (sponsorPressure(world)) { gain -= 8; factors.push('Спонсор отправил нынешние поставки на дополнительные согласования'); }
         if (business.some(f => f.relation < -20) && !project.deal) {
             gain -= 7;
             factors.push('Враждебный бизнес задерживает поставки');
@@ -413,7 +425,7 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
         project.progress = bounded(gs.world.project.progress + Math.max(0, gain));
         project.reported = project.progress;
         const focus = priority === 'industry' ? 'Бригады сосредоточены на заводских линиях; жилые районы ждут своей очереди.' : priority === 'households' ? 'Первыми подключают жилые районы; директора заводов требуют вернуть бригады на промышленные линии.' : 'Бригады работают и на заводских линиях, и в жилых кварталах.';
-        const equipment = project.procurementFixed ? 'Новый поставщик доставляет совместимое оборудование.' : project.deal ? 'Местные подрядчики согласовали адаптацию поставки.' : 'Адаптация нынешнего оборудования задерживает подключение. Можно сменить поставщика или сохранить местные заказы в обмен на согласованную переделку.';
+        const equipment = project.procurementFixed ? 'Новый поставщик доставляет совместимое оборудование.' : sponsorSupport(world) ? 'Компании спонсора согласовали адаптацию оборудования в обмен на сохранение заказов.' : project.deal ? 'Местные подрядчики согласовали адаптацию поставки.' : 'Адаптация нынешнего оборудования задерживает подключение. Можно сменить поставщика или сохранить местные заказы в обмен на согласованную переделку.';
         story = `${actor.name} присылает доклад: восстановлено ${project.progress}% сети. ${focus} ${equipment} ${factors.filter(f => !f.startsWith('Компетенция')).join('. ')}.`;
     }
     else {
@@ -452,11 +464,16 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
                 actor.relation = bounded(actor.relation + (project.status === 'completed' ? 8 : -10), -100, 100);
         }
     }
+    if (done(project) && world.sponsor?.phase === 'pressuring') {
+        world.sponsor.phase = 'released';
+        world.sponsor.lastMove = 'Годовая программа завершена: прежнее давление на поставки больше не меняет её итог.';
+        world.sponsor.lastMoveTurn = nextTurn;
+    }
     world = append(world, {
         turn: nextTurn, kind: done(project) ? 'news' : 'report', title: done(project) ? 'Энергосеть · итоговая проверка' : 'Энергосеть · квартальный доклад', text: story
     });
     return {
-        world: world, res, story
+        world: world, res, story: [politicalStory, story].filter(Boolean).join('\n\n')
     };
 }
 export function stepLivingWorld(gs: GameState, nextTurn: number): {
@@ -537,6 +554,7 @@ export function validLivingWorld(value: unknown): value is LivingWorld {
         return false;
     if (world.people.length !== (world.health === undefined ? 3 : 5))
         return false;
+    if (world.sponsor !== undefined && !validSponsor(world.sponsor, world.lastTick)) return false;
     const project = world.project;
     if (!project
         || !['unassigned', 'running', 'completed', 'partial', 'failed'].includes(project.status)
