@@ -1,3 +1,4 @@
+import { respondToMandate } from './minister-public.ts';
 import { ministerActions, ministerDecision, stepMinister, mandateEnergyHelp, validMinister, type MinisterMandate } from './minister-mandate.ts';
 import { cloneGovernment, ensureGovernment, governmentActions, governmentDecision, governmentLoad, priorityWork, stepGovernment, validGovernment, type GovernmentState } from './government.ts';
 import { ensureSponsor, sponsorActions, sponsorDecision, sponsorPressure, sponsorSupport, stepSponsor, validSponsor, type SponsorState } from './sponsor-world.ts';
@@ -493,7 +494,7 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
         world: world, res, story: [politicalStory, ministerStory, story].filter(Boolean).join('\n\n')
     };
 }
-export function stepLivingWorld(gs: GameState, nextTurn: number, review?: Choice['projectReview']): {
+export function stepLivingWorld(gs: GameState, nextTurn: number, review?: Choice['projectReview'], response?: Choice['mandateResponse']): {
     world?: LivingWorld;
     res: ResourceDelta;
     story: string | null;
@@ -506,10 +507,12 @@ export function stepLivingWorld(gs: GameState, nextTurn: number, review?: Choice
         return {
             world: gs.world, res: {}, story: null, effects: []
         };
+    const publicStory = response ? respondToMandate(gs, response) : null;
+    if (publicStory) gs = { ...gs, world: publicStory.world };
     const energy = stepEnergyProject(gs, nextTurn);
     let world = {
-        ...energy.world!, ...(gs.world.health ? {
-            health: cloneHealthProject(gs.world.health)
+        ...energy.world!, ...(gs.world!.health ? {
+            health: cloneHealthProject(gs.world!.health)
         } : {})
     };
     const healthExecutor = world.health?.executor ? worldPerson(gs, world.health.executor) : undefined;
@@ -528,7 +531,7 @@ export function stepLivingWorld(gs: GameState, nextTurn: number, review?: Choice
     for (const [key, delta] of Object.entries(health.res))
         res[key as keyof ResourceDelta] = (res[key as keyof ResourceDelta] ?? 0) + (delta ?? 0);
     return {
-        world, res, story: [energy.story ? `Из промышленного региона. ${energy.story}` : null, health.story ? `Районные больницы. ${health.story}` : null, government.story].filter(Boolean).join('\n\n') || null,
+        world, res, story: [publicStory?.text, energy.story ? `Из промышленного региона. ${energy.story}` : null, health.story ? `Районные больницы. ${health.story}` : null, government.story].filter(Boolean).join('\n\n') || null,
         effects: [{
                 label: 'энергосеть промышленного региона', res: energy.res
             }, {
