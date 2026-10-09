@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY } from "@/lib/game/data.ts";
-import { choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { commitmentTags, choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
 import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
@@ -10,7 +10,8 @@ import { ARCS } from "@/lib/content/arcs.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
 import { monthYear, turnDate } from "@/lib/game/calendar.ts";
-import { lawDef } from "@/lib/game/laws.ts";
+import NegotiationCall from "./NegotiationCall.jsx";
+import { effectiveLaw, lawDef } from "@/lib/game/laws.ts";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
 import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
@@ -345,11 +346,12 @@ function CostReasons({ gs, c, fx }) {
 }
 
 // Законопроект: что закон будет делать каждый ход, если пройдёт, — или что исчезнет с его отменой.
-function LawEffects({ def }) {
-  const fac = Object.entries(def.drift ?? {}).filter(([, d]) => d < 0).map(([b]) => b);
+function LawEffects({ def, law }) {
+  const impact = effectiveLaw(def, law);
+  const fac = Object.entries(impact.drift ?? {}).filter(([, d]) => d < 0).map(([b]) => b);
   return (
     <span style={{ display:"inline-flex", flexWrap:"wrap", gap:"2px 12px", alignItems:"center" }}>
-      <ResourceChips delta={def.perTurn} exact={false}/>
+      <ResourceChips delta={impact.perTurn} exact={false}/>
       {fac.length > 0 && <span style={{ color:G.red }}>недовольны: {fac.map(b => BLOC_LABEL[b] ?? b).join(", ")}</span>}
     </span>
   );
@@ -427,7 +429,8 @@ function LawsCard({ gs, final = false, style }) {
               <span style={{ color:G.txt }}>«{def.title}»</span>
               <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>с {monthYear(turnDate(gs.seed, start, Math.max(0, l.since - 1)))}</span>
             </div>
-            {!final && <div style={{ fontFamily:narrow, fontSize:14, marginTop:2 }}><LawEffects def={def}/></div>}
+            {!final && <div style={{ fontFamily:narrow, fontSize:14, marginTop:2 }}><LawEffects def={def} law={l}/></div>}
+            {l.transition && <div style={{ fontFamily:narrow, fontSize:14, color:G.amb }}>Льготный выход: кому при принятии закона до пенсии оставалось не более года. Поправка с {monthYear(turnDate(gs.seed, start, Math.max(0, l.transition.since - 1)))}</div>}
             {final && <div style={{ fontFamily:serif, fontSize:13, color:G.tx3 }}>{def.short}</div>}
           </div>
         );
@@ -438,7 +441,7 @@ function LawsCard({ gs, final = false, style }) {
 
 // Как решение скажется на обещаниях: шаг к исполнению или прямое нарушение.
 function PromiseLines({ gs, c }) {
-  const { advances, breaks } = promiseImpact(gs.promises, c.deal?.pure ? [] : c.tags);
+  const { advances, breaks } = promiseImpact(gs.promises, commitmentTags(c));
   if (!advances.length && !breaks.length) return null;
   return (
     <div style={{ fontFamily:narrow, fontSize:15, marginTop:6, lineHeight:1.45 }}>
@@ -2146,6 +2149,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     commit({ ...gsRef.current, currentEvent: { ...cur, choices: [final, cur.choices[1]] } });
                     choose(final, { budget: { alloc, debt } });
                   }}/>
+              ) : event.call?.negotiation ? (
+                <NegotiationCall gs={gs} stamping={stamping} onFinish={choose} renderPromises={c=><PromiseLines gs={gs} c={c}/>}/>
               ) : event.call ? (
                 <CallPanel key={`call${turn}`} call={event.call} seed={gs.seed} stamping={stamping}
                   onHang={() => choose(event.choices[1])}
@@ -2295,7 +2300,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 const def = lawDef(lastTurn.law.id);
                 const [label, color] = lastTurn.law.act === "enact"
                   ? lastTurn.law.passed ? ["Закон принят", G.grn] : ["Парламент провалил законопроект", G.red]
-                  : lastTurn.law.passed ? ["Закон отменён", G.amb] : ["Отменить закон не удалось", G.red];
+                  : lastTurn.law.act === "amend" ? ["Переходная льгота введена", G.amb] : lastTurn.law.passed ? ["Закон отменён", G.amb] : ["Отменить закон не удалось", G.red];
                 return def && (
                   <div className="sv-paper" style={{ marginBottom:8, padding:"10px 16px", borderRadius:0, borderLeft:`3px solid ${color}` }}>
                     <span style={{ fontFamily:narrow, fontSize:15, fontWeight:700, color, letterSpacing:".04em" }}>⚖ {label.toUpperCase()}</span>

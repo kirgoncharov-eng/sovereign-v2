@@ -74,6 +74,8 @@ export interface Crisis {
 }
 
 export interface Choice {
+  politicalTags?: ActionTag[];
+  pensionTransition?: { figure: string; name: string };
   evidenceResponse?: 'refer' | 'port';
   mandateResponse?: 'check' | 'defend' | 'withdraw' | 'publish';
   projectReview?: { id: 'procurement' | 'exports' | 'housing' | 'housing-next' };
@@ -167,7 +169,7 @@ export interface GameEvent {
   special?: { kind: "overture" | "insider" | "mole" | "pact" | "inspect" | "press" | "call" | "budget" | "terms"; figure: string | null; faction: string } | null; // особое дело
   doc?: { facts: string[]; lines: string[]; author: string; key: number | null } | null;  // проверка документа: справка и строки доклада
   press?: { outlet: string; questions: PressQuestion[] } | null;       // пресс-конференция
-  call?: { figure: string; trait: string; demand: string } | null;    // звонок по защищённой линии
+  call?: { figure: string; trait: string; demand: string; negotiation?: 'pension'; lawSince?: number } | null;    // звонок по защищённой линии
   budget?: { total: number } | null;                                  // предвыборный бюджет
   beat?: { arcId: string; arcTitle: string; turn: number; episode: number; total: number } | null; // эпизод интриги
   randomEvent: RandomEvent | null;
@@ -218,12 +220,12 @@ export interface TurnReport extends Narration {
   scheduled: Pending[]; // отложенные последствия этого решения
   pacts?: PactNews;     // подписанные, выполненные и нарушенные союзы (названия фракций)
   promises?: PromiseNews; // исполненные, нарушенные и продвинутые обещания (заголовки)
-  law?: { id: string; act: "enact" | "repeal"; passed: boolean }; // что стало с законопроектом
+  law?: { id: string; act: "enact" | "repeal" | "amend"; passed: boolean }; // что стало с законопроектом
   term?: { n: number; outcome: EndType }; // начался новый срок: какой по счёту и чем кончился прошлый
   sources?: Partial<Record<ResourceKey, [string, number][]>>; // из чего сложилась перемена каждого ресурса
 }
 
-export interface LawInForce { id: string; since: number } // since — ход, с которого закон действует
+export interface LawInForce { id: string; since: number; transition?: { since: number; figure: string; name: string } } // since — ход, с которого закон действует
 
 // Предвыборное обещание в партии: сколько сделано и чем кончилось.
 export interface PromiseState { id: string; progress: number; status: "open" | "kept" | "broken"; turn?: number; target?: number }
@@ -252,6 +254,7 @@ export interface Pending {
 }
 
 export interface HistoryEntry {
+  law?: TurnReport["law"];
   year: number;
   title: string;
   choice: string;

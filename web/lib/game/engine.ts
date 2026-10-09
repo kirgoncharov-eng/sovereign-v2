@@ -18,6 +18,8 @@ import type {
   LawInForce, Narration, NewCrisis, Pact, PactNews, PowerPath, PromiseNews, Reign, PromiseState, ResourceDelta, ResourceKey, Resources, TurnReport, Verdict,
 } from "./types.ts";
 
+export const commitmentTags = (choice: Choice) => choice.politicalTags ?? (choice.deal?.pure ? [] : choice.tags);
+
 export const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
 export const clampRel = (v: number) => Math.max(-100, Math.min(100, Math.round(v)));
 // «1 ход», «3 хода», «5 ходов».
@@ -400,7 +402,7 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions"> & Part
     }
   }
   // Нарушенный союз: обманутая группа в ярости, остальные делают выводы. Считается и при провале — важен умысел.
-  for (const p of choice.deal?.pure ? [] : breaches(state.pacts, choice.tags)) {
+  for (const p of breaches(state.pacts, commitmentTags(choice))) {
     for (const f of state.factions) addDelta(extra, { [f.id]: f.id === p.faction ? PACT_BROKEN.faction : PACT_BROKEN.others });
   }
   for (const [k, v] of Object.entries(extra)) relOut[k] = (relOut[k] ?? 0) + Math.round(v);
@@ -421,7 +423,7 @@ export function figureDeltas(
   kept: Pact[] = [],
 ): Record<string, number> {
   const out: Record<string, number> = {};
-  const broken = choice.deal?.pure ? [] : breaches(state.pacts, choice.tags);
+  const broken = breaches(state.pacts, commitmentTags(choice));
   const deal = success ? choice.deal : undefined;
   for (const fig of state.keyFigures) {
     let d = Math.round((factionRel[fig.faction] ?? 0) * FACTION_PASS) + personalDelta(state.seed ?? 0, fig, state.factions.find(f => f.id === fig.faction)?.bloc, choice.tags, !success);
@@ -512,7 +514,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 
   // Союзы: нарушенные рвутся, истёкшие засчитываются, новые вступают в силу со следующего хода.
   const oldPacts = state.pacts ?? [];
-  const broken = choice.deal?.pure ? [] : breaches(oldPacts, choice.tags);
+  const broken = breaches(oldPacts, commitmentTags(choice));
   const kept = oldPacts.filter(p => !broken.includes(p) && p.until <= nextTurn);
   const facName = (id: string) => state.factions.find(f => f.id === id)?.name ?? id;
   for (const p of oldPacts) {
@@ -587,12 +589,12 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   }
 
   // Законы: действующие работают каждый ход; принятый сейчас — со следующего.
-  const lawStep = stepLaws(state.laws, choice.law, success, nextTurn, factions);
+  const lawStep = stepLaws(state.laws, choice.law, success, nextTurn, factions, choice.pensionTransition);
   add("законы", lawStep.res);
   factions = applyFactionChanges(factions, lawStep.rel, {});
 
   // Обещания: решение продвигает или нарушает их; в срок проверяется всё остальное.
-  const promiseStep = stepPromises(state.promises, choice.deal?.pure ? [] : choice.tags, success, turn, resources, factions);
+  const promiseStep = stepPromises(state.promises, commitmentTags(choice), success, turn, resources, factions);
   add("обещания", promiseStep.res);
   factions = applyFactionChanges(factions, promiseStep.rel, {});
 
@@ -679,6 +681,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       year: state.year, title: event.title, choice: plan.choice.text,
       headline: narration.headline, historianNote: narration.historianNote,
       tags: plan.choice.tags, success: plan.success,
+      ...(plan.lawNews ? { law: plan.lawNews } : {}),
       ...(narration.heard?.length ? { heard: narration.heard } : {}),
       ...(narration.cast?.length ? { cast: narration.cast } : {}),
     }],
