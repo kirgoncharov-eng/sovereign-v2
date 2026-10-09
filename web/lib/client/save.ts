@@ -54,7 +54,7 @@ const finiteJson = (v: unknown): boolean => typeof v === "number" ? Number.isFin
 const choices = (v: unknown) => rows(v, c => fields(c, ["id", "text", "hint"]) && Array.isArray(c.tags)
   && c.tags.every(t => ACTION_TAGS.includes(t)) && (c.resolvesCrisis === null || typeof c.resolvesCrisis === "string")
   && (c.mandateResponse === undefined || ['check', 'defend', 'withdraw', 'publish'].includes(String(c.mandateResponse)))
-  && (!c.projectReview || isObj(c.projectReview) && ['procurement', 'exports', 'housing'].includes(String(c.projectReview.id)))
+  && (!c.projectReview || isObj(c.projectReview) && ['procurement', 'exports', 'housing', 'housing-next'].includes(String(c.projectReview.id)))
   && (!c.advisor || isObj(c.advisor) && fields(c.advisor, ["id", "name", "role"]) && integer(c.advisor.skill, 1, 3))
   && (!c.deal || isObj(c.deal)) && (!c.arc || isObj(c.arc)));
 const event = (v: unknown) => isObj(v) && fields(v, ["title", "source", "description"])

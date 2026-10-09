@@ -75,7 +75,7 @@ export interface Crisis {
 
 export interface Choice {
   mandateResponse?: 'check' | 'defend' | 'withdraw' | 'publish';
-  projectReview?: { id: 'procurement' | 'exports' | 'housing' };
+  projectReview?: { id: 'procurement' | 'exports' | 'housing' | 'housing-next' };
   id: string;
   text: string;
   hint: string;

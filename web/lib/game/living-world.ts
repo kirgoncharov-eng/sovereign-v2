@@ -289,7 +289,7 @@ export function interveneWorld(gs: GameState, id: string): GameState {
     };
     const price = Object.entries(action.cost).map(([k, value]) => `${labels[k as keyof ResourceDelta] ?? k} ${value}`).join(', ');
     world = append(world, {
-        project: id.startsWith('government:start:') ? id.split(':')[2] as WorldDispatch['project'] : id.startsWith('health:') ? 'health' : 'energy', turn: gs.turn, kind, title: action.title, text: `${text.trim()} Цена поручения: ${price || "без списания ресурсов; использовано личное вмешательство"}.`
+        project: id.startsWith('government:start:') ? (['settle', 'expand'].includes(id.split(':')[2]) ? 'housing' : id.split(':')[2]) as WorldDispatch['project'] : id.startsWith('health:') ? 'health' : 'energy', turn: gs.turn, kind, title: action.title, text: `${text.trim()} Цена поручения: ${price || "без списания ресурсов; использовано личное вмешательство"}.`
     });
     const factions = gs.factions.map(f => ({
         ...f, relation: bounded(f.relation + (factionRel[f.id] ?? 0), -100, 100)

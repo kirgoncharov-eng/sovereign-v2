@@ -40,8 +40,12 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
     const person = advisor && personId(advisor.name);
     const count = world.government.programs.filter(p => p.status === 'proposed').length + [world.project, world.health].filter(p => p?.status === 'unassigned').length;
     if (count && person) messages.push({ key: 'government-proposals', token: 'proposal:v1', person, title: 'Предложения правительства', text: `Кабинет подготовил пять направлений работы. ${count} ещё не запущено. У каждого есть бюджет, ожидаемый результат и причины риска. Можно делегировать работу кабинету, а одну действующую программу сделать личным приоритетом. Предложения не требуют обязательного обхода каждый квартал.`, action: 'government', needsReply: false });
+    const next = world.government.housingNext;
+    const nextPerson = next && personId(next.name ?? next.previousName);
+    const nextLetter = next && [...world.dispatches].reverse().find(d => d.id.includes(':housing-next:'));
+    if (next && nextPerson && nextLetter) messages.push({ key: 'housing-next', token: nextLetter.id, person: nextPerson, title: nextLetter.title, text: nextLetter.text, action: 'government', needsReply: next.status === 'proposed' || next.status !== 'running' && !next.reviewed });
     for (const p of world.government.programs) {
-      const latest = [...world.dispatches].reverse().find(d => d.project === p.id && ['report','news'].includes(d.kind));
+      const latest = [...world.dispatches].reverse().find(d => d.project === p.id && !d.id.includes(':housing-next:') && ['report','news'].includes(d.kind));
       const person = p.name && personId(p.name);
       if (latest && person) messages.push({ key: `program:${p.id}`, token: latest.id, person, title: latest.title, text: latest.text, action: 'government', needsReply: p.status !== 'running' && !p.reviewed });
     }
