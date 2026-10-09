@@ -1,3 +1,4 @@
+import { governmentReviewEvent } from './government.ts';
 // Режим «Сценарии»: та же игра без обращения к модели. Событие выбирается из библиотеки
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
 import { promisesBroken, promisesKept } from "./promises.ts";
@@ -779,6 +780,8 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
   if (terms) return terms;
   const beat = beatEvent(state);
   if (beat) return beat;
+  const review = governmentReviewEvent(state);
+  if (review) return review;
   const interlude = inspectEvent(state) ?? pressEvent(state) ?? callEvent(state) ?? budgetEvent(state);
   if (interlude) return interlude;
   const special = specialEvent(state);

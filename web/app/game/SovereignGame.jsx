@@ -37,7 +37,8 @@ import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.t
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
-import SponsorPanel from "./SponsorPanel.jsx";
+import PresidentialDesk from "./PresidentialDesk.jsx";
+import { readPresidentialMessages, presidentialMessages } from "@/lib/client/presidential-inbox.ts";
 import OrderGuide from "./OrderGuide.jsx";
 import { firstOrderLesson } from "@/lib/client/first-order.ts";
 import ResourceInfo from "./ResourceInfo.jsx";
@@ -1373,7 +1374,7 @@ function Setup({ onStart, saved, onResume }) {
   const meta = useMemo(() => parseMeta(metaRaw), [metaRaw]);
   const open = unlockedCountries(meta);
   const ready = country && diff && ideo;
-  const playtest = useSyncExternalStore(subscribeMeta, () => new URLSearchParams(window.location.search).get("playtest") === "sponsor", () => false);
+  const playtest = useSyncExternalStore(subscribeMeta, () => ["sponsor", "cabinet"].includes(new URLSearchParams(window.location.search).get("playtest")), () => false);
 
   const go = async (c = country, d = diff, i = ideo, daily = null, b = bio, quick = false) => {
     if (!(c && d && i) || loading) return;
@@ -1462,7 +1463,7 @@ function Setup({ onStart, saved, onResume }) {
           {custom ? "Свернуть анкету ▴" : "Выбрать страну, курс и сложность ▾"}
         </button>
         {playtest && <Card style={{ marginBottom:18 }}>
-          <Label>ПРОВЕРКА МИРА · ЧУЖИЕ ДЕНЬГИ</Label>
+          <Label>ПРОВЕРКА МИРА · ЛЮДИ И ПРАВИТЕЛЬСТВО</Label>
           <p style={{ fontFamily:serif, fontSize:14, lineHeight:1.5, marginBottom:12 }}>Обычное правление с известной начальной ситуацией. Спонсор кампании, энергосеть и больницы существуют одновременно. Можно самим выйти на контакт; партия продолжается после этого столкновения.</p>
           <PrimaryBtn disabled={loading} onClick={() => go("Украина", "debut", "pragmatist", null, "economist", true)}>НАЧАТЬ ПРОБНУЮ ПАРТИЮ</PrimaryBtn>
         </Card>}
@@ -1821,7 +1822,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   // Клавиши: 1–9 — фокус на вариант (с предпросмотром), Enter — подтвердить / следующий ход.
   useEffect(() => {
     const onKey = e => {
-      if (transition || countryOpen || contactOpen || resourceOpen || e.target.closest?.("input, textarea, [data-world-panel], [data-sponsor-panel]") || document.querySelector(".sv-modal")) return;
+      if (transition || countryOpen || contactOpen || resourceOpen || e.target.closest?.("input, textarea, [data-world-panel], [data-sponsor-panel], [data-presidential-desk]") || document.querySelector(".sv-modal")) return;
       if (/^[1-9]$/.test(e.key)) {
         const el = document.getElementById(`opt-${e.key}`);
         if (el) { el.focus(); e.preventDefault(); }
@@ -2026,9 +2027,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         </div>
 
         <div className="sv-main">
-          {!busy && !recap && <SponsorPanel gs={gs} Scene={SquareView} onViewChange={setContactOpen} onAction={id => {
+          {!busy && !recap && <PresidentialDesk gs={gs} Portrait={Portrait} Scene={SquareView} onViewChange={setContactOpen}
+            onRead={person => { if (!inFlight.current) commit(readPresidentialMessages(gsRef.current, person)); }}
+            onDesk={() => document.getElementById("sv-main-case")?.scrollIntoView({behavior:"smooth",block:"start"})}
+            onProject={id => countryPanel.current?.showProject(id)} onAction={id => {
             if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
-            const next = interveneWorld(gsRef.current, id);
+            let next = interveneWorld(gsRef.current, id);
+            if (id.startsWith("sponsor:")) { const person = presidentialMessages(next).find(m => m.action === "sponsor")?.person; if (person) next = readPresidentialMessages(next, person); }
             prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
           }}/>}
           {!busy && !recap && <WorldPanel ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}
@@ -2038,6 +2043,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               const next = interveneWorld(gsRef.current, id);
               prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
             }}/>}
+          <div id="sv-main-case" className="sv-main-case-label">{event ? "ГЛАВНОЕ ДЕЛО · ЗАВЕРШАЕТ КВАРТАЛ" : "ИТОГИ ГЛАВНОГО РЕШЕНИЯ"}</div>
           {gs.turn === 0 && !busy && <details className="sv-mandate"><summary>Ваш мандат и обещания</summary><BriefCard gs={gs}/></details>}
           {warnLevel !== "none" && !busy && !gs.ended && (
             <div className="sv-paper sv-citation" style={{ marginBottom:10, padding:"9px 16px" }}>

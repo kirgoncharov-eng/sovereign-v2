@@ -6,8 +6,8 @@ import { PeopleText } from './PeopleText.jsx';
 
 const LABELS = { offered: 'Можно выйти на контакт', accepted: 'Вы приняли помощь', demanding: 'Он предъявил условие', confirmed: 'Условие проведено', refused: 'Вы отказались', pressuring: 'Он задерживает поставки', independent: 'Рычаг поставок утрачен', released: 'Программа завершена', departed: 'Участник лишился прежней позиции' };
 const RES = { economy: 'экономика', politicalCapital: 'политкапитал', personalResource: 'личный ресурс' };
-export default function SponsorPanel({ gs, onAction, Scene, onViewChange }) {
-  const [open, setOpen] = useState(false);
+export default function SponsorPanel({ gs, onAction, Scene, onViewChange, embedded = false, onClose }) {
+  const [open, setOpen] = useState(embedded);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState('');
@@ -25,10 +25,10 @@ export default function SponsorPanel({ gs, onAction, Scene, onViewChange }) {
     } catch (e) { setError(e.message || 'Не удалось записать решение'); }
   }
   return <section className="sv-sponsor" data-sponsor-panel>
-    <div className="sv-sponsor-heading"><small>ЛИЧНАЯ ИНИЦИАТИВА · ЧУЖИЕ ДЕНЬГИ</small><span>{LABELS[s.phase]}</span></div>
+    {!embedded && <><div className="sv-sponsor-heading"><small>ЛИЧНАЯ ИНИЦИАТИВА · ЧУЖИЕ ДЕНЬГИ</small><span>{LABELS[s.phase]}</span></div>
     <h3><PeopleText>{s.name}</PeopleText></h3>
     <p>{s.phase === 'offered' ? 'Спонсор кампании может помочь энергосети. Вы можете сами обсудить условия, пока в кабинете идёт другое дело.' : s.phase === 'demanding' ? `Помощь получила цену: ответьте на требование до конца квартала ${s.deadline}.` : s.phase === 'pressuring' ? 'Его компании задерживают нынешние поставки. Независимый договор уберёт этот рычаг; политическая история продолжится.' : s.phase === 'independent' ? 'Вы освободили снабжение от этого человека. Документы о кампании остаются в политической истории.' : 'Ваша договорённость и её последствия остаются частью правления.'}</p>
-    <button className="sv-sponsor-open" aria-expanded={open} onClick={() => { setOpen(!open); onViewChange(!open); setSelected(null); }}>{open ? 'Свернуть контакт' : s.phase === 'offered' ? 'Назначить встречу →' : 'Открыть контакт и последствия →'}</button>
+    <button className="sv-sponsor-open" aria-expanded={open} onClick={() => { setOpen(!open); onViewChange(!open); setSelected(null); }}>{open ? 'Свернуть контакт' : s.phase === 'offered' ? 'Назначить встречу →' : 'Открыть контакт и последствия →'}</button></>}
     {open && <div className="sv-sponsor-body">
       <Scene gs={gs} sceneKey="office" height={48}/>
       <div className="sv-sponsor-person">{person ? `${person.role} · отношение ${person.relation > 0 ? '+' : ''}${person.relation}` : 'Прежний участник больше не занимает эту позицию'}</div>
@@ -39,7 +39,7 @@ export default function SponsorPanel({ gs, onAction, Scene, onViewChange }) {
       {chosen && <div className="sv-sponsor-sign"><p>Подтвердить: {chosen.title}</p><button disabled={!!chosen.blocked} onClick={confirm}>Подтвердить поручение</button></div>}
       {receipt && <p className="sv-sponsor-receipt" role="status">{receipt}</p>}
       {error && <p role="alert">{error}</p>}
-      <button className="sv-sponsor-open" onClick={() => { setOpen(false); onViewChange(false); setSelected(null); }}>Вернуться к делу в кабинете →</button>
+      <button className="sv-sponsor-open" onClick={() => { setOpen(false); onViewChange(false); setSelected(null); onClose?.(); }}>Вернуться к делу в кабинете →</button>
       {!actions.length && <p className="sv-sponsor-help">Новых поручений по этой договорённости сейчас нет. Можно продолжить дело в кабинете или заняться другими вопросами страны.</p>}
     </div>}
   </section>;
