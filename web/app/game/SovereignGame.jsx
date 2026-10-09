@@ -1367,6 +1367,7 @@ function VersionLabel() {
   return (
     <div onClick={tap} style={{ fontFamily:mono, fontSize:11, color:G.tx3, textAlign:"center", marginTop:18, userSelect:"none" }}>
       v{APP_VERSION}{tester ? " · тест" : ""}{note && <div style={{ marginTop:4 }}>{note}</div>}
+      {process.env.NEXT_PUBLIC_ANALYTICS !== "off" && <div style={{ marginTop:6 }}><a href="/privacy" target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ color:G.tx3 }}>Данные и условия</a></div>}
     </div>
   );
 }

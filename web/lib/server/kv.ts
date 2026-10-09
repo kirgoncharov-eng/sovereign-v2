@@ -156,6 +156,23 @@ export const kv = {
       return v;
     });
   },
+  async zrem(key: string, member: string) {
+    if (kvConfigured()) return void await redis(["ZREM", key, member]);
+    bucket(zsets, key).delete(member);
+  },
+  async del(key: string) {
+    if (kvConfigured()) return void await redis(["DEL", key]);
+    zsets.delete(key); hashes.delete(key); sets.delete(key); lists.delete(key);
+  },
+  // Список целиком заменяется новым (порядок сохраняется). Нужен, чтобы вычеркнуть записи одного человека.
+  async lreplace(key: string, values: string[]) {
+    if (kvConfigured()) {
+      await redis(["DEL", key]);
+      if (values.length) await redis(["RPUSH", key, ...values]);
+      return;
+    }
+    lists.set(key, [...values]);
+  },
   async expire(key: string, seconds: number) {
     if (kvConfigured()) await redis(["EXPIRE", key, seconds]);
   },
