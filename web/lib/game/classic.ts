@@ -1,5 +1,5 @@
 import { mandatePublicEvent } from './minister-public.ts';
-import { governmentReviewEvent } from './government.ts';
+import { calendarEpisode, calendarSlot } from './political-calendar.ts';
 // Режим «Сценарии»: та же игра без обращения к модели. Событие выбирается из библиотеки
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
 import { promisesBroken, promisesKept } from "./promises.ts";
@@ -484,14 +484,16 @@ const PATH_TAGS: Record<PathId, ActionTag[]> = {
 };
 
 // ── Проверка документов ──────────────────────────────────────────────────────
-// Дважды за партию на стол ложится доклад и справка к нему. Первый доклад всегда лжёт —
-// так игрок узнаёт механику; второй честен через раз — чтобы не обвинять вслепую.
+// Дважды в первом сроке — управленческое совещание. Срочное дело переносит его,
+// не превращая выбор в поиск заранее назначенной лжи.
 export const inspectTurns = (seed: number) => (seed % 2 ? [4, 14] : [5, 15]);
 
 export function inspectEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
   // Сверка докладов — дело первого срока: дальше аппарат уже знает, что вы читаете бумаги.
-  const k = termIndex(turn) === 0 ? inspectTurns(state.seed).indexOf(turn) : -1;
+  const dates = inspectTurns(state.seed);
+  const slot = termIndex(turn) === 0 ? calendarSlot(state, 'ins', dates, [dates[1] - 1, TERM]) : null;
+  const k = slot === null ? -1 : dates.indexOf(slot);
   if (k < 0 || dueBeat(state)) return null;
   const docs=MANAGEMENT_DOSSIERS.filter(d=>state.factions.some(f=>f.bloc===d.bloc))
     .sort((a,b)=>hashSeed(state.seed,'management',a.id)-hashSeed(state.seed,'management',b.id));
@@ -502,7 +504,7 @@ export function inspectEvent(state: GameState): SpecialEvent | null {
     deal:{pure:true,res:option.res,factionRel:Object.fromEntries(facIds.map(id=>[id,option.relation])),later:option.later},
     scene:option.scene,sceneFail:option.scene,headline:`${doc.title}: ${option.text.toLowerCase()}`,headlineFail:`${doc.title}: ${option.text.toLowerCase()}`,
   }));
-  return {cardId:`ins:${turn}:${doc.id}`,title:doc.title,source:'Рабочее совещание',description:chapter(dateline(state),doc.intro),isCritical:false,affectedFactions:facIds,
+  return {cardId:`ins:${slot}:${doc.id}`,title:doc.title,source:'Рабочее совещание',description:chapter(dateline(state),doc.intro),isCritical:false,affectedFactions:facIds,
     choices,council:null,special:{kind:'inspect',figure:null,faction:facIds[0]??''},doc:{facts:doc.facts,lines:doc.lines,author:doc.who,key:null},randomEvent:null};
 }
 
@@ -535,13 +537,14 @@ export const PRESS_TURNS = [9, 19];
 
 export function pressEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
-  const k = PRESS_TURNS.indexOf(localTurn(turn));
+  const slot = calendarSlot(state, 'prs', PRESS_TURNS, [10, TERM]);
+  const k = slot === null ? -1 : PRESS_TURNS.indexOf(localTurn(slot));
   if (k < 0 || dueBeat(state)) return null;
   const asked = new Set((state.usedEvents ?? []).filter(u => u.startsWith("prs:")).flatMap(u => u.split(":")[2].split(",")));
   const r = state.resources;
   // После «вопроса о сроках» выборов может и не быть: тогда о них не спрашивают.
   // Пресс-конференция стоит перед выборами — если они будут: в середине срока парламентские, в конце — главные.
-  const ahead = k === 0 ? turn + 1 : turn - localTurn(turn) + TERM;
+  const ahead = turn - localTurn(turn) + (k === 0 ? 10 : TERM);
   const noVote = !electionKind(ahead, state.path, reignOf(state).office);
   const fits: Record<PressWhen, boolean> = {
     always: true, crisis: state.activeCrises.length > 0, lowEcon: r.economy < 40, lowLegit: r.internalLegitimacy < 40,
@@ -564,7 +567,7 @@ export function pressEvent(state: GameState): SpecialEvent | null {
     scene: PRESS_TEXT.skip.scene, sceneFail: PRESS_TEXT.skip.scene, headline: PRESS_TEXT.skip.head, headlineFail: PRESS_TEXT.skip.head,
   };
   return {
-    cardId: `prs:${turn}:${picked.map(q => q.id).join(",")}`,
+    cardId: `prs:${slot}:${picked.map(q => q.id).join(",")}`,
     title: noVote ? PRESS_TEXT.titleNoVote[state.path?.id ?? reignOf(state).how ?? ""] ?? PRESS_TEXT.titleNoVote.none : PRESS_TEXT.title[k],
     source: "Пресс-служба",
     description: chapter(dateline(state, "press"), PRESS_TEXT.intro),
@@ -606,7 +609,7 @@ export function pressChoice(state: GameState, picks: number[]): Choice {
   const count = (t: string) => tones.filter(x => x === t).length;
   // Тон пресс-конференции — тот, что прозвучал хотя бы дважды; иначе зал запомнит смешанное впечатление.
   const tone = (["honest", "hard", "evasive"] as const).find(t => count(t) >= 2) ?? "mixed";
-  lines.push(nth(PRESS_TEXT.close[tone], Math.max(0, PRESS_TURNS.indexOf(localTurn(state.turn + 1)))));
+  lines.push(nth(PRESS_TEXT.close[tone], calendarEpisode(state, PRESS_TURNS)));
   const factionRel: Record<string, number> = {};
   for (const f of state.factions) if (relBloc[f.bloc]) factionRel[f.id] = relBloc[f.bloc];
   const headline = quote && quote.length <= 70 ? `Президент: ${quote}` : "Президент ответил на вопросы журналистов";
@@ -629,8 +632,8 @@ const CONCESSION: Record<Bloc, keyof GameState["resources"]> = {
 };
 
 export function callEvent(state: GameState): SpecialEvent | null {
-  const turn = state.turn + 1;
-  const k = CALL_TURNS.indexOf(localTurn(turn));
+  const slot = calendarSlot(state, 'call', CALL_TURNS, [16, TERM]);
+  const k = slot === null ? -1 : CALL_TURNS.indexOf(localTurn(slot));
   if (k < 0 || dueBeat(state)) return null;
   const called = new Set((state.usedEvents ?? []).filter(u => u.startsWith("call:")).map(u => u.split(":")[2]));
   const facOf = (f: Figure) => state.factions.find(x => x.id === f.faction);
@@ -648,7 +651,7 @@ export function callEvent(state: GameState): SpecialEvent | null {
     headline: CALL_TEXT.hangup.head, headlineFail: CALL_TEXT.hangup.head,
   };
   return {
-    cardId: `call:${turn}:${fig.id}`,
+    cardId: `call:${slot}:${fig.id}`,
     title: CALL_TEXT.title,
     source: "Защищённая линия",
     description: chapter(dateline(state, "call"), fill(CALL_TEXT.intro, state, slots)),
@@ -690,7 +693,7 @@ export function callChoice(state: GameState, approach: Approach, ending: (typeof
   const scene = [
     `${fig.name} начинает без приветствия: ${fill(call.demand, state, slots)}`,
     `Вы ${APPROACH_SAY[approach]}. ${reply}.`,
-    fill(nth(T.outcome[`${ending}_${ok ? "ok" : "no"}`], Math.max(0, CALL_TURNS.indexOf(localTurn(state.turn + 1)))), state, slots),
+    fill(nth(T.outcome[`${ending}_${ok ? "ok" : "no"}`], calendarEpisode(state, CALL_TURNS)), state, slots),
   ].join(" ");
   const head = fill(T.heads[ending], state, slots);
   return {
@@ -715,8 +718,8 @@ const APPROACH_SAY: Record<Approach, string> = {
 export const BUDGET_TURN = 8;
 
 export function budgetEvent(state: GameState): SpecialEvent | null {
-  const turn = state.turn + 1;
-  if (localTurn(turn) !== BUDGET_TURN || dueBeat(state)) return null;
+  const slot = calendarSlot(state, 'budget', [BUDGET_TURN], [10]);
+  if (slot === null || dueBeat(state)) return null;
   const T = BUDGET_TEXT;
   const skip: Choice = {
     id: "b", text: T.skip.text, hint: T.skip.hint, tags: ["delay"], resolvesCrisis: null,
@@ -724,7 +727,7 @@ export function budgetEvent(state: GameState): SpecialEvent | null {
     scene: T.skip.scene, sceneFail: T.skip.scene, headline: T.skip.head, headlineFail: T.skip.head,
   };
   return {
-    cardId: `budget:${turn}`,
+    cardId: `budget:${slot}`,
     title: T.title,
     source: "Министерство финансов",
     description: chapter(dateline(state), T.intro),
@@ -783,9 +786,10 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
   if (beat) return beat;
   const publicQuestion = mandatePublicEvent(state);
   if (publicQuestion) return publicQuestion;
-  const review = governmentReviewEvent(state);
-  if (review) return review;
-  const interlude = inspectEvent(state) ?? pressEvent(state) ?? callEvent(state) ?? budgetEvent(state);
+  // Самое раннее ожидающее дело первым получает освободившийся квартал.
+  const interlude = [inspectEvent(state), pressEvent(state), callEvent(state), budgetEvent(state)]
+    .filter((event): event is SpecialEvent => event !== null)
+    .sort((a, b) => Number(a.cardId.split(':')[1]) - Number(b.cardId.split(':')[1]))[0];
   if (interlude) return interlude;
   const special = specialEvent(state);
   if (special) return special;

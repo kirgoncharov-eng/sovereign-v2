@@ -43,11 +43,11 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
     const next = world.government.housingNext;
     const nextPerson = next && personId(next.name ?? next.previousName);
     const nextLetter = next && [...world.dispatches].reverse().find(d => d.id.includes(':housing-next:'));
-    if (next && nextPerson && nextLetter) messages.push({ key: 'housing-next', token: nextLetter.id, person: nextPerson, title: nextLetter.title, text: nextLetter.text, action: 'government', needsReply: next.status === 'proposed' || next.status !== 'running' && !next.reviewed });
+    if (next && nextPerson && nextLetter) messages.push({ key: 'housing-next', token: nextLetter.id, person: nextPerson, title: nextLetter.title, text: nextLetter.text, action: 'government', needsReply: false });
     for (const p of world.government.programs) {
       const latest = [...world.dispatches].reverse().find(d => d.project === p.id && !d.id.includes(':housing-next:') && ['report','news'].includes(d.kind));
       const person = p.name && personId(p.name);
-      if (latest && person) messages.push({ key: `program:${p.id}`, token: latest.id, person, title: latest.title, text: latest.text, action: 'government', needsReply: p.status !== 'running' && !p.reviewed });
+      if (latest && person) messages.push({ key: `program:${p.id}`, token: latest.id, person, title: latest.title, text: latest.text, action: 'government', needsReply: false });
     }
   }
   return messages;

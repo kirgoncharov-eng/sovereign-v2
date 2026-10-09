@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { classicApi } from './classic.ts';
-import { createInitialState, seededRandom, startEvent, resolveTurn, planTurn } from './engine.ts';
+import { createInitialState, seededRandom, startEvent } from './engine.ts';
 import { openLivingWorld, livingActions, interveneWorld, stepLivingWorld } from './living-world.ts';
 import { governmentReviewEvent, governmentLoad, governmentProject, PROJECTS } from './government.ts';
 import { presidentialMessages, readPresidentialMessages, messageUnread } from '../client/presidential-inbox.ts';
@@ -62,14 +62,34 @@ test('messages distinguish read from action, survive saves and become unread onl
   const later=tick(tick(read)),changed=presidentialMessages(later).find(m=>m.key==='sponsor')!;assert.ok(messageUnread(later,changed));assert.equal(changed.needsReply,true);assert.equal(later.world!.sponsor!.phase,'pressuring');
   assert.deepEqual(presidentialMessages({...gs,daily:'2026-10-09'}),[]);
 });
-test('completed self-initiated program becomes the main event, resolves once, and preserves normal intrigue priority',async()=>{
+test('program results publish without a main quarter, repeat rewards or a required reply',async()=>{
   let gs=interveneWorld(await base(),'government:start:housing');for(let i=0;i<4;i++)gs=tick(gs);
-  const review=governmentReviewEvent(gs)!;assert.ok(review);assert.ok(review.description.includes(`${governmentProject(gs.world!,'housing').progress}%`));
-  // Suppress the already known intrigue for this routing check; all other government state stays real.
-  gs={...gs,arc:null};const routed=await classicApi.event(gs);assert.equal(routed.title,review.title);assert.ok(parseSave(save(startEvent(gs,routed))));
-  gs=startEvent(gs,routed);const planned=planTurn(gs,'b'),result=resolveTurn(gs,'b',await classicApi.consequence(gs,'b'));
-  assert.deepEqual(result.world,planned.world);assert.equal(governmentReviewEvent(result),null);assert.equal(governmentProject(result.world!,'housing').progress,governmentProject(gs.world!,'housing').progress);
-  const after=tick(result);assert.equal(governmentReviewEvent(after),null);assert.equal(after.ended,false);
+  assert.equal(gs.world!.government!.programs.find(p=>p.id==='housing')!.reviewed,true);
+  assert.equal(governmentReviewEvent(gs),null);
+  assert.equal(gs.world!.government!.housingNext!.status,'proposed');
+  const message=presidentialMessages(gs).find(m=>m.key==='program:housing')!;
+  assert.ok(message.text.includes(`${governmentProject(gs.world!,'housing').progress}%`));
+  assert.equal(message.needsReply,false);assert.ok(messageUnread(gs,message));
+  const read=readPresidentialMessages(gs,message.person);
+  assert.deepEqual(read.resources,gs.resources);assert.equal(read.turn,gs.turn);
+  assert.equal(messageUnread(read,presidentialMessages(read).find(m=>m.key==='program:housing')!),false);
+  const routed=await classicApi.event({...gs,arc:null});assert.ok(!routed.cardId?.startsWith('government-review:'));
+  const after=stepLivingWorld(gs,gs.turn+1);
+  assert.equal(after.effects.some(e=>e.label==='программа «Жилищная программа»'),false);
+  assert.equal(after.world!.dispatches.filter(d=>d.id.includes('housing-next:proposal')).length,1);
+  assert.ok(parseSave(save(read)));
+});
+test('an old pending presentation migrates to messages without spending time or granting resources',async()=>{
+  let gs=interveneWorld(await base(),'government:start:housing');for(let i=0;i<4;i++)gs=tick(gs);
+  gs=structuredClone(gs);gs.world!.government!.programs.find(p=>p.id==='housing')!.reviewed=false;
+  delete gs.world!.government!.housingNext;
+  gs=startEvent(gs,governmentReviewEvent(gs)!);
+  const source=JSON.stringify(gs),parsed=parseSave(save(gs))!.state,migrated=openLivingWorld(parsed);
+  assert.equal(JSON.stringify(gs),source);assert.equal(migrated.currentEvent,null);
+  assert.deepEqual(migrated.resources,gs.resources);assert.equal(migrated.turn,gs.turn);
+  assert.equal(migrated.world!.government!.housingNext!.status,'proposed');
+  assert.ok(presidentialMessages(migrated).some(m=>m.key==='program:housing'));
+  assert.deepEqual(openLivingWorld(migrated),migrated);assert.ok(parseSave(save(migrated)));
 });
 test('government and notification saves reject corruption; work does not run twice after reload',async()=>{
   let gs=interveneWorld(await base(),'government:start:procurement');
