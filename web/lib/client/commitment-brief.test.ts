@@ -45,6 +45,7 @@ test('minister authority persists after energy but actual help, housing charges 
     while (gs.turn < 9)
         gs = tick(gs);
     assert.equal(commitmentBriefs(gs).find(c => c.id === 'minister')!.active, false);
+    assert.ok(commitmentBriefs(gs).find(c => c.id === 'minister')!.promised.includes('исполнен'));
     assert.ok(!commitmentBriefs(gs).find(c => c.id === 'minister')!.price.includes('Экономика −1 за квартал исполнения'));
 });
 test('sponsor help, demand date, lost leverage and overdue pressure are not confused with recurring budget charges', async () => {
