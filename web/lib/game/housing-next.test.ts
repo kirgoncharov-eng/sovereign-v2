@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import { classicApi } from './classic.ts';
 import { createInitialState, seededRandom, startEvent, planTurn, resolveTurn } from './engine.ts';
 import { openLivingWorld, interveneWorld, stepLivingWorld, livingActions } from './living-world.ts';
-import { governmentLoad, governmentReviewEvent } from './government.ts';
-import { housingNextReview } from './housing-next.ts';
+import { governmentLoad } from './government.ts';
 import { parseSave } from '../client/save.ts';
 import { SAVE_VERSION } from './data.ts';
 import { presidentialMessages } from '../client/presidential-inbox.ts';
@@ -17,14 +16,13 @@ async function base(complete = true) {
     if (complete) { gs = tick(gs); gs = interveneWorld(gs, 'government:support:housing'); }
     while (gs.turn < 4) gs = tick(gs);
     gs = { ...gs, arc: null, activeCrises: [], resources: Object.fromEntries(Object.keys(gs.resources).map(k => [k, 60])) as GameState['resources'] };
-    const state = startEvent(gs, governmentReviewEvent(gs)!);
-    return resolveTurn(state, 'b', await classicApi.consequence(state, 'b'));
+    return gs;
 }
-test('a reviewed real housing result opens an optional next budget and a message; no duplicate first reward or inherited minister rights', async () => {
+test('a published real housing result opens an optional next budget and a message; no duplicate first reward or inherited minister rights', async () => {
     const gs = await base();
     assert.equal(gs.world!.government!.housingNext!.status, 'proposed');
     assert.equal(gs.world!.government!.housingNext!.originProgress, 100);
-    assert.ok(presidentialMessages(gs).some(m => m.key === 'housing-next' && m.needsReply));
+    assert.ok(presidentialMessages(gs).some(m => m.key === 'housing-next' && !m.needsReply));
     const origin = structuredClone(gs.world!.government!.programs.find(p => p.id === 'housing'));
     const started = interveneWorld(gs, 'government:start:settle');
     assert.deepEqual(started.world!.government!.programs.find(p => p.id === 'housing'), origin);
@@ -66,17 +64,21 @@ test('continuity, existing power and audited procurement change real progress; l
     assert.equal(governmentLoad(crowded.world!), 2);
     assert.ok(livingActions(crowded).find(a => a.id === 'government:start:procurement')!.blocked);
 });
-test('two distinct routes keep their original promise and finish once; final report resolves and reloads deterministically', async () => {
+test('two distinct routes keep their original promise and finish once; final report is optional and reloads deterministically', async () => {
     for (const mode of ['settle', 'expand']) {
         let gs = interveneWorld(await base(), `government:start:${mode}`);
         while (gs.world!.government!.housingNext!.status === 'running') { gs = tick(gs); assert.ok(parseSave(save(gs))); }
-        const event = housingNextReview(gs)!;
-        if (mode === 'expand') assert.ok(event.description.includes('не входили в эту подпись'));
+        const message = presidentialMessages(gs).find(m => m.key === 'housing-next')!;
+        assert.equal(message.needsReply, false);
+        if (mode === 'expand') assert.ok(message.text.includes('не оплачены'));
+        assert.equal(gs.world!.government!.housingNext!.reviewed, true);
+        const event = await classicApi.event(gs);
+        assert.notEqual(event.cardId, 'housing-next:review');
         const state = startEvent(gs, event), before = JSON.stringify(state), planned = planTurn(state, 'b');
         const result = resolveTurn(state, 'b', await classicApi.consequence(state, 'b'));
         assert.equal(JSON.stringify(state), before);
         assert.deepEqual(result.world, planned.world);
-        assert.equal(housingNextReview(result), null);
+        assert.equal(result.world!.government!.housingNext!.reviewed, true);
         assert.equal(stepLivingWorld(result, result.turn + 1).effects.some(e => e.label.includes('района')), false);
         assert.ok(parseSave(save(result)));
     }

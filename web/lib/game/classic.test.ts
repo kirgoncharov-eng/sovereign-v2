@@ -265,7 +265,12 @@ test("особые дела: реплики и газета пишут о том
   const { BUDGET_TURN, PRESS_TURNS, inspectTurns, specialAct } = await import("./classic.ts");
   const intro = await classicApi.setup("Грузия", "coalition", "liberal", 5);
   const base = createInitialState("Грузия", "coalition", "liberal", intro, () => 0.42);
-  const at = (turn: number): GameState => ({ ...base, turn, arc: base.arc ? { ...base.arc, done: [1, 3, 7, 12, 16] } : null });
+  // Эти проверки изолируют реплики данного дела: более ранний календарь уже рассмотрен.
+  const at = (turn: number): GameState => ({ ...base, turn,
+    usedEvents: [...inspectTurns(base.seed).filter(t => t <= turn).map(t => `ins:${t}:fixture`),
+      ...(turn >= BUDGET_TURN ? [`budget:${BUDGET_TURN}`] : []),
+      ...PRESS_TURNS.filter(t => t <= turn).map(t => `prs:${t}:fixture`)],
+    arc: base.arc ? { ...base.arc, done: [1, 3, 7, 12, 16] } : null });
   const quotes = (n: Awaited<ReturnType<typeof classicApi.consequence>>) => n.reactions.join(" ");
   const cases: [number, "budget" | "press" | "inspect", string, "budget_skip" | "press_skip" | "inspect_sign"][] = [
     [BUDGET_TURN - 1, "budget", "a", "budget_skip"],

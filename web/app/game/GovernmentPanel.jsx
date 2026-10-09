@@ -4,7 +4,7 @@ import { housingNextTitle } from '@/lib/game/housing-next.ts';
 import { PROJECTS, governmentLoad, governmentProject } from '@/lib/game/government.ts';
 import { livingActions, worldPerson } from '@/lib/game/living-world.ts';
 import { PeopleText } from './PeopleText.jsx';
-const LABEL = { unassigned:'Ждёт запуска', proposed:'Предложение', running:'Исполняется', completed:'Выполнено', partial:'Частично', failed:'Срок сорван' };
+const LABEL = { unassigned:'Ждёт исполнителя', proposed:'Предложение', running:'Исполняется', completed:'Выполнено', partial:'Частично', failed:'Срок сорван' };
 const RESOURCE = { economy:'экономика', politicalCapital:'политкапитал', personalResource:'личный ресурс', internalLegitimacy:'легитимность' };
 export const governmentPrice = cost => Object.entries(cost).map(([k,v])=>`${RESOURCE[k]??k} ${v}`).join(' · ') || 'Без списания ресурсов';
 export default function GovernmentPanel({ gs, onAction, onClose, onDetails, initialProject = 'energy' }) {
@@ -21,12 +21,15 @@ export default function GovernmentPanel({ gs, onAction, onClose, onDetails, init
   const options=[delegate,focus,support,release,...(next?actions.filter(a=>['government:start:settle','government:start:expand'].includes(a.id)):[])].filter(Boolean);
   const choice=options.find(a=>a.id===pending);
   const coordinator=selected==='energy'?project.executor&&worldPerson(gs,project.executor)?.name:selected==='health'?project.executor&&worldPerson(gs,project.executor)?.name:project.name;
+  const inherited=selected==='energy'||selected==='health';
+  const remaining=inherited?Math.max(0,project.deadline-gs.turn):null;
   function confirm(){if(!choice||choice.blocked)return;try{onAction(choice.id);setPending(null);setReceipt('Подпись записана. Квартал ещё не закончен; исполнение проверится после главного решения.');setError('');}catch(e){setError(e.message)}}
   return <section className="sv-government" data-government-panel>
     <header><small>ПРЕДЛОЖЕНИЯ ПРАВИТЕЛЬСТВА</small><h3>Что вы хотите провести?</h3><p>Кабинет ведёт до двух программ одновременно. Сейчас в работе: {governmentLoad(world)}/2. Одно личное вмешательство на запуск, переговоры или изменение поручения за квартал; чтение свободно.</p></header>
-    <div className="sv-government-list" aria-label="Пять направлений правительства">{PROJECTS.map(d=>{const original=governmentProject(world,d.id),p=d.id==='housing'&&world.government.housingNext?.status!=='proposed'&&world.government.housingNext?world.government.housingNext:original;return <button key={d.id} data-government-project={d.id} aria-pressed={selected===d.id} onClick={()=>{setSelected(d.id);setPending(null);setReceipt('');setError('')}}><strong>{d.title}</strong><span>{LABEL[p.status]}{p.status!=='proposed'&&p.status!=='unassigned'?` · ${p.progress}%`:''}{world.government.priority===d.id?' · ваш приоритет':''}</span></button>})}</div>
+    <div className="sv-government-list" aria-label="Пять направлений правительства">{PROJECTS.map(d=>{const original=governmentProject(world,d.id),p=d.id==='housing'&&world.government.housingNext?.status!=='proposed'&&world.government.housingNext?world.government.housingNext:original;return <button key={d.id} data-government-project={d.id} aria-pressed={selected===d.id} onClick={()=>{setSelected(d.id);setPending(null);setReceipt('');setError('')}}><strong>{d.title}</strong><span>{LABEL[p.status]}{p.status==='unassigned'?` · до срока ${Math.max(0,p.deadline-gs.turn)} кв.`:p.status!=='proposed'?` · ${p.progress}%`:''}{world.government.priority===d.id?' · ваш приоритет':''}</span></button>})}</div>
     <article className="sv-government-detail"><h3>{next?next.status==='proposed'?'Район после стройки':housingNextTitle(next):def.title}</h3>
-      {!next&&<dl><div><dt>Для страны</dt><dd>{def.benefit}</dd></div><div><dt>{next?'Бюджет первой стройки':'Стартовый бюджет'}</dt><dd>{governmentPrice(def.cost)} · четыре квартала</dd></div></dl>}
+      {!next&&<dl><div><dt>Для страны</dt><dd>{def.benefit}</dd></div><div><dt>Стартовый бюджет</dt><dd>{governmentPrice(def.cost)}{!inherited?' · четыре квартала после запуска':''}</dd></div></dl>}
+      {inherited&&['unassigned','running'].includes(project.status)&&<p data-government-deadline>Срок — конец квартала {project.deadline} правления; осталось {remaining} кв. Срок уже идёт, назначение исполнителя его не продлевает.{project.status==='unassigned'?' Без исполнителя работа не начнётся; к сроку программа провалится.':''}</p>}
       <details className="sv-government-context"><summary>Политический смысл и риски</summary><p>{def.politics}</p><p>{def.risk}</p></details>
       {selected==='housing'&&['accepted','used'].includes(world.mandate?.phase)&&<p className="sv-government-factors"><PeopleText>{world.mandate.name}</PeopleText> получил право выбирать подрядчиков по вашей прежней договорённости об энергосети. При запуске жилья он воспользуется им самостоятельно: +5 работы и экономика −1 за каждый квартал исполнения; проверка закупок теряет 5 работы без прямого доступа к документам. Отозвать право можно в его сообщении.</p>}
       {!next&&coordinator&&<p>Исполняет: <PeopleText>{coordinator}</PeopleText>. Работа {project.progress}%. {project.due?`Срок — конец квартала ${project.due}.`:''}</p>}

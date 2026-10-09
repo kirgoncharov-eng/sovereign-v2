@@ -39,7 +39,7 @@ export function healthActions(world: LivingWorld, people: WorldPerson[]): Omit<W
   const candidateAction = (person: WorldPerson, replace: boolean) => ({
     id: `health:${replace ? 'replace' : 'appoint'}:${person.id}`,
     title: `${replace ? 'Сменить руководителя' : 'Поручить больницы'}: ${person.name}`,
-    detail: `${person.role}. Компетенция ${person.competence}/3, отношение ${person.relation > 0 ? '+' : ''}${person.relation}. ${person.goal}. ${replace ? 'Передача дел задержит следующий квартал.' : 'Стартовый бюджет — на четыре квартала.'}${world.project.status === 'running' && world.project.executor === person.id ? ' Уже руководит энергосетью: оба проекта будут идти медленнее.' : ''}`,
+    detail: `${person.role}. Компетенция ${person.competence}/3, отношение ${person.relation > 0 ? '+' : ''}${person.relation}. ${person.goal}. ${replace ? 'Передача дел задержит следующий квартал.' : `Срок — конец квартала ${project.deadline}; осталось ${Math.max(0,project.deadline-world.lastTick)} кв. Назначение его не продлевает. Без исполнителя работа не начнётся.`}${world.project.status === 'running' && world.project.executor === person.id ? ' Уже руководит энергосетью: оба проекта будут идти медленнее.' : ''}`,
     cost: replace ? { politicalCapital: -3 } : { economy: -4, politicalCapital: -2 },
   });
   if (project.status === 'unassigned') return candidates.map(person => candidateAction(person, false));
@@ -73,7 +73,7 @@ export function healthDecision(world: LivingWorld, id: string, person: (id: Worl
     project.executor = id.split(':')[2] as WorldPersonId;
     if (replace) project.lastFactors = ['Передача дел'];
     else { project.status = 'running'; project.funds = 4; }
-    return `${person(project.executor).name} принимает ответственность за районные больницы. ${replace ? 'Набранные специалисты остаются, но передача дел займёт часть следующего квартала.' : 'Первый доклад — после заседания в кабинете. Бюджет выделен на четыре квартала; постоянный набор остаётся основным способом комплектования.'}`;
+    return `${person(project.executor).name} принимает ответственность за районные больницы. ${replace ? 'Набранные специалисты остаются, но передача дел займёт часть следующего квартала.' : `Первый доклад — после заседания в кабинете. Срок остаётся прежним: конец квартала ${project.deadline}; постоянный набор — основной способ комплектования.`}`;
   }
   if (id === 'health:fund') {
     project.secured = true;

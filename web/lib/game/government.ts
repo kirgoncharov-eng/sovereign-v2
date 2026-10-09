@@ -1,4 +1,4 @@
-import { housingNextActions, housingNextReview, startHousingNext, stepHousingNext, validHousingNext, type HousingNext } from './housing-next.ts';
+import { housingNextActions, housingNextReview, offerHousingNext, startHousingNext, stepHousingNext, validHousingNext, type HousingNext } from './housing-next.ts';
 import { mandateHousing } from './minister-mandate.ts';
 import type { GameEvent, GameState, ResourceDelta, Choice } from './types.ts';
 import type { LivingWorld, WorldAction } from './living-world.ts';
@@ -14,7 +14,7 @@ export interface GovernmentProgram {
   coordinator: string | null;
   name: string | null;
   lastFactors: string[];
-  reviewed: boolean;
+  reviewed: boolean; // Итог опубликован; чтение сообщения хранится отдельно в inboxRead.
   supported: boolean;
 }
 export interface GovernmentState {
@@ -39,6 +39,32 @@ export function ensureGovernment(gs: GameState): GameState {
   return { ...gs, world: { ...gs.world, government } };
 }
 export const cloneGovernment = (g: GovernmentState): GovernmentState => ({ ...g, ...(g.housingNext ? { housingNext: { ...g.housingNext, factors: [...g.housingNext.factors] } } : {}), programs: g.programs.map(p => ({ ...p, lastFactors: [...p.lastFactors] })) });
+
+// Старые результаты уже начислены. Переносим только публикацию и доступ к продолжению.
+export function publishSavedGovernmentReports(gs: GameState): GameState {
+  const government = gs.world?.government;
+  if (!government || gs.daily || gs.ended) return gs;
+  const pendingReport = gs.currentEvent?.card?.startsWith('government-review:') || gs.currentEvent?.card === 'housing-next:review';
+  const unpublished = government.programs.some(p => ['completed', 'partial', 'failed'].includes(p.status) && !p.reviewed)
+    || government.housingNext && ['completed', 'partial', 'failed'].includes(government.housingNext.status) && !government.housingNext.reviewed;
+  const housing = government.programs.find(p => p.id === 'housing')!;
+  const needsProposal = !government.housingNext && ['completed', 'partial'].includes(housing.status);
+  if (!pendingReport && !unpublished && !needsProposal) return gs;
+  const world = { ...gs.world!, government: cloneGovernment(government), dispatches: [...gs.world!.dispatches] };
+  for (const p of world.government.programs) {
+    if (!['completed', 'partial', 'failed'].includes(p.status)) continue;
+    p.reviewed = true;
+    if (!world.dispatches.some(d => d.project === p.id && d.kind === 'news' && !d.id.includes(':housing-next:'))) {
+      world.dispatches.push({ project: p.id, id: `${gs.turn}:government:${p.id}:published`, turn: gs.turn, kind: 'news', title: projectDef(p.id).title,
+        text: `${p.name}: «${projectDef(p.id).title}» — ${p.progress}%. ${p.lastFactors.join('. ')}. Результат и расходы уже учтены. Доклад опубликован; отдельная резолюция не требуется.` });
+    }
+  }
+  const next = world.government.housingNext;
+  if (next && ['completed', 'partial', 'failed'].includes(next.status)) next.reviewed = true;
+  offerHousingNext(world, gs.turn);
+  world.dispatches = world.dispatches.slice(-24);
+  return { ...gs, world, ...(pendingReport ? { currentEvent: null } : {}) };
+}
 export function governmentProject(world: LivingWorld, id: GovernmentProjectId) {
   return id === 'energy' ? world.project : id === 'health' ? world.health! : world.government!.programs.find(p => p.id === id)!;
 }
@@ -127,10 +153,11 @@ export function stepGovernment(gs: GameState, world: LivingWorld, turn: number, 
     const terminal = p.progress === 100 || turn >= p.due!;
     if (terminal) {
       p.status = p.progress === 100 ? 'completed' : p.progress >= 60 ? 'partial' : 'failed';
+      p.reviewed = true;
       const res: ResourceDelta = p.status === 'completed' ? p.id === 'procurement' ? { economy: 3, internalLegitimacy: 4 } : p.id === 'exports' ? { economy: 6, externalReputation: 3 } : { economy: 2, internalLegitimacy: 6 } : p.status === 'partial' ? { internalLegitimacy: 1 } : { internalLegitimacy: -2 };
       effects.push({ label: `программа «${def.title}»`, res });
     }
-    const text = `${p.name ?? 'Кабинет'}: «${def.title}» — ${p.progress}%. ${factors.join('. ')}. ${terminal ? `Срок закончен: ${p.status === 'completed' ? 'программа исполнена' : p.status === 'partial' ? 'частичный результат' : 'срок сорван'}. Итог поступит на главное рассмотрение.` : 'Подписанное поручение продолжает исполняться.'}`;
+    const text = `${p.name ?? 'Кабинет'}: «${def.title}» — ${p.progress}%. ${factors.join('. ')}. ${terminal ? `Срок закончен: ${p.status === 'completed' ? 'программа исполнена' : p.status === 'partial' ? 'частичный результат' : 'срок сорван'}. Итог опубликован в сообщениях и правительстве. Результат уже учтён; отдельная резолюция не требуется.` : 'Подписанное поручение продолжает исполняться.'}`;
     world.dispatches = [...world.dispatches, { project: p.id, id: `${turn}:government:${p.id}`, turn, kind: terminal ? 'news' as const : 'report' as const, title: def.title, text }].slice(-24);
     stories.push(text);
   }
@@ -152,6 +179,7 @@ export function stepGovernment(gs: GameState, world: LivingWorld, turn: number, 
   return { story: stories.join('\n\n') || null, effects };
 }
 export function governmentReviewEvent(gs: GameState): (GameEvent & {cardId: string}) | null {
+  // Совместимость с уже открытыми докладами старой версии; новые дела их не создают.
   if (gs.daily || gs.ended || gs.activeCrises.length) return null;
   const p = gs.world?.government?.programs.find(p => ['completed', 'partial', 'failed'].includes(p.status) && !p.reviewed);
   if (!p) return housingNextReview(gs);

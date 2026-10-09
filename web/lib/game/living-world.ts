@@ -1,6 +1,6 @@
 import { respondToMandate } from './minister-public.ts';
 import { ministerActions, ministerDecision, stepMinister, mandateEnergyHelp, validMinister, type MinisterMandate } from './minister-mandate.ts';
-import { cloneGovernment, ensureGovernment, governmentActions, governmentDecision, governmentLoad, priorityWork, stepGovernment, validGovernment, type GovernmentState } from './government.ts';
+import { cloneGovernment, ensureGovernment, governmentActions, governmentDecision, governmentLoad, priorityWork, publishSavedGovernmentReports, stepGovernment, validGovernment, type GovernmentState } from './government.ts';
 import { ensureSponsor, sponsorActions, sponsorDecision, sponsorPressure, sponsorSupport, stepSponsor, validSponsor, type SponsorState } from './sponsor-world.ts';
 import { healthNeedsAttention } from './health-aftermath.ts';
 // Первый живой регион: поручение развивается вместе с кварталами основной партии.
@@ -79,7 +79,7 @@ const append = (world: LivingWorld, d: Omit<WorldDispatch, 'id'>): LivingWorld =
 });
 export function openLivingWorld(gs: GameState): GameState {
     if (gs.daily || gs.ended) return gs;
-    if (gs.world?.health) return ensureGovernment(ensureSponsor(gs));
+    if (gs.world?.health) return publishSavedGovernmentReports(ensureGovernment(ensureSponsor(gs)));
     const previous = gs.world;
     const used = new Set([...(previous?.people.map(person => person.name) ?? []), gs.leader.name, ...gs.keyFigures.map(f => f.name), ...gs.advisors.map(entry => entry.name), ...(gs.former ?? [])]);
     const pool = NAMES[gs.country] ?? NAMES['Беларусь'];
@@ -127,7 +127,7 @@ export function openLivingWorld(gs: GameState): GameState {
     world = append(world, {
         project: 'health', turn: gs.turn, kind: 'letter', title: 'Районные больницы · письмо главного врача', text: `${people.find(person => person.id === 'doctor')!.name} просит укомплектовать районные отделения в течение года. Кабинеты и койки есть, но специалистов не хватает. ${people.find(person => person.id === 'healthMinister')!.name} предлагает постоянный набор; местные власти могут согласовать назначения, но уже участвуют в восстановлении энергосети. Временный перевод врачей даст быстрый результат за счёт областных больниц.`
     });
-    return ensureGovernment(ensureSponsor({ ...gs, world }));
+    return publishSavedGovernmentReports(ensureGovernment(ensureSponsor({ ...gs, world })));
 }
 export function worldPerson(gs: GameState, id: WorldPersonId): WorldPerson | undefined {
     const person = gs.world?.people.find(project => project.id === id);
@@ -157,7 +157,7 @@ export function livingActions(gs: GameState): WorldAction[] {
         for (const actor of world.people.filter(person => ['minister', 'governor', 'engineer'].includes(person.id))) {
             const person = worldPerson(gs, actor.id)!;
             list.push({
-                id: `appoint:${actor.id}`, title: `Поручить проект: ${person.name}`, detail: `${person.role}. Компетенция ${person.competence}/3, отношение к вам ${person.relation > 0 ? '+' : ''}${person.relation}. ${person.goal}. Финансирование — на четыре квартала.${world.health?.status === 'running' && world.health.executor === person.id ? ' Уже руководит больницами: оба проекта будут идти медленнее.' : ''}`, cost: {
+                id: `appoint:${actor.id}`, title: `Поручить проект: ${person.name}`, detail: `${person.role}. Компетенция ${person.competence}/3, отношение к вам ${person.relation > 0 ? '+' : ''}${person.relation}. ${person.goal}. Срок — конец квартала ${project.deadline}; осталось ${Math.max(0, project.deadline - gs.turn)} кв. Он отсчитывается от начала правления, назначение его не продлевает. Без исполнителя работа не начнётся.${world.health?.status === 'running' && world.health.executor === person.id ? ' Уже руководит больницами: оба проекта будут идти медленнее.' : ''}`, cost: {
                     economy: -4, politicalCapital: -2
                 }
             });
@@ -246,7 +246,7 @@ export function interveneWorld(gs: GameState, id: string): GameState {
         project.status = 'running';
         project.funds = 4;
         const actor = worldPerson(gs, project.executor)!;
-        text = `${actor.name} получает подписанное поручение и финансирование на четыре квартала. «Первый доклад — после следующего заседания», — говорит секретарь. Вы устанавливаете срок: квартал ${project.deadline + 1} от начала правления.`;
+        text = `${actor.name} получает подписанное поручение и финансирование. «Первый доклад — после следующего заседания», — говорит секретарь. Срок остаётся прежним: конец квартала ${project.deadline} от начала правления; назначение его не продлевает.`;
     }
     if (id === 'visit') {
         project.cover = true;
