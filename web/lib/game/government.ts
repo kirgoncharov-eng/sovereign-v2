@@ -1,3 +1,4 @@
+import { mandateHousing } from './minister-mandate.ts';
 import type { GameEvent, GameState, ResourceDelta, Choice } from './types.ts';
 import type { LivingWorld, WorldAction } from './living-world.ts';
 
@@ -106,6 +107,16 @@ export function stepGovernment(gs: GameState, world: LivingWorld, turn: number, 
     if (advisor && p.supported) {
       if (p.id === 'housing') gain += 6;
       factors.push(p.id === 'housing' ? 'Строительный резерв и согласованные участки: +6' : 'Президентское поручение сняло препятствие этой программы');
+    }
+    if (advisor && mandateHousing(world)) {
+      if (p.id === 'housing') {
+        gain += 5; factors.push(`Подрядчики ${world.mandate!.name}: +5 работы, экономика −1`);
+        effects.push({ label: `закупочный мандат ${world.mandate!.name}`, res: { economy: -1 } });
+      }
+      if (p.id === 'procurement' && !p.supported) { gain -= 5; factors.push(`Министр ${world.mandate!.name} удерживает строительные документы: −5`); }
+    }
+    if (advisor && p.id === 'housing' && world.mandate?.phase === 'withdrawn' && world.mandate.handover && world.mandate.changed === turn - 1) {
+      gain -= 5; factors.push('Передача закупок после отзыва мандата: −5 на один квартал');
     }
     const boost = advisor ? priorityWork(gs, world, p.id) : 0;
     if (boost) { gain += boost; factors.push('Личный приоритет президента ускоряет согласования: +5'); }

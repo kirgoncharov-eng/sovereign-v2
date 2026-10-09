@@ -7,7 +7,7 @@ export interface PresidentialMessage {
   person: string;
   title: string;
   text: string;
-  action: 'sponsor' | 'government' | 'energy' | 'health';
+  action: 'sponsor' | 'government' | 'energy' | 'health' | 'minister';
   needsReply: boolean;
   deadline?: number;
 }
@@ -16,6 +16,11 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
   const world = gs.world, profiles = personProfiles(gs);
   const personId = (name: string) => profiles.find(p => p.name === name)?.id;
   const messages: PresidentialMessage[] = [];
+  const mandate = world.mandate;
+  if (mandate) {
+    const person = personId(mandate.name);
+    if (person) messages.push({ key: 'minister-mandate', token: `${mandate.name}:${mandate.phase}:${mandate.changed}`, person, title: ['accepted','used'].includes(mandate.phase) ? 'Закупочный мандат: помощь и обязательство' : mandate.phase === 'offered' ? 'Помощь в обмен на будущие полномочия' : 'Что осталось от договорённости', text: mandate.text, action: 'minister', needsReply: mandate.phase === 'offered', ...(mandate.phase === 'offered' ? { deadline: mandate.due } : {}) });
+  }
   const sponsor = world.sponsor;
   if (sponsor && sponsor.phase !== 'departed') {
     const person = personId(sponsor.name);

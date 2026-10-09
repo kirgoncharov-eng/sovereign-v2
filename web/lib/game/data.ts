@@ -1,7 +1,7 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "6.9";
+export const APP_VERSION = "7.0";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 // Срок — двадцать ходов (пять лет). Правление не ограничено сроком: партия идёт, пока лидер у власти.
 export const TERM = 20;

@@ -1374,7 +1374,7 @@ function Setup({ onStart, saved, onResume }) {
   const meta = useMemo(() => parseMeta(metaRaw), [metaRaw]);
   const open = unlockedCountries(meta);
   const ready = country && diff && ideo;
-  const playtest = useSyncExternalStore(subscribeMeta, () => ["sponsor", "cabinet"].includes(new URLSearchParams(window.location.search).get("playtest")), () => false);
+  const playtest = useSyncExternalStore(subscribeMeta, () => ["sponsor", "cabinet", "minister"].includes(new URLSearchParams(window.location.search).get("playtest")), () => false);
 
   const go = async (c = country, d = diff, i = ideo, daily = null, b = bio, quick = false) => {
     if (!(c && d && i) || loading) return;
@@ -2033,7 +2033,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             onProject={id => countryPanel.current?.showProject(id)} onAction={id => {
             if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
             let next = interveneWorld(gsRef.current, id);
-            if (id.startsWith("sponsor:")) { const person = presidentialMessages(next).find(m => m.action === "sponsor")?.person; if (person) next = readPresidentialMessages(next, person); }
+            if (id.startsWith("sponsor:") || id.startsWith("minister:")) { const action = id.split(":")[0]; const person = presidentialMessages(next).find(m => m.action === action)?.person; if (person) next = readPresidentialMessages(next, person); }
             prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
           }}/>}
           {!busy && !recap && <WorldPanel ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}
