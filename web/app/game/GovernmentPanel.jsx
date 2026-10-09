@@ -6,8 +6,8 @@ import { PeopleText } from './PeopleText.jsx';
 const LABEL = { unassigned:'Ждёт запуска', proposed:'Предложение', running:'Исполняется', completed:'Выполнено', partial:'Частично', failed:'Срок сорван' };
 const RESOURCE = { economy:'экономика', politicalCapital:'политкапитал', personalResource:'личный ресурс', internalLegitimacy:'легитимность' };
 export const governmentPrice = cost => Object.entries(cost).map(([k,v])=>`${RESOURCE[k]??k} ${v}`).join(' · ') || 'Без списания ресурсов';
-export default function GovernmentPanel({ gs, onAction, onClose, onDetails }) {
-  const [selected,setSelected]=useState('energy'),[pending,setPending]=useState(null),[receipt,setReceipt]=useState(''),[error,setError]=useState('');
+export default function GovernmentPanel({ gs, onAction, onClose, onDetails, initialProject = 'energy' }) {
+  const [selected,setSelected]=useState(initialProject),[pending,setPending]=useState(null),[receipt,setReceipt]=useState(''),[error,setError]=useState('');
   const world=gs.world;
   if(!world?.government)return null;
   const def=PROJECTS.find(p=>p.id===selected),project=governmentProject(world,selected),priority=world.government.priority===selected;
