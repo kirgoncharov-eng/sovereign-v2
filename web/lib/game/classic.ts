@@ -1,3 +1,4 @@
+import { pensionCall } from './pension-call.ts';
 import { withEvidenceChoice } from './private-evidence.ts';
 import { mandatePublicEvent } from './minister-public.ts';
 import { calendarEpisode, calendarSlot } from './political-calendar.ts';
@@ -24,7 +25,7 @@ import { ECHOES } from "../content/echoes.ts";
 import { sceneAfter } from "../content/scene-map.ts";
 import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OPPOSITION_SPECIAL, OUTLETS } from "../content/newspaper.ts";
 import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
-import { lawDef } from "./laws.ts";
+import { effectiveLaw, lawDef } from "./laws.ts";
 import { DEEDS, ELECTION_NIGHT, INTERCUTS, roleGroup } from "../content/roles.ts";
 import { TERMS_TURN, electionKind, fellTrying, isTermEnd, reignOf, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
 import { DIED, FINALE, LOCKED, PATHS, PATHS_AS, TERM_HOW, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
@@ -165,6 +166,7 @@ export function cardAvailable(card: EventCard, state: GameState): boolean {
   // Когда страна уже живёт по чрезвычайному положению или указам, просить «ввести ЧП» некому.
   if (w.law === "emergency_powers" && (state.path?.id === "postpone" || state.path?.id === "dictatorship")) return false;
   if (w.ideo && !w.ideo.includes(state.ideo)) return false;
+  if (w.law === 'pension_reform' && state.laws?.some(l => l.id === w.law && l.transition)) return false;
   if (w.law && !state.laws?.some(l => l.id === w.law && turn - l.since >= 2)) return false;
   return true;
 }
@@ -379,10 +381,10 @@ export function lawEvent(state: GameState): SpecialEvent | null {
   // Отмена: закон действует давно, а те, против кого он, озлоблены.
   const angry = inForce.map(l => ({ l, def: lawDef(l.id)! })).filter(({ l, def }) => def && turn - l.since >= 4
     && !marks.some(m => m[2] === "repeal" && m[3] === l.id)
-    && Object.entries(def.drift ?? {}).some(([bloc, d]) => (d ?? 0) < 0 && state.factions.some(f => f.bloc === bloc && f.relation <= -35)));
+    && Object.entries(effectiveLaw(def, l).drift ?? {}).some(([bloc, d]) => (d ?? 0) < 0 && state.factions.some(f => f.bloc === bloc && f.relation <= -35)));
   if (angry.length && r() < 0.5) {
     const { l, def } = pick(r, angry);
-    const foes = state.factions.filter(f => (def.drift?.[f.bloc] ?? 0) < 0 && f.relation <= -35).map(f => `«${f.name}»`);
+    const foes = state.factions.filter(f => (effectiveLaw(def, l).drift?.[f.bloc] ?? 0) < 0 && f.relation <= -35).map(f => `«${f.name}»`);
     const months = (turn - l.since) * 3;
     const f = (t: string) => fill(t, state, { ...slots(def), months: plural(months, "месяц", "месяца", "месяцев"), who: foes.join(", ") || "Противники закона" });
     return {
@@ -562,10 +564,12 @@ export function pressEvent(state: GameState): SpecialEvent | null {
   if (picked.length < 3) return null;
   const pactName = state.factions.find(f => f.id === state.pacts?.[0]?.faction)?.name ?? "";
   const questions = picked.map(q => {
+    const pensionRepealed = [...state.history].reverse().find(h => h.law?.id === 'pension_reform' && h.law.passed)?.law?.act === 'repeal' && !state.laws?.some(l => l.id === 'pension_reform');
+    const transition = state.laws?.find(l => l.id === 'pension_reform')?.transition;
     const enactedPension = q.id === 'pension' && state.laws?.some(l => l.id === 'pension_reform');
     return { id: q.id, who: q.who, topic: q.topic,
-      answers: enactedPension ? q.answers.map(a => ({ ...a, text: a.tone === 'honest' ? '«Я подписал этот закон. Для людей это тяжёлая перемена, и я не стану выдавать её за подарок»' : a.tone === 'hard' ? '«Решение принято: иначе через десять лет платить будет нечем»' : '«Вопросы исполнения вам разъяснит правительство»' })) : q.answers,
-      text: enactedPension ? 'Вы уже приняли закон о повышении пенсионного возраста. Что скажете людям, которым теперь работать дольше?' : fill(q.text, state, { pact: pactName }),
+      answers: enactedPension ? q.answers.map(a => ({ ...a, text: a.tone === 'honest' ? transition ? '«Повышение сохранили, но тем, кому при принятии закона оставалось не больше года, дали прежний возраст. Это уменьшило экономию фонда»' : '«Я подписал этот закон. Для людей это тяжёлая перемена, и я не стану выдавать её за подарок»' : a.tone === 'hard' ? '«Решение принято: иначе через десять лет платить будет нечем»' : '«Вопросы исполнения вам разъяснит правительство»' })) : q.id === 'pension' && pensionRepealed ? q.answers.map(a => ({ ...a, text: a.tone === 'honest' ? '«Я отменил повышение. Люди получили прежний возраст; бюджет потерял экономию, и я отвечаю за этот выбор»' : a.tone === 'hard' ? '«Отмену провёл я. Но нехватка денег в фонде от этого не исчезла»' : '«Правительство разъяснит последствия отмены»' })) : q.answers,
+      text: enactedPension ? transition ? 'После звонка вы сохранили повышение, но ввели льготный выход для переходной группы. Почему уступили только ей?' : 'Вы уже приняли закон о повышении пенсионного возраста. Что скажете людям, которым теперь работать дольше?' : q.id === 'pension' && pensionRepealed ? 'Вы отменили повышение пенсионного возраста. Почему изменили курс и чем замените потерянную экономию?' : fill(q.text, state, { pact: pactName }),
     };
   });
   const skip: Choice = {
@@ -643,6 +647,8 @@ export function callEvent(state: GameState): SpecialEvent | null {
   const k = slot === null ? -1 : CALL_TURNS.indexOf(localTurn(slot));
   if (k < 0 || dueBeat(state)) return null;
   const called = new Set((state.usedEvents ?? []).filter(u => u.startsWith("call:")).map(u => u.split(":")[2]));
+  const negotiated = pensionCall(state, slot!, called);
+  if (negotiated) return negotiated;
   const facOf = (f: Figure) => state.factions.find(x => x.id === f.faction);
   const pool = state.keyFigures.filter(f => f.name !== state.arc?.target && !called.has(f.id) && facOf(f));
   if (!pool.length) return null;
@@ -684,6 +690,7 @@ export const approachWorks = (trait: string, approach: Approach) => (APPROACH_WO
 
 export function callChoice(state: GameState, approach: Approach, ending: (typeof CALL_ENDINGS)[number]["id"]): Choice {
   const call = state.currentEvent!.call!;
+  if (call.negotiation) throw new Error('Выберите конкретное решение по закону');
   const fig = state.keyFigures.find(f => f.id === call.figure)!;
   const fac = state.factions.find(f => f.id === fig.faction)!;
   const slots = { name: fig.name, role: lower(fig.role), camp: fac.name };
@@ -928,6 +935,7 @@ const POLLS_DOWN = [
 // Пресс-конференция, звонок и бюджет проходят вариантом «p», остальные варианты — отказ; у доклада «a» — подпись не глядя.
 export function specialAct(state: GameState, choice: Choice): SpecialAct | null {
   const kind = state.currentEvent?.special?.kind;
+  if (state.currentEvent?.call?.negotiation) return null;
   if (kind === "inspect") return choice.id === "a" ? "inspect_sign" : "inspect";
   if (kind === "press" || kind === "call" || kind === "budget") return choice.id === "p" ? kind : `${kind}_skip`;
   return null;

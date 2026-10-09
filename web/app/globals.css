@@ -552,3 +552,16 @@ button:focus-visible {
 .sv-brief-card dt {font:13px var(--font-narrow);color:var(--amb);}
 .sv-brief-card dd {margin:3px 0 0;font:15px/1.35 var(--font-narrow);overflow-wrap:anywhere;}
 .sv-brief-history summary {min-height:44px;padding:12px 0;color:var(--tx3);font:17px var(--font-narrow);cursor:pointer;}
+
+.sv-negotiation-call {padding:18px 20px;}
+.sv-negotiation-call small {color:var(--amb);font:13px var(--font-narrow);}
+.sv-negotiation-call p {font:17px/1.5 Georgia,serif;}
+.sv-negotiation-call .sv-negotiation-context,.sv-negotiation-confirm p {font:15px/1.4 var(--font-narrow);color:var(--tx2);}
+.sv-negotiation-options {display:grid;gap:8px;margin-top:16px;}
+.sv-negotiation-options button {min-height:48px;text-align:left;background:transparent;border:1px solid var(--bdr);color:var(--txt);padding:12px;font:16px/1.4 Georgia,serif;}
+.sv-negotiation-options button[aria-pressed=true] {border-color:var(--amb);background:var(--bg3);}
+.sv-negotiation-options span {display:block;margin-top:8px;font:15px/1.45 var(--font-narrow);color:var(--tx2);}
+.sv-negotiation-confirm {margin-top:14px;padding:12px;border:1px solid var(--amb);}
+.sv-negotiation-confirm button {min-height:44px;padding:10px 12px;margin:4px 8px 0 0;background:var(--amb);color:var(--bg);border:0;font:17px var(--font-narrow);}
+.sv-negotiation-confirm button:last-child {background:transparent;color:var(--tx2);}
+.sv-negotiation-call button:focus-visible {outline:2px solid var(--amb);outline-offset:3px;}
