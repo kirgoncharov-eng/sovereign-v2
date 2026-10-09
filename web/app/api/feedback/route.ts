@@ -1,12 +1,12 @@
 // Отзыв из игры: оценка 1–5 и необязательный текст. Тело — {pid, rating, text, ctx}.
 import { PID } from "@/lib/server/analytics.ts";
 import { saveFeedback } from "@/lib/server/feedback.ts";
-import { checkRate, clientKey } from "@/lib/server/rateLimit.ts";
+import { clientKey, limit } from "@/lib/server/rateLimit.ts";
 
 const CTX_KEYS = ["финал", "ход", "страна", "сложность", "обещаний"];
 
 export async function POST(req: Request) {
-  if (!checkRate(`fb:${clientKey(req)}`).ok) return new Response(null, { status: 429 });
+  if (!(await limit(`fb:${clientKey(req)}`)).ok) return new Response(null, { status: 429 });
   let body: { pid?: unknown; rating?: unknown; text?: unknown; ctx?: unknown };
   try { body = JSON.parse(await req.text()); } catch { return new Response(null, { status: 400 }); }
   const rating = Number(body.rating);

@@ -1,6 +1,7 @@
 // Ограничение частоты запросов по IP.
-// Хранится в памяти процесса: на Vercel у каждого инстанса функции свой счётчик,
-// поэтому это защита «по мере сил». Для строгого лимита нужен общий стор (Upstash/Vercel KV).
+// С Redis счётчик общий для всех инстансов функции (окна по минуте и по суткам).
+// Без Redis или при его сбое — счётчик в памяти процесса: защита «по мере сил», игру он не ломает.
+import { kv, kvConfigured } from "./kv.ts";
 
 const PER_MINUTE = Number(process.env.RATE_LIMIT_PER_MIN) || 20;
 const PER_DAY = Number(process.env.RATE_LIMIT_PER_DAY) || 400;
@@ -26,6 +27,20 @@ export function checkRate(key: string, now = Date.now()): RateResult {
   b.minute++;
   b.day++;
   return { ok: true, retryAfter: 0 };
+}
+
+export async function limit(key: string, now = Date.now()): Promise<RateResult> {
+  if (!kvConfigured()) return checkRate(key, now);
+  const minute = Math.floor(now / 60_000), day = Math.floor(now / 86_400_000);
+  try {
+    const [m, d] = await kv.counters([{ key: `rl:m:${key}:${minute}`, ttl: 60 }, { key: `rl:d:${key}:${day}`, ttl: 86_400 }]);
+    if (d > PER_DAY) return { ok: false, retryAfter: Math.ceil(((day + 1) * 86_400_000 - now) / 1000) };
+    if (m > PER_MINUTE) return { ok: false, retryAfter: Math.ceil(((minute + 1) * 60_000 - now) / 1000) };
+    return { ok: true, retryAfter: 0 };
+  } catch (e) {
+    console.error("rate", e);
+    return checkRate(key, now);
+  }
 }
 
 export function clientKey(req: Request): string {

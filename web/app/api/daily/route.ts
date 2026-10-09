@@ -5,9 +5,10 @@ import { replayDaily } from "../../../lib/game/daily-run.ts";
 import { runScore } from "../../../lib/game/daily.ts";
 import { classicApi } from "../../../lib/game/classic.ts";
 import { kv } from "../../../lib/server/kv.ts";
-import { checkRate, clientKey } from "../../../lib/server/rateLimit.ts";
+import { clientKey, limit } from "../../../lib/server/rateLimit.ts";
 import { verifyInitData } from "../../../lib/server/telegram.ts";
 import { env } from "../../../lib/server/env.ts";
+import { APP_VERSION } from "../../../lib/game/data.ts";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UID = /^(tg\d{1,15}|w[a-z0-9]{8,24})$/;
@@ -61,7 +62,7 @@ async function board(date: string, uid: string) {
 }
 
 export async function POST(req: Request) {
-  const rate = checkRate(clientKey(req));
+  const rate = await limit(`daily:${clientKey(req)}`);
   if (!rate.ok) return fail(429, "Слишком много запросов");
   let body: unknown;
   try {
@@ -82,7 +83,12 @@ export async function POST(req: Request) {
       if (await kv.zscore(key, who.uid) === null) {
         let verified;
         try { verified = await replayDaily(date, body.moves); }
-        catch { return fail(400, "Не удалось проверить партию. Нужна полная история решений."); }
+        catch {
+          // Партию сыграли на старой версии игры, а проверяем на новой: ходы могли разойтись.
+          // Не ошибка игрока — показываем таблицу и просим перезапустить приложение.
+          if (typeof body.v === "string" && body.v !== APP_VERSION) return Response.json({ uid: who.uid, stale: true, ...(await board(date, who.uid)) });
+          return fail(400, "Не удалось проверить партию. Нужна полная история решений.");
+        }
         const score = Math.min(RANK - 1, runScore(verified));
         const verdict = await classicApi.ending(verified);
         if (await kv.zaddNx(key, verified.turn * RANK + score, who.uid)) {

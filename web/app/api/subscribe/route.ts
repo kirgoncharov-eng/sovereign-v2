@@ -3,10 +3,10 @@
 // run — итог доигранной партии: наутро бот спросит, как она прошла (если ему можно писать).
 import { env } from "@/lib/server/env.ts";
 import { subscribeFromApp } from "@/lib/server/followup.ts";
-import { checkRate, clientKey } from "@/lib/server/rateLimit.ts";
+import { clientKey, limit } from "@/lib/server/rateLimit.ts";
 
 export async function POST(req: Request) {
-  if (!checkRate(`sub:${clientKey(req)}`).ok) return new Response(null, { status: 429 });
+  if (!(await limit(`sub:${clientKey(req)}`)).ok) return new Response(null, { status: 429 });
   let body: unknown;
   try { body = JSON.parse(await req.text()); } catch { return new Response(null, { status: 400 }); }
   try {

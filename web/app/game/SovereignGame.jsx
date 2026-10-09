@@ -32,6 +32,7 @@ import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackB
 import { newAnalyticsRun, setRunContext } from "@/lib/client/run-context.ts";
 import { track, feedbackEnabled, sendFeedback, isTester, subscribeTester, toggleTester, syncSubscription } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
+import { installErrorReporting } from "@/lib/client/errors.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { runScore } from "@/lib/game/daily.ts";
 import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
@@ -2584,7 +2585,9 @@ function DailyBoard({ gs }) {
   return (
     <Card style={{ marginBottom:12, order:6 }}>
       <Label>{"Дело дня · таблица"}</Label>
-      {!board.me && <div style={{ fontFamily:narrow, fontSize:16, color:G.tx3, marginBottom:12 }}>Эта партия не записана в таблицу. Для проверяемого результата начните новое «Дело дня».</div>}
+      {!board.me && <div style={{ fontFamily:narrow, fontSize:16, color:G.tx3, marginBottom:12 }}>{board.stale
+        ? "Пока шла партия, игра обновилась, и результат не удалось проверить. Перезапустите приложение — следующее «Дело дня» попадёт в таблицу."
+        : "Эта партия не записана в таблицу. Для проверяемого результата начните новое «Дело дня»."}</div>}
       {board.me && (
         <div style={{ fontFamily:serif, fontSize:20, marginBottom:12 }}>
           Вы <b>{board.me.rank}-й</b> из {board.total} · у власти {reignLength(board.me.turns ?? 0)}
@@ -2875,7 +2878,7 @@ export default function App() {
   const savedRaw = useSyncExternalStore(subscribeSave, readSaveRaw, () => null);
   const saved = useMemo(() => parseSave(savedRaw), [savedRaw]);
   // Telegram понимает цвет шапки только в виде #rrggbb.
-  useEffect(() => { rememberRef(); initTelegram("#2a2622", () => cloudGet("meta").then(importMeta)); track("open", { src: inTelegram() ? "tg" : "web" }); }, []);
+  useEffect(() => { installErrorReporting(); rememberRef(); initTelegram("#2a2622", () => cloudGet("meta").then(importMeta)); track("open", { src: inTelegram() ? "tg" : "web" }); }, []);
 
   // Автосохранение: после каждого изменения партии, пока игрок не в меню.
   useEffect(() => {
