@@ -29,7 +29,7 @@ const expressApi = {
 const game = expressApi;
 import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons, requestWriteAccess, tgInitData, telegramStory, canTelegramStory } from "@/lib/client/telegram.ts";
 import { newAnalyticsRun, setRunContext } from "@/lib/client/run-context.ts";
-import { track, feedbackEnabled, sendFeedback, isTester, toggleTester, syncSubscription } from "@/lib/client/analytics.ts";
+import { track, feedbackEnabled, sendFeedback, isTester, subscribeTester, toggleTester, syncSubscription } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { runScore } from "@/lib/game/daily.ts";
@@ -1345,14 +1345,13 @@ function Archive({ meta }) {
 // Пять касаний по номеру версии помечают устройство как тестовое: его действия не попадают в статистику.
 function VersionLabel() {
   const taps = useRef(0);
-  const [tester, setTester] = useState(() => isTester());
+  const tester = useSyncExternalStore(subscribeTester, isTester, () => false);
   const [note, setNote] = useState("");
   const tap = () => {
     taps.current += 1;
     if (taps.current < 5) return;
     taps.current = 0;
     const on = toggleTester();
-    setTester(on);
     setNote(on ? "Тестовое устройство: партии не попадают в статистику" : "Статистика снова считает это устройство");
   };
   return (
