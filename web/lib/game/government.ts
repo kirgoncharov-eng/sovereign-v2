@@ -1,3 +1,4 @@
+import { housingNextActions, housingNextReview, startHousingNext, stepHousingNext, validHousingNext, type HousingNext } from './housing-next.ts';
 import { mandateHousing } from './minister-mandate.ts';
 import type { GameEvent, GameState, ResourceDelta, Choice } from './types.ts';
 import type { LivingWorld, WorldAction } from './living-world.ts';
@@ -19,6 +20,7 @@ export interface GovernmentProgram {
 export interface GovernmentState {
   programs: GovernmentProgram[];
   priority: GovernmentProjectId | null;
+  housingNext?: HousingNext;
 }
 export const PROJECTS = [
   { id: 'energy', title: 'Восстановление энергосети', benefit: 'Надёжный свет, работа заводов; результат зависит от приоритета подключения.', risk: 'Несовместимое оборудование, местные подрядчики и зависимость от спонсора.', politics: 'Показать способность восстановить регион; успех или провал станет вашим.', advisor: 'economist', cost: { economy: -4, politicalCapital: -2 } },
@@ -36,12 +38,12 @@ export function ensureGovernment(gs: GameState): GameState {
   };
   return { ...gs, world: { ...gs.world, government } };
 }
-export const cloneGovernment = (g: GovernmentState): GovernmentState => ({ ...g, programs: g.programs.map(p => ({ ...p, lastFactors: [...p.lastFactors] })) });
+export const cloneGovernment = (g: GovernmentState): GovernmentState => ({ ...g, ...(g.housingNext ? { housingNext: { ...g.housingNext, factors: [...g.housingNext.factors] } } : {}), programs: g.programs.map(p => ({ ...p, lastFactors: [...p.lastFactors] })) });
 export function governmentProject(world: LivingWorld, id: GovernmentProjectId) {
   return id === 'energy' ? world.project : id === 'health' ? world.health! : world.government!.programs.find(p => p.id === id)!;
 }
 export function governmentLoad(world: LivingWorld): number {
-  return [world.project, ...(world.health ? [world.health] : []), ...(world.government?.programs ?? [])].filter(p => p.status === 'running').length;
+  return [world.project, ...(world.health ? [world.health] : []), ...(world.government?.programs ?? []), ...(world.government?.housingNext ? [world.government.housingNext] : [])].filter(p => p.status === 'running').length;
 }
 export function governmentActions(gs: GameState): Omit<WorldAction, 'blocked'>[] {
   const world = gs.world;
@@ -58,11 +60,12 @@ export function governmentActions(gs: GameState): Omit<WorldAction, 'blocked'>[]
     if (p.status === 'running' && world.government.priority !== def.id) actions.push({ id: `government:priority:${def.id}`, title: `Объявить личным приоритетом: ${def.title}`, cost: { politicalCapital: -2, personalResource: -2, ...(world.government.priority ? { internalLegitimacy: -2 } : {}) }, detail: 'Один личный приоритет. Работы получают +5 пунктов в квартал, пока личный ресурс выше 4; контроль стоит личного ресурса −1 за квартал. Полный успех: легитимность +3; неполный результат: −4. Запуск и деньги на проект оплачиваются отдельно.' });
   }
   if (world.government.priority) actions.push({ id: 'government:release', title: 'Вернуть личный приоритет под обычный контроль кабинета', cost: { politicalCapital: -2, internalLegitimacy: -2 }, detail: 'Проект продолжит работу без ускорения и затрат вашего времени. Отказ от публичного приоритета стоит легитимности −2; подпись и уже понесённые расходы остаются в истории.' });
-  return actions;
+  return [...actions, ...housingNextActions(gs)];
 }
 export function governmentDecision(gs: GameState, world: LivingWorld, id: string): { text: string; factions: Record<string, number> } {
   const g = world.government!;
   const [, act, projectId] = id.split(':');
+  if (act === 'start' && ['settle', 'expand'].includes(projectId)) return { text: startHousingNext(gs, world, projectId as 'settle' | 'expand'), factions: {} };
   if (act === 'release') {
     const title = projectDef(g.priority!).title; g.priority = null;
     return { text: `Вы возвращаете «${title}» под обычный контроль кабинета. Подписанное поручение не отменено, бюджет не возвращается. Публичное отступление: легитимность −2.`, factions: {} };
@@ -99,7 +102,7 @@ export function stepGovernment(gs: GameState, world: LivingWorld, turn: number, 
     let gain = advisor ? 12 + advisor.skill * 5 : 0;
     const factors = [advisor ? `Координатор ${advisor.name}: качество работы ${advisor.skill}/3` : 'Прежний координатор ушёл; согласования остановились'];
     if (advisor && gs.resources.economy < 25) { gain -= 6; factors.push('Слабая экономика тормозит исполнение'); }
-    if (advisor && g.programs.some(other => other.id !== p.id && other.status === 'running' && other.coordinator === p.coordinator)) { gain -= 5; factors.push('Координатор делит время между программами'); }
+    if (advisor && (g.programs.some(other => other.id !== p.id && other.status === 'running' && other.coordinator === p.coordinator) || g.housingNext?.status === 'running' && g.housingNext.coordinator === p.coordinator)) { gain -= 5; factors.push('Координатор делит время между программами'); }
     if (advisor && !p.supported && p.id === 'procurement' && gs.factions.some(f => ['business', 'ruling'].includes(f.bloc) && f.relation < 10)) { gain -= 5; factors.push('Связанные с закупками группы затягивают передачу документов'); }
     if (advisor && !p.supported && p.id === 'exports' && gs.resources.externalReputation < 40) { gain -= 6; factors.push('Низкое внешнее доверие затягивает согласования'); }
     if (advisor && !p.supported && p.id === 'exports' && gs.factions.some(f => f.bloc === 'business' && f.relation < 0)) { gain -= 5; factors.push('Бизнес не поддерживает совместную работу'); }
@@ -143,12 +146,15 @@ export function stepGovernment(gs: GameState, world: LivingWorld, turn: number, 
       }
     }
   }
+  const next = stepHousingNext(gs, world, turn, review);
+  if (next.story) stories.push(next.story);
+  effects.push(...next.effects);
   return { story: stories.join('\n\n') || null, effects };
 }
 export function governmentReviewEvent(gs: GameState): (GameEvent & {cardId: string}) | null {
   if (gs.daily || gs.ended || gs.activeCrises.length) return null;
   const p = gs.world?.government?.programs.find(p => ['completed', 'partial', 'failed'].includes(p.status) && !p.reviewed);
-  if (!p) return null;
+  if (!p) return housingNextReview(gs);
   const def = projectDef(p.id), complete = p.status === 'completed';
   return {
     cardId: `government-review:${p.id}`, title: `Кому принадлежит результат: ${def.title}`, source: 'Совет министров', isCritical: false, affectedFactions: [], randomEvent: null,
@@ -165,6 +171,7 @@ export function validGovernment(value: unknown, turn: number): value is Governme
   if (g.priority !== null && !PROJECTS.some(p => p.id === g.priority)) return false;
   if (!Array.isArray(g.programs) || g.programs.length !== 3
     || new Set(g.programs.map(p => p?.id)).size !== 3) return false;
+  if (g.housingNext !== undefined && (!validHousingNext(g.housingNext, turn) || g.programs?.find(p => p.id === 'housing')?.progress !== g.housingNext.originProgress || !g.programs?.find(p => p.id === 'housing')?.reviewed)) return false;
   const startedBefore = (n: unknown) => Number.isSafeInteger(n) && Number(n) >= 0 && Number(n) <= turn;
   return g.programs.every(p => {
     if (!p || !['procurement', 'exports', 'housing'].includes(p.id)

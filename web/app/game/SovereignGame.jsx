@@ -798,6 +798,9 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, detailed }) {
   const proposals = gs.currentEvent?.council;
   const charges = gs.councilCharges ?? 0;
   const silent = proposals?.length ? (gs.advisors ?? []).filter(a => !proposals.some(p => p.advisor?.id === a.id)) : [];
+  if (gs.currentEvent?.choices.some(c => c.projectReview)) {
+    return <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>Кабинет уже приложил фактический доклад. Выберите, кто представит результат; новая программа запускается отдельно в правительстве.</div>;
+  }
   if (gs.currentEvent?.choices.some(c => c.mandateResponse)) {
     return <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>Пресс-служба ждёт вашего ответа по конкретной подписи. Проверка документов доступна среди решений; обычное предложение совета этот вопрос не закрывает.</div>;
   }

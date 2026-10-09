@@ -1163,7 +1163,7 @@ const FAIL_SCENES: Record<string, string[]> = { ...FAIL_A, ...FAIL_B };
 
 function buildCouncil(state: GameState): Choice[] {
   // A generic policy proposal cannot answer a factual question about this signature.
-  if (state.currentEvent?.choices.some(c => c.mandateResponse)) return [];
+  if (state.currentEvent?.choices.some(c => c.mandateResponse || c.projectReview)) return [];
   const r = seededRandom(hashSeed(state.seed, "council", state.turn));
   // Авторский совет для конкретного дела: у каждого советника свой ход и свои последствия.
   const authored = state.currentEvent?.card ? COUNCIL_CARDS[state.currentEvent.card] : undefined;
