@@ -30,9 +30,15 @@ function flush() {
 // Тестовое устройство (автор игры проверяет функции) в статистику не попадает.
 const TESTER_KEY = "sovereign.tester";
 export const isTester = () => { try { return localStorage.getItem(TESTER_KEY) === "1"; } catch { return false; } };
+export function subscribeTester(callback: () => void): () => void {
+  window.addEventListener('storage', callback);
+  window.addEventListener('sovereign:tester', callback);
+  return () => { window.removeEventListener('storage', callback); window.removeEventListener('sovereign:tester', callback); };
+}
 export function toggleTester(): boolean {
   const on = !isTester();
   try { if (on) localStorage.setItem(TESTER_KEY, "1"); else localStorage.removeItem(TESTER_KEY); } catch { /* недоступно */ }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('sovereign:tester'));
   return on;
 }
 

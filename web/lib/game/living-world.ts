@@ -1,3 +1,4 @@
+import { ministerActions, ministerDecision, stepMinister, mandateEnergyHelp, validMinister, type MinisterMandate } from './minister-mandate.ts';
 import { cloneGovernment, ensureGovernment, governmentActions, governmentDecision, governmentLoad, priorityWork, stepGovernment, validGovernment, type GovernmentState } from './government.ts';
 import { ensureSponsor, sponsorActions, sponsorDecision, sponsorPressure, sponsorSupport, stepSponsor, validSponsor, type SponsorState } from './sponsor-world.ts';
 import { healthNeedsAttention } from './health-aftermath.ts';
@@ -48,6 +49,7 @@ export interface EnergyProject {
 }
 export interface LivingWorld {
     version: 1;
+    mandate?: MinisterMandate;
     government?: GovernmentState;
     inboxRead?: Record<string, string>;
     sponsor?: SponsorState;
@@ -200,6 +202,7 @@ export function livingActions(gs: GameState): WorldAction[] {
     }
     list.push(...sponsorActions(gs));
     list.push(...governmentActions(gs));
+    list.push(...ministerActions(gs));
     list.push(...healthActions(world, world.people.map(person => worldPerson(gs, person.id)!)));
     return list.map(entry => ({
         ...entry, blocked: gs.daily ? 'В деле дня личные поручения недоступны' : gs.ended ? 'Правление завершено' : world.lastActionTurn === gs.turn ? 'Личное вмешательство в этом квартале уже использовано' : (entry.id.startsWith('government:start:') || entry.id.startsWith('appoint:') || entry.id.startsWith('health:appoint:')) && world.government && governmentLoad(world) >= 2 ? 'Кабинет уже ведёт две программы; дождитесь результата одной из них' : Object.entries(entry.cost).some(([k, value]) => gs.resources[k as keyof typeof gs.resources] + (value ?? 0) <= 4) ? 'Недостаточно запаса ресурса для этого поручения' : null
@@ -210,7 +213,7 @@ export function interveneWorld(gs: GameState, id: string): GameState {
     if (!action || action.blocked)
         throw Error(action?.blocked ?? 'Поручение недоступно');
     let world: LivingWorld = {
-        ...gs.world!, ...(gs.world!.government ? { government: cloneGovernment(gs.world!.government) } : {}), ...(gs.world!.sponsor ? { sponsor: { ...gs.world!.sponsor } } : {}), lastActionTurn: gs.turn, project: {
+        ...gs.world!, ...(gs.world!.mandate ? { mandate: { ...gs.world!.mandate } } : {}), ...(gs.world!.government ? { government: cloneGovernment(gs.world!.government) } : {}), ...(gs.world!.sponsor ? { sponsor: { ...gs.world!.sponsor } } : {}), lastActionTurn: gs.turn, project: {
             ...gs.world!.project
         }, ...(gs.world!.health ? {
             health: cloneHealthProject(gs.world!.health)
@@ -223,6 +226,7 @@ export function interveneWorld(gs: GameState, id: string): GameState {
     let text = '';
     const kind: WorldDispatch['kind'] = 'decision';
     let factionRel: Record<string, number> = {};
+    if (id.startsWith('minister:')) text = ministerDecision(world, id, gs.turn);
     if (id.startsWith('government:')) {
         const decision = governmentDecision(gs, world, id);
         text = decision.text; factionRel = decision.factions;
@@ -326,18 +330,20 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
             world: gs.world, res: {}, story: null
         };
     let world: LivingWorld = {
-        ...gs.world, ...(gs.world.sponsor ? { sponsor: { ...gs.world.sponsor } } : {}), lastTick: nextTurn, project: {
+        ...gs.world, ...(gs.world.mandate ? { mandate: { ...gs.world.mandate } } : {}), ...(gs.world.sponsor ? { sponsor: { ...gs.world.sponsor } } : {}), lastTick: nextTurn, project: {
             ...gs.world.project
         }, people: gs.world.people.map(project => ({
             ...project
         }))
     };
     const project = world.project;
+    const ministerStory = stepMinister(world, nextTurn);
+    if (ministerStory) world = append(world, { turn: nextTurn, kind: "letter", title: "Министр · закупочный мандат", text: ministerStory });
     const politicalStory = stepSponsor(gs, world, nextTurn);
     if (politicalStory) world = append(world, { turn: nextTurn, kind: 'decision', title: 'Политический участник · собственный ход', text: politicalStory });
     if (done(project))
         return {
-            world: world, res: {}, story: politicalStory
+            world: world, res: {}, story: [politicalStory, ministerStory].filter(Boolean).join('\n\n') || null
         };
     let story = '';
     const factors: string[] = [];
@@ -347,6 +353,7 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
     if (project.status === 'running' && project.executor) {
         const actor = worldPerson(gs, project.executor)!;
         gain = 10 + actor.competence * 8;
+        if (mandateEnergyHelp(world)) { gain += 4; factors.push('Министр ускоряет работу в обмен на будущий закупочный мандат: +4'); }
         const presidential = priorityWork(gs, world, 'energy');
         if (presidential) { gain += presidential; factors.push('Личный приоритет президента ускоряет работу: +5'); }
         factors.push(`Компетенция ${actor.name}: ${actor.competence}/3`);
@@ -483,7 +490,7 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
         turn: nextTurn, kind: done(project) ? 'news' : 'report', title: done(project) ? 'Энергосеть · итоговая проверка' : 'Энергосеть · квартальный доклад', text: story
     });
     return {
-        world: world, res, story: [politicalStory, story].filter(Boolean).join('\n\n')
+        world: world, res, story: [politicalStory, ministerStory, story].filter(Boolean).join('\n\n')
     };
 }
 export function stepLivingWorld(gs: GameState, nextTurn: number, review?: Choice['projectReview']): {
@@ -569,6 +576,7 @@ export function validLivingWorld(value: unknown): value is LivingWorld {
     if (world.people.length !== (world.health === undefined ? 3 : 5))
         return false;
     if (world.sponsor !== undefined && !validSponsor(world.sponsor, world.lastTick)) return false;
+    if (world.mandate !== undefined && !validMinister(world.mandate, world.lastTick)) return false;
     if (world.government !== undefined && !validGovernment(world.government, world.lastTick)) return false;
     if (world.inboxRead !== undefined && (!world.inboxRead || typeof world.inboxRead !== 'object' || Array.isArray(world.inboxRead) || Object.keys(world.inboxRead).length > 64 || !Object.values(world.inboxRead).every(v => typeof v === 'string' && v.length <= 200))) return false;
     const project = world.project;

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { personProfiles } from '@/lib/client/people-text.ts';
 import { messageUnread, presidentialMessages } from '@/lib/client/presidential-inbox.ts';
+import MinisterPanel from './MinisterPanel.jsx';
 import SponsorPanel from './SponsorPanel.jsx';
 import GovernmentPanel from './GovernmentPanel.jsx';
 import { PeopleText } from './PeopleText.jsx';
@@ -24,9 +25,9 @@ export default function PresidentialDesk({gs,Portrait,Scene,onAction,onRead,onVi
     {person&&<div className="sv-desk-correspondence"><header><Portrait name={person.name} size={42}/><div><h3><PeopleText>{person.name}</PeopleText></h3><p>{person.role}{person.relation!==null?` · к вам ${person.relation>0?'+':''}${person.relation}`:''}</p></div></header>
       {!incoming.length&&<p>Новых обращений от этого человека нет. Его досье можно открыть по имени.</p>}
       {incoming.map(m=><article key={m.key} className="sv-desk-message"><small>{m.needsReply?'ТРЕБУЕТ РЕШЕНИЯ':'СООБЩЕНИЕ ПРОЧИТАНО'}{m.deadline?` · до конца квартала ${m.deadline}`:''}</small><h4>{m.title}</h4>
-        {m.action==='sponsor'?<SponsorPanel embedded gs={gs} Scene={Scene} onAction={onAction} onViewChange={onViewChange} onClose={close}/>:<><p><PeopleText>{m.text}</PeopleText></p><button className="sv-desk-link" onClick={()=>m.action==='government'?government():project(m.action)}>{m.action==='government'?'Рассмотреть проекты правительства':'Открыть поручения и доклады'} →</button></>}
+        {m.action==='minister'?<MinisterPanel gs={gs} Scene={Scene} onAction={onAction} onClose={close}/>:m.action==='sponsor'?<SponsorPanel embedded gs={gs} Scene={Scene} onAction={onAction} onViewChange={onViewChange} onClose={close}/>:<><p><PeopleText>{m.text}</PeopleText></p><button className="sv-desk-link" onClick={()=>m.action==='government'?government():project(m.action)}>{m.action==='government'?'Рассмотреть проекты правительства':'Открыть поручения и доклады'} →</button></>}
       </article>)}
-      {!incoming.some(m=>m.action==='sponsor')&&<button className="sv-desk-link" onClick={close}>Вернуться к главному делу →</button>}
+      {!incoming.some(m=>['sponsor','minister'].includes(m.action))&&<button className="sv-desk-link" onClick={close}>Вернуться к главному делу →</button>}
     </div>}
   </section>;
 }
