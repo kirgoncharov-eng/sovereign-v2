@@ -653,7 +653,7 @@ button:focus-visible {
   width: 44px; height: 44px; background: transparent; border: 2px solid var(--bdr2); color: var(--tx2); font-size: 22px;
 }
 .sv-side-body { background: var(--bg2); border: 1px solid var(--bdr); padding: 14px 16px; }
-@media (max-width: 520px) {
+@media (max-width: 760px) {
   .sv-sidebar[data-open] .sv-side-body { border: none; }
   /* Свёрнутые кнопки на телефоне не выглядят нажатыми: раздел открывается поверх игры */
   .sv-sidebar:not([data-open]) .sv-sheet-switch button[aria-pressed="true"] { border-color: var(--bdr2); background: var(--bg2); }

@@ -1788,7 +1788,7 @@ const SHEETS = [
   { id:"country", label:"Страна", hint:"ресурсы, опрос, законы", alert:"Опоры ниже порога кризиса" },
   { id:"people", label:"Люди", hint:"советники, лагеря, игроки", alert:"Нелояльные советники и враждебные лагеря" },
 ];
-const PHONE_SHEET = "(max-width: 520px)"; // на телефоне раздел открывается поверх игры
+const PHONE_SHEET = "(max-width: 760px)"; // на телефоне раздел открывается поверх игры
 
 // Свёрнутый блок: заголовок и итог одной строкой, содержимое — по нажатию.
 function Fold({ title, note, children }) {
@@ -1937,6 +1937,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [transition, setTransition] = useState(null);
   const finishTransition = useCallback(() => { setTransition(null); window.scrollTo({top:0}); }, []);
   const [stamping, setStamping] = useState(null); // резолюция, на которую опускается печать
+  const sheetBody = useRef(null);
   const [dossier, setDossier] = useState(false);   // телефон: «Страна» или «Люди» открыты поверх игры
   const [resolutionInView, setResolutionInView] = useState(false);
   useEffect(() => { gsRef.current = gs; }, [gs]);
@@ -2051,12 +2052,45 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [countryOpen, contactOpen, resourceOpen, dossier, transition]);
-  // «Страна» и «Люди» поверх игры закрываются клавишей Escape, как и другие окна.
+  // Открытый раздел удерживает фокус и прокрутку; при закрытии возвращает их к кнопке входа.
   useEffect(() => {
-    if (!dossier) return;
-    const onKey = e => { if (e.key === "Escape") setDossier(false); };
+    if (!dossier || !sheetBody.current) return;
+    const panel = sheetBody.current;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    const phone = window.matchMedia(PHONE_SHEET);
+    const focusable = () => [...panel.querySelectorAll(
+      'button:not(:disabled), a[href], input:not(:disabled), select, textarea, summary, [tabindex="0"]'
+    )].filter(element => element.getClientRects().length > 0);
+    document.body.style.overflow = "hidden";
+    focusable()[0]?.focus({ preventScroll: true });
+    const onKey = event => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setDossier(false);
+      } else if (event.key === "Tab") {
+        const elements = focusable();
+        const first = elements[0], last = elements.at(-1);
+        const outside = !panel.contains(document.activeElement);
+        if (event.shiftKey && (document.activeElement === first || outside)) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || outside)) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    const onScreenChange = event => { if (!event.matches) setDossier(false); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    phone.addEventListener("change", onScreenChange);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      phone.removeEventListener("change", onScreenChange);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
   }, [dossier]);
 
   // Касание выбирает; отдельная кнопка подписывает. Повторное касание не исполняет приказ.
@@ -2131,7 +2165,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       <div className="sv-game-grid" style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px minmax(0, 1fr)", gap:14 }}>
 
         <div className="sv-sidebar" data-open={dossier || undefined}>
-          <nav className="sv-sheet-switch" aria-label="Страна и люди">
+          <nav className="sv-sheet-switch" aria-label="Страна и люди" inert={dossier || undefined}>
             {SHEETS.map(sheet => (
               <button key={sheet.id} onClick={() => openSheet(sheet.id)} aria-pressed={sideTab === sheet.id} aria-expanded={dossier && sideTab === sheet.id}>
                 <strong>{sheet.label}</strong>
@@ -2140,7 +2174,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               </button>
             ))}
           </nav>
-          <div className="sv-side-body" role="region" aria-label={SHEETS.find(sheet => sheet.id === sideTab)?.label}>
+          <div ref={sheetBody} className="sv-side-body" role={dossier ? "dialog" : "region"}
+            aria-modal={dossier || undefined} aria-label={SHEETS.find(sheet => sheet.id === sideTab)?.label}>
             <div className="sv-sheet-head">
               <strong>{SHEETS.find(sheet => sheet.id === sideTab)?.label}</strong>
               <button onClick={() => setDossier(false)} aria-label="Закрыть и вернуться к делу">×</button>
@@ -2159,7 +2194,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           </div>
         </div>
 
-        <div className="sv-main">
+        <div className="sv-main" inert={dossier || undefined}>
           {!busy && !recap && gs.world && <PresidentialDesk gs={gs} Portrait={Portrait} Scene={SquareView} onViewChange={open => {if(open)countryPanel.current?.close();setContactOpen(open);}}
             onRead={person => { if (!inFlight.current) commit(readPresidentialMessages(gsRef.current, person)); }}
             onDesk={() => document.getElementById("sv-main-case")?.scrollIntoView({behavior:"smooth",block:"start"})}
