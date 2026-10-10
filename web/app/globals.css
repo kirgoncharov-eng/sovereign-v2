@@ -565,3 +565,13 @@ button:focus-visible {
 .sv-negotiation-confirm button {min-height:44px;padding:10px 12px;margin:4px 8px 0 0;background:var(--amb);color:var(--bg);border:0;font:17px var(--font-narrow);}
 .sv-negotiation-confirm button:last-child {background:transparent;color:var(--tx2);}
 .sv-negotiation-call button:focus-visible {outline:2px solid var(--amb);outline-offset:3px;}
+
+/* Личные сообщения: истории людей в итоге хода */
+.sv-letters { display:grid; gap:10px; margin:0 0 12px; }
+.sv-letter { padding:12px 16px 14px; transform:rotate(-0.4deg); }
+.sv-letter:nth-child(even) { transform:rotate(0.5deg); }
+.sv-letter-head { display:flex; flex-direction:column; gap:2px; margin-bottom:6px; font-family:var(--font-narrow); }
+.sv-letter-head span { font-size:13px; letter-spacing:.08em; color:var(--tx3, #6b604c); }
+.sv-letter-head strong { font-size:16px; color:var(--txt); }
+.sv-letter p { margin:0; font-family:var(--font-serif), "PT Serif", Georgia, serif; font-size:16px; line-height:1.55; color:var(--txt); }
+@media (prefers-reduced-motion: reduce) { .sv-letter, .sv-letter:nth-child(even) { transform:none; } }

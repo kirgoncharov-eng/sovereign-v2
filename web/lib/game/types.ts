@@ -183,6 +183,9 @@ export interface NewCrisis {
 }
 
 // Текст, который модель пишет по уже посчитанному движком итогу хода.
+// Личное сообщение от человека из истории: письмо, звонок, записка или строка из сводки.
+export interface Letter { kind: "letter" | "call" | "note" | "report"; from: string; role?: string; text: string; story: string }
+
 export interface Narration {
   headline: string;
   narrative: string;
@@ -196,6 +199,7 @@ export interface Narration {
   scene?: SceneKey;       // картинка события: она же фото в газете
   heard?: string[];       // реплики и заголовки этого хода — чтобы не повторять их в партии
   cast?: string[];        // кто появился в главе — следующие две главы он отдыхает
+  letters?: Letter[];     // личные сообщения хода — продолжение историй людей
 }
 
 export interface TurnDocument {

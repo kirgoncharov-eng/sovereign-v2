@@ -42,6 +42,7 @@ import WorldPanel from "./WorldPanel.jsx";
 import PresidentialDesk from "./PresidentialDesk.jsx";
 import { readPresidentialMessages, presidentialMessages } from "@/lib/client/presidential-inbox.ts";
 import OrderGuide from "./OrderGuide.jsx";
+import Letters from "./Letters.jsx";
 import { firstOrderLesson } from "@/lib/client/first-order.ts";
 import ResourceInfo from "./ResourceInfo.jsx";
 import { healthHasContinuation, healthNeedsAttention } from "@/lib/game/health-aftermath.ts";
@@ -2353,6 +2354,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               )}
 
               </div>
+              {typed && <Letters letters={lastTurn.letters}/>}
               {typed && orderLesson && <OrderGuide lesson={orderLesson}
                 onAssign={()=>countryPanel.current?.startHospital('assign')}
                 onReport={()=>countryPanel.current?.startHospital('report')}

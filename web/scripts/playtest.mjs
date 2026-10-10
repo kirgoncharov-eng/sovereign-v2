@@ -37,6 +37,7 @@ async function openGame(page) {
 // Какое дело на столе: от этого зависит, как его пройти.
 const kindOf = page => page.evaluate(() => {
   const text = document.body.innerText;
+  if (document.querySelector("[data-negotiation-call]")) return "negotiation";
   if (text.includes("Роспись бюджета")) return "budget";
   if (text.includes("Как говорить?")) return "call";
   if (text.includes("ВЫЙТИ К ЖУРНАЛИСТАМ")) return "press";
@@ -51,6 +52,11 @@ const deskVisible = page => page.evaluate(() =>
 async function decide(page, kind) {
   const opt = n => page.locator(`#opt-${n}`);
   if (kind === "budget") return opt(1).dispatchEvent("click");
+  // Переговоры по закону: выбрать вариант, затем подтвердить.
+  if (kind === "negotiation") {
+    await opt(1).tap();
+    return page.locator("[data-negotiation-confirm] button", { hasText: "Подтвердить решение" }).tap();
+  }
   if (kind === "call") { await opt(1).tap(); await wait(300); return opt(1).tap(); }
   if (kind === "press") {
     await opt(1).tap();
