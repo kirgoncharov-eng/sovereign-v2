@@ -44,6 +44,7 @@ import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } f
 import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { storyLetters } from "./stories.ts";
 import { advisorNews, forecastReview } from "./forecasts.ts";
+import { LEAKS } from "../content/advisors.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
 
@@ -1185,12 +1186,19 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // Газета сверяет прогнозы советников с тем, что вышло: так видно, кому и в чём верить.
   const forecasts = forecastReview(state, choiceId, !plan.success);
   const advisorUpdates = advisorNews(state, choiceId, !plan.success);
+  // Утечки нелояльных советников: газета пишет, что ушло в прессу и кто разводит руками.
+  const leaks = plan.leaks.flatMap(id => {
+    const advisor = state.advisors.find(member => member.id === id);
+    const lines = LEAKS[id]?.lines;
+    return advisor && lines ? [lines[hashSeed(state.seed, "leak-line", state.turn, id) % lines.length].replace("{name}", advisor.name)] : [];
+  });
   return {
     press,
     heard: said,
     ...(letters.length ? { letters } : {}),
     ...(forecasts.length ? { forecasts } : {}),
     ...(advisorUpdates.length ? { advisorNews: advisorUpdates } : {}),
+    ...(leaks.length ? { leaks } : {}),
     ...(appeared.length ? { cast: appeared } : {}),
     scene: state.currentEvent ? sceneAfter(state.currentEvent, plan.choice, plan.success) : "square",
     headline: finale ? finale.head : plan.election ? electionHeadline(plan.election)

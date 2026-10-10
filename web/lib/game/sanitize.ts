@@ -327,6 +327,9 @@ function sanitizeAdvisors(v: unknown): Advisor[] {
       ...(typeof a.bio === "string" ? { bio: str(a.bio, TEXT.medium) } : {}),
       ...(typeof a.camp === "string" && BLOCS.includes(a.camp as Bloc) ? { camp: a.camp as Bloc } : a.camp === null ? { camp: null } : {}),
       ...(a.since !== undefined ? { since: num(a.since, 0, MAX_TURNS, 0) } : {}),
+      ...(isObj(a.dossier) ? { dossier: {
+        fact: str(a.dossier.fact, TEXT.medium), turn: num(a.dossier.turn, 0, MAX_TURNS, 0), ...(a.dossier.used === true ? { used: true } : {}),
+      } } : {}),
     };
   });
 }

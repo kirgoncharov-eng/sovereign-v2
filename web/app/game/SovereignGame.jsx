@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY } from "@/lib/game/data.ts";
-import { commitmentTags, choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { commitmentTags, choiceEffects, saboteurOf, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
 import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
@@ -16,8 +16,9 @@ import { debate } from "@/lib/game/forecasts.ts";
 import { ORDINAL } from "@/lib/content/forecasts.ts";
 import { newsLine } from "@/lib/game/advisors.ts";
 import AdvisorName, { AdvisorCard } from "./AdvisorCard.jsx";
-import StaffPanel from "./StaffPanel.jsx";
-import { hireAdvisor } from "@/lib/game/staffing.ts";
+import StaffPanel, { DossierActions } from "./StaffPanel.jsx";
+import { hireAdvisor, applyDossier } from "@/lib/game/staffing.ts";
+import { DOSSIER_TEXT } from "@/lib/content/advisors.ts";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
 import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
@@ -321,7 +322,7 @@ function ChoicePreview({ gs, c, debated = false }) {
       </div>
       {exact && <ResourceChips delta={fx.resources}/>}
       {(exact || !debated) && <CostReasons gs={gs} c={c} fx={fx}/>}
-      {!exact && <DangerLines gs={gs} fx={fx}/>}
+      {!exact && <DangerLines gs={gs} c={c} fx={fx}/>}
       {later.length > 0 && !exact && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6 }}>⧗ Аукнется позже — как, знают советники</div>}
       {later.length > 0 && exact && (
         <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6, lineHeight:1.45 }}>
@@ -341,12 +342,14 @@ function ChoicePreview({ gs, c, debated = false }) {
 }
 
 // Опора ниже 20 видна всегда: чтобы не проиграть вслепую, под вариантом сказано, что он бьёт и по ней.
-function DangerLines({ gs, fx }) {
+function DangerLines({ gs, c, fx }) {
   const hit = RES_CONFIG.filter(r => gs.resources[r.key] < CRISIS_THRESHOLD && Math.round(fx.resources[r.key] ?? 0) < 0);
-  if (!hit.length) return null;
+  const saboteur = saboteurOf(gs, c);
+  if (!hit.length && !saboteur) return null;
   return (
     <div style={{ fontFamily:narrow, fontSize:15, color:G.red, marginTop:6, lineHeight:1.45 }}>
       {hit.map(r => <div key={r.key}>⚠ Опора «{SHORT[r.key]}» ниже {CRISIS_THRESHOLD} — это решение ударит и по ней</div>)}
+      {saboteur && <div>⚠ {DOSSIER_TEXT.sabotage.replace("{name}", saboteur.name)}</div>}
     </div>
   );
 }
@@ -2049,7 +2052,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                       <Portrait name={a.name} size={32}/>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontFamily:serif, fontSize:13, fontWeight:500 }}>{a.name}</div>
-                        <AdvisorCard gs={gs} advisor={a}/>
+                        <AdvisorCard gs={gs} advisor={a}>
+                          <DossierActions gs={gs} advisor={a} onDossier={(id, action) => {
+                            if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
+                            prefetch.current = null; setArmed(null); setPreview(null);
+                            commit(applyDossier(gsRef.current, id, action)); stampFx();
+                          }}/>
+                        </AdvisorCard>
                       </div>
                     </div>
                   ))}
@@ -2337,9 +2346,12 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>— {lastTurn.historianNote}</div>
                 )}
 
-                {(lastTurn.forecasts?.length > 0 || lastTurn.advisorNews?.some(n => n.reason)) && (
+                {(lastTurn.forecasts?.length > 0 || lastTurn.leaks?.length > 0 || lastTurn.advisorNews?.some(n => n.reason)) && (
                   <div style={{ marginTop:14 }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>СОВЕТНИКИ</div>
+                    {(lastTurn.leaks ?? []).map(line => (
+                      <div key={line} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:G.red }}>Утечка. {line}</div>
+                    ))}
                     {(lastTurn.forecasts ?? []).map(line => (
                       <div key={line} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:/— верно\.$/.test(line) ? G.grn : G.tx2 }}>{line}</div>
                     ))}

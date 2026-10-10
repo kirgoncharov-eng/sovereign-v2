@@ -2,7 +2,9 @@
 // Кадровый резерв в досье: три кандидата в год, одно кадровое решение за квартал.
 // Назначение — замена: кандидат садится в кресло советника, прежний уходит. Цену и реакцию лагерей видно до подписи.
 import { useState } from "react";
-import { candidatePool, dismissalOf, staffingBlocked, staffingOpen } from "@/lib/game/staffing.ts";
+import {
+  DOSSIER_COST, DOSSIER_PRESS_LOYALTY, DOSSIER_SECURITY_LOYALTY, candidatePool, dismissalOf, dossierBlocked, staffingBlocked, staffingOpen,
+} from "@/lib/game/staffing.ts";
 import { RES_CONFIG } from "@/lib/game/data.ts";
 
 const SHORT = {
@@ -70,5 +72,27 @@ export default function StaffPanel({ gs, onHire }) {
         : <p className="sv-staff-note">Резерв на этот год исчерпан.</p>}
       {error && <p className="sv-staff-line sv-staff-bad">✖ {error}</p>}
     </section>
+  );
+}
+
+// Досье на советника: собрать (силовики, стоит денег и их лояльности) или пустить в ход один раз.
+export function DossierActions({ gs, advisor, onDossier }) {
+  const [error, setError] = useState(null);
+  if (!staffingOpen(gs)) return null;
+  const action = advisor.dossier ? (advisor.dossier.used ? null : "press") : "collect";
+  if (!action) return null;
+  const blocked = dossierBlocked(gs, advisor.id, action);
+  const label = action === "collect"
+    ? `Собрать досье (${costLine(DOSSIER_COST)}, силовики ${signed(DOSSIER_SECURITY_LOYALTY)} лояльности)`
+    : `Напомнить о досье (лояльность ${signed(DOSSIER_PRESS_LOYALTY)})`;
+  const run = () => {
+    try { setError(null); onDossier(advisor.id, action); } catch (failure) { setError(failure.message); }
+  };
+  return (
+    <div className="sv-dossier-actions">
+      {blocked ? <span className="sv-staff-muted">{blocked}</span>
+        : <button type="button" className="sv-staff-hire" onClick={run}>{label}</button>}
+      {error && <div className="sv-staff-bad">✖ {error}</div>}
+    </div>
   );
 }
