@@ -1,0 +1,25 @@
+name: Ошибка
+description: Что-то сломалось или работает не так
+labels: ["баг"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Что случилось
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как повторить
+      description: Страна, сложность, ход, что нажали. Скриншот — если есть.
+  - type: input
+    id: version
+    attributes:
+      label: Версия
+      description: Номер под кнопкой на титульном экране (v7.7).
+  - type: dropdown
+    id: where
+    attributes:
+      label: Где
+      options: [Telegram, Браузер, Демо, Бот]

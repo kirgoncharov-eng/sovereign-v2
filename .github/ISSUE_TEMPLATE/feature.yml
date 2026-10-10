@@ -1,0 +1,35 @@
+name: Фича или механика
+description: Новое в игре — механика, экран, контент-система
+labels: ["фича"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Что игрок получит
+      description: Одним-двумя предложениями, с точки зрения игрока.
+    validations:
+      required: true
+  - type: dropdown
+    id: metric
+    attributes:
+      label: Какую метрику двигает
+      description: Из таблицы в AGENTS.md. Если ни одну — задача ждёт мягкого запуска.
+      options:
+        - Дошли до финала первой сессии
+        - Вернулись на следующий день (D1)
+        - Вернулись через неделю (D7)
+        - Поделились результатом
+        - Деньги (после ворот A)
+        - Ни одну — после мягкого запуска
+    validations:
+      required: true
+  - type: textarea
+    id: first-session
+    attributes:
+      label: Как это влияет на первую сессию
+      description: Когда игрок впервые увидит это? Не добавляет ли блоков на первый ход?
+  - type: textarea
+    id: done
+    attributes:
+      label: Готово, когда
+      description: Проверяемые условия.
