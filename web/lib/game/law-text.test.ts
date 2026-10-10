@@ -53,3 +53,9 @@ test("отложенный законопроект: за партию сцен�
   assert.ok(scenes.length >= 4, `законопроектов за партию: ${scenes.length}`);
   assert.equal(new Set(scenes).size, scenes.length, scenes.join("\n"));
 });
+
+// Партии в кавычках разрешены: их оборачивает quoted(), не добавляя вторые кавычки.
+test("названия лагерей без кавычек внутри: иначе выходит «Лагерь «Партия «…»»»", async () => {
+  const { FACTIONS_DATA } = await import("./data.ts");
+  for (const name of Object.values(FACTIONS_DATA).flat().map(f => f.name)) assert.ok(!/[«»"]/.test(name), name);
+});

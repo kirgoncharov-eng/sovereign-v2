@@ -78,13 +78,13 @@ const FAITH: Record<"christian" | "muslim", Record<string, string>> = {
     church: "церковь", temple: "храм", flock_gen: "прихожан", flock_dat: "прихожанам", parishes_dat: "приходам",
     diocese_dat: "епархии", priest_gen: "священника", icons: "иконами",
     sermons_loc: "воскресных проповедях", believer_gen: "христианина",
-    prays: "служит молебен", prays_thanks: "служит благодарственный молебен",
+    prays: "служит молебен", prays_thanks: "служит благодарственный молебен", after_service: "после службы",
   },
   muslim: {
     church: "духовенство", temple: "мечеть", flock_gen: "верующих", flock_dat: "верующим", parishes_dat: "общинам",
     diocese_dat: "духовному управлению", priest_gen: "имама", icons: "плакатами",
     sermons_loc: "пятничных проповедях", believer_gen: "верующего",
-    prays: "читает молитву", prays_thanks: "читает благодарственную молитву",
+    prays: "читает молитву", prays_thanks: "читает благодарственную молитву", after_service: "после пятничной молитвы",
   },
 };
 const faithOf = (country: string) => FAITH[country === "Казахстан" ? "muslim" : "christian"];
@@ -510,7 +510,7 @@ export function inspectEvent(state: GameState): SpecialEvent | null {
   const choices=doc.options.map((option,i):Choice=>({
     id:['a','b','c'][i],text:option.text,hint:option.hint,tags:['delay'],resolvesCrisis:null,
     deal:{pure:true,res:option.res,factionRel:Object.fromEntries(facIds.map(id=>[id,option.relation])),later:option.later},
-    scene:option.scene,sceneFail:option.scene,headline:`${doc.title}: ${option.text.toLowerCase()}`,headlineFail:`${doc.title}: ${option.text.toLowerCase()}`,
+    scene:option.scene,sceneFail:option.scene,headline:option.head??`${doc.title}: ${option.text.toLowerCase()}`,headlineFail:option.head??`${doc.title}: ${option.text.toLowerCase()}`,
   }));
   return {cardId:`ins:${slot}:${doc.id}`,title:doc.title,source:'Рабочее совещание',description:chapter(dateline(state),doc.intro),isCritical:false,affectedFactions:facIds,
     choices,council:null,special:{kind:'inspect',figure:null,faction:facIds[0]??''},doc:{facts:doc.facts,lines:doc.lines,author:doc.who,key:null},randomEvent:null};
@@ -778,14 +778,16 @@ export function budgetChoice(state: GameState, alloc: Record<string, number>, de
   const sorted = [...BUDGET_ITEMS].sort((a, b) => n(b.id) - n(a.id));
   const top = sorted[0], low = sorted[sorted.length - 1];
   const even = n(top.id) - n(low.id) <= 1;
-  const lines = [T.open];
-  if (even) lines.push(T.even);
+  // Порядковый номер бюджета в партии: выборы каждые десять ходов, бюджет — перед ними.
+  const nth = <T,>(list: T[], salt: string) => cycle(list, state.seed, salt, Math.floor(state.turn / 10));
+  const lines = [nth(T.open, "budget-open")];
+  if (even) lines.push(nth(T.even, "budget-even"));
   else {
     lines.push(fill(T.most, state, { label: top.label, n: String(n(top.id)) }), top.top);
     lines.push(fill(T.least, state, { label: low.label, n: String(n(low.id)) }));
     if (n(low.id) <= 1) lines.push(low.low);
   }
-  if (debt) lines.push(T.debt);
+  if (debt) lines.push(nth(T.debt, "budget-debt"));
   const head = debt ? T.headDebt : even ? T.headEven : top.head;
   const scene = lines.join(" ");
   return {
