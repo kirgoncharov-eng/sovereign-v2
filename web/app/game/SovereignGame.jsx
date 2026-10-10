@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY } from "@/lib/game/data.ts";
-import { commitmentTags, choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { commitmentTags, choiceEffects, saboteurOf, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
 import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
@@ -16,6 +16,9 @@ import { debate } from "@/lib/game/forecasts.ts";
 import { ORDINAL } from "@/lib/content/forecasts.ts";
 import { newsLine } from "@/lib/game/advisors.ts";
 import AdvisorName, { AdvisorCard } from "./AdvisorCard.jsx";
+import StaffPanel, { DossierActions } from "./StaffPanel.jsx";
+import { hireAdvisor, applyDossier } from "@/lib/game/staffing.ts";
+import { DOSSIER_TEXT } from "@/lib/content/advisors.ts";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
 import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
@@ -52,11 +55,12 @@ import ResourceInfo from "./ResourceInfo.jsx";
 import { healthHasContinuation, healthNeedsAttention } from "@/lib/game/health-aftermath.ts";
 import { projectFinished } from "@/lib/game/living-health.ts";
 import { openLivingWorld, interveneWorld } from "@/lib/game/living-world.ts";
-import { DESK_FROM, openDeskWhenDue } from "@/lib/game/desk-timing.ts";
+import { openDeskWhenDue } from "@/lib/game/desk-timing.ts";
 import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
 import { warningDetails } from "@/lib/client/warning-detail.ts";
 import { squareStateOf } from "@/lib/client/square-state.ts";
 import QuarterTransition from "./QuarterTransition.jsx";
+import { CASE_LEAD, NEWS_LEAD, ledgerRows, splitLead } from "@/lib/client/brief.ts";
 import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
@@ -319,8 +323,8 @@ function ChoicePreview({ gs, c, debated = false }) {
       </div>
       {exact && <ResourceChips delta={fx.resources}/>}
       {(exact || !debated) && <CostReasons gs={gs} c={c} fx={fx}/>}
-      {!exact && <DangerLines gs={gs} fx={fx}/>}
-      {later.length > 0 && !exact && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6 }}>⧗ Аукнется позже — как, знают советники</div>}
+      {!exact && <DangerLines gs={gs} c={c} fx={fx}/>}
+      {later.length > 0 && !exact && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6 }}>⧗ Аукнется позже — подробности у совета</div>}
       {later.length > 0 && exact && (
         <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6, lineHeight:1.45 }}>
           Позже: {later.map((d, k) => {
@@ -339,12 +343,14 @@ function ChoicePreview({ gs, c, debated = false }) {
 }
 
 // Опора ниже 20 видна всегда: чтобы не проиграть вслепую, под вариантом сказано, что он бьёт и по ней.
-function DangerLines({ gs, fx }) {
+function DangerLines({ gs, c, fx }) {
   const hit = RES_CONFIG.filter(r => gs.resources[r.key] < CRISIS_THRESHOLD && Math.round(fx.resources[r.key] ?? 0) < 0);
-  if (!hit.length) return null;
+  const saboteur = saboteurOf(gs, c);
+  if (!hit.length && !saboteur) return null;
   return (
     <div style={{ fontFamily:narrow, fontSize:15, color:G.red, marginTop:6, lineHeight:1.45 }}>
       {hit.map(r => <div key={r.key}>⚠ Опора «{SHORT[r.key]}» ниже {CRISIS_THRESHOLD} — это решение ударит и по ней</div>)}
+      {saboteur && <div>⚠ {DOSSIER_TEXT.sabotage.replace("{name}", saboteur.name)}</div>}
     </div>
   );
 }
@@ -365,21 +371,18 @@ function AdvisorDebate({ gs, takes }) {
       </div>
     </div>
   ));
-  // Первая сессия без перегрузки: на первых ходах спор свёрнут в одну строку — кто за какой вариант.
-  if (gs.turn < DESK_FROM) {
-    const choices = gs.currentEvent?.choices ?? [];
-    const sides = takes.map(take => {
-      const index = choices.findIndex(choice => choice.id === take.favors);
-      return `${take.name.split(" ").at(-1)} — за ${ORDINAL[index] ?? "свой"}`;
-    }).join(", ");
-    return (
-      <details className="sv-debate sv-debate-compact" style={{ padding:"0 24px 12px" }}>
-        <summary style={{ fontFamily:narrow, fontSize:15, color:G.tx2, cursor:"pointer" }}>Советники спорят: {sides}</summary>
-        {speeches}
-      </details>
-    );
-  }
-  return <div className="sv-debate" style={{ padding:"0 24px 12px" }}>{speeches}</div>;
+  // Короткий ход: спор свёрнут в одну строку — кто за какой вариант; доводы — по нажатию.
+  const choices = gs.currentEvent?.choices ?? [];
+  const sides = takes.map(take => {
+    const index = choices.findIndex(choice => choice.id === take.favors);
+    return `${take.name.split(" ").at(-1)} — за ${ORDINAL[index] ?? "свой"}`;
+  }).join(", ");
+  return (
+    <details key={gs.turn} className="sv-debate sv-debate-compact" style={{ padding:"0 24px 12px" }}>
+      <summary style={{ fontFamily:narrow, fontSize:15, color:G.tx2, cursor:"pointer", minHeight:44 }}>Советники спорят: {sides}</summary>
+      {speeches}
+    </details>
+  );
 }
 
 // Почему решение чего-то стоит: «экономика — операции силовиков оплачивает казна». Цены без объяснений путают.
@@ -559,16 +562,18 @@ function PactSlips({ gs }) {
 }
 
 // Проверка документа: справка и доклад, строку можно отметить как ложную — красным кругом, как в Papers, Please.
+// Материалы свёрнуты: варианты и их цена видны в резолюции, а подробности ведомства — по нажатию.
 function InspectDoc({ doc }) {
   return <div className="sv-inspect">
-    <Card style={{ padding:"16px 20px", marginBottom:14 }}>
-      <Label>МАТЕРИАЛЫ К СОВЕЩАНИЮ</Label>
-      <p style={{fontFamily:narrow,fontSize:16,color:G.tx2}}>Предложение ведомства и замечания аппарата. Выберите способ исполнения в резолюции ниже.</p>
+    <Card style={{ padding:"4px 20px", marginBottom:14 }}>
+      <More label="Материалы к совещанию: предложение ведомства и замечания аппарата">
+      <p style={{fontFamily:narrow,fontSize:16,color:G.tx2}}>Выберите способ исполнения в резолюции ниже.</p>
       <div style={{fontFamily:narrow,fontSize:15,color:G.tx3}}>исп.: {doc.author}</div>
       {doc.lines.map((l,i)=><p key={i} style={{fontFamily:serif,fontSize:16,lineHeight:1.6}}><PeopleText>{l}</PeopleText></p>)}
       <div style={{borderTop:`1px dashed ${G.bdr}`,paddingTop:12}}><Label>ЗАМЕЧАНИЯ АППАРАТА</Label>
         {doc.facts.map((f,i)=><p key={i} style={{fontFamily:serif,fontSize:16,lineHeight:1.6}}>{f}</p>)}
       </div>
+      </More>
     </Card>
   </div>;
 }
@@ -899,17 +904,8 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
         </button>
       )) : (
         <>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:"8px 18px", marginBottom:10 }}>
-            {(gs.advisors ?? []).map(a => (
-              <span key={a.id} title={`${a.role} · ${ADVISOR_SKILL[a.skill].label}`}
-                style={{ display:"inline-flex", alignItems:"center", gap:8, fontFamily:narrow, fontSize:15, color:G.tx2 }}>
-                <Portrait name={a.name} size={26}/>
-                <span>{a.name} <span style={{ color:G.gold }}>{stars(a.skill)}</span></span>
-              </span>
-            ))}
-          </div>
           <div style={{ fontFamily:serif, fontSize:14, color:G.tx3, fontStyle:"italic", marginBottom:10 }}>
-            Каждый советник предложит своё решение из своей области. Сильный советник предлагает ходы дешевле и выгоднее.
+            Каждый советник предложит свой ход с точной ценой.
           </div>
           <button onClick={convene} disabled={busy || charges <= 0 || Array.isArray(proposals)}
             style={{ background:"transparent", border:`1.5px solid ${charges?G.gold:G.bdr}`, color:charges?G.gold:G.tx3, padding:"8px 18px", borderRadius:0, fontSize:15, fontWeight:700, opacity:charges && !Array.isArray(proposals)?1:.5 }}>
@@ -925,15 +921,21 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
 const DATELINE = /^[А-Я][а-я]+, \d\d:\d\d\. /;
 
 // Текст главы: абзацы; первый абзац-шапка (день, время, место) — в стиле сводки.
-function Prose({ text }) {
-  const paras = String(text).split(/\n\n+/);
+function Prose({ text, paragraphs, start = 0 }) {
+  const paras = paragraphs ?? String(text).split(/\n\n+/);
   return (
     <div>
       {paras.map((p, i) => DATELINE.test(p)
         ? <div key={i} style={{ fontFamily:mono, fontSize:12.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}><PeopleText>{p}</PeopleText></div>
-        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch", whiteSpace:"pre-line" }}><PeopleText>{p}</PeopleText></p>)}
+        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i + start === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch",
+            whiteSpace:"pre-line" }}><PeopleText>{p}</PeopleText></p>)}
     </div>
   );
+}
+
+// Короткий ход: продолжение текста — по нажатию. Свёрнуто по умолчанию, на каждом ходу заново.
+function More({ label, children }) {
+  return <details className="sv-more"><summary>{label}</summary><div className="sv-more-body">{children}</div></details>;
 }
 
 // Документ хода: вырезка из газет или перехват спецслужб.
@@ -1065,17 +1067,15 @@ function SquareView({ gs, scene, sceneKey, partner, height = 48, mono = false, s
   );
 }
 
-// Ведомость за ход: строка за строкой, с отточиями — как вечерний расчёт в Papers, Please.
-function Ledger({ rows: all }) {
+// Что изменилось за ход: три самые заметные перемены, вся ведомость — по нажатию.
+// Строки с отточиями — как вечерний расчёт в Papers, Please.
+function Ledger({ rows: all, extra }) {
   const [full, setFull] = useState(false);
   if (!all.length) return null;
-  // Ресурсы — всегда; группы — четыре самые заметные перемены, остальные по нажатию.
-  const res = all.filter(r => !r.rel), rel = [...all.filter(r => r.rel)].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-  const rows = full ? [...res, ...rel] : [...res, ...rel.slice(0, 4)];
-  const hidden = rel.length - 4;
+  const { shown: rows, hidden } = ledgerRows(all, full);
   return (
     <div style={{ marginTop:16, paddingTop:10, borderTop:`2px solid ${G.txt}` }}>
-      <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>ВЕДОМОСТЬ ЗА ХОД</div>
+      <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>ЧТО ИЗМЕНИЛОСЬ</div>
       <div className="sv-ledger">
         {rows.map(r => (
           <div key={r.k} style={{ display:"flex", alignItems:"baseline", gap:6, fontFamily:narrow, fontSize:16, lineHeight:1.5 }}>
@@ -1090,14 +1090,17 @@ function Ledger({ rows: all }) {
           if (!src?.length || (src.length === 1 && src[0][0] === "решение")) return [row];
           return [row, (
             <div key={`${rows[i].k}-src`} style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.35, margin:"-2px 0 4px 10px" }}>
-              {src.slice(0, 4).map(([label, d]) => `${label} ${signed(Math.round(d))}`).join(" · ")}{src.length > 4 ? " · …" : ""}
+              {src.slice(0, full ? 4 : 2).map(([label, d]) => `${label} ${signed(Math.round(d))}`).join(" · ")}{src.length > (full ? 4 : 2) ? " · …" : ""}
             </div>
           )];
         })}
       </div>
-      {!full && hidden > 0 && (
-        <button onClick={() => setFull(true)} style={{ marginTop:6, background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
-          ещё {plural(hidden, "группа", "группы", "групп")}
+      {full && extra}
+      {!full && (hidden > 0 || extra) && (
+        <button onClick={() => setFull(true)}
+          style={{ marginTop:6, minHeight:44, background:"transparent", border:"none", padding:0,
+            fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+          {hidden > 0 ? `Вся ведомость: ещё ${plural(hidden, "строка", "строки", "строк")}` : "Подробнее"}{extra ? " и прогнозы советников" : ""}
         </button>
       )}
     </div>
@@ -1792,12 +1795,12 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [stamping, setStamping] = useState(null); // резолюция, на которую опускается печать
   const [dossier, setDossier] = useState(false);   // телефон: досье под игрой свёрнуто
   const [resolutionInView, setResolutionInView] = useState(false);
-  const [reviewedTurn, setReviewedTurn] = useState(null);
   useEffect(() => { gsRef.current = gs; }, [gs]);
 
   const [attempt, setAttempt] = useState(0);
   const [typedTurn, setTypedTurn] = useState(null);
-  const typed = typedTurn === gs.turn;
+  // Печатная машинка — только в первой газете партии: дальше текст виден сразу.
+  const typed = typedTurn === gs.turn || gs.turn !== 1;
   const [countedTurn, setCountedTurn] = useState(null); // ночь выборов: подсчёт перед газетой
   const [urgentTurn, setUrgentTurn] = useState(null);   // срочное дело: отсчёт пошёл
   const [autoTurn, setAutoTurn] = useState(null);       // срочное дело: решили за вас
@@ -1805,6 +1808,14 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   // Новое дело и газета открываются сверху: с окна на площадь, а не с середины листа.
   const sheet = gs.currentEvent ? `e${gs.turn}` : gs.lastTurn ? `r${gs.turn}` : "";
   useEffect(() => { if (sheet) window.scrollTo({ top: 0 }); }, [sheet]);
+  // Газета открывается на заголовке, под шапкой с ресурсами: листать к последствиям не нужно.
+  const paper = !busy && !transition && !gs.currentEvent && gs.lastTurn && counted ? `r${gs.turn}` : "";
+  useEffect(() => {
+    const label = paper && document.getElementById("sv-main-case");
+    if (!label) return;
+    const hud = document.querySelector(".sv-hud")?.getBoundingClientRect().height ?? 0;
+    window.scrollTo({ top: Math.max(0, label.getBoundingClientRect().top + window.scrollY - hud - 8) });
+  }, [paper]);
   const prefetch = useRef(null); // следующее событие грузится, пока игрок читает итог
   const commit = useCallback(next => { gsRef.current = next; setGs(next); }, [setGs]);
 
@@ -1922,11 +1933,6 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       raf = 0;
       const el = document.getElementById("sv-resolution");
       setResolutionInView(!!el && el.getBoundingClientRect().top < window.innerHeight * 0.65);
-      const report = document.getElementById('sv-turn-result');
-      if (report && !transition && !recap && !countryOpen && !contactOpen && !resourceOpen && !help) {
-        const box = report.getBoundingClientRect();
-        if (box.top < window.innerHeight * .75 && box.bottom > (document.querySelector(".sv-hud")?.getBoundingClientRect().bottom ?? 0)) setReviewedTurn(gs.turn);
-      }
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
     check();
@@ -2047,10 +2053,21 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                       <Portrait name={a.name} size={32}/>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontFamily:serif, fontSize:13, fontWeight:500 }}>{a.name}</div>
-                        <AdvisorCard gs={gs} advisor={a}/>
+                        <AdvisorCard gs={gs} advisor={a}>
+                          <DossierActions gs={gs} advisor={a} onDossier={(id, action) => {
+                            if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
+                            prefetch.current = null; setArmed(null); setPreview(null);
+                            commit(applyDossier(gsRef.current, id, action)); stampFx();
+                          }}/>
+                        </AdvisorCard>
                       </div>
                     </div>
                   ))}
+                  <StaffPanel gs={gs} onHire={id => {
+                    if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
+                    prefetch.current = null; setArmed(null); setPreview(null);
+                    commit(hireAdvisor(gsRef.current, id)); stampFx();
+                  }}/>
                 </>}
                 <Label>{"КЛЮЧЕВЫЕ ИГРОКИ"}</Label>
                 {keyFigures.map(f => {
@@ -2198,7 +2215,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </figure>
                 )}
                 {event.special && <SpecialHeader gs={gs} event={event}/>}
-                <Prose text={event.description}/>
+                {(() => {
+                  const { lead, rest } = splitLead(event.description, CASE_LEAD);
+                  return <>
+                    <Prose paragraphs={lead}/>
+                    {rest.length > 0 && <More key={`case${turn}`} label="Подробнее"><Prose paragraphs={rest} start={lead.length}/></More>}
+                  </>;
+                })()}
                 {event.affectedFactions?.length > 0 && (
                   <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10 }}>
                     Касается: {event.affectedFactions.map(fid => factions.find(x => x.id === fid)?.name).filter(Boolean).join(", ")}
@@ -2287,7 +2310,57 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <SquareView gs={gs} sceneKey={lastTurn.scene} height={36} mono still/>
                   <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>{SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции</figcaption>
                 </figure>
-                <Typewriter key={`t${turn}`} text={lastTurn.narrative} onDone={() => setTypedTurn(turn)}/>
+                {(() => {
+                  const { lead, rest } = splitLead(lastTurn.narrative, NEWS_LEAD);
+                  const reactions = (lastTurn.reactions || []).slice(0, 2);
+                  const press = lastTurn.press ?? [];
+                  // Историк подводит черту только в конце главы — иначе его реплики приедаются.
+                  const historian = lastTurn.historianNote && (turn % 5 === 0 || gs.ended) ? lastTurn.historianNote : null;
+                  return <>
+                    {turn !== 1
+                      ? <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:14 }}>
+                          {lead.map((p, i) => <p key={i} style={{ marginBottom:i < lead.length - 1 ? 12 : 0 }}><PeopleText>{p}</PeopleText></p>)}
+                        </div>
+                      : <Typewriter key={`t${turn}`} text={lead.join("\n\n")} onDone={() => setTypedTurn(turn)}/>}
+                    {typed && (rest.length > 0 || reactions.length > 0 || press.length > 0 || historian) && (
+                      <More key={`news${turn}`} label="Читать полностью">
+                        {rest.map((p, i) => (
+                          <p key={i} style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:12 }}><PeopleText>{p}</PeopleText></p>
+                        ))}
+                        {reactions.map((r, i) => {
+                          const who = speakerOf(gs, r);
+                          return (
+                            <div key={i} style={{ display:"flex", gap:12, alignItems:"center", padding:"9px 0", borderTop:`1px solid ${G.bdr}` }}>
+                              {who && <Portrait name={who.name} size={36}/>}
+                              <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic" }}><PeopleText>{r}</PeopleText></div>
+                            </div>
+                          );
+                        })}
+                        {press.length > 0 && (
+                          <div style={{ margin:"10px 0 4px", padding:"10px 12px", border:`1px solid ${G.bdr2}`, background:G.bg2 }}>
+                            <div style={{ fontFamily:narrow, fontWeight:700, fontSize:12, letterSpacing:".1em", textTransform:"uppercase",
+                              color:G.tx3, marginBottom:6 }}>
+                              Что пишут другие
+                            </div>
+                            {press.map((p, i) => (
+                              <div key={i} style={{ padding:"5px 0", borderTop: i ? `1px dashed ${G.bdr}` : "none" }}>
+                                <div style={{ fontFamily:narrow, fontSize:13, color:G.tx3 }}>{p.outlet}</div>
+                                <div style={{ fontFamily:serif, fontWeight:700, fontSize:16, lineHeight:1.25, color:G.txt }}>
+                                  <PeopleText>{p.headline}</PeopleText>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {historian && (
+                          <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>
+                            — {historian}
+                          </div>
+                        )}
+                      </More>
+                    )}
+                  </>;
+                })()}
                 <details className="sv-execution-calculation"><summary>Ваша резолюция и расчёт исполнения</summary>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px 14px", marginBottom:18, flexWrap:"wrap" }}>
                   <div style={{ minWidth:0, flex:"1 1 240px" }}>
@@ -2305,36 +2378,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 <div className="sv-reveal" style={{ display: typed ? "block" : "none" }}>
 
                 {lastTurn.document && <DocumentCard doc={lastTurn.document}/>}
-                {(lastTurn.reactions||[]).slice(0, 2).map((r,i) => {
-                  const who = speakerOf(gs, r);
-                  return (
-                    <div key={i} style={{ display:"flex", gap:12, alignItems:"center", padding:"9px 0", borderTop:`1px solid ${G.bdr}` }}>
-                      {who && <Portrait name={who.name} size={36}/>}
-                      <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic" }}><PeopleText>{r}</PeopleText></div>
-                    </div>
-                  );
-                })}
-                {lastTurn.press?.length > 0 && (
-                  <div style={{ margin:"10px 0 4px", padding:"10px 12px", border:`1px solid ${G.bdr2}`, background:G.bg2 }}>
-                    <div style={{ fontFamily:narrow, fontWeight:700, fontSize:12, letterSpacing:".1em", textTransform:"uppercase", color:G.tx3, marginBottom:6 }}>Что пишут другие</div>
-                    {lastTurn.press.map((p, i) => (
-                      <div key={i} className="sv-fade" style={{ padding:"5px 0", borderTop: i ? `1px dashed ${G.bdr}` : "none", animationDelay:`${0.2 + i * 0.25}s` }}>
-                        <div style={{ fontFamily:narrow, fontSize:13, color:G.tx3 }}>{p.outlet}</div>
-                        <div style={{ fontFamily:serif, fontWeight:700, fontSize:16, lineHeight:1.25, color:G.txt }}><PeopleText>{p.headline}</PeopleText></div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {/* Историк подводит черту только в конце главы — иначе его реплики приедаются */}
-                {lastTurn.historianNote && (turn % 5 === 0 || gs.ended) && (
-                  <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>— {lastTurn.historianNote}</div>
-                )}
-
-                {(lastTurn.forecasts?.length > 0 || lastTurn.advisorNews?.some(n => n.reason)) && (
+                {(lastTurn.leaks?.length > 0 || lastTurn.advisorNews?.some(n => n.reason)) && (
                   <div style={{ marginTop:14 }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>СОВЕТНИКИ</div>
-                    {(lastTurn.forecasts ?? []).map(line => (
-                      <div key={line} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:/— верно\.$/.test(line) ? G.grn : G.tx2 }}>{line}</div>
+                    {(lastTurn.leaks ?? []).map(line => (
+                      <div key={line} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:G.red }}>Утечка. {line}</div>
                     ))}
                     {(lastTurn.advisorNews ?? []).map(news => {
                       const line = newsLine(gs.advisors ?? [], news);
@@ -2343,13 +2391,20 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </div>
                 )}
                 {(turnDelta || Object.keys(lastTurn.factionRelChanges||{}).length > 0) && (
-                  <Ledger rows={[
+                  <Ledger key={`ledger${turn}`} rows={[
                     ...(turnDelta ? RES_CONFIG.filter(r => turnDelta[r.key]).map(r => ({ k:r.key, label:SHORT[r.key], value:resources[r.key], delta:turnDelta[r.key], sources:lastTurn.sources?.[r.key] })) : []),
                     ...Object.entries(lastTurn.factionRelChanges||{}).flatMap(([fid, v]) => {
                       const f = factions.find(x => x.id === fid);
                       return f ? [{ k:fid, label:f.name, value:f.relation, delta:v, rel:true }] : [];
                     }),
-                  ]}/>
+                  ]} extra={lastTurn.forecasts?.length > 0 && (
+                    <div style={{ marginTop:12 }}>
+                      <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>ПРОГНОЗЫ СОВЕТНИКОВ</div>
+                      {lastTurn.forecasts.map(line => (
+                        <div key={line} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:/— верно\.$/.test(line) ? G.grn : G.tx2 }}>{line}</div>
+                      ))}
+                    </div>
+                  )}/>
                 )}
                 </div>
                 </div>
@@ -2433,7 +2488,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 <span>{healthNeedsAttention(gs.world.health)?'По больницам требуется ваш ответ. Срок и варианты вмешательства — в поручениях.':gs.world.health?.aftermath?.phase==='working'?'Поручение по больницам исполняется. Продолжите решения в кабинете до итогового доклада.':gs.world.health?.aftermath?.phase==='scheduled'&&projectFinished(gs.world.project)?'Программы завершены; ожидается доклад о последствиях. Продолжите решения в кабинете.':agendaFinished?'Проекты завершены. Итоги и оставшиеся обязательства — в досье. Продолжите управление из кабинета.':gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
                 <button onClick={()=>countryPanel.current?.showReport()}>{agendaFinished?'Открыть итоги проектов':'Открыть поручения и доклады'} →</button>
               </div>}
-              {typed && <div style={{ textAlign:"right" }}>
+              {typed && <div className="sv-inline-next" style={{ textAlign:"right" }}>
                 {gs.ended
                   ? <PrimaryBtn id="next-turn" onClick={onEnd} danger>ПОДВЕСТИ ИТОГИ ⏎</PrimaryBtn>
                   : <PrimaryBtn id="next-turn" onClick={nextTurn}>СЛЕДУЮЩИЙ ХОД ⏎</PrimaryBtn>}
@@ -2448,7 +2503,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       </div>
       </div>
       <ActionBar
-        mode={recap ? "recap" : busy || countryOpen || contactOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (reviewedTurn !== turn ? "review" : gs.ended ? "end" : "next") : "skip") : null}
+        mode={recap ? "recap" : busy || countryOpen || contactOpen || resourceOpen || help ? null
+          : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump")
+          : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}
@@ -2456,7 +2513,6 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         onSkip={() => window.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter" }))}
         onGuide={() => countryPanel.current?.startHospital("assign")}
         onGuideReport={() => countryPanel.current?.startHospital("report")}
-        onReview={() => document.getElementById("sv-turn-result")?.scrollIntoView({behavior:"smooth",block:"center"})}
         onCount={() => setCountedTurn(turn)}
         onNext={nextTurn} onEnd={onEnd} onRecap={onRecapDone}/>
     </div>
@@ -2472,7 +2528,7 @@ function useTelegramButtons() {
 
 // Нижняя панель на телефоне: главное действие хода всегда под большим пальцем.
 // Кнопки не забирают фокус — иначе выбранная резолюция успела бы сброситься.
-function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd, onRecap, onCount, onReview, onGuide, onGuideReport }) {
+function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd, onRecap, onCount, onGuide, onGuideReport }) {
   // В Telegram то же действие уходит на его родную кнопку внизу экрана, отмена — на «Назад».
   const tg = useTelegramButtons();
   useEffect(() => {
@@ -2489,7 +2545,6 @@ function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onE
       count: { text: "Сразу к итогам", onClick: onCount },
       guide: { text: "Выбрать руководителя больниц", onClick: onGuide },
       guideReport: { text: "Первый доклад по больницам", onClick: onGuideReport },
-      review: { text: "К последствиям ↓", onClick: onReview },
     };
     setMainButton(specs[mode] ?? null);
     setBackButton(mode === "sign" ? onCancel : null);
@@ -2513,7 +2568,6 @@ function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onE
         <button {...keep} onClick={mode==='guide'?onGuide:onGuideReport} style={main}>{mode==='guide'?'Выбрать руководителя':'Первый доклад'}</button>
         <button {...keep} onClick={onNext} aria-label={mode==='guide'?'Отложить назначение':'Продолжить текущий план'} style={{...main,flex:'0 0 auto',background:'transparent',color:G.tx2,fontFamily:narrow,fontSize:16}}>Позже</button>
       </>}
-      {mode === "review" && <button {...keep} onClick={onReview} style={main}>К последствиям ↓</button>}
       {mode === "count" && <button {...keep} onClick={onCount} style={{ ...main, background:"transparent", color:G.txt, border:`2px solid ${G.bdr2}`, boxShadow:"none" }}>Сразу к итогам</button>}
       {mode === "skip" && <button {...keep} onClick={onSkip} style={{ ...main, background:"transparent", color:G.txt, border:`2px solid ${G.bdr2}`, boxShadow:"none" }}>Показать текст сразу</button>}
       {mode === "next" && <button {...keep} onClick={onNext} style={main}>Следующий ход →</button>}

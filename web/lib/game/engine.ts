@@ -7,6 +7,7 @@ import {
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES, SURVIVAL_ENDS, CONTINUE_ENDS, TERM_FATIGUE, DEATH_FROM, DEATH_STEP, localTurn,
 } from "./data.ts";
 import { ARCS } from "../content/arcs.ts";
+import { LEAKS } from "../content/advisors.ts";
 import { NAMES } from "../content/narration.ts";
 import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE_BONUS, bondOf, breaches, pactIncome, personalDelta } from "./people.ts";
 import { stepPromises } from "./promises.ts";
@@ -271,9 +272,28 @@ export function initAdvisors(diff: DifficultyId, names: string[], rand: () => nu
 // Лояльность советника: исходная — от 55 до 75, по имени, без расхода случайности партии.
 // Послушали совет — растёт, выбрали вариант оппонента — падает.
 export const LOYALTY_FOLLOWED = 3;
-export const LOYALTY_OVERRULED = -3;
+export const LOYALTY_OVERRULED = -5; // обида сильнее благодарности: кого упорно не слушают, тот к концу срока против вас
 export const baseLoyalty = (advisor: Pick<Advisor, "id" | "name">) => 55 + hashSeed(advisor.name, advisor.id, "loyalty") % 21;
 export const loyaltyOf = (advisor: Advisor) => advisor.loyalty ?? baseLoyalty(advisor);
+
+// Нелояльный советник (ниже порога) без досье вредит: раз в несколько ходов сливает дела своей области в прессу
+// и саботирует решения в ней. Досье, собранное силовиками, заставляет его сидеть тихо.
+export const DISLOYAL_BELOW = 35;
+export const LEAK_EVERY = 3;
+export const SABOTAGE = 0.1;
+export const isDisloyal = (advisor: Advisor) => loyaltyOf(advisor) < DISLOYAL_BELOW;
+const unrestrained = (advisor: Advisor) => isDisloyal(advisor) && !advisor.dossier;
+
+export function leakingAdvisors(state: Pick<GameState, "seed" | "turn"> & { advisors?: Advisor[] }): Advisor[] {
+  return (state.advisors ?? []).filter(advisor => unrestrained(advisor) && LEAKS[advisor.id]
+    && hashSeed(state.seed, "leak", state.turn, advisor.id) % LEAK_EVERY === 0);
+}
+
+// Кто саботирует это решение: нелояльный советник, в чью область оно попадает.
+export function saboteurOf(state: { advisors?: Advisor[] }, choice: Pick<Choice, "tags">): Advisor | null {
+  const domainOf = (id: string) => ADVISOR_ROLES.find(role => role.id === id)?.domain ?? [];
+  return (state.advisors ?? []).find(advisor => unrestrained(advisor) && domainOf(advisor.id).some(tag => choice.tags.includes(tag))) ?? null;
+}
 
 export function applyAdvisorNews(advisors: Advisor[], news: AdvisorNews[] | undefined): Advisor[] {
   if (!news?.length) return advisors;
@@ -353,7 +373,7 @@ export function seededRandom(seed: number): () => number {
 }
 
 // Шанс, что решение исполнят как задумано. Выжидание не проваливается.
-type ChanceState = Pick<GameState, "factions" | "resources"> & Partial<Pick<GameState, "keyFigures" | "pacts" | "bio">>;
+type ChanceState = Pick<GameState, "factions" | "resources"> & Partial<Pick<GameState, "keyFigures" | "pacts" | "bio" | "advisors">>;
 // Группы, руками которых решение исполняется: те, кому оно выгодно.
 export const executors = (factions: Faction[], choice: Pick<Choice, "tags">) => {
   const blocs = new Set(choice.tags.flatMap(t => Object.entries(ACTIONS[t]?.rel ?? {}).filter(([, v]) => (v ?? 0) > 0).map(([b]) => b)));
@@ -377,6 +397,7 @@ export function successChance(state: ChanceState, choice: Choice): number {
   if (state.pacts?.some(pc => exec.some(f => f.id === pc.faction))) p += 0.05; // союзник даёт свой аппарат
   if (state.resources.politicalCapital < 25) p -= 0.1;
   if (state.resources.personalResource < 25) p -= 0.05;
+  if (saboteurOf(state, choice)) p -= SABOTAGE; // нелояльный советник тянет время и теряет бумаги
   return Math.round(Math.max(0.3, Math.min(0.95, p)) * 100) / 100;
 }
 
@@ -462,6 +483,7 @@ export function figureDeltas(
 
 export interface TurnPlan {
   world?: LivingWorld;
+  leaks: string[];     // id советников, чьи утечки сработали в этом ходу
   worldStory: string | null;
   choice: Choice;
   success: boolean;
@@ -517,6 +539,9 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   let resources = state.resources;
   const add = (label: string, d: ResourceDelta | null | undefined) => { const next = applyDeltas(resources, d); note(label, resources, next); resources = next; };
   add("решение", effects.resources);
+  // Утечки нелояльных советников: что вынесли в прессу, то и бьёт.
+  const leaks = leakingAdvisors(state);
+  for (const advisor of leaks) add(`утечка: ${advisor.name}`, LEAKS[advisor.id].cost);
   const nextTurn = state.turn + 1;
 
   // Срабатывают отложенные последствия прошлых решений; новые встают в очередь.
@@ -667,7 +692,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     pacts, pactNews, betrayals: (state.betrayals ?? 0) + broken.length,
     promises: promiseStep.promises, promiseNews: promiseStep.news,
     laws: lawStep.laws, lawNews: lawStep.news,
-    path, reign: nextR, termResult, sources,
+    path, reign: nextR, termResult, sources, leaks: leaks.map(advisor => advisor.id),
     world: worldStep.world, worldStory: worldStep.story,
   };
 }

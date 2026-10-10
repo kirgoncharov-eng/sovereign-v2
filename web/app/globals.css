@@ -324,6 +324,8 @@ button:focus-visible {
     animation: sv-rise .2s ease-out both;
   }
   .sv-game-grid { padding-bottom: 76px; }
+  /* Внизу уже есть главная кнопка — вторая «Следующий ход» в газете не нужна */
+  .sv-inline-next { display: none; }
   .sv-dossier-toggle {
     display: block; width: 100%; padding: 12px 14px; margin-bottom: 8px;
     background: var(--bg2); border: 2px solid var(--bdr2); color: var(--tx2);
@@ -437,6 +439,17 @@ button:focus-visible {
 .sv-mandate summary { cursor:pointer; min-height:44px; padding:10px 14px; border:1px solid var(--bdr2); font-size:16px; }
 .sv-executor-compare { display:flex; gap:16px; flex-wrap:wrap; padding:6px 0; }
 .sv-execution-calculation { color:var(--tx3); font-family:var(--font-narrow); font-size:15px; }
+/* Короткий ход: продолжение дела и газеты — по нажатию */
+.sv-more { margin:0 0 12px; }
+.sv-more > summary {
+  cursor:pointer; min-height:44px; display:flex; align-items:center; gap:6px;
+  font-family:var(--font-narrow); font-size:16px; color:var(--tx2); text-decoration:underline dotted; text-underline-offset:3px;
+  list-style:none;
+}
+.sv-more > summary::-webkit-details-marker { display:none; }
+.sv-more > summary::after { content:"▾"; }
+.sv-more[open] > summary::after { content:"▴"; }
+.sv-more-body { padding-top:6px; }
 .sv-execution-calculation summary { cursor:pointer; padding:10px 0; min-height:44px; }
 #sv-turn-result { scroll-margin-top:150px; }
 @media (pointer:coarse) and (min-width:761px) {
@@ -570,7 +583,14 @@ button:focus-visible {
 .sv-letters { display:grid; gap:10px; margin:0 0 12px; }
 .sv-letter { padding:12px 16px 14px; transform:rotate(-0.4deg); }
 .sv-letter:nth-child(even) { transform:rotate(0.5deg); }
-.sv-letter-head { display:flex; flex-direction:column; gap:2px; margin-bottom:6px; font-family:var(--font-narrow); }
+.sv-letter-head {
+  display:flex; flex-direction:column; justify-content:center; gap:2px; min-height:44px;
+  font-family:var(--font-narrow); cursor:pointer; list-style:none;
+}
+.sv-letter-head::-webkit-details-marker { display:none; }
+.sv-letter-head strong::after { content:" · прочитать ▾"; font-weight:400; font-size:15px; color:var(--tx3, #6b604c); }
+.sv-letter[open] .sv-letter-head strong::after { content:""; }
+.sv-letter[open] .sv-letter-head { margin-bottom:6px; }
 .sv-letter-head span { font-size:13px; letter-spacing:.08em; color:var(--tx3, #6b604c); }
 .sv-letter-head strong { font-size:16px; color:var(--txt); }
 .sv-letter p { margin:0; font-family:var(--font-serif), "PT Serif", Georgia, serif; font-size:16px; line-height:1.55; color:var(--txt); }
@@ -593,3 +613,25 @@ button:focus-visible {
 .sv-advisor-card-fill-good { background:var(--grn); }
 .sv-advisor-card-fill-warn { background:var(--amb); }
 .sv-advisor-card-fill-bad { background:var(--red); }
+
+/* Кадровый резерв в досье */
+.sv-staff { margin:4px 0 18px; }
+.sv-staff-title { font-family:var(--font-pixel, monospace); font-size:13px; letter-spacing:.04em; color:var(--tx3); margin:6px 0 6px; }
+.sv-staff-note { margin:0 0 8px; font-family:var(--font-narrow); font-size:15px; line-height:1.4; color:var(--tx3); }
+.sv-staff-receipt { margin:0 0 10px; padding:8px 12px; border-left:3px solid var(--gold); background:var(--bg3); font-family:var(--font-serif), "PT Serif", Georgia, serif; font-size:15px; line-height:1.45; color:var(--txt); }
+.sv-staff-candidate { padding:10px 0; border-top:1px dashed var(--bdr); font-family:var(--font-narrow); font-size:15px; line-height:1.4; color:var(--tx2); }
+.sv-staff-head { display:flex; flex-direction:column; gap:1px; }
+.sv-staff-head strong { font-family:var(--font-serif), "PT Serif", Georgia, serif; font-size:16px; color:var(--txt); }
+.sv-staff-head span { color:var(--tx3); }
+.sv-staff-bio { margin:4px 0; font-family:var(--font-serif), "PT Serif", Georgia, serif; font-style:italic; font-size:15px; color:var(--txt); }
+.sv-staff-line { margin-top:2px; }
+.sv-staff-bad { color:var(--red); }
+.sv-staff-muted { color:var(--tx3); font-style:italic; }
+.sv-staff-actions { display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
+.sv-staff-hire, .sv-staff-sign, .sv-staff-cancel { margin-top:8px; padding:7px 14px; border-radius:0; font-family:var(--font-narrow); font-size:15px; cursor:pointer; }
+.sv-staff-actions .sv-staff-sign, .sv-staff-actions .sv-staff-cancel { margin-top:0; }
+.sv-staff-hire { background:transparent; border:1.5px solid var(--gold); color:var(--gold); }
+.sv-staff-sign { background:var(--gold); border:2px solid rgba(0,0,0,.55); color:var(--on-gold); }
+.sv-staff-cancel { background:transparent; border:1px solid var(--bdr2); color:var(--tx2); }
+.sv-dossier-actions { margin-top:6px; font-family:var(--font-narrow); font-size:15px; }
+.sv-dossier-actions .sv-staff-hire { margin-top:0; }

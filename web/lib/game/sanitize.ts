@@ -7,7 +7,7 @@ import {
 import { ARCS } from "../content/arcs.ts";
 import { loyaltyLabel } from "./engine.ts";
 import type {
-  ActionTag, Advisor, ArcChoice, ArcState, Choice, Deal, Pact, Pending, Election, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
+  ActionTag, Advisor, ArcChoice, Bloc, ArcState, Choice, Deal, Pact, Pending, Election, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
   HistoryEntry, IdeologyId, NewCrisis, PathId, PowerPath, RandomEvent, ResourceDelta, Resources, Severity,
 } from "./types.ts";
 
@@ -311,6 +311,8 @@ function sanitizeArc(v: unknown): ArcState | null {
   };
 }
 
+const BLOCS: Bloc[] = ["security", "business", "church", "liberal", "west", "russia", "nationalist", "regional", "ruling"];
+
 function sanitizeAdvisors(v: unknown): Advisor[] {
   const src = Array.isArray(v) ? v.filter(isObj) : [];
   return ADVISOR_ROLES.map(r => {
@@ -320,6 +322,14 @@ function sanitizeAdvisors(v: unknown): Advisor[] {
       id: r.id, role: r.role, emoji: r.emoji, name: str(a.name, TEXT.name, r.role), skill: num(a.skill, 1, 3, 2) as 1 | 2 | 3,
       ...(a.loyalty !== undefined ? { loyalty: num(a.loyalty, 0, 100, 60) } : {}),
       ...(record ? { record } : {}),
+      ...(typeof a.origin === "string" ? { origin: str(a.origin, 20) } : {}),
+      ...(typeof a.title === "string" ? { title: str(a.title, TEXT.name) } : {}),
+      ...(typeof a.bio === "string" ? { bio: str(a.bio, TEXT.medium) } : {}),
+      ...(typeof a.camp === "string" && BLOCS.includes(a.camp as Bloc) ? { camp: a.camp as Bloc } : a.camp === null ? { camp: null } : {}),
+      ...(a.since !== undefined ? { since: num(a.since, 0, MAX_TURNS, 0) } : {}),
+      ...(isObj(a.dossier) ? { dossier: {
+        fact: str(a.dossier.fact, TEXT.medium), turn: num(a.dossier.turn, 0, MAX_TURNS, 0), ...(a.dossier.used === true ? { used: true } : {}),
+      } } : {}),
     };
   });
 }

@@ -44,6 +44,7 @@ import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } f
 import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { storyLetters } from "./stories.ts";
 import { advisorNews, forecastReview } from "./forecasts.ts";
+import { LEAKS } from "../content/advisors.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
 
@@ -233,13 +234,24 @@ function successorName(state: GameState, fig: Figure): string {
     const lasts = pool.last.filter(l => !fig.name.endsWith(l));
     return `${pick(r, pool.first)} ${pick(r, lasts.length ? lasts : pool.last)}`;
   }
+  return personName(state.country, r, MALE_ROLES.has(fig.id), usedNames(state));
+}
+
+// Имена и фамилии, уже занятые в партии: новые люди их не получают, пока есть свободные.
+function usedNames(state: GameState, extra: string[] = []): Set<string> {
   const used = new Set<string>();
-  for (const n of [state.leader.name, ...state.keyFigures.map(f => f.name), ...state.advisors.map(a => a.name), ...(state.former ?? [])]) {
-    const [first, last] = n.split(" ");
+  const people = [state.leader.name, ...state.keyFigures.map(figure => figure.name), ...state.advisors.map(advisor => advisor.name)];
+  for (const name of [...people, ...(state.former ?? []), ...extra]) {
+    const [first, last] = name.split(" ");
     used.add(`first:${first}`);
     if (last) used.add(last.replace(/(ов|ев|ин)а$/, "$1").replace(/(ск|цк)ая$/, "$1ий"));
   }
-  return personName(state.country, r, MALE_ROLES.has(fig.id), used);
+  return used;
+}
+
+// Новый человек для кадрового резерва: имя по стране, не совпадает с уже знакомыми игроку.
+export function freshPersonName(state: GameState, salt: string, male: boolean, extra: string[] = []): string {
+  return personName(state.country, seededRandom(hashSeed(state.seed, "fresh", salt)), male, usedNames(state, extra));
 }
 
 interface SpecialOption { c: SpecialChoice; tags: ActionTag[]; deal: Deal }
@@ -1174,12 +1186,19 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // Газета сверяет прогнозы советников с тем, что вышло: так видно, кому и в чём верить.
   const forecasts = forecastReview(state, choiceId, !plan.success);
   const advisorUpdates = advisorNews(state, choiceId, !plan.success);
+  // Утечки нелояльных советников: газета пишет, что ушло в прессу и кто разводит руками.
+  const leaks = plan.leaks.flatMap(id => {
+    const advisor = state.advisors.find(member => member.id === id);
+    const lines = LEAKS[id]?.lines;
+    return advisor && lines ? [lines[hashSeed(state.seed, "leak-line", state.turn, id) % lines.length].replace("{name}", advisor.name)] : [];
+  });
   return {
     press,
     heard: said,
     ...(letters.length ? { letters } : {}),
     ...(forecasts.length ? { forecasts } : {}),
     ...(advisorUpdates.length ? { advisorNews: advisorUpdates } : {}),
+    ...(leaks.length ? { leaks } : {}),
     ...(appeared.length ? { cast: appeared } : {}),
     scene: state.currentEvent ? sceneAfter(state.currentEvent, plan.choice, plan.success) : "square",
     headline: finale ? finale.head : plan.election ? electionHeadline(plan.election)
