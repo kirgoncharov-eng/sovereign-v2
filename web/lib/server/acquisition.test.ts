@@ -4,6 +4,13 @@ import { readStats, record } from "./analytics.ts";
 import { renderAcquisition } from "./acquisition.ts";
 
 const DAY = 864e5;
+test("метка максимальной длины не обрезается в open|src", async () => {
+  const now = Date.parse("2028-06-01T12:00:00Z");
+  const channel = "a".repeat(24);
+  await record("acquisition005", [{ e: "open", p: { src: `src_${channel}`, v: "7.7" } }], now);
+  const stats = await readStats(1, now);
+  assert.equal(stats.days[0].h[`open|src=src_${channel}`], 1);
+});
 test("D1/D7 принадлежат первому каналу и версии; повторы и новые ссылки не меняют когорту", async () => {
   const start = Date.parse("2028-01-01T12:00:00Z");
   await record("acquisition001", [{ e: "open", p: { src: "src_games", v: "7.7" } }], start);

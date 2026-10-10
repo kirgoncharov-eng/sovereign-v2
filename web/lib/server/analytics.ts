@@ -22,7 +22,8 @@ export const PID = /^[a-z0-9]{8,24}$/;
 
 export const dayOf = (t: number) => new Date(t).toISOString().slice(0, 10);
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
-const clean = (v: unknown) => String(v).replace(/[^\p{L}\p{N} _.-]/gu, "").trim().slice(0, 24);
+const clean = (value: unknown, maxLength = 24) =>
+  String(value).replace(/[^\p{L}\p{N} _.-]/gu, "").trim().slice(0, maxLength);
 
 export interface TrackInput { e: string; p?: Record<string, unknown> }
 
@@ -52,7 +53,7 @@ export async function record(pid: string, events: TrackInput[], now = Date.now()
     for (const dim of new Set([...DIMS[e as TrackEventName], "v", "src"])) {
       const v = p?.[dim];
       if (v === undefined || v === null || v === "") continue;
-      const val = clean(v);
+      const val = clean(v, dim === "src" ? 28 : 24);
       if (val) ops.push(kv.hincrby(key, `${e}|${dim}=${val}`));
     }
   }
