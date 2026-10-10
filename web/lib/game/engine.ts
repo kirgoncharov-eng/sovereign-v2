@@ -14,7 +14,7 @@ import { stepLaws } from "./laws.ts";
 import { stepLivingWorld, type LivingWorld } from "./living-world.ts";
 import { electionKind, isTermEnd, nextReign, pathEnd, reignOf } from "./terms.ts";
 import type {
-  Advisor, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
+  Advisor, AdvisorNews, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
   LawInForce, Narration, NewCrisis, Pact, PactNews, PowerPath, PromiseNews, Reign, PromiseState, ResourceDelta, ResourceKey, Resources, TurnReport, Verdict,
 } from "./types.ts";
 
@@ -258,11 +258,35 @@ export function conveneCouncil(state: GameState, proposals: Choice[]): GameState
 export function initAdvisors(diff: DifficultyId, names: string[], rand: () => number = Math.random): Advisor[] {
   // на лёгкой сложности команда сильнее
   const bias = { debut: 0.4, coalition: 0.2, crisis: 0, ruins: -0.2 }[diff] ?? 0;
-  return ADVISOR_ROLES.map((r, i) => ({
-    id: r.id, role: r.role, emoji: r.emoji,
-    name: names[i] || r.role,
-    skill: Math.max(1, Math.min(3, Math.floor(rand() * 3 + bias) + 1)) as 1 | 2 | 3,
-  }));
+  return ADVISOR_ROLES.map((r, i) => {
+    const advisor = {
+      id: r.id, role: r.role, emoji: r.emoji,
+      name: names[i] || r.role,
+      skill: Math.max(1, Math.min(3, Math.floor(rand() * 3 + bias) + 1)) as 1 | 2 | 3,
+    };
+    return { ...advisor, loyalty: baseLoyalty(advisor), record: { right: 0, wrong: 0 } };
+  });
+}
+
+// Лояльность советника: исходная — от 55 до 75, по имени, без расхода случайности партии.
+// Послушали совет — растёт, выбрали вариант оппонента — падает.
+export const LOYALTY_FOLLOWED = 3;
+export const LOYALTY_OVERRULED = -3;
+export const baseLoyalty = (advisor: Pick<Advisor, "id" | "name">) => 55 + hashSeed(advisor.name, advisor.id, "loyalty") % 21;
+export const loyaltyOf = (advisor: Advisor) => advisor.loyalty ?? baseLoyalty(advisor);
+
+export function applyAdvisorNews(advisors: Advisor[], news: AdvisorNews[] | undefined): Advisor[] {
+  if (!news?.length) return advisors;
+  return advisors.map(advisor => {
+    const item = news.find(n => n.id === advisor.id);
+    if (!item) return advisor;
+    const record = advisor.record ?? { right: 0, wrong: 0 };
+    return {
+      ...advisor,
+      loyalty: Math.max(0, Math.min(100, loyaltyOf(advisor) + item.loyalty)),
+      record: { right: record.right + item.right, wrong: record.wrong + item.wrong },
+    };
+  });
 }
 
 // Отложенные последствия решения: по тегам и за слабого советника.
@@ -672,6 +696,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     ...(plan.world ? { world: plan.world } : {}),
     factions: plan.factions, prevFactions: state.factions.map(f => ({ ...f })),
     keyFigures: plan.keyFigures, prevFigures: state.keyFigures.map(f => ({ ...f })),
+    advisors: applyAdvisorNews(state.advisors, narration.advisorNews),
     activeCrises: crises,
     turn,
     year: state.year + (turn % 4 === 0 ? 1 : 0),

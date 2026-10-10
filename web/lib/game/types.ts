@@ -149,6 +149,17 @@ export interface Advisor {
   emoji: string;
   name: string;
   skill: 1 | 2 | 3;
+  loyalty?: number;                          // 0–100, насколько советник на вашей стороне; у старых сохранений — исходная
+  record?: { right: number; wrong: number }; // счёт прогнозов, сверенных газетой
+}
+
+// Что ход сделал с советником: послушали ли его и сбылся ли прогноз.
+export interface AdvisorNews {
+  id: string;
+  loyalty: number; // перемена лояльности
+  right: number;   // сколько прогнозов о выбранном варианте сбылось
+  wrong: number;
+  reason: "followed" | "overruled" | null;
 }
 
 export interface RandomEvent {
@@ -200,6 +211,8 @@ export interface Narration {
   heard?: string[];       // реплики и заголовки этого хода — чтобы не повторять их в партии
   cast?: string[];        // кто появился в главе — следующие две главы он отдыхает
   letters?: Letter[];     // личные сообщения хода — продолжение историй людей
+  forecasts?: string[];   // что советники обещали о выбранном варианте и что вышло
+  advisorNews?: AdvisorNews[]; // перемены лояльности и счёта прогнозов
 }
 
 export interface TurnDocument {

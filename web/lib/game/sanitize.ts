@@ -315,7 +315,12 @@ function sanitizeAdvisors(v: unknown): Advisor[] {
   const src = Array.isArray(v) ? v.filter(isObj) : [];
   return ADVISOR_ROLES.map(r => {
     const a = src.find(x => x.id === r.id) ?? {};
-    return { id: r.id, role: r.role, emoji: r.emoji, name: str(a.name, TEXT.name, r.role), skill: num(a.skill, 1, 3, 2) as 1 | 2 | 3 };
+    const record = isObj(a.record) ? { right: num(a.record.right, 0, 1000, 0), wrong: num(a.record.wrong, 0, 1000, 0) } : null;
+    return {
+      id: r.id, role: r.role, emoji: r.emoji, name: str(a.name, TEXT.name, r.role), skill: num(a.skill, 1, 3, 2) as 1 | 2 | 3,
+      ...(a.loyalty !== undefined ? { loyalty: num(a.loyalty, 0, 100, 60) } : {}),
+      ...(record ? { record } : {}),
+    };
   });
 }
 
