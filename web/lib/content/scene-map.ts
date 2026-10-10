@@ -15,7 +15,7 @@ const BY_CARD: Record<string, SceneKey> = {
   // дела-последствия законов
   law_foreign_agents: "tv", law_state_language: "meeting", law_progressive_tax: "money", law_amnesty: "explosion",
   law_death_penalty: "protest", law_anticorruption_bureau: "meeting", law_emergency_powers: "factory", law_media_licensing: "tv",
-  law_privatization: "factory", law_pension_reform: "protest", law_church_status: "protest", law_decentralization: "meeting",
+  law_privatization: "factory", law_pension_reform: "protest", law_church_status: "protest", law_religion_status: "protest", law_decentralization: "meeting",
   law_eu_course: "border", law_union_treaty: "army", law_constitution: "protest", law_lustration: "tv",
   strike: "factory", privatization: "factory", by_potash: "factory",
   currency: "money", budget_hole: "money", oligarch_demand: "money", crypto_farms: "energy",
