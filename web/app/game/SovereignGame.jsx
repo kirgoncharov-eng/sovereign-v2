@@ -927,7 +927,8 @@ function Prose({ text, paragraphs, start = 0 }) {
     <div>
       {paras.map((p, i) => DATELINE.test(p)
         ? <div key={i} style={{ fontFamily:mono, fontSize:12.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}><PeopleText>{p}</PeopleText></div>
-        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i + start === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch", whiteSpace:"pre-line" }}><PeopleText>{p}</PeopleText></p>)}
+        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i + start === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch",
+            whiteSpace:"pre-line" }}><PeopleText>{p}</PeopleText></p>)}
     </div>
   );
 }
@@ -1096,7 +1097,9 @@ function Ledger({ rows: all, extra }) {
       </div>
       {full && extra}
       {!full && (hidden > 0 || extra) && (
-        <button onClick={() => setFull(true)} style={{ marginTop:6, minHeight:44, background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+        <button onClick={() => setFull(true)}
+          style={{ marginTop:6, minHeight:44, background:"transparent", border:"none", padding:0,
+            fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
           {hidden > 0 ? `Вся ведомость: ещё ${plural(hidden, "строка", "строки", "строк")}` : "Подробнее"}{extra ? " и прогнозы советников" : ""}
         </button>
       )}
@@ -2321,7 +2324,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                       : <Typewriter key={`t${turn}`} text={lead.join("\n\n")} onDone={() => setTypedTurn(turn)}/>}
                     {typed && (rest.length > 0 || reactions.length > 0 || press.length > 0 || historian) && (
                       <More key={`news${turn}`} label="Читать полностью">
-                        {rest.map((p, i) => <p key={i} style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:12 }}><PeopleText>{p}</PeopleText></p>)}
+                        {rest.map((p, i) => (
+                          <p key={i} style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:12 }}><PeopleText>{p}</PeopleText></p>
+                        ))}
                         {reactions.map((r, i) => {
                           const who = speakerOf(gs, r);
                           return (
@@ -2333,16 +2338,25 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                         })}
                         {press.length > 0 && (
                           <div style={{ margin:"10px 0 4px", padding:"10px 12px", border:`1px solid ${G.bdr2}`, background:G.bg2 }}>
-                            <div style={{ fontFamily:narrow, fontWeight:700, fontSize:12, letterSpacing:".1em", textTransform:"uppercase", color:G.tx3, marginBottom:6 }}>Что пишут другие</div>
+                            <div style={{ fontFamily:narrow, fontWeight:700, fontSize:12, letterSpacing:".1em", textTransform:"uppercase",
+                              color:G.tx3, marginBottom:6 }}>
+                              Что пишут другие
+                            </div>
                             {press.map((p, i) => (
                               <div key={i} style={{ padding:"5px 0", borderTop: i ? `1px dashed ${G.bdr}` : "none" }}>
                                 <div style={{ fontFamily:narrow, fontSize:13, color:G.tx3 }}>{p.outlet}</div>
-                                <div style={{ fontFamily:serif, fontWeight:700, fontSize:16, lineHeight:1.25, color:G.txt }}><PeopleText>{p.headline}</PeopleText></div>
+                                <div style={{ fontFamily:serif, fontWeight:700, fontSize:16, lineHeight:1.25, color:G.txt }}>
+                                  <PeopleText>{p.headline}</PeopleText>
+                                </div>
                               </div>
                             ))}
                           </div>
                         )}
-                        {historian && <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>— {historian}</div>}
+                        {historian && (
+                          <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>
+                            — {historian}
+                          </div>
+                        )}
                       </More>
                     )}
                   </>;
@@ -2489,7 +2503,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       </div>
       </div>
       <ActionBar
-        mode={recap ? "recap" : busy || countryOpen || contactOpen || resourceOpen || help ? null : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump") : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
+        mode={recap ? "recap" : busy || countryOpen || contactOpen || resourceOpen || help ? null
+          : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump")
+          : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}

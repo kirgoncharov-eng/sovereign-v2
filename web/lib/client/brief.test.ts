@@ -49,7 +49,8 @@ test("ведомость: свёрнутой — три самые заметн�
   const full = ledgerRows(rows, true);
   assert.equal(full.shown.length, rows.length);
   assert.equal(full.hidden, 0);
-  const tie = ledgerRows([{ k: "west", delta: 4, rel: true }, { k: "economy", delta: -4 }, { k: "military", delta: 4 }, { k: "church", delta: 4, rel: true }], false);
+  const equal = [{ k: "west", delta: 4, rel: true }, { k: "economy", delta: -4 }, { k: "military", delta: 4 }, { k: "church", delta: 4, rel: true }];
+  const tie = ledgerRows(equal, false);
   assert.deepEqual(tie.shown.map(row => row.k), ["economy", "military", "west"], "при равном сдвиге ресурс важнее группы");
 });
 
@@ -66,13 +67,16 @@ test("на настоящих партиях завязка дела и газе
       // или если прятать пришлось бы одну короткую фразу.
       const withoutLast = wordCount(caseLead.lead.slice(0, -1).join(" "));
       const shortTail = !caseLead.rest.length && caseWords < CASE_LEAD.limit + TAIL_LEAST;
-      assert.ok(caseWords <= CASE_LEAD.limit || withoutLast < CASE_LEAD.least || shortTail, `${country}, ход ${turn + 1}: завязка «${event.title}» — ${caseWords} слов`);
-      assert.equal([...caseLead.lead, ...caseLead.rest].join(" ").length, event.description.split(/\n\n+/).map(part => part.trim()).filter(Boolean).join(" ").length);
+      const where = `${country}, ход ${turn + 1}`;
+      assert.ok(caseWords <= CASE_LEAD.limit || withoutLast < CASE_LEAD.least || shortTail, `${where}: завязка «${event.title}» — ${caseWords} слов`);
+      const paragraphs = event.description.split(/\n\n+/).map(part => part.trim()).filter(Boolean);
+      assert.deepEqual([...caseLead.lead, ...caseLead.rest], paragraphs, `${where}: ни один абзац дела не потерян`);
       const id = event.choices[0].id;
       state = resolveTurn(state, id, await classicApi.consequence(state, id));
       const news = splitLead(state.lastTurn!.narrative, NEWS_LEAD);
-      assert.ok(news.lead.length >= 1, `${country}, ход ${turn + 1}: у газеты есть первый абзац`);
-      if (news.rest.length) assert.ok(wordCount(news.lead.join(" ")) <= 90, `${country}, ход ${turn + 1}: газета до «Читать полностью» — ${wordCount(news.lead.join(" "))} слов`);
+      assert.ok(news.lead.length >= 1, `${where}: у газеты есть первый абзац`);
+      const newsWords = wordCount(news.lead.join(" "));
+      if (news.rest.length) assert.ok(newsWords <= 90, `${where}: газета до «Читать полностью» — ${newsWords} слов`);
     }
   }
 });
