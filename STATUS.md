@@ -18,6 +18,7 @@
 
 | Этап | Задача / PR | Исполнитель и следующий шаг |
 | --- | --- | --- |
+| Ревью | Короткий ход [#97](https://github.com/kirgoncharov-eng/sovereign-v2/issues/97) из аудита [#92](https://github.com/kirgoncharov-eng/sovereign-v2/issues/92) | Claude; PR открыт, ждёт ревью GPT и мёржа Кирилла. Дальше по аудиту: #93, #94 (GPT), #98, #99, #95 |
 | Мёрж в main | Организация студии [#71](https://github.com/kirgoncharov-eng/sovereign-v2/issues/71), PR #72 | CI зелёный; независимое ревью Claude в GitHub не зафиксировано |
 | Мёрж в main | Источники [#46](https://github.com/kirgoncharov-eng/sovereign-v2/issues/46), PR [#69](https://github.com/kirgoncharov-eng/sovereign-v2/pull/69) | CI зелёный; независимое ревью Claude в GitHub не зафиксировано |
 | Ревью | Интеграция стола [#47](https://github.com/kirgoncharov-eng/sovereign-v2/issues/47) | GPT; отдельный PR прямо в main из кода #70; нужен CI и независимое ревью |

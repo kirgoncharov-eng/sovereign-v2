@@ -24,7 +24,7 @@ export function quarterTransition(before: GameState, after: GameState): QuarterT
   const beforeScene = { ...squareStateOf(before, 1), season: date(before.turn).season };
   const afterScene = { ...squareStateOf(after, 2), season: date(after.turn).season };
   return {
-    kind: hospital ? 'hospital' : 'country', duration: hospital ? 2600 : 1300,
+    kind: hospital ? 'hospital' : 'country', duration: hospital ? 1600 : 1000,
     from: monthYear(date(before.turn)), to: monthYear(date(after.turn)),
     title: hospital ? 'Квартал в районных больницах' : 'Страна проживает квартал',
     detail: hospital
