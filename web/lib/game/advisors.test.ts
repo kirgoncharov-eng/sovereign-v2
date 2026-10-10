@@ -24,7 +24,7 @@ test("советники: исходная лояльность от 55 до 75 
   }
 });
 
-// Партия, где игрок слушает экономиста; на каждом деле со спором сверяем перемены.
+// Партия, где игрок всегда слушает первого в споре; на каждом деле со спором сверяем перемены.
 test("лояльность растёт, когда вариант советника выбран, и падает, когда выбран вариант оппонента", async () => {
   let s = await fresh("Казахстан", 21);
   let followed = 0, overruled = 0;
@@ -36,15 +36,15 @@ test("лояльность растёт, когда вариант советн�
     const before = s.advisors;
     s = resolveTurn(s, id, await classicApi.consequence(s, id));
     if (!takes) continue;
-    const [economist, security] = ["economist", "security"].map(role => ({
-      before: loyaltyOf(before.find(a => a.id === role)!), after: loyaltyOf(s.advisors.find(a => a.id === role)!),
+    const [first, second] = takes.map(take => ({
+      before: loyaltyOf(before.find(a => a.id === take.id)!), after: loyaltyOf(s.advisors.find(a => a.id === take.id)!),
     }));
-    assert.equal(economist.after - economist.before, LOYALTY_FOLLOWED);
+    assert.equal(first.after - first.before, LOYALTY_FOLLOWED);
     followed++;
     if (takes[1].favors !== takes[0].favors) {
-      assert.equal(security.after - security.before, LOYALTY_OVERRULED);
+      assert.equal(second.after - second.before, LOYALTY_OVERRULED);
       overruled++;
-    } else assert.equal(security.after - security.before, LOYALTY_FOLLOWED);
+    } else assert.equal(second.after - second.before, LOYALTY_FOLLOWED);
   }
   assert.ok(followed >= 5 && overruled >= 2, `послушали ${followed}, обидели ${overruled}`);
 });

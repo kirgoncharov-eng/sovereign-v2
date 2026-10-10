@@ -21,8 +21,10 @@ export function AdvisorCard({ gs, advisor, id }) {
         <dd>
           <span className={`sv-advisor-card-${tone}`}>{p.loyaltyWord} · {p.loyalty}</span>
           <span className="sv-advisor-card-bar" aria-hidden="true"><span style={{ width:`${p.loyalty}%` }} className={`sv-advisor-card-fill-${tone}`}/></span>
+          {p.disloyal && <span className="sv-advisor-card-bad">Советует уже в пользу своего лагеря{p.camp ? ` «${p.camp.name}»` : ""}, а не вашу</span>}
         </dd>
         {p.camp && <><dt>Тянется к</dt><dd>«{p.camp.name}» · к вам {signed(p.camp.relation)}</dd></>}
+        <dt>Манера</dt><dd>{p.manner}</dd>
         <dt>Прогнозы</dt>
         <dd>{p.record.total ? `верно ${p.record.right} из ${p.record.total}` : "ещё не проверялись"}</dd>
       </dl>
