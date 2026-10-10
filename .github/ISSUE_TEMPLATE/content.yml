@@ -19,3 +19,10 @@ body:
     attributes:
       label: Где встретилось
       description: Страна, ход, какое дело и какое решение.
+  - type: textarea
+    id: done
+    attributes:
+      label: Готово, когда
+      description: Проверяемые условия; где проверяем контекст, повтор и охват шести стран.
+    validations:
+      required: true

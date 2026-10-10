@@ -2,6 +2,13 @@ name: Фича или механика
 description: Новое в игре — механика, экран, контент-система
 labels: ["фича"]
 body:
+  - type: dropdown
+    id: change-type
+    attributes:
+      label: Тип изменения
+      options: [Измерение, Исправление ошибки, Гипотеза роста]
+    validations:
+      required: true
   - type: textarea
     id: what
     attributes:
@@ -13,7 +20,7 @@ body:
     id: metric
     attributes:
       label: Какую метрику двигает
-      description: Из таблицы в AGENTS.md. Если ни одну — задача ждёт мягкого запуска.
+      description: Измерение не обещает роста. Новые механики до ворот A запускаются только по решению Кирилла.
       options:
         - Дошли до финала первой сессии
         - Вернулись на следующий день (D1)
@@ -21,6 +28,13 @@ body:
         - Поделились результатом
         - Деньги (после ворот A)
         - Ни одну — после мягкого запуска
+    validations:
+      required: true
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Почему ожидаем эффект или что измеряем
+      description: Для гипотезы — изменение поведения; для измерения — событие, знаменатель, повторы и исключение тестеров.
     validations:
       required: true
   - type: textarea
@@ -32,4 +46,6 @@ body:
     id: done
     attributes:
       label: Готово, когда
-      description: Проверяемые условия.
+      description: Проверяемые условия и способ проверки каждого; заполняются до реализации.
+    validations:
+      required: true
