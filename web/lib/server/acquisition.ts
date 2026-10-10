@@ -15,7 +15,10 @@ export async function recordAcquisitionVisit(pid: string, events: TrackInput[], 
     const props = events.find(event => event.e === "open")?.p ?? events[0]?.p;
     const version = typeof props?.v === "string" && /^[a-zA-Z0-9._-]{1,24}$/.test(props.v) ? props.v : "unknown";
     const channel = parseAcquisitionSource(String(props?.src ?? "")) ?? "unknown";
-    await kv.hsetnx("an:acq:first", pid, JSON.stringify({ date, version, channel }));
+    await kv.hsetnx("an:acq:first", pid, JSON.stringify({
+      date, version, channel,
+      referred: typeof props?.referred === "boolean" ? props.referred : undefined,
+    }));
   }
   const raw = await kv.hget("an:acq:first", pid);
   if (!raw) return;

@@ -2,7 +2,7 @@
 // Никаких имён и Telegram-идентификаторов: только случайный id браузера, тот же, что у «Дела дня».
 // События копятся и уходят пачкой; без сервера (демо, офлайн) отправка тихо ничего не делает.
 import { runProps } from "./run-context.ts";
-import { webUid } from "./daily.ts";
+import { referralId, webUid } from "./daily.ts";
 import { APP_VERSION } from "../game/data.ts";
 import { inTelegram } from "./telegram.ts";
 import { acquisitionChannel } from "./acquisition-source.ts";
@@ -50,8 +50,15 @@ export function track(e: TrackEvent, p?: Props) {
   if (typeof window === "undefined" || process.env.NEXT_PUBLIC_ANALYTICS === "off" || isTester()) return;
   const platform = inTelegram() ? "tg" : "web";
   const channel = acquisitionChannel();
-  const context = ["start", "resume", "turn", "end", "share", "intro", "first", "desk"].includes(e) ? runProps() : {};
-  queue.push({ e, p: { ...p, ...context, v: APP_VERSION, platform, src: channel ? `src_${channel}` : platform } });
+  const context = ["start", "resume", "turn", "end", "share", "intro", "first", "desk", "invite"].includes(e) ? runProps() : {};
+  const seconds = e === "first" && typeof context.at === "number"
+    ? Math.max(0, Math.round((Date.now() - context.at) / 1000)) : undefined;
+  const inviter = e === "open" ? referralId() : "";
+  const referred = /^[a-z0-9]{8,24}$/.test(inviter) && inviter !== webUid();
+  queue.push({ e, p: { ...p, ...context, lm: 1,
+    ...(seconds === undefined ? {} : { seconds }), ...(e === "open" ? { referred } : {}),
+    v: APP_VERSION, platform, src: channel ? `src_${channel}` : platform,
+  } });
   if (!hooked) {
     hooked = true;
     addEventListener("pagehide", flush);

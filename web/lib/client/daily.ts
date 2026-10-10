@@ -27,7 +27,7 @@ export function rememberRef() {
     if (ref) localStorage.setItem(REF_KEY, ref);
   } catch { /* недоступно */ }
 }
-function ref(): string {
+export function referralId(): string {
   const sp = tgStartParam();
   if (sp.startsWith("ref_")) return sp.slice(4);
   try { return localStorage.getItem(REF_KEY) || ""; } catch { return ""; }
@@ -38,7 +38,7 @@ async function call(payload: Record<string, unknown>): Promise<Board | null> {
     const r = await fetch("/api/daily", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload, v: APP_VERSION, uid: webUid(), initData: tgInitData(), ref: ref() }),
+      body: JSON.stringify({ ...payload, v: APP_VERSION, uid: webUid(), initData: tgInitData(), ref: referralId() }),
     });
     return r.ok ? await r.json() as Board : null;
   } catch {
