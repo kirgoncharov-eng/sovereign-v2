@@ -4,7 +4,7 @@
 // о прочем — тянет в свою сторону, каждый в своей манере. Нелояльный служит своему лагерю и лжёт даже в своей области.
 // Кто был прав, видно после хода: газета сверяет прогнозы с ведомостью.
 import { ACTIONS } from "./data.ts";
-import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed } from "./engine.ts";
+import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed, loyaltyOf } from "./engine.ts";
 import { campOf, isDisloyal, mannerOf } from "./advisors.ts";
 import {
   ABOUT_OTHER, ADMIT, ADVISOR_REASONS, AGREE, ALARM, DOWNPLAY, DRY, LEVEL_PHRASES, NO_STAKE, ORDINAL, ORDINAL_LOC, VERDICTS,
@@ -28,10 +28,10 @@ const FOREIGN: ActionTag[] = ["pro_west", "pro_russia", "reform"];
 const FOREIGN_BLOCS = ["west", "russia"];
 const PUBLIC: ActionTag[] = ["propaganda", "dialogue", "anticorruption", "elite_deal", "social"];
 export function pairFor(state: Pick<GameState, "factions">, event: GameEvent): [string, string] {
-  const tags = new Set(event.choices.flatMap(c => c.tags));
-  const foreignCamp = event.affectedFactions.some(id => FOREIGN_BLOCS.includes(state.factions.find(f => f.id === id)?.bloc ?? ""));
-  if (foreignCamp || FOREIGN.some(t => tags.has(t))) return ["diplomat", "security"];
-  if (PUBLIC.some(t => tags.has(t)) && !tags.has("security") && !tags.has("repress")) return ["strategist", "economist"];
+  const tags = new Set(event.choices.flatMap(choice => choice.tags));
+  const foreignCamp = event.affectedFactions.some(id => FOREIGN_BLOCS.includes(state.factions.find(faction => faction.id === id)?.bloc ?? ""));
+  if (foreignCamp || FOREIGN.some(tag => tags.has(tag))) return ["diplomat", "security"];
+  if (PUBLIC.some(tag => tags.has(tag)) && !tags.has("security") && !tags.has("repress")) return ["strategist", "economist"];
   return ["economist", "security"];
 }
 
@@ -73,14 +73,14 @@ export interface AdvisorTake {
 // личные дела и проверка документов — без советников.
 export function debateApplies(event: GameEvent | null | undefined): event is GameEvent {
   if (!event || event.budget || event.call || event.press || event.special) return false;
-  if (event.choices.some(c => c.projectReview || c.mandateResponse || c.deal?.pure)) return false;
+  if (event.choices.some(choice => choice.projectReview || choice.mandateResponse || choice.deal?.pure)) return false;
   return event.choices.length >= 2;
 }
 
 // Почему вариант двигает опору: причина именно этого решения, слова советника о своей области или общая причина по тегу.
 function reasonOf(choice: Choice, resource: ResourceKey, sign: number, salt: number): string | null {
   if (sign < 0 && choice.costReasons?.[resource]) return choice.costReasons[resource]!;
-  const tag = choice.tags.find(t => Math.sign(ACTIONS[t]?.res[resource] ?? 0) === sign);
+  const tag = choice.tags.find(candidate => Math.sign(ACTIONS[candidate]?.res[resource] ?? 0) === sign);
   if (!tag) return null;
   const own = ADVISOR_REASONS[resource]?.[tag];
   return own ? own[salt % own.length] : ACTIONS[tag].why?.[resource] ?? null;
@@ -102,8 +102,8 @@ interface Option {
 function optionsOf(state: GameState, event: GameEvent): Option[] {
   return event.choices.map((choice, index) => {
     const fx = choiceEffects(state, choice);
-    const delta = Object.fromEntries(RESOURCES.map(k => [k, Math.round(fx.resources[k] ?? 0)])) as Record<ResourceKey, number>;
-    const truth = Object.fromEntries(RESOURCES.map(k => [k, levelOf(delta[k])])) as Record<ResourceKey, Level>;
+    const delta = Object.fromEntries(RESOURCES.map(key => [key, Math.round(fx.resources[key] ?? 0)])) as Record<ResourceKey, number>;
+    const truth = Object.fromEntries(RESOURCES.map(key => [key, levelOf(delta[key])])) as Record<ResourceKey, Level>;
     return { choice, index, truth, delta, relation: fx.factionRel };
   });
 }
@@ -111,9 +111,9 @@ function optionsOf(state: GameState, event: GameEvent): Option[] {
 // Советник знает свою область: выбирает вариант, лучший для неё, затем — для второго интереса, затем — дешевле в целом.
 // Нелояльный сначала смотрит, что выгодно его лагерю.
 function favoriteOf(options: Option[], interest: ResourceKey, also: ResourceKey, camp: string | null): Option {
-  const score = (o: Option) => (camp ? (o.relation[camp] ?? 0) * 100_000 : 0)
-    + o.delta[interest] * 1000 + o.delta[also] * 30 + RESOURCES.reduce((sum, k) => sum + o.delta[k], 0);
-  return options.reduce((best, o) => (score(o) > score(best) ? o : best));
+  const score = (option: Option) => (camp ? (option.relation[camp] ?? 0) * 100_000 : 0)
+    + option.delta[interest] * 1000 + option.delta[also] * 30 + RESOURCES.reduce((sum, key) => sum + option.delta[key], 0);
+  return options.reduce((best, option) => (score(option) > score(best) ? option : best));
 }
 
 // Сдвиг утверждения в пользу своего варианта: о своём — лучше правды, о чужом — хуже.
@@ -136,9 +136,9 @@ function domainLine(favored: Option, opposed: Option, interest: ResourceKey, sal
 // Утверждение о чужой области: здесь советник тянет в свою сторону — в своей манере.
 // smooth и dry сначала говорят о цене своего варианта, alarm — о цене чужого.
 function spinLine(favored: Option, opposed: Option, interest: ResourceKey, manner: Manner, spun: boolean, salt: number, afterOpposed: boolean) {
-  const others = RESOURCES.filter(k => k !== interest);
-  const worst = (o: Option) => others.reduce((a, b) => (o.delta[b] < o.delta[a] ? b : a));
-  const best = (o: Option) => others.reduce((a, b) => (o.delta[b] > o.delta[a] ? b : a));
+  const others = RESOURCES.filter(key => key !== interest);
+  const worst = (option: Option) => others.reduce((found, key) => (option.delta[key] < option.delta[found] ? key : found));
+  const best = (option: Option) => others.reduce((found, key) => (option.delta[key] > option.delta[found] ? key : found));
   const ownCost = favored.truth[worst(favored)] < 0 ? { target: favored, resource: worst(favored) } : null;
   const rivalCost = opposed.truth[worst(opposed)] < 0 ? { target: opposed, resource: worst(opposed) } : null;
   const rivalGain = opposed.truth[best(opposed)] > 0 ? { target: opposed, resource: best(opposed) } : null;
@@ -158,36 +158,37 @@ export function debate(state: GameState): AdvisorTake[] | null {
   if (!debateApplies(event)) return null;
   const options = optionsOf(state, event);
   const speakers = pairFor(state, event).flatMap(id => {
-    const advisor = state.advisors?.find(a => a.id === id);
+    const advisor = state.advisors?.find(member => member.id === id);
     if (!advisor) return [];
     const disloyal = isDisloyal(advisor);
     return [{ id, ...ADVISOR_STAKE[id], advisor, disloyal, manner: mannerOf(advisor), camp: disloyal ? campOf(state, advisor)?.id ?? null : null }];
   });
   if (speakers.length < 2) return null;
   // Против кого интрига, тот о ней не советует.
-  if (event.beat && speakers.some(d => d.advisor.name === state.arc?.target)) return null;
-  const favorites = speakers.map(d => favoriteOf(options, d.interest, d.also, d.camp));
-  return speakers.map((d, i) => {
-    const favored = favorites[i];
-    const rival = favorites[1 - i];
+  if (event.beat && speakers.some(speaker => speaker.advisor.name === state.arc?.target)) return null;
+  const favorites = speakers.map(speaker => favoriteOf(options, speaker.interest, speaker.also, speaker.camp));
+  return speakers.map((speaker, position) => {
+    const favored = favorites[position];
+    const rival = favorites[1 - position];
     // Спорит с вариантом соперника; если оба за одно — с тем, что хуже для своей области.
     const opposed = rival !== favored ? rival
-      : options.filter(o => o !== favored).reduce((a, b) => (b.delta[d.interest] < a.delta[d.interest] ? b : a));
-    const chance = SPIN_CHANCE[d.advisor.skill] - (d.manner === "dry" ? DRY_DISCOUNT : 0);
-    const spun = d.disloyal || hashSeed(state.seed, "spin", state.turn, d.id) % 100 < chance * 100;
-    const agree = i === 1 && rival === favored;
-    const salt = hashSeed(state.seed, "debate", state.turn, d.id);
+      : options.filter(option => option !== favored)
+        .reduce((found, option) => (option.delta[speaker.interest] < found.delta[speaker.interest] ? option : found));
+    const chance = SPIN_CHANCE[speaker.advisor.skill] - (speaker.manner === "dry" ? DRY_DISCOUNT : 0);
+    const spun = speaker.disloyal || hashSeed(state.seed, "spin", state.turn, speaker.id) % 100 < chance * 100;
+    const agree = position === 1 && rival === favored;
+    const salt = hashSeed(state.seed, "debate", state.turn, speaker.id);
     const verdicts = agree ? AGREE : VERDICTS;
     const verdict = verdicts[salt % verdicts.length].replace("{n}", ORDINAL[favored.index]);
-    const domain = domainLine(favored, opposed, d.interest, salt >>> 3, d.disloyal);
-    const spin = spinLine(favored, opposed, d.interest, d.manner, spun, salt >>> 6, domain.claim?.choiceId === opposed.choice.id);
+    const domain = domainLine(favored, opposed, speaker.interest, salt >>> 3, speaker.disloyal);
+    const spin = spinLine(favored, opposed, speaker.interest, speaker.manner, spun, salt >>> 6, domain.claim?.choiceId === opposed.choice.id);
     return {
-      id: d.id,
-      name: d.advisor.name,
-      role: d.advisor.role,
+      id: speaker.id,
+      name: speaker.advisor.name,
+      role: speaker.advisor.role,
       favors: favored.choice.id,
       text: [verdict, domain.line, spin?.line].filter(Boolean).join(" "),
-      claims: [domain.claim, spin?.claim].filter((c): c is Claim => !!c),
+      claims: [domain.claim, spin?.claim].filter((claim): claim is Claim => !!claim),
     };
   });
 }
@@ -203,10 +204,10 @@ export interface ForecastCheck { take: AdvisorTake; claim: Claim; delta: number;
 
 export function forecastChecks(state: GameState, choiceId: string, failed: boolean): ForecastCheck[] {
   const takes = debate(state);
-  const chosen = state.currentEvent?.choices.find(c => c.id === choiceId);
+  const chosen = state.currentEvent?.choices.find(choice => choice.id === choiceId);
   if (!takes || !chosen) return [];
   const actual = choiceEffects(state, chosen, failed).resources;
-  return takes.flatMap(take => take.claims.filter(c => c.choiceId === choiceId).map(claim => {
+  return takes.flatMap(take => take.claims.filter(claim => claim.choiceId === choiceId).map(claim => {
     const delta = Math.round(actual[claim.resource] ?? 0);
     return { take, claim, delta, right: levelOf(delta) === claim.said };
   }));
@@ -221,6 +222,7 @@ export function forecastReview(state: GameState, choiceId: string, failed: boole
 
 // Что ход сделал с советниками в споре: выбрали вариант советника — лояльность растёт,
 // вариант его оппонента — падает; сбывшиеся прогнозы идут в счёт.
+// В отчёт идёт фактическая перемена после ограничения 0–100: у советника с лояльностью 100 рост нулевой.
 export function advisorNews(state: GameState, choiceId: string, failed: boolean): AdvisorNews[] {
   const takes = debate(state);
   if (!takes) return [];
@@ -229,9 +231,11 @@ export function advisorNews(state: GameState, choiceId: string, failed: boolean)
     const overruled = take.favors !== choiceId && takes.some(other => other !== take && other.favors === choiceId);
     const reason = take.favors === choiceId ? "followed" as const : overruled ? "overruled" as const : null;
     const own = checks.filter(check => check.take.id === take.id);
+    const nominal = reason === "followed" ? LOYALTY_FOLLOWED : reason === "overruled" ? LOYALTY_OVERRULED : 0;
+    const before = loyaltyOf(state.advisors.find(advisor => advisor.id === take.id)!);
     return {
       id: take.id,
-      loyalty: reason === "followed" ? LOYALTY_FOLLOWED : reason === "overruled" ? LOYALTY_OVERRULED : 0,
+      loyalty: Math.max(0, Math.min(100, before + nominal)) - before,
       right: own.filter(check => check.right).length,
       wrong: own.filter(check => !check.right).length,
       reason,

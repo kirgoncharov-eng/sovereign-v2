@@ -13,7 +13,7 @@ export const mannerOf = (advisor: Pick<Advisor, "name">): Manner => MANNERS[hash
 
 // Лагерь, к которому советник тянется по службе: первый, что есть в стране; дипломат выбирает между внешними по имени.
 export function campOf(gs: Pick<GameState, "factions">, advisor: Advisor): Faction | null {
-  const present = (ADVISOR_BLOC[advisor.id] ?? []).flatMap(bloc => gs.factions.find(f => f.bloc === bloc) ?? []);
+  const present = (ADVISOR_BLOC[advisor.id] ?? []).flatMap(bloc => gs.factions.find(faction => faction.bloc === bloc) ?? []);
   if (!present.length) return null;
   return ADVISOR_CAMP_BY_NAME.includes(advisor.id) ? present[hashSeed(advisor.name, "camp") % present.length] : present[0];
 }
@@ -52,7 +52,7 @@ export function advisorProfile(gs: Pick<GameState, "factions">, advisor: Advisor
 
 // Строка газеты о перемене лояльности: «Наталья Савчук — лояльность +3: вы последовали совету».
 export function newsLine(advisors: Advisor[], news: AdvisorNews): string | null {
-  const advisor = advisors.find(a => a.id === news.id);
+  const advisor = advisors.find(member => member.id === news.id);
   if (!advisor || !news.reason || !news.loyalty) return null;
   const sign = news.loyalty > 0 ? `+${news.loyalty}` : `−${-news.loyalty}`;
   return `${advisor.name} — лояльность ${sign}: ${NEWS_REASON[news.reason]}.`;

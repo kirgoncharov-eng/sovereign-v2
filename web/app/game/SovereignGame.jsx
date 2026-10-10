@@ -13,6 +13,7 @@ import { monthYear, turnDate } from "@/lib/game/calendar.ts";
 import NegotiationCall from "./NegotiationCall.jsx";
 import { effectiveLaw, lawDef } from "@/lib/game/laws.ts";
 import { debate } from "@/lib/game/forecasts.ts";
+import { ORDINAL } from "@/lib/content/forecasts.ts";
 import { newsLine } from "@/lib/game/advisors.ts";
 import AdvisorName, { AdvisorCard } from "./AdvisorCard.jsx";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
@@ -51,7 +52,7 @@ import ResourceInfo from "./ResourceInfo.jsx";
 import { healthHasContinuation, healthNeedsAttention } from "@/lib/game/health-aftermath.ts";
 import { projectFinished } from "@/lib/game/living-health.ts";
 import { openLivingWorld, interveneWorld } from "@/lib/game/living-world.ts";
-import { openDeskWhenDue } from "@/lib/game/desk-timing.ts";
+import { DESK_FROM, openDeskWhenDue } from "@/lib/game/desk-timing.ts";
 import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
 import { warningDetails } from "@/lib/client/warning-detail.ts";
 import { squareStateOf } from "@/lib/client/square-state.ts";
@@ -351,21 +352,34 @@ function DangerLines({ gs, fx }) {
 // Спор над вариантами: два советника, каждый за свой вариант и в своих интересах.
 function AdvisorDebate({ gs, takes }) {
   if (!takes?.length) return null;
-  return (
-    <div className="sv-debate" style={{ padding:"0 24px 12px" }}>
-      {takes.map(t => (
-        <div key={t.id} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"8px 0", borderTop:`1px dashed ${G.bdr}` }}>
-          <Portrait name={t.name} size={32}/>
-          <div style={{ minWidth:0 }}>
-            <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3 }}>
-              <AdvisorName gs={gs} advisor={gs.advisors?.find(a => a.id === t.id)} after={`, ${t.role.toLowerCase()}`}>{t.name}</AdvisorName>
-            </div>
-            <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.45, color:G.tx2 }}>«{t.text}»</div>
-          </div>
+  const speeches = takes.map(take => (
+    <div key={take.id} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"8px 0", borderTop:`1px dashed ${G.bdr}` }}>
+      <Portrait name={take.name} size={32}/>
+      <div style={{ minWidth:0 }}>
+        <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3 }}>
+          <AdvisorName gs={gs} advisor={gs.advisors?.find(member => member.id === take.id)} after={`, ${take.role.toLowerCase()}`}>
+            {take.name}
+          </AdvisorName>
         </div>
-      ))}
+        <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.45, color:G.tx2 }}>«{take.text}»</div>
+      </div>
     </div>
-  );
+  ));
+  // Первая сессия без перегрузки: на первых ходах спор свёрнут в одну строку — кто за какой вариант.
+  if (gs.turn < DESK_FROM) {
+    const choices = gs.currentEvent?.choices ?? [];
+    const sides = takes.map(take => {
+      const index = choices.findIndex(choice => choice.id === take.favors);
+      return `${take.name.split(" ").at(-1)} — за ${ORDINAL[index] ?? "свой"}`;
+    }).join(", ");
+    return (
+      <details className="sv-debate sv-debate-compact" style={{ padding:"0 24px 12px" }}>
+        <summary style={{ fontFamily:narrow, fontSize:15, color:G.tx2, cursor:"pointer" }}>Советники спорят: {sides}</summary>
+        {speeches}
+      </details>
+    );
+  }
+  return <div className="sv-debate" style={{ padding:"0 24px 12px" }}>{speeches}</div>;
 }
 
 // Почему решение чего-то стоит: «экономика — операции силовиков оплачивает казна». Цены без объяснений путают.
@@ -1205,7 +1219,7 @@ const TUTORIAL_KEY = "sovereign.tutorial.seen";
 const nowMs = () => Date.now();
 // Вместо окна правил на старте — по одной подсказке на первых ходах, прямо над вариантами.
 const TIP_TURNS = [
-  "Выберите, как поступить. Над вариантами спорят советники: каждый знает свою область и тянет в свою сторону. Точный итог — в ведомости после хода.",
+  "Выберите, как поступить. Советники спорят, кто за какой вариант: нажмите строку, чтобы услышать доводы. Каждый тянет в свою сторону; точный итог — в ведомости после хода.",
   "✔ под вариантом — шаг к вашему предвыборному обещанию, ✖ — его нарушение. Обещания и опоры — в досье.",
   "Опора ниже 20 — кризис, 4 и ниже — падение власти. Совет можно собрать несколько раз за правление: он назовёт точные цифры. Все правила — под «?» наверху.",
 ];
