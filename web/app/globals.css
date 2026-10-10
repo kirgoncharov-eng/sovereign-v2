@@ -313,7 +313,7 @@ button:focus-visible {
 @media (max-width: 620px) { .sv-ledger { grid-template-columns: 1fr; } }
 
 /* Нижняя панель действий и досье: только на телефоне */
-.sv-actionbar, .sv-dossier-toggle { display: none; }
+.sv-actionbar { display: none; }
 @media (max-width: 760px) {
   .sv-actionbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
@@ -326,12 +326,13 @@ button:focus-visible {
   .sv-game-grid { padding-bottom: 76px; }
   /* Внизу уже есть главная кнопка — вторая «Следующий ход» в газете не нужна */
   .sv-inline-next { display: none; }
-  .sv-dossier-toggle {
-    display: block; width: 100%; padding: 12px 14px; margin-bottom: 8px;
-    background: var(--bg2); border: 2px solid var(--bdr2); color: var(--tx2);
-    font-size: 17px; text-align: left;
-  }
+  /* «Страна» и «Люди» на телефоне — поверх игры, на весь экран; закрываются крестиком или Escape */
   .sv-sidebar:not([data-open]) .sv-side-body { display: none; }
+  .sv-sidebar[data-open] .sv-side-body {
+    position: fixed; inset: 0; z-index: 40; overflow-y: auto; overscroll-behavior: contain;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(24px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg);
+  }
 
 }
 
@@ -635,3 +636,51 @@ button:focus-visible {
 .sv-staff-cancel { background:transparent; border:1px solid var(--bdr2); color:var(--tx2); }
 .sv-dossier-actions { margin-top:6px; font-family:var(--font-narrow); font-size:15px; }
 .sv-dossier-actions .sv-staff-hire { margin-top:0; }
+
+/* «Страна» и «Люди»: две кнопки вместо досье; на широком экране — вкладки боковой колонки */
+.sv-sheet-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.sv-sheet-switch button {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-height: 48px; padding: 8px 12px;
+  text-align: left; background: var(--bg2); border: 2px solid var(--bdr2); color: var(--txt);
+}
+.sv-sheet-switch button[aria-pressed="true"] { border-color: var(--gold); background: var(--bg3); }
+.sv-sheet-switch strong { font-family: var(--font-narrow); font-size: 18px; }
+.sv-sheet-alert { font-family: var(--font-narrow); font-size: 15px; color: var(--red); }
+.sv-sheet-hint { flex-basis: 100%; font-family: var(--font-narrow); font-size: 14px; color: var(--tx3); }
+.sv-sheet-head { display: none; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.sv-sheet-head strong { font-family: var(--font-narrow); font-size: 24px; text-transform: uppercase; letter-spacing: .04em; }
+.sv-sheet-head button {
+  width: 44px; height: 44px; background: transparent; border: 2px solid var(--bdr2); color: var(--tx2); font-size: 22px;
+}
+.sv-side-body { background: var(--bg2); border: 1px solid var(--bdr); padding: 14px 16px; }
+@media (max-width: 520px) {
+  .sv-sidebar[data-open] .sv-side-body { border: none; }
+  /* Свёрнутые кнопки на телефоне не выглядят нажатыми: раздел открывается поверх игры */
+  .sv-sidebar:not([data-open]) .sv-sheet-switch button[aria-pressed="true"] { border-color: var(--bdr2); background: var(--bg2); }
+  .sv-sheet-head { display: flex; position: sticky; top: calc(-12px - env(safe-area-inset-top, 0px)); z-index: 1; background: var(--bg); padding: 4px 0; }
+}
+
+.sv-fold { border-top: 1px solid var(--bdr); }
+.sv-fold:last-child { border-bottom: 1px solid var(--bdr); }
+.sv-fold > summary {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-height: 44px; padding: 10px 0;
+  cursor: pointer; list-style: none; font-family: var(--font-narrow);
+}
+.sv-fold > summary::-webkit-details-marker { display: none; }
+.sv-fold > summary span { flex-shrink: 0; white-space: nowrap; font-size: 16px; color: var(--txt); text-transform: uppercase; letter-spacing: .04em; }
+.sv-fold > summary span::after { content: " ▾"; color: var(--tx3); }
+.sv-fold[open] > summary span::after { content: " ▴"; }
+.sv-fold > summary small { font-size: 15px; color: var(--tx3); text-align: right; }
+.sv-fold-body { padding: 0 0 12px; }
+
+.sv-who-row { border-bottom: 1px solid var(--bdr); }
+.sv-who-row > summary {
+  display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 0; cursor: pointer; list-style: none;
+}
+.sv-who-row > summary::-webkit-details-marker { display: none; }
+.sv-who-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.sv-who-text strong { font-family: var(--font-serif), Georgia, serif; font-size: 15px; font-weight: 600; color: var(--txt); }
+.sv-who-text small { font-family: var(--font-narrow); font-size: 15px; color: var(--tx3); overflow: hidden; text-overflow: ellipsis; }
+.sv-who-text small b { color: var(--red); font-weight: 700; }
+.sv-who-value { font-family: var(--font-narrow); font-size: 17px; font-weight: 700; white-space: nowrap; }
+.sv-who-body { padding: 0 0 12px 42px; }
