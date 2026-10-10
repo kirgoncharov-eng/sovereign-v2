@@ -74,7 +74,8 @@ const report = (v: unknown) => isObj(v) && fields(v, ["headline", "narrative", "
   && (v.election === null || election(v.election))
   && (!v.document || isObj(v.document) && typeof v.document.title === "string" && strings(v.document.lines))
   && (!v.press || rows(v.press, p => fields(p, ["outlet", "headline"])))
-  && (!v.letters || rows(v.letters, l => fields(l, ["kind", "from", "text", "story"])));
+  && (!v.letters || rows(v.letters, l => fields(l, ["kind", "from", "text", "story"])))
+  && (!v.forecasts || strings(v.forecasts));
 
 function validState(s: Obj): boolean {
   if (!finiteJson(s) || !validCountry(s.country) || !validDiff(s.diff) || !validIdeo(s.ideo)) return false;

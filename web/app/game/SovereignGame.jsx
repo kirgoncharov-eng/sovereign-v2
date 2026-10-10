@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
-import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY } from "@/lib/game/data.ts";
+import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY } from "@/lib/game/data.ts";
 import { commitmentTags, choiceEffects, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
@@ -12,6 +12,7 @@ import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpa
 import { monthYear, turnDate } from "@/lib/game/calendar.ts";
 import NegotiationCall from "./NegotiationCall.jsx";
 import { effectiveLaw, lawDef } from "@/lib/game/laws.ts";
+import { debate } from "@/lib/game/forecasts.ts";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
 import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
@@ -294,8 +295,9 @@ function PollWidget({ gs }) {
   );
 }
 
-// Точный расклад знают только советники: вариант от совета показан в цифрах, остальные — стрелками.
-function ChoicePreview({ gs, c, detailed = true }) {
+// Точный расклад знает только совет: его вариант показан в цифрах. Об остальных спорят советники над вариантами,
+// а без спора под вариантом — причины цены словами. Точный итог — в ведомости после хода.
+function ChoicePreview({ gs, c, debated = false }) {
   const exact = !!c.advisor;
   const fx = choiceEffects(gs, c);
   const crisis = c.resolvesCrisis && gs.activeCrises.find(x => x.id === c.resolvesCrisis);
@@ -309,12 +311,12 @@ function ChoicePreview({ gs, c, detailed = true }) {
         </div>
       )}
       <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
-      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:8 }}>
+      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:exact ? 8 : 0 }}>
         {c.deal?.pure ? <i style={{ fontFamily:serif }}>{c.hint}</i> : <><ChanceBadge p={successChance(gs, c)} exact={exact}/> · <i style={{ fontFamily:serif }}>{c.hint}</i></>}
       </div>
-      {detailed && <>
-      <ResourceChips delta={fx.resources} exact={exact}/>
-      <CostReasons gs={gs} c={c} fx={fx}/>
+      {exact && <ResourceChips delta={fx.resources}/>}
+      {(exact || !debated) && <CostReasons gs={gs} c={c} fx={fx}/>}
+      {!exact && <DangerLines gs={gs} fx={fx}/>}
       {later.length > 0 && !exact && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6 }}>⧗ Аукнется позже — как, знают советники</div>}
       {later.length > 0 && exact && (
         <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6, lineHeight:1.45 }}>
@@ -326,12 +328,39 @@ function ChoicePreview({ gs, c, detailed = true }) {
         </div>
       )}
       {crisis && <div style={{ fontFamily:narrow, fontSize:15, color:G.grn, marginTop:6 }}>Закроет кризис «{crisis.title}», если исполнят</div>}
-      <LawLines gs={gs} c={c}/>
-      </>}
-      {!detailed && crisis && <div style={{ fontFamily:narrow, fontSize:15, color:G.grn }}>Закроет кризис «{crisis.title}», если удастся</div>}
+      <LawLines gs={gs} c={c} effects={exact}/>
       <DealLines gs={gs} c={c} exact={exact}/>
       <PromiseLines gs={gs} c={c}/>
     </>
+  );
+}
+
+// Опора ниже 20 видна всегда: чтобы не проиграть вслепую, под вариантом сказано, что он бьёт и по ней.
+function DangerLines({ gs, fx }) {
+  const hit = RES_CONFIG.filter(r => gs.resources[r.key] < CRISIS_THRESHOLD && Math.round(fx.resources[r.key] ?? 0) < 0);
+  if (!hit.length) return null;
+  return (
+    <div style={{ fontFamily:narrow, fontSize:15, color:G.red, marginTop:6, lineHeight:1.45 }}>
+      {hit.map(r => <div key={r.key}>⚠ Опора «{SHORT[r.key]}» ниже {CRISIS_THRESHOLD} — это решение ударит и по ней</div>)}
+    </div>
+  );
+}
+
+// Спор над вариантами: два советника, каждый за свой вариант и в своих интересах.
+function AdvisorDebate({ takes }) {
+  if (!takes?.length) return null;
+  return (
+    <div className="sv-debate" style={{ padding:"0 24px 12px" }}>
+      {takes.map(t => (
+        <div key={t.id} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"8px 0", borderTop:`1px dashed ${G.bdr}` }}>
+          <Portrait name={t.name} size={32}/>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3 }}>{t.name}, {t.role.toLowerCase()}</div>
+            <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.45, color:G.tx2 }}>«{t.text}»</div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -360,14 +389,16 @@ function LawEffects({ def, law }) {
   );
 }
 const BLOC_LABEL = { security:"силовики", business:"бизнес", church:"церковь", liberal:"либералы", west:"Запад", russia:"Москва", nationalist:"националисты", regional:"регионы", ruling:"правящая партия" };
-function LawLines({ gs, c }) {
+function LawLines({ gs, c, effects = true }) {
   const def = c.law && lawDef(c.law.id);
   if (!def) return null;
   const inForce = gs.laws?.some(l => l.id === def.id);
   return (
     <div style={{ fontFamily:narrow, fontSize:15, marginTop:6, lineHeight:1.45, color:G.tx2 }}>
       {c.law.act === "enact"
-        ? <><div>⚖ Если парламент примет — закон «{def.title}» будет действовать каждый ход:</div><LawEffects def={def}/></>
+        ? effects
+          ? <><div>⚖ Если парламент примет — закон «{def.title}» будет действовать каждый ход:</div><LawEffects def={def}/></>
+          : <div>⚖ Если парламент примет — закон «{def.title}» будет действовать каждый ход</div>
         : <div>⚖ Отменит закон «{def.title}»{inForce ? " — его действие прекратится" : ""}</div>}
     </div>
   );
@@ -798,7 +829,7 @@ function ChanceBadge({ p, exact = true }) {
 const stars = n => "★".repeat(n) + "☆".repeat(3 - n);
 
 // Совет: ограниченное число раз за мандат советники предлагают свои решения.
-function CouncilPanel({ gs, onConvened, optProps, stamping, detailed }) {
+function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
   const proposals = gs.currentEvent?.council;
@@ -813,7 +844,7 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, detailed }) {
   if (gs.currentEvent?.beat || gs.currentEvent?.special) {
     return (
       <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>
-        {gs.currentEvent.beat ? "Дело засекречено: совет в него не посвящён. Решать вам одному." : gs.currentEvent.special?.kind === "inspect" ? "Предложения ведомства уже приложены. Способ исполнения выбираете вы." : gs.currentEvent.special?.kind === "terms" ? "Этот вопрос на совет не выносят: о собственной власти решают в одиночку." : "Дело личное: совет о нём не знает. Решать вам одному."}
+        {gs.currentEvent.beat ? (debated ? "Дело засекречено: на общий совет его не выносят — знают только двое." : "Дело засекречено: совет в него не посвящён. Решать вам одному.") : gs.currentEvent.special?.kind === "inspect" ? "Предложения ведомства уже приложены. Способ исполнения выбираете вы." : gs.currentEvent.special?.kind === "terms" ? "Этот вопрос на совет не выносят: о собственной власти решают в одиночку." : "Дело личное: совет о нём не знает. Решать вам одному."}
       </div>
     );
   }
@@ -845,7 +876,7 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, detailed }) {
       {proposals?.length ? proposals.map((c, i) => (
         <button key={c.id} {...optProps(c, i)}
           style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 16px", marginBottom:6, borderRadius:0, background:"transparent", border:`1px dashed ${G.bdr2}`, color:G.txt, position:"relative" }}>
-          <ChoicePreview gs={gs} c={c} detailed={detailed}/>
+          <ChoicePreview gs={gs} c={c}/>
           {stamping === c.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
         </button>
       )) : (
@@ -1078,7 +1109,8 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
   const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
   const nextRating = plan ? computePolls(gs.country, plan.factions, plan.resources).leader : null;
   const next = nextElection(gs);
-  const arrow = (a, b) => b === null || b === a ? null : <span style={{ color:b > a ? G.grn : G.red }}>{exact ? ` → ${b}` : ` ${b > a ? "▲" : "▼"}`}</span>;
+  // Без совета — ни стрелок, ни точек: о цене спорят советники. Красным — только опора, которую решение обрушит.
+  const arrow = (a, b) => b === null || b === a || !exact ? null : <span style={{ color:b > a ? G.grn : G.red }}>{` → ${b}`}</span>;
   const turnNow = gs.ended ? gs.turn : gs.turn + 1;
   const local = localTurn(turnNow), termStart = turnNow - local, termNo = termIndex(turnNow);
   return (
@@ -1094,18 +1126,18 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
             {RES_CONFIG.map(r => {
               const v = gs.resources[r.key];
               const to = plan ? plan.resources[r.key] : null;
-              const d = to === null ? 0 : to - v;
+              const d = to === null || !exact ? 0 : to - v;
               const danger = (to ?? v) <= LIMITS.endResource;
               const dot = Math.abs(d) >= 6 ? 8 : 4;
               return (
                 <button key={r.key} data-res={r.key} onClick={() => setInfo(x => x === r.key ? null : r.key)} aria-expanded={info === r.key}
-                  aria-label={`${r.prompt}: ${v}${d ? (exact ? `, станет ${to}` : d > 0 ? ", вырастет" : ", упадёт") : ""}. Подробнее`}
+                  aria-label={`${r.prompt}: ${v}${d ? `, станет ${to}` : ""}. Подробнее`}
                   style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, position:"relative", background:info === r.key ? G.bg3 : "transparent", border:"none", padding:"2px 0", color:"inherit" }}>
                   {d !== 0 && <span className="sv-fade" style={{ position:"absolute", top:-2, right:"calc(50% - 20px)", width:dot, height:dot, background:d > 0 ? G.grn : G.red }}/>}
                   <span className="sv-hud-resource-label">{HUD_LABEL[r.key]}</span>
                   <ResIcon k={r.key} value={v} size={28} color={danger && to !== null ? G.red : barColor(v)}/>
                   <div style={{ fontFamily:pixel, fontSize:14, lineHeight:1, color:G.tx2, whiteSpace:"nowrap" }}>
-                    {v}{d !== 0 && exact && <span style={{ color:d > 0 ? G.grn : G.red }}>→{to}</span>}
+                    {v}{d !== 0 && <span style={{ color:d > 0 ? G.grn : G.red }}>→{to}</span>}
                   </div>
                 </button>
               );
@@ -1169,7 +1201,7 @@ const TUTORIAL_KEY = "sovereign.tutorial.seen";
 const nowMs = () => Date.now();
 // Вместо окна правил на старте — по одной подсказке на первых ходах, прямо над вариантами.
 const TIP_TURNS = [
-  "Выберите, как поступить. «Показать прогноз цены» раскроет стрелки и объяснения; точные цифры знают советники.",
+  "Выберите, как поступить. Над вариантами спорят советники: каждый знает свою область и тянет в свою сторону. Точный итог — в ведомости после хода.",
   "✔ под вариантом — шаг к вашему предвыборному обещанию, ✖ — его нарушение. Обещания и опоры — в досье.",
   "Опора ниже 20 — кризис, 4 и ниже — падение власти. Совет можно собрать несколько раз за правление: он назовёт точные цифры. Все правила — под «?» наверху.",
 ];
@@ -1242,7 +1274,7 @@ function HowToPlay({ onClose }) {
   }, [onClose]);
   const desktop = typeof matchMedia === "function" && matchMedia("(pointer:fine)").matches;
   const items = [
-    ["Каждый ход — одно решение", `Под каждым вариантом — риск и смысл решения. «Показать прогноз цены» раскрывает изменения опор: ▲ вырастет, ▼▼ сильно упадёт. ${desktop ? "Наведите на вариант — точки на панели сверху покажут, что изменится." : "Коснитесь варианта, чтобы выбрать его и увидеть прогноз. Подпишите отдельной кнопкой внизу."}`],
+    ["Каждый ход — одно решение", `Под каждым вариантом — риск и смысл решения. Над вариантами спорят два советника: экономист не ошибается насчёт казны, советник по безопасности — насчёт силовиков, а об остальном каждый тянет в свою сторону. Кто был прав, газета покажет после хода.${desktop ? "" : " Коснитесь варианта, чтобы выбрать его. Подпишите отдельной кнопкой внизу."}`],
     ["Точные цифры — у советников", "Сколько именно стоит решение, каков шанс и что аукнется позже, знают только советники. Совет можно собрать несколько раз за правление — берегите его для трудных дел."],
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
     ["Цель — продержаться", "Партия не кончается со сроком: если вы остались у власти, начинается следующий. Срок — двадцать ходов, ход — квартал. Каждый новый срок тяжелее прошлого: власть приедается. Счёт идёт на годы у власти — в «Деле дня» таблица сортирует именно по ним."],
@@ -1727,7 +1759,6 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [sideTab, setSideTab] = useState("res");
   const [preview, setPreview] = useState(null); // вариант под курсором/фокусом
   const [armed, setArmed]     = useState(null); // тач: выбор сохраняется до подписи или отмены
-  const [forecast, setForecast] = useState(false); // сначала дилемма, подробная цена — по запросу
   const [help, setHelp]       = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -1895,6 +1926,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     choose(ev.choices.find(c => c.tags.includes("delay")) ?? ev.choices[ev.choices.length - 1]);
   };
   const armedChoice = armed && event ? [...event.choices, ...(event.council ?? [])].find(c => c.id === armed) : null;
+  const takes = event ? debate(gs) : null;
   const warnLevel = warningLevel(gs);
   const turnDelta = lastTurn && prevResources
     ? Object.fromEntries(RES_CONFIG.map(r => [r.key, resources[r.key] - prevResources[r.key]]))
@@ -2181,12 +2213,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     {TIP_TURNS[gs.turn]}
                   </div>
                 )}
-                <div style={{ padding:"0 24px 12px" }}>
-                  <button type="button" aria-expanded={forecast} aria-controls="sv-choice-list" onClick={() => setForecast(v => !v)}
-                    style={{ fontFamily:narrow, fontSize:15, background:"transparent", border:`1px solid ${G.bdr2}`, color:G.tx2, padding:"7px 10px", cursor:"pointer" }}>
-                    {forecast ? "Скрыть прогноз цены ▴" : "Показать прогноз цены ▾"}
-                  </button>
-                </div>
+                <AdvisorDebate takes={takes}/>
                 {urgent && (
                   <div style={{ padding:"0 24px 12px" }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.red, marginBottom:6 }}>СРОЧНО: 25 СЕКУНД — ИНАЧЕ РЕШАТ ЗА ВАС</div>
@@ -2200,12 +2227,12 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <button key={c.id} {...optProps(c, i + 1)}
                     style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
                     <span style={{ position:"absolute", left:22, top:13, fontFamily:serif, fontWeight:700, fontSize:18, color:G.tx3 }}>{i + 1}.</span>
-                    <ChoicePreview gs={gs} c={c} detailed={forecast}/>
+                    <ChoicePreview gs={gs} c={c} debated={!!takes}/>
                     {stamping === c.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
                   </button>
                 ))}
                 <div style={{ padding:"0 24px 12px" }}>
-                <CouncilPanel gs={gs} stamping={stamping} detailed={forecast} onConvened={list => { setForecast(true); commit(conveneCouncil(gsRef.current, list)); }} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
+                <CouncilPanel gs={gs} stamping={stamping} debated={!!takes} onConvened={list => commit(conveneCouncil(gsRef.current, list))} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
                 </div>
                 </div>
               </Card>
@@ -2273,6 +2300,14 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>— {lastTurn.historianNote}</div>
                 )}
 
+                {lastTurn.forecasts?.length > 0 && (
+                  <div style={{ marginTop:14 }}>
+                    <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>ПРОГНОЗЫ СОВЕТНИКОВ</div>
+                    {lastTurn.forecasts.map(line => (
+                      <div key={line} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:/— верно\.$/.test(line) ? G.grn : G.tx2 }}>{line}</div>
+                    ))}
+                  </div>
+                )}
                 {(turnDelta || Object.keys(lastTurn.factionRelChanges||{}).length > 0) && (
                   <Ledger rows={[
                     ...(turnDelta ? RES_CONFIG.filter(r => turnDelta[r.key]).map(r => ({ k:r.key, label:SHORT[r.key], value:resources[r.key], delta:turnDelta[r.key], sources:lastTurn.sources?.[r.key] })) : []),

@@ -5,6 +5,7 @@
 //   node scripts/read-run.ts Казахстан 21 coalition > run.txt
 import { approachWorks, budgetChoice, callChoice, classicApi, pressChoice } from "../lib/game/classic.ts";
 import { createInitialState, planTurn, resolveTurn, seededRandom, startEvent } from "../lib/game/engine.ts";
+import { debate } from "../lib/game/forecasts.ts";
 import type { Choice, DifficultyId, GameState } from "../lib/game/types.ts";
 
 const [country = "Казахстан", seedArg = "21", diffArg = "coalition"] = process.argv.slice(2);
@@ -35,6 +36,7 @@ while (!s.ended) {
     s = withChoice(s, budgetChoice(s, { army: 2, social: 3, economy: 3, apparatus: 1, culture: 1 }, false)); id = "p";
   } else {
     ev.choices.forEach(c => say(`  · ${c.text} — ${c.hint}`));
+    debate(s)?.forEach(take => say(`  ⚖ ${take.name}, ${take.role.toLowerCase()}: «${take.text}»`));
     const score = (c: Choice) => { const plan = planTurn(s, c.id, { assumeSuccess: true }); return Math.min(...Object.values(plan.resources)) + plan.chance * 10 + rand() * 3; };
     id = [...ev.choices].sort((a, b) => score(b) - score(a))[0].id;
   }
@@ -44,6 +46,7 @@ while (!s.ended) {
   say(`=== ГАЗЕТА: ${t.headline}`);
   say(t.narrative);
   t.reactions.forEach(r => say(`  » ${r}`));
+  t.forecasts?.forEach(line => say(`  ✓ ${line}`));
   t.letters?.forEach(l => say(`  ✉ ${l.from}${l.role ? `, ${l.role}` : ""}: ${l.text}`));
   if (t.election) say(`  ВЫБОРЫ: ${t.election.leader}% против ${t.election.top.share}% — ${t.election.outcome}`);
   say(`  опоры: ${Object.entries(s.resources).map(([k, v]) => `${k.slice(0, 5)}=${v}`).join(" ")}`);
