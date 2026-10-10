@@ -43,6 +43,7 @@ import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PA
 import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } from "./people.ts";
 import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { storyLetters } from "./stories.ts";
+import { forecastReview } from "./forecasts.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
 
@@ -1170,10 +1171,13 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // Личные сообщения: истории людей продолжаются, пока правление идёт.
   const letters = plan.endType && !isSurvival(plan.endType) ? [] : storyLetters(state)
     .map(letter => ({ ...letter, text: fill(letter.text, state, { name: letter.from, role: lower(letter.role ?? "") }) }));
+  // Газета сверяет прогнозы советников с тем, что вышло: так видно, кому и в чём верить.
+  const forecasts = forecastReview(state, choiceId, !plan.success);
   return {
     press,
     heard: said,
     ...(letters.length ? { letters } : {}),
+    ...(forecasts.length ? { forecasts } : {}),
     ...(appeared.length ? { cast: appeared } : {}),
     scene: state.currentEvent ? sceneAfter(state.currentEvent, plan.choice, plan.success) : "square",
     headline: finale ? finale.head : plan.election ? electionHeadline(plan.election)
