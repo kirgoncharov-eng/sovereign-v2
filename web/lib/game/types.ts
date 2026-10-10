@@ -151,6 +151,19 @@ export interface Advisor {
   skill: 1 | 2 | 3;
   loyalty?: number;                          // 0–100, насколько советник на вашей стороне; у старых сохранений — исходная
   record?: { right: number; wrong: number }; // счёт прогнозов, сверенных газетой
+  // Назначенные президентом (кадровый резерв): откуда пришёл, к какому лагерю тянется, своя биография.
+  origin?: string;      // канал найма из content/staffing.ts
+  title?: string;       // кто это для газет: «Астролог», «Звезда ток-шоу»
+  camp?: Bloc | null;   // лагерь назначенного; null — ни к какому. Без поля — лагерь по должности
+  bio?: string;
+  since?: number;       // ход назначения
+}
+
+// Кадры: одно решение за квартал; взятые кандидаты из резерва больше не предлагаются.
+export interface Staffing {
+  lastTurn: number | null;
+  taken: string[];
+  receipt?: string;     // что произошло при последнем назначении
 }
 
 // Что ход сделал с советником: послушали ли его и сбылся ли прогноз.
@@ -351,6 +364,7 @@ export interface GameState {
   betrayals?: number;    // сколько союзов вы нарушили
   echoes?: Record<string, number>; // сколько раз уже звучало эхо каждого отложенного последствия
   former?: string[];      // люди, ушедшие с постов: их имена не достаются преемникам
+  staffing?: Staffing;
   currentEvent: GameEvent | null;
   lastTurn: TurnReport | null;
   ended: boolean;

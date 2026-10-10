@@ -593,3 +593,23 @@ button:focus-visible {
 .sv-advisor-card-fill-good { background:var(--grn); }
 .sv-advisor-card-fill-warn { background:var(--amb); }
 .sv-advisor-card-fill-bad { background:var(--red); }
+
+/* Кадровый резерв в досье */
+.sv-staff { margin:4px 0 18px; }
+.sv-staff-title { font-family:var(--font-pixel, monospace); font-size:13px; letter-spacing:.04em; color:var(--tx3); margin:6px 0 6px; }
+.sv-staff-note { margin:0 0 8px; font-family:var(--font-narrow); font-size:15px; line-height:1.4; color:var(--tx3); }
+.sv-staff-receipt { margin:0 0 10px; padding:8px 12px; border-left:3px solid var(--gold); background:var(--bg3); font-family:var(--font-serif), "PT Serif", Georgia, serif; font-size:15px; line-height:1.45; color:var(--txt); }
+.sv-staff-candidate { padding:10px 0; border-top:1px dashed var(--bdr); font-family:var(--font-narrow); font-size:15px; line-height:1.4; color:var(--tx2); }
+.sv-staff-head { display:flex; flex-direction:column; gap:1px; }
+.sv-staff-head strong { font-family:var(--font-serif), "PT Serif", Georgia, serif; font-size:16px; color:var(--txt); }
+.sv-staff-head span { color:var(--tx3); }
+.sv-staff-bio { margin:4px 0; font-family:var(--font-serif), "PT Serif", Georgia, serif; font-style:italic; font-size:15px; color:var(--txt); }
+.sv-staff-line { margin-top:2px; }
+.sv-staff-bad { color:var(--red); }
+.sv-staff-muted { color:var(--tx3); font-style:italic; }
+.sv-staff-actions { display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
+.sv-staff-hire, .sv-staff-sign, .sv-staff-cancel { margin-top:8px; padding:7px 14px; border-radius:0; font-family:var(--font-narrow); font-size:15px; cursor:pointer; }
+.sv-staff-actions .sv-staff-sign, .sv-staff-actions .sv-staff-cancel { margin-top:0; }
+.sv-staff-hire { background:transparent; border:1.5px solid var(--gold); color:var(--gold); }
+.sv-staff-sign { background:var(--gold); border:2px solid rgba(0,0,0,.55); color:var(--on-gold); }
+.sv-staff-cancel { background:transparent; border:1px solid var(--bdr2); color:var(--tx2); }

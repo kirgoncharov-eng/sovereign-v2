@@ -233,13 +233,24 @@ function successorName(state: GameState, fig: Figure): string {
     const lasts = pool.last.filter(l => !fig.name.endsWith(l));
     return `${pick(r, pool.first)} ${pick(r, lasts.length ? lasts : pool.last)}`;
   }
+  return personName(state.country, r, MALE_ROLES.has(fig.id), usedNames(state));
+}
+
+// Имена и фамилии, уже занятые в партии: новые люди их не получают, пока есть свободные.
+function usedNames(state: GameState, extra: string[] = []): Set<string> {
   const used = new Set<string>();
-  for (const n of [state.leader.name, ...state.keyFigures.map(f => f.name), ...state.advisors.map(a => a.name), ...(state.former ?? [])]) {
-    const [first, last] = n.split(" ");
+  const people = [state.leader.name, ...state.keyFigures.map(figure => figure.name), ...state.advisors.map(advisor => advisor.name)];
+  for (const name of [...people, ...(state.former ?? []), ...extra]) {
+    const [first, last] = name.split(" ");
     used.add(`first:${first}`);
     if (last) used.add(last.replace(/(ов|ев|ин)а$/, "$1").replace(/(ск|цк)ая$/, "$1ий"));
   }
-  return personName(state.country, r, MALE_ROLES.has(fig.id), used);
+  return used;
+}
+
+// Новый человек для кадрового резерва: имя по стране, не совпадает с уже знакомыми игроку.
+export function freshPersonName(state: GameState, salt: string, male: boolean, extra: string[] = []): string {
+  return personName(state.country, seededRandom(hashSeed(state.seed, "fresh", salt)), male, usedNames(state, extra));
 }
 
 interface SpecialOption { c: SpecialChoice; tags: ActionTag[]; deal: Deal }

@@ -16,6 +16,8 @@ import { debate } from "@/lib/game/forecasts.ts";
 import { ORDINAL } from "@/lib/content/forecasts.ts";
 import { newsLine } from "@/lib/game/advisors.ts";
 import AdvisorName, { AdvisorCard } from "./AdvisorCard.jsx";
+import StaffPanel from "./StaffPanel.jsx";
+import { hireAdvisor } from "@/lib/game/staffing.ts";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
 import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
@@ -2051,6 +2053,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                       </div>
                     </div>
                   ))}
+                  <StaffPanel gs={gs} onHire={id => {
+                    if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
+                    prefetch.current = null; setArmed(null); setPreview(null);
+                    commit(hireAdvisor(gsRef.current, id)); stampFx();
+                  }}/>
                 </>}
                 <Label>{"КЛЮЧЕВЫЕ ИГРОКИ"}</Label>
                 {keyFigures.map(f => {
