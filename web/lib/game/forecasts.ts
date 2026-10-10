@@ -3,11 +3,11 @@
 // о прочем — тянет в свою сторону: цену любимого варианта преуменьшает, чужого — раздувает.
 // Кто был прав, видно после хода: газета сверяет прогнозы с ведомостью.
 import { ACTIONS } from "./data.ts";
-import { choiceEffects, hashSeed } from "./engine.ts";
+import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed } from "./engine.ts";
 import {
   ABOUT_OTHER, ADMIT, ADVISOR_REASONS, AGREE, DOWNPLAY, LEVEL_PHRASES, NO_STAKE, ORDINAL, ORDINAL_LOC, VERDICTS, type Level,
 } from "../content/forecasts.ts";
-import type { Choice, GameEvent, GameState, ResourceKey } from "./types.ts";
+import type { AdvisorNews, Choice, GameEvent, GameState, ResourceKey } from "./types.ts";
 
 export type { Level };
 
@@ -165,14 +165,42 @@ const RES_NAME: Record<ResourceKey, string> = {
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
 
 // После хода: что советники говорили о выбранном варианте и что вышло на деле (без чужих кризисов и эха).
-export function forecastReview(state: GameState, choiceId: string, failed: boolean): string[] {
+export interface ForecastCheck { take: AdvisorTake; claim: Claim; delta: number; right: boolean }
+
+export function forecastChecks(state: GameState, choiceId: string, failed: boolean): ForecastCheck[] {
   const takes = debate(state);
   const chosen = state.currentEvent?.choices.find(c => c.id === choiceId);
   if (!takes || !chosen) return [];
   const actual = choiceEffects(state, chosen, failed).resources;
-  return takes.flatMap(take => take.claims.filter(c => c.choiceId === choiceId).map(c => {
-    const delta = Math.round(actual[c.resource] ?? 0);
-    const verdict = levelOf(delta) === c.said ? "верно" : failed ? "мимо: решение провалилось" : "мимо";
-    return `${take.name}: «${phrase(c.resource, c.said)}». Решение: ${RES_NAME[c.resource]} ${signed(delta)} — ${verdict}.`;
+  return takes.flatMap(take => take.claims.filter(c => c.choiceId === choiceId).map(claim => {
+    const delta = Math.round(actual[claim.resource] ?? 0);
+    return { take, claim, delta, right: levelOf(delta) === claim.said };
   }));
+}
+
+export function forecastReview(state: GameState, choiceId: string, failed: boolean): string[] {
+  return forecastChecks(state, choiceId, failed).map(({ take, claim, delta, right }) => {
+    const verdict = right ? "верно" : failed ? "мимо: решение провалилось" : "мимо";
+    return `${take.name}: «${phrase(claim.resource, claim.said)}». Решение: ${RES_NAME[claim.resource]} ${signed(delta)} — ${verdict}.`;
+  });
+}
+
+// Что ход сделал с советниками в споре: выбрали вариант советника — лояльность растёт,
+// вариант его оппонента — падает; сбывшиеся прогнозы идут в счёт.
+export function advisorNews(state: GameState, choiceId: string, failed: boolean): AdvisorNews[] {
+  const takes = debate(state);
+  if (!takes) return [];
+  const checks = forecastChecks(state, choiceId, failed);
+  return takes.map(take => {
+    const overruled = take.favors !== choiceId && takes.some(other => other !== take && other.favors === choiceId);
+    const reason = take.favors === choiceId ? "followed" as const : overruled ? "overruled" as const : null;
+    const own = checks.filter(check => check.take.id === take.id);
+    return {
+      id: take.id,
+      loyalty: reason === "followed" ? LOYALTY_FOLLOWED : reason === "overruled" ? LOYALTY_OVERRULED : 0,
+      right: own.filter(check => check.right).length,
+      wrong: own.filter(check => !check.right).length,
+      reason,
+    };
+  });
 }

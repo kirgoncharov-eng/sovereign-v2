@@ -75,7 +75,8 @@ const report = (v: unknown) => isObj(v) && fields(v, ["headline", "narrative", "
   && (!v.document || isObj(v.document) && typeof v.document.title === "string" && strings(v.document.lines))
   && (!v.press || rows(v.press, p => fields(p, ["outlet", "headline"])))
   && (!v.letters || rows(v.letters, l => fields(l, ["kind", "from", "text", "story"])))
-  && (!v.forecasts || strings(v.forecasts));
+  && (!v.forecasts || strings(v.forecasts))
+  && (!v.advisorNews || rows(v.advisorNews, n => typeof n.id === "string" && integer(n.loyalty, -100, 100) && integer(n.right) && integer(n.wrong)));
 
 function validState(s: Obj): boolean {
   if (!finiteJson(s) || !validCountry(s.country) || !validDiff(s.diff) || !validIdeo(s.ideo)) return false;
@@ -87,7 +88,9 @@ function validState(s: Obj): boolean {
   if (s.prevResources !== null && !resources(s.prevResources)) return false;
   if (!rows(s.factions, f => fields(f, ["id", "name", "desc", "emoji", "bloc"]) && integer(f.approval, 0, 100) && integer(f.relation, -100, 100)) || !(s.factions as unknown[]).length) return false;
   if (!rows(s.keyFigures, f => fields(f, ["id", "role", "faction", "name", "loyalty"]) && integer(f.relation, -100, 100))) return false;
-  if (!rows(s.advisors, a => fields(a, ["id", "name", "role", "emoji"]) && integer(a.skill, 1, 3))) return false;
+  if (!rows(s.advisors, a => fields(a, ["id", "name", "role", "emoji"]) && integer(a.skill, 1, 3)
+    && (a.loyalty === undefined || integer(a.loyalty, 0, 100))
+    && (a.record === undefined || isObj(a.record) && integer(a.record.right) && integer(a.record.wrong)))) return false;
   if (!rows(s.history, h => fields(h, ["title", "choice", "headline", "historianNote"]) && integer(h.year) && (h.law === undefined || h.law === null || validLawNews(h.law)))) return false;
   if (!rows(s.activeCrises, c => fields(c, ["id", "title", "description", "severity"]) && isObj(c.resourceDrain) && integer(c.turnsActive))) return false;
   if (!pending(s.pending)) return false;

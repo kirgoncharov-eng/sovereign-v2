@@ -13,6 +13,8 @@ import { monthYear, turnDate } from "@/lib/game/calendar.ts";
 import NegotiationCall from "./NegotiationCall.jsx";
 import { effectiveLaw, lawDef } from "@/lib/game/laws.ts";
 import { debate } from "@/lib/game/forecasts.ts";
+import { newsLine } from "@/lib/game/advisors.ts";
+import AdvisorName, { AdvisorCard } from "./AdvisorCard.jsx";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
 import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
@@ -347,7 +349,7 @@ function DangerLines({ gs, fx }) {
 }
 
 // Спор над вариантами: два советника, каждый за свой вариант и в своих интересах.
-function AdvisorDebate({ takes }) {
+function AdvisorDebate({ gs, takes }) {
   if (!takes?.length) return null;
   return (
     <div className="sv-debate" style={{ padding:"0 24px 12px" }}>
@@ -355,7 +357,9 @@ function AdvisorDebate({ takes }) {
         <div key={t.id} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"8px 0", borderTop:`1px dashed ${G.bdr}` }}>
           <Portrait name={t.name} size={32}/>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3 }}>{t.name}, {t.role.toLowerCase()}</div>
+            <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3 }}>
+              <AdvisorName gs={gs} advisor={gs.advisors?.find(a => a.id === t.id)} after={`, ${t.role.toLowerCase()}`}>{t.name}</AdvisorName>
+            </div>
             <div style={{ fontFamily:serif, fontSize:15, lineHeight:1.45, color:G.tx2 }}>«{t.text}»</div>
           </div>
         </div>
@@ -2022,6 +2026,18 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             )}
             {sideTab === "fig" && (
               <>
+                {gs.advisors?.length > 0 && <>
+                  <Label>{"ВАШ СОВЕТ"}</Label>
+                  {gs.advisors.map(a => (
+                    <div key={a.id} style={{ display:"flex", gap:10, marginBottom:10, paddingBottom:4, borderBottom:`1px solid ${G.bdr}` }}>
+                      <Portrait name={a.name} size={32}/>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontFamily:serif, fontSize:13, fontWeight:500 }}>{a.name}</div>
+                        <AdvisorCard gs={gs} advisor={a}/>
+                      </div>
+                    </div>
+                  ))}
+                </>}
                 <Label>{"КЛЮЧЕВЫЕ ИГРОКИ"}</Label>
                 {keyFigures.map(f => {
                   const prev = prevFigures?.find(p => p.id === f.id && p.name === f.name);
@@ -2213,7 +2229,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     {TIP_TURNS[gs.turn]}
                   </div>
                 )}
-                <AdvisorDebate takes={takes}/>
+                <AdvisorDebate gs={gs} takes={takes}/>
                 {urgent && (
                   <div style={{ padding:"0 24px 12px" }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.red, marginBottom:6 }}>СРОЧНО: 25 СЕКУНД — ИНАЧЕ РЕШАТ ЗА ВАС</div>
@@ -2300,12 +2316,16 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, margin:"10px 0 4px", textAlign:"right" }}>— {lastTurn.historianNote}</div>
                 )}
 
-                {lastTurn.forecasts?.length > 0 && (
+                {(lastTurn.forecasts?.length > 0 || lastTurn.advisorNews?.some(n => n.reason)) && (
                   <div style={{ marginTop:14 }}>
-                    <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>ПРОГНОЗЫ СОВЕТНИКОВ</div>
-                    {lastTurn.forecasts.map(line => (
+                    <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>СОВЕТНИКИ</div>
+                    {(lastTurn.forecasts ?? []).map(line => (
                       <div key={line} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:/— верно\.$/.test(line) ? G.grn : G.tx2 }}>{line}</div>
                     ))}
+                    {(lastTurn.advisorNews ?? []).map(news => {
+                      const line = newsLine(gs.advisors ?? [], news);
+                      return line && <div key={news.id} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:news.loyalty > 0 ? G.grn : G.red }}>{line}</div>;
+                    })}
                   </div>
                 )}
                 {(turnDelta || Object.keys(lastTurn.factionRelChanges||{}).length > 0) && (

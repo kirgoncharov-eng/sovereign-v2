@@ -575,3 +575,21 @@ button:focus-visible {
 .sv-letter-head strong { font-size:16px; color:var(--txt); }
 .sv-letter p { margin:0; font-family:var(--font-serif), "PT Serif", Georgia, serif; font-size:16px; line-height:1.55; color:var(--txt); }
 @media (prefers-reduced-motion: reduce) { .sv-letter, .sv-letter:nth-child(even) { transform:none; } }
+
+/* Советник: имя нажимается, под ним — карточка */
+.sv-advisor-name-wrap { display:inline; }
+.sv-advisor-name { background:none; border:none; padding:0; font:inherit; color:inherit; text-decoration:underline dotted; text-underline-offset:3px; cursor:pointer; }
+.sv-advisor-card { display:block; margin:6px 0 8px; padding:10px 12px; border:1px solid var(--bdr2); background:var(--bg3); font-family:var(--font-narrow); font-size:15px; line-height:1.4; color:var(--tx2); text-align:left; }
+.sv-advisor-card-role { font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--tx3); }
+.sv-advisor-card-bio { margin:4px 0 8px; font-family:var(--font-serif), "PT Serif", Georgia, serif; font-style:italic; font-size:15px; color:var(--txt); }
+.sv-advisor-card dl { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; margin:0; }
+.sv-advisor-card dt { color:var(--tx3); }
+.sv-advisor-card dd { margin:0; color:var(--txt); min-width:0; }
+.sv-advisor-card-good { color:var(--grn); }
+.sv-advisor-card-warn { color:var(--amb); }
+.sv-advisor-card-bad { color:var(--red); }
+.sv-advisor-card-bar { display:block; height:3px; margin-top:3px; background:var(--bdr); }
+.sv-advisor-card-bar > span { display:block; height:100%; }
+.sv-advisor-card-fill-good { background:var(--grn); }
+.sv-advisor-card-fill-warn { background:var(--amb); }
+.sv-advisor-card-fill-bad { background:var(--red); }
