@@ -6,6 +6,7 @@ import { PATH_LABEL } from "../content/terms.ts";
 import { readRunCohorts, recordRunMilestones, type RunCohort } from "./run-cohorts.ts";
 import { kv } from "./kv.ts";
 import { readErrors, type ErrorRow } from "./errors.ts";
+import { readAcquisitionCohorts, recordAcquisitionVisit, renderAcquisition, type AcquisitionCohort } from "./acquisition.ts";
 
 export const TRACK_EVENTS = ["open", "start", "resume", "turn", "end", "share", "invite", "daily", "intro", "first", "help", "subscribe"] as const;
 export type TrackEventName = (typeof TRACK_EVENTS)[number];
@@ -21,7 +22,8 @@ export const PID = /^[a-z0-9]{8,24}$/;
 
 export const dayOf = (t: number) => new Date(t).toISOString().slice(0, 10);
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
-const clean = (v: unknown) => String(v).replace(/[^\p{L}\p{N} _.-]/gu, "").trim().slice(0, 24);
+const clean = (value: unknown, maxLength = 24) =>
+  String(value).replace(/[^\p{L}\p{N} _.-]/gu, "").trim().slice(0, maxLength);
 
 export interface TrackInput { e: string; p?: Record<string, unknown> }
 
@@ -33,7 +35,9 @@ export async function record(pid: string, events: TrackInput[], now = Date.now()
   // Первый визит за сегодня: считаем игрока и, если он вернулся, его когорту.
   if (await kv.sadd(`an:u:${d}`, pid)) {
     ops.push(kv.expire(`an:u:${d}`, TTL), kv.hincrby(key, "players"));
-    if (await kv.hsetnx("an:first", pid, d)) {
+    const isNew = await kv.hsetnx("an:first", pid, d);
+    ops.push(recordAcquisitionVisit(pid, accepted, now, isNew));
+    if (isNew) {
       ops.push(kv.hincrby(key, "new"), kv.hincrby(`an:cohort:${d}`, "d0"), kv.expire(`an:cohort:${d}`, TTL));
     } else {
       const first = await kv.hget("an:first", pid);
@@ -49,7 +53,7 @@ export async function record(pid: string, events: TrackInput[], now = Date.now()
     for (const dim of new Set([...DIMS[e as TrackEventName], "v", "src"])) {
       const v = p?.[dim];
       if (v === undefined || v === null || v === "") continue;
-      const val = clean(v);
+      const val = clean(v, dim === "src" ? 28 : 24);
       if (val) ops.push(kv.hincrby(key, `${e}|${dim}=${val}`));
     }
   }
@@ -58,6 +62,7 @@ export async function record(pid: string, events: TrackInput[], now = Date.now()
 }
 
 export interface Stats {
+  acquisition?: AcquisitionCohort[];
   runCohorts?: RunCohort[];
   errors?: ErrorRow[];
   observedAt?: number;
@@ -68,13 +73,14 @@ const nums = (h: Record<string, string>) => Object.fromEntries(Object.entries(h)
 
 export async function readStats(n: number, now = Date.now()): Promise<Stats> {
   const dates = Array.from({ length: n }, (_, i) => dayOf(now - (n - 1 - i) * 864e5));
-  const [days, cohorts, runCohorts, errors] = await Promise.all([
+  const [days, cohorts, runCohorts, errors, acquisition] = await Promise.all([
     Promise.all(dates.map(async date => ({ date, h: nums(await kv.hgetall(`an:${date}`)) }))),
     Promise.all(dates.map(async date => ({ date, h: nums(await kv.hgetall(`an:cohort:${date}`)) }))),
     readRunCohorts(dates),
     readErrors(dates.slice(-7)),
+    readAcquisitionCohorts(dates),
   ]);
-  return { days, cohorts, runCohorts, errors, observedAt: now };
+  return { days, cohorts, runCohorts, errors, acquisition, observedAt: now };
 }
 
 // ── Страница с цифрами ───────────────────────────────────────────────────────
@@ -183,6 +189,7 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 <div class="paper"><h2>События партий за период</h2><p class="muted">Число событий за выбранный период; это не доля конкретных партий. Продолжения старых партий и повторные финалы при загрузке могут попадать сюда; место выхода по этим счётчикам определить нельзя.</p>${bars(funnel, starts, false)}</div>
 <div class="paper"><h2>Возвращаемость по дню первого визита</h2><p class="muted">Доля новых устройств, активных в указанный календарный день UTC после первого визита. Повторные визиты за день считаются один раз. Незавершённые интервалы показаны прочерком; смена браузера или очистка данных создаёт новое устройство.</p><div class="scroll"><table><tr><th>Пришли</th><th>Устройств</th>${COHORT_DAYS.map(k => `<th>День ${k}</th>`).join("")}</tr>${cohortRows || `<tr><td colspan="7" class="muted">Пока нет данных</td></tr>`}</table></div></div>
 <div class="grid">
+${renderAcquisition(s.acquisition ?? [], s.runCohorts ?? [], s.observedAt ?? Date.now())}
 <div class="paper">${section("Страны", "start|country=", starts)}</div>
 <div class="paper">${section("Сложность", "start|diff=", starts)}</div>
 <div class="paper">${section("Курс", "start|ideo=", starts)}</div>

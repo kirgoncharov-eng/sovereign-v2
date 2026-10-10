@@ -5,6 +5,7 @@ import { runProps } from "./run-context.ts";
 import { webUid } from "./daily.ts";
 import { APP_VERSION } from "../game/data.ts";
 import { inTelegram } from "./telegram.ts";
+import { acquisitionChannel } from "./acquisition-source.ts";
 
 export type TrackEvent = "open" | "start" | "resume" | "turn" | "end" | "share" | "invite" | "daily" | "intro" | "first" | "help" | "subscribe";
 type Props = Record<string, string | number | boolean>;
@@ -45,7 +46,10 @@ export function toggleTester(): boolean {
 export function track(e: TrackEvent, p?: Props) {
   // В демо-сборке сервера нет — события не отправляются; тестовое устройство не считается.
   if (typeof window === "undefined" || process.env.NEXT_PUBLIC_ANALYTICS === "off" || isTester()) return;
-  queue.push({ e, p: { ...p, ...(["start", "resume", "turn", "end", "share", "intro", "first"].includes(e) ? runProps() : {}), v: APP_VERSION, src: inTelegram() ? "tg" : "web" } });
+  const platform = inTelegram() ? "tg" : "web";
+  const channel = acquisitionChannel();
+  const context = ["start", "resume", "turn", "end", "share", "intro", "first"].includes(e) ? runProps() : {};
+  queue.push({ e, p: { ...p, ...context, v: APP_VERSION, platform, src: channel ? `src_${channel}` : platform } });
   if (!hooked) {
     hooked = true;
     addEventListener("pagehide", flush);
