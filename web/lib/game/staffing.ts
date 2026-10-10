@@ -4,10 +4,11 @@
 // а уволенный обижает свой лагерь — нелояльный уходит со скандалом.
 import { ADVISOR_ROLES } from "./data.ts";
 import { freshPersonName } from "./classic.ts";
-import { hashSeed, isFemaleName, seededRandom } from "./engine.ts";
+import { hashSeed, isFemaleName, loyaltyOf, seededRandom } from "./engine.ts";
 import { DESK_FROM } from "./desk-timing.ts";
 import { campOf, isDisloyal } from "./advisors.ts";
 import { ARCS } from "../content/arcs.ts";
+import { DOSSIERS, DOSSIER_TEXT } from "../content/advisors.ts";
 import { ABSURD, CHANNELS, DISMISSAL, FREAKS, RELATIVES, SERIOUS, STAFFING_TEXT, type Channel } from "../content/staffing.ts";
 import type { Advisor, Bloc, GameState, ResourceDelta, ResourceKey } from "./types.ts";
 
@@ -78,8 +79,9 @@ export function candidatePool(state: GameState): Candidate[] {
 export const staffingOpen = (state: GameState) => !state.daily && !state.ended && state.turn >= DESK_FROM;
 
 // Что уволенный оставит после себя: обида лагеря и тихий или громкий уход.
+// С досье даже нелояльного увольняют тихо: ему есть что терять.
 export function dismissalOf(state: GameState, advisor: Advisor) {
-  const scandal = isDisloyal(advisor);
+  const scandal = isDisloyal(advisor) && !advisor.dossier;
   const camp = campOf(state, advisor);
   const outcome = scandal ? DISMISSAL.scandal : DISMISSAL.quiet;
   return { scandal, camp, cost: outcome.cost, text: outcome.text.replace("{name}", advisor.name) };
@@ -153,5 +155,58 @@ export function hireAdvisor(state: GameState, candidateId: string): GameState {
     advisors: state.advisors.map(advisor => (advisor.id === candidate.seat ? hired : advisor)),
     former: current ? [...(state.former ?? []), current.name] : state.former,
     staffing: { lastTurn: state.turn, taken: [...(state.staffing?.taken ?? []), candidate.id], receipt },
+  };
+}
+
+// ── Досье ───────────────────────────────────────────────────────────────────
+// Силовики собирают досье на советника: это кадровое решение квартала, стоит денег и лояльности советника
+// по безопасности. С досье советник сидит тихо: не сливает и не саботирует, уволить его можно без скандала.
+// Один раз досье можно пустить в ход — напомнить о нём: лояльность растёт.
+export const DOSSIER_COST: ResourceDelta = { economy: -2 };
+export const DOSSIER_SECURITY_LOYALTY = -5;
+export const DOSSIER_PRESS_LOYALTY = 20;
+
+export type DossierAction = "collect" | "press";
+
+export function dossierBlocked(state: GameState, advisorId: string, action: DossierAction): string | null {
+  if (state.daily) return STAFFING_TEXT.daily;
+  if (state.ended) return STAFFING_TEXT.ended;
+  if (state.turn < DESK_FROM) return STAFFING_TEXT.early;
+  const advisor = state.advisors.find(member => member.id === advisorId);
+  if (!advisor) return STAFFING_TEXT.unknown;
+  if (state.staffing?.lastTurn === state.turn) return STAFFING_TEXT.quota;
+  if (action === "collect") {
+    if (advisor.id === "security") return STAFFING_TEXT.dossierSelf;
+    if (advisor.dossier) return STAFFING_TEXT.dossierExists;
+    const short = Object.entries(DOSSIER_COST).some(([key, value]) => state.resources[key as ResourceKey] + (value ?? 0) <= RESOURCE_FLOOR);
+    return short ? STAFFING_TEXT.reserve : null;
+  }
+  if (!advisor.dossier) return STAFFING_TEXT.dossierMissing;
+  return advisor.dossier.used ? STAFFING_TEXT.dossierUsed : null;
+}
+
+export function applyDossier(state: GameState, advisorId: string, action: DossierAction): GameState {
+  const blocked = dossierBlocked(state, advisorId, action);
+  if (blocked) throw new Error(blocked);
+  const target = state.advisors.find(member => member.id === advisorId)!;
+  const staffing = (receipt: string) => ({ lastTurn: state.turn, taken: state.staffing?.taken ?? [], receipt });
+  if (action === "press") {
+    return {
+      ...state,
+      advisors: state.advisors.map(member => member.id !== advisorId ? member : {
+        ...member, loyalty: Math.min(100, loyaltyOf(member) + DOSSIER_PRESS_LOYALTY), dossier: { ...member.dossier!, used: true },
+      }),
+      staffing: staffing(DOSSIER_TEXT.press.replace("{name}", target.name)),
+    };
+  }
+  const fact = DOSSIERS[hashSeed(state.seed, "dossier", target.name) % DOSSIERS.length];
+  const resources = { ...state.resources };
+  for (const [key, value] of Object.entries(DOSSIER_COST)) resources[key as ResourceKey] += value ?? 0;
+  return {
+    ...state,
+    resources,
+    advisors: state.advisors.map(member => member.id === advisorId ? { ...member, dossier: { fact, turn: state.turn } }
+      : member.id === "security" ? { ...member, loyalty: Math.max(0, loyaltyOf(member) + DOSSIER_SECURITY_LOYALTY) } : member),
+    staffing: staffing(DOSSIER_TEXT.collect.replace("{name}", target.name).replace("{fact}", fact)),
   };
 }

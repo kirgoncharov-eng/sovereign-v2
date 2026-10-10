@@ -76,6 +76,7 @@ const report = (v: unknown) => isObj(v) && fields(v, ["headline", "narrative", "
   && (!v.press || rows(v.press, p => fields(p, ["outlet", "headline"])))
   && (!v.letters || rows(v.letters, l => fields(l, ["kind", "from", "text", "story"])))
   && (!v.forecasts || strings(v.forecasts))
+  && (!v.leaks || strings(v.leaks))
   && (!v.advisorNews || rows(v.advisorNews, n => typeof n.id === "string" && integer(n.loyalty, -100, 100) && integer(n.right) && integer(n.wrong)));
 
 function validState(s: Obj): boolean {
@@ -93,7 +94,9 @@ function validState(s: Obj): boolean {
     && (a.record === undefined || isObj(a.record) && integer(a.record.right) && integer(a.record.wrong))
     && ["origin", "title", "bio"].every(key => a[key] === undefined || typeof a[key] === "string")
     && (a.camp === undefined || a.camp === null || typeof a.camp === "string")
-    && (a.since === undefined || integer(a.since)))) return false;
+    && (a.since === undefined || integer(a.since))
+    && (a.dossier === undefined || isObj(a.dossier) && typeof a.dossier.fact === "string" && integer(a.dossier.turn)
+      && (a.dossier.used === undefined || typeof a.dossier.used === "boolean")))) return false;
   if (!rows(s.history, h => fields(h, ["title", "choice", "headline", "historianNote"]) && integer(h.year) && (h.law === undefined || h.law === null || validLawNews(h.law)))) return false;
   if (!rows(s.activeCrises, c => fields(c, ["id", "title", "description", "severity"]) && isObj(c.resourceDrain) && integer(c.turnsActive))) return false;
   if (!pending(s.pending)) return false;

@@ -157,6 +157,7 @@ export interface Advisor {
   camp?: Bloc | null;   // лагерь назначенного; null — ни к какому. Без поля — лагерь по должности
   bio?: string;
   since?: number;       // ход назначения
+  dossier?: { fact: string; turn: number; used?: boolean }; // что силовики собрали на советника
 }
 
 // Кадры: одно решение за квартал; взятые кандидаты из резерва больше не предлагаются.
@@ -226,6 +227,7 @@ export interface Narration {
   letters?: Letter[];     // личные сообщения хода — продолжение историй людей
   forecasts?: string[];   // что советники обещали о выбранном варианте и что вышло
   advisorNews?: AdvisorNews[]; // перемены лояльности и счёта прогнозов
+  leaks?: string[];       // утечки нелояльных советников в этом ходу
 }
 
 export interface TurnDocument {

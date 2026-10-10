@@ -5,10 +5,11 @@
 import { useId, useState } from "react";
 import { advisorProfile } from "@/lib/game/advisors.ts";
 
+const lowerFirst = text => text.charAt(0).toLowerCase() + text.slice(1);
 const stars = skill => "★".repeat(skill) + "☆".repeat(3 - skill);
 const signed = value => (value > 0 ? `+${value}` : value < 0 ? `−${-value}` : "0");
 
-export function AdvisorCard({ gs, advisor, id }) {
+export function AdvisorCard({ gs, advisor, id, children = null }) {
   const profile = advisorProfile(gs, advisor);
   const tone = profile.loyalty >= 55 ? "good" : profile.loyalty >= 35 ? "warn" : "bad";
   const fill = { width:`${profile.loyalty}%` };
@@ -36,7 +37,12 @@ export function AdvisorCard({ gs, advisor, id }) {
         {profile.origin && <><dt>Откуда</dt><dd>{profile.origin}</dd></>}
         <dt>Прогнозы</dt>
         <dd>{forecasts}</dd>
+        {profile.harmful && <><dt>Вредит</dt><dd className="sv-advisor-card-bad">сливает дела в прессу и саботирует решения своей области</dd></>}
+        {profile.dossier && (
+          <><dt>Досье</dt><dd>{profile.dossier.used ? "пущено в ход" : "собрано"}: {lowerFirst(profile.dossier.fact)}</dd></>
+        )}
       </dl>
+      {children}
     </div>
   );
 }

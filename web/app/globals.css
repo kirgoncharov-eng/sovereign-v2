@@ -613,3 +613,5 @@ button:focus-visible {
 .sv-staff-hire { background:transparent; border:1.5px solid var(--gold); color:var(--gold); }
 .sv-staff-sign { background:var(--gold); border:2px solid rgba(0,0,0,.55); color:var(--on-gold); }
 .sv-staff-cancel { background:transparent; border:1px solid var(--bdr2); color:var(--tx2); }
+.sv-dossier-actions { margin-top:6px; font-family:var(--font-narrow); font-size:15px; }
+.sv-dossier-actions .sv-staff-hire { margin-top:0; }

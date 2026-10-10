@@ -1,5 +1,5 @@
 // Карточка советника: всё, что президент может быстро проверить о человеке из своего окружения.
-import { hashSeed, loyaltyOf } from "./engine.ts";
+import { DISLOYAL_BELOW, hashSeed, loyaltyOf } from "./engine.ts";
 import { ADVISOR_AREA, ADVISOR_BIOS, ADVISOR_BLOC, ADVISOR_CAMP_BY_NAME, LOYALTY_WORDS, MANNER_LABEL, NEWS_REASON, SKILL_WORDS } from "../content/advisors.ts";
 import { MANNERS, type Manner } from "../content/forecasts.ts";
 import { CHANNELS, type Channel } from "../content/staffing.ts";
@@ -13,9 +13,8 @@ function originOf(advisor: Advisor): string | null {
   return advisor.origin === "freak" && advisor.title ? `${label} — ${advisor.title}` : label;
 }
 
-// Ниже этой лояльности советник служит уже не вам, а своему лагерю: и спорит в его пользу.
-export const DISLOYAL_BELOW = 35;
-export const isDisloyal = (advisor: Advisor) => loyaltyOf(advisor) < DISLOYAL_BELOW;
+// Ниже порога лояльности советник служит уже не вам, а своему лагерю: спорит в его пользу, сливает и саботирует.
+export { DISLOYAL_BELOW, isDisloyal } from "./engine.ts";
 
 // Манера постоянна для человека: решает имя.
 export const mannerOf = (advisor: Pick<Advisor, "name">): Manner => MANNERS[hashSeed(advisor.name, "manner") % MANNERS.length];
@@ -40,6 +39,8 @@ export interface AdvisorProfile {
   manner: string;          // как лукавит
   origin: string | null;   // откуда пришёл, если назначен из кадрового резерва
   disloyal: boolean;       // служит уже своему лагерю, а не вам
+  harmful: boolean;        // нелоялен и без досье: сливает и саботирует
+  dossier: { fact: string; used: boolean } | null;
 }
 
 export const loyaltyWord = (loyalty: number) => LOYALTY_WORDS.find(([from]) => loyalty >= from)![1];
@@ -60,6 +61,8 @@ export function advisorProfile(gs: Pick<GameState, "factions">, advisor: Advisor
     manner: MANNER_LABEL[mannerOf(advisor)],
     origin: originOf(advisor),
     disloyal: loyalty < DISLOYAL_BELOW,
+    harmful: loyalty < DISLOYAL_BELOW && !advisor.dossier,
+    dossier: advisor.dossier ? { fact: advisor.dossier.fact, used: !!advisor.dossier.used } : null,
   };
 }
 
