@@ -1,4 +1,5 @@
 "use client";
+import { trackAppointment } from '@/lib/client/desk-analytics.ts';
 import { useImperativeHandle, useRef, useState } from 'react';
 import { COUNTRIES } from '@/lib/game/data.ts';
 import { monthYear, turnDate } from '@/lib/game/calendar.ts';
@@ -61,7 +62,22 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
     if(open&&!world?.health)onOpen();
     setLessonMode(null);setExpanded(open);onViewChange(open);setPending(null);setError(null);if(open&&!world)setTab('actions');
   };
-  const confirm=()=>{try{onAction(pending.id);setReceipt({turn:gs.turn,project:pending.id.startsWith('health:')?'health':'energy',title:pending.title,cost:pending.cost});setPlace(pending.id.startsWith('health:')?'health':'region');setPending(null);setError(null);setTab('dispatches');if(lessonMode)requestAnimationFrame(()=>tour.current?.scrollIntoView({behavior:'smooth',block:'start'}));}catch(e){setError(e.message);}};
+  const confirm = () => {
+    if (!pending || pending.blocked) return;
+    try {
+      onAction(pending.id);
+      trackAppointment(gs, pending.id);
+      const project = pending.id.startsWith('health:') ? 'health' : 'energy';
+      setReceipt({ turn: gs.turn, project, title: pending.title, cost: pending.cost });
+      setPlace(project === 'health' ? 'health' : 'region');
+      setPending(null);
+      setError(null);
+      setTab('dispatches');
+      if (lessonMode) requestAnimationFrame(() => tour.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    } catch (error) {
+      setError(error.message);
+    }
+  };
   if(gs.daily || compact && !expanded)return null;
   const quota=world?.lastActionTurn===gs.turn;
   const terminal=project&&['completed','partial','failed'].includes(project.status);

@@ -10,6 +10,7 @@ import MinisterPanel from './MinisterPanel.jsx';
 import SponsorPanel from './SponsorPanel.jsx';
 import GovernmentPanel from './GovernmentPanel.jsx';
 import { PeopleText } from './PeopleText.jsx';
+import { trackDesk, trackAppointment } from '@/lib/client/desk-analytics.ts';
 
 export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead, onViewChange, onProject, onDesk }) {
   const [view, setView] = useState(null);
@@ -18,6 +19,11 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
   const [messageKey, setMessageKey] = useState(null);
   const dialog = useRef(null);
   const titleId = useId();
+  const available = !gs.daily && !gs.ended && !!gs.world;
+  const analyticsRun = gs.analyticsRun;
+  useEffect(() => {
+    if (available) trackDesk(gs, 'available');
+  }, [available, analyticsRun, gs]);
   useEffect(() => {
     const element = dialog.current;
     if (!element) return;
@@ -39,7 +45,17 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
   const person = profiles.find(p => p.id === view);
   const incoming = messages.filter(m => m.person === view);
   const selected = incoming.find(m => m.key === messageKey) ?? incoming.find(m => m.needsReply) ?? incoming[0];
-  const open = next => { setView(next); setMessageKey(null); onViewChange(true); };
+  const open = next => {
+    if (next === 'government') trackDesk(gs, 'government');
+    else if (next === 'people' || profiles.some(profile => profile.id === next)) trackDesk(gs, 'messages');
+    setView(next);
+    setMessageKey(null);
+    onViewChange(true);
+  };
+  const signAction = action => {
+    onAction(action);
+    trackAppointment(gs, action);
+  };
   const close = (toCase = true) => { setView(null); onViewChange(false); if (toCase) requestAnimationFrame(onDesk); };
   const government = (id = 'energy') => { setGovernmentSelection(id); open('government'); const advisor = profiles.find(p => p.id === 'advisor:economist'); if (advisor) onRead(advisor.id); };
   const project = id => { close(false); requestAnimationFrame(() => onProject(id)); };
@@ -64,7 +80,8 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
           })}</div>
           <button className="sv-desk-link" onClick={() => setEveryone(!everyone)}>{everyone ? 'Только обращения' : 'Все действующие лица'}</button>
         </>}
-        {view === 'government' && <GovernmentPanel key={governmentSelection} initialProject={governmentSelection} gs={gs} onAction={onAction} onClose={() => close()} onDetails={project}/>}
+        {view === 'government' && <GovernmentPanel key={governmentSelection} initialProject={governmentSelection}
+          gs={gs} onAction={signAction} onClose={() => close()} onDetails={project}/>}
         {person && <div className="sv-desk-correspondence"><header><Portrait name={person.name} size={42}/><div><h3><PeopleText>{person.name}</PeopleText></h3><p>{person.role}{person.relation !== null ? ` · к вам ${person.relation > 0 ? '+' : ''}${person.relation}` : ''}</p></div></header>
           {!incoming.length && <p>Обращений нет. Его досье можно открыть по имени.</p>}
           {incoming.length > 1 && <nav className="sv-desk-message-list" aria-label="Обращения человека">{incoming.map(m => <button key={m.key} aria-pressed={selected?.key === m.key} onClick={() => setMessageKey(m.key)}><strong>{m.title}</strong><span>{m.needsReply ? 'Ждёт ответа' : m.key === 'minister-mandate' || m.key === 'sponsor' ? 'Договорённость' : 'Доклад'}</span></button>)}</nav>}
