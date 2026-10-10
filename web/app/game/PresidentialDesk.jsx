@@ -55,7 +55,11 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
     if (!pendingReply || pendingReply.blocked) return;
     try {
       signAction(pendingReply.id);
-      setReplyReceipt({ key: selected.key, text: `Подписано: ${pendingReply.title}. Цена учтена в ресурсах страны. Исполнение идёт после главных решений; новые доклады придут в сообщения.` });
+      setReplyReceipt({
+        key: selected.key,
+        text: `Подписано: ${pendingReply.title}. Цена учтена в ресурсах страны. `
+          + `Исполнение идёт после главных решений; новые доклады придут в сообщения.`,
+      });
       setReplyPending(null);
       setReplyError('');
     } catch (error) { setReplyError(error.message); }
@@ -86,7 +90,9 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
       <button key={message.key} className="sv-desk-link" data-assignment-reminder={message.action}
         onClick={() => { open(message.person); setMessageKey(message.key); onRead(message.person); }}>
         {message.action === 'energy' ? 'Энергосеть' : 'Больницы'}: {gs.world[message.action === 'energy' ? 'project' : 'health']?.status === 'unassigned'
-          ? 'назначьте исполнителя — без него работа не начнётся' : 'нужен ответ на доклад'}
+          ? `назначьте исполнителя до конца квартала ${message.deadline}; `
+            + 'иначе программа провалится и ударит по экономике и легитимности'
+          : 'нужен ответ на доклад'}
         {message.deadline !== undefined ? ` · осталось ${Math.max(0, message.deadline - gs.turn)} кв.` : ''} →
       </button>)}
     <small className="sv-desk-attention">{gs.world.lastActionTurn === gs.turn ? 'Личное поручение подписано · главное дело ещё доступно' : 'Одно личное поручение на квартал · чтение свободно'}</small>
@@ -110,9 +116,24 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
         {person && <div className="sv-desk-correspondence"><header><Portrait name={person.name} size={42}/><div><h3><PeopleText>{person.name}</PeopleText></h3><p>{person.role}{person.relation !== null ? ` · к вам ${person.relation > 0 ? '+' : ''}${person.relation}` : ''}</p></div></header>
           {replyReceipt && <p role="status">{replyReceipt.text}</p>}
           {!incoming.length && <p>Обращений нет. Его досье можно открыть по имени.</p>}
-          {incoming.length > 1 && <nav className="sv-desk-message-list" aria-label="Обращения человека">{incoming.map(m => <button key={m.key} aria-pressed={selected?.key === m.key} onClick={() => { setMessageKey(m.key); setReplyPending(null); setReplyError(''); setReplyReceipt(null); }}><strong>{m.title}</strong><span>{m.needsReply ? 'Ждёт ответа' : m.key === 'minister-mandate' || m.key === 'sponsor' ? 'Договорённость' : 'Доклад'}</span></button>)}</nav>}
+          {incoming.length > 1 && <nav className="sv-desk-message-list" aria-label="Обращения человека">
+            {incoming.map(m => <button key={m.key} aria-pressed={selected?.key === m.key}
+              onClick={() => {
+                setMessageKey(m.key);
+                setReplyPending(null);
+                setReplyError('');
+                setReplyReceipt(null);
+              }}>
+              <strong>{m.title}</strong>
+              <span>{m.needsReply ? 'Ждёт ответа' : m.key === 'minister-mandate' || m.key === 'sponsor' ? 'Договорённость' : 'Доклад'}</span>
+            </button>)}
+          </nav>}
           {selected && <article key={selected.key} className="sv-desk-message"><small>{selected.needsReply ? 'ЖДЁТ ВАШЕГО ОТВЕТА' : 'ДОГОВОРЁННОСТЬ ИЛИ ДОКЛАД'}{selected.deadline ? ` · до конца квартала ${selected.deadline}` : ''}</small><h4>{selected.title}</h4>
-            {selected.action === 'evidence' ? <EvidencePanel gs={gs} onAction={onAction} onClose={() => close()}/> : selected.action === 'minister' ? <MinisterPanel gs={gs} Scene={Scene} onAction={onAction} onClose={() => close()}/> : selected.action === 'sponsor' ? <SponsorPanel embedded gs={gs} Scene={Scene} onAction={onAction} onViewChange={onViewChange} onClose={() => close()}/> : <><p><PeopleText>{selected.text}</PeopleText></p>
+            {selected.action === 'evidence' ? <EvidencePanel gs={gs} onAction={onAction} onClose={() => close()}/>
+              : selected.action === 'minister' ? <MinisterPanel gs={gs} Scene={Scene} onAction={onAction} onClose={() => close()}/>
+              : selected.action === 'sponsor' ? <SponsorPanel embedded gs={gs} Scene={Scene} onAction={onAction}
+                  onViewChange={onViewChange} onClose={() => close()}/>
+              : <><p><PeopleText>{selected.text}</PeopleText></p>
               {replyActions.length > 0 && <div data-message-reply={selected.action}>
                 <p><strong>{replyActions[0].id.includes('appoint:') ? 'Назначьте исполнителя и выделите бюджет' : 'Выберите ответ на доклад'}</strong>
                   {selected.deadline !== undefined && ` · до конца квартала ${selected.deadline}; осталось ${Math.max(0, selected.deadline - gs.turn)} кв.`}</p>
@@ -120,7 +141,14 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
                   pending={pendingReply} setPending={action => { setReplyPending(action); setReplyError(''); }}
                   confirm={confirmReply} error={replyError}/>
               </div>}
-              <button className="sv-desk-link" onClick={() => selected.action === 'government' ? government(selected.key==='housing-next'?'housing':selected.key.startsWith('program:')?selected.key.split(':')[1]:'energy') : project(selected.action)}>{selected.action === 'government' ? 'Рассмотреть проекты правительства' : 'Открыть поручения и доклады'} →</button></>}
+              <button className="sv-desk-link" onClick={() => {
+                if (selected.action !== 'government') { project(selected.action); return; }
+                const projectId = selected.key === 'housing-next' ? 'housing'
+                  : selected.key.startsWith('program:') ? selected.key.split(':')[1] : 'energy';
+                government(projectId);
+              }}>
+                {selected.action === 'government' ? 'Рассмотреть проекты правительства' : 'Открыть поручения и доклады'} →
+              </button></>}
           </article>}
         </div>}
         {!(person && ['minister', 'sponsor', 'evidence'].includes(selected?.action)) && view !== 'government' && <button className="sv-desk-link" onClick={() => close()}>Вернуться к главному делу →</button>}
