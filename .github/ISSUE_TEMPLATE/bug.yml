@@ -23,3 +23,10 @@ body:
     attributes:
       label: Где
       options: [Telegram, Браузер, Демо, Бот]
+  - type: textarea
+    id: done
+    attributes:
+      label: Готово, когда
+      description: Как должно работать после исправления и каким сценарием это проверяем.
+    validations:
+      required: true
