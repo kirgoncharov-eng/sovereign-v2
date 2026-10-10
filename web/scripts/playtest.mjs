@@ -4,8 +4,8 @@
 //
 //   node scripts/playtest.mjs [--turns=40] [--out=playtest] [--url=https://…]
 //
-// Playwright не входит в зависимости проекта: локально — NODE_PATH на глобальную установку,
-// в CI — npm i --no-save playwright. Код выхода 1 — ошибки в консоли, игра застряла
+// Установка: npm ci && npm run playtest:install; запуск: npm run playtest -- --turns=24.
+// Playwright закреплён в devDependencies. Код выхода 1 — ошибки в консоли, игра застряла
 // или первая сессия перегружена (стол на первом ходу, первое решение дольше 15 секунд).
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
