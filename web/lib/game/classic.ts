@@ -42,6 +42,7 @@ import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, FACTIONS_DATA, DELAYE
 import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PACT, PACT_BROKEN_LINE, PACT_GIVES, PACT_KEPT_LINE, PACT_OK_VARIANTS, type SpecialChoice } from "../content/people.ts";
 import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } from "./people.ts";
 import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
+import { storyLetters } from "./stories.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
 
@@ -1166,9 +1167,13 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const press = arc && !plan.election ? [] : [{ outlet: OUTLETS.opposition, headline: fill(opposition, state) }, ...(second ? [second] : [])];
 
   const key = plan.newCrisisKey;
+  // Личные сообщения: истории людей продолжаются, пока правление идёт.
+  const letters = plan.endType && !isSurvival(plan.endType) ? [] : storyLetters(state)
+    .map(letter => ({ ...letter, text: fill(letter.text, state, { name: letter.from, role: lower(letter.role ?? "") }) }));
   return {
     press,
     heard: said,
+    ...(letters.length ? { letters } : {}),
     ...(appeared.length ? { cast: appeared } : {}),
     scene: state.currentEvent ? sceneAfter(state.currentEvent, plan.choice, plan.success) : "square",
     headline: finale ? finale.head : plan.election ? electionHeadline(plan.election)

@@ -44,6 +44,7 @@ while (!s.ended) {
   say(`=== ГАЗЕТА: ${t.headline}`);
   say(t.narrative);
   t.reactions.forEach(r => say(`  » ${r}`));
+  t.letters?.forEach(l => say(`  ✉ ${l.from}${l.role ? `, ${l.role}` : ""}: ${l.text}`));
   if (t.election) say(`  ВЫБОРЫ: ${t.election.leader}% против ${t.election.top.share}% — ${t.election.outcome}`);
   say(`  опоры: ${Object.entries(s.resources).map(([k, v]) => `${k.slice(0, 5)}=${v}`).join(" ")}`);
 }
