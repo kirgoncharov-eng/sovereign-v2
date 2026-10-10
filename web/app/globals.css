@@ -324,6 +324,8 @@ button:focus-visible {
     animation: sv-rise .2s ease-out both;
   }
   .sv-game-grid { padding-bottom: 76px; }
+  /* Внизу уже есть главная кнопка — вторая «Следующий ход» в газете не нужна */
+  .sv-inline-next { display: none; }
   .sv-dossier-toggle {
     display: block; width: 100%; padding: 12px 14px; margin-bottom: 8px;
     background: var(--bg2); border: 2px solid var(--bdr2); color: var(--tx2);
@@ -437,6 +439,17 @@ button:focus-visible {
 .sv-mandate summary { cursor:pointer; min-height:44px; padding:10px 14px; border:1px solid var(--bdr2); font-size:16px; }
 .sv-executor-compare { display:flex; gap:16px; flex-wrap:wrap; padding:6px 0; }
 .sv-execution-calculation { color:var(--tx3); font-family:var(--font-narrow); font-size:15px; }
+/* Короткий ход: продолжение дела и газеты — по нажатию */
+.sv-more { margin:0 0 12px; }
+.sv-more > summary {
+  cursor:pointer; min-height:44px; display:flex; align-items:center; gap:6px;
+  font-family:var(--font-narrow); font-size:16px; color:var(--tx2); text-decoration:underline dotted; text-underline-offset:3px;
+  list-style:none;
+}
+.sv-more > summary::-webkit-details-marker { display:none; }
+.sv-more > summary::after { content:"▾"; }
+.sv-more[open] > summary::after { content:"▴"; }
+.sv-more-body { padding-top:6px; }
 .sv-execution-calculation summary { cursor:pointer; padding:10px 0; min-height:44px; }
 #sv-turn-result { scroll-margin-top:150px; }
 @media (pointer:coarse) and (min-width:761px) {
@@ -570,7 +583,11 @@ button:focus-visible {
 .sv-letters { display:grid; gap:10px; margin:0 0 12px; }
 .sv-letter { padding:12px 16px 14px; transform:rotate(-0.4deg); }
 .sv-letter:nth-child(even) { transform:rotate(0.5deg); }
-.sv-letter-head { display:flex; flex-direction:column; gap:2px; margin-bottom:6px; font-family:var(--font-narrow); }
+.sv-letter-head { display:flex; flex-direction:column; gap:2px; font-family:var(--font-narrow); cursor:pointer; list-style:none; min-height:44px; justify-content:center; }
+.sv-letter-head::-webkit-details-marker { display:none; }
+.sv-letter-head strong::after { content:" · прочитать ▾"; font-weight:400; font-size:15px; color:var(--tx3, #6b604c); }
+.sv-letter[open] .sv-letter-head strong::after { content:""; }
+.sv-letter[open] .sv-letter-head { margin-bottom:6px; }
 .sv-letter-head span { font-size:13px; letter-spacing:.08em; color:var(--tx3, #6b604c); }
 .sv-letter-head strong { font-size:16px; color:var(--txt); }
 .sv-letter p { margin:0; font-family:var(--font-serif), "PT Serif", Georgia, serif; font-size:16px; line-height:1.55; color:var(--txt); }
