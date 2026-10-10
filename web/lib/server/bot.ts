@@ -8,6 +8,7 @@ import { kv } from "./kv.ts";
 import { ADMIN, saveFeedback } from "./feedback.ts";
 import { digestText, readStats } from "./analytics.ts";
 import { FOLLOWUP, OPT_OUT } from "./followup.ts";
+import { forgetUser } from "./forget.ts";
 
 export const SUBS = "tg:subs";
 
@@ -30,6 +31,8 @@ export const COMMANDS = [
   { command: "help", description: "Как играть" },
   { command: "feedback", description: "Рассказать, что понравилось и что нет" },
   { command: "stop", description: "Не присылать дело дня по утрам" },
+  { command: "privacy", description: "Какие данные хранит игра" },
+  { command: "forget", description: "Удалить мои данные" },
 ];
 
 // ── Тексты сообщений (HTML-разметка Telegram) ───────────────────────────────
@@ -56,7 +59,19 @@ export const HELP = `<b>Как играть</b>
 
 Партия сохраняется сама: закройте игру и вернитесь, когда удобно.
 
-Нашли скуку, нечестное решение или ошибку — /feedback, три коротких вопроса. Я читаю каждый ответ.`;
+Нашли скуку, нечестное решение или ошибку — /feedback, три коротких вопроса. Я читаю каждый ответ.
+
+Какие данные хранит игра — /privacy, удалить их — /forget.`;
+
+export const PRIVACY = (url: string) => `<b>Какие данные хранит игра</b>
+
+• Ваш номер чата в Telegram — чтобы присылать «Дело дня» по утрам, пока вы не напишете /stop.
+• Имя из Telegram — в таблице «Дела дня» его видят другие игроки; запись живёт трое суток.
+• Ваши отзывы — их читает автор игры.
+• Анонимная статистика по случайному номеру браузера: какие ходы проходят и где бросают. Имени и Telegram в ней нет.
+
+Ничего не продаётся и не передаётся рекламным сетям. Удалить всё, что связано с вашим Telegram, — /forget.${url ? `\n\n<a href="${url}/privacy">Полный текст</a>` : ""}`;
+export const FORGOTTEN = "Готово: подписка, место в таблицах, друзья и ваши отзывы удалены. Если снова откроете игру из Telegram, результат «Дела дня» запишется заново.";
 
 export const FALLBACK = "Я не веду переписку — только дела. Кабинет открывается кнопкой ниже, «Дело дня» — по команде /daily, а рассказать, что понравилось и что нет, — /feedback.";
 
@@ -191,6 +206,11 @@ export async function handleUpdate(update: Update) {
     await kv.srem(SUBS, String(chat));
     await kv.hdel(FOLLOWUP, String(chat));
     await send(chat, STOPPED, null);
+  } else if (cmd === "/privacy") {
+    await send(chat, PRIVACY(appUrl().replace(/\/$/, "")), null);
+  } else if (cmd === "/forget") {
+    await forgetUser(chat, whoOf(update.message?.from), SUBS, FB_STATE);
+    await send(chat, FORGOTTEN, null);
   } else if (cmd === "/daily") {
     await send(chat, dailyText(), playButton("Взяться за дело"));
   } else if (cmd === "/help") {

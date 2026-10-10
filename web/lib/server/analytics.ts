@@ -5,6 +5,7 @@ import { END_TYPES } from "../game/data.ts";
 import { PATH_LABEL } from "../content/terms.ts";
 import { readRunCohorts, recordRunMilestones, type RunCohort } from "./run-cohorts.ts";
 import { kv } from "./kv.ts";
+import { readErrors, type ErrorRow } from "./errors.ts";
 
 export const TRACK_EVENTS = ["open", "start", "resume", "turn", "end", "share", "invite", "daily", "intro", "first", "help", "subscribe"] as const;
 export type TrackEventName = (typeof TRACK_EVENTS)[number];
@@ -58,6 +59,7 @@ export async function record(pid: string, events: TrackInput[], now = Date.now()
 
 export interface Stats {
   runCohorts?: RunCohort[];
+  errors?: ErrorRow[];
   observedAt?: number;
   days: { date: string; h: Record<string, number> }[];      // старые → новые
   cohorts: { date: string; h: Record<string, number> }[];
@@ -66,12 +68,13 @@ const nums = (h: Record<string, string>) => Object.fromEntries(Object.entries(h)
 
 export async function readStats(n: number, now = Date.now()): Promise<Stats> {
   const dates = Array.from({ length: n }, (_, i) => dayOf(now - (n - 1 - i) * 864e5));
-  const [days, cohorts, runCohorts] = await Promise.all([
+  const [days, cohorts, runCohorts, errors] = await Promise.all([
     Promise.all(dates.map(async date => ({ date, h: nums(await kv.hgetall(`an:${date}`)) }))),
     Promise.all(dates.map(async date => ({ date, h: nums(await kv.hgetall(`an:cohort:${date}`)) }))),
     readRunCohorts(dates),
+    readErrors(dates.slice(-7)),
   ]);
-  return { days, cohorts, runCohorts, observedAt: now };
+  return { days, cohorts, runCohorts, errors, observedAt: now };
 }
 
 // ── Страница с цифрами ───────────────────────────────────────────────────────
@@ -95,6 +98,8 @@ const LABELS: Record<string, string> = {
   // первые замеры шли с длинным тире, и сервер его вырезал
   "3060 с": "30-60 с", "12 мин": "1-2 мин", "25 мин": "2-5 мин",
 };
+
+const ERROR_PLACE: Record<string, string> = { js: "скрипт", promise: "запрос", render: "экран" };
 
 function bars(rows: [string, number][], total: number, showPercent = true) {
   if (!rows.length) return `<p class="muted">Пока нет данных</p>`;
@@ -123,6 +128,7 @@ export function digestText(s: Stats, link = ""): string {
     ends ? `Чем кончаются: ${ends}` : "",
     keptAvg ? `Обещаний исполняют в среднем: ${keptAvg} из 3` : "",
     rn ? `Отзывов за неделю: ${sum(week, "feedback")}, средняя оценка ${(sum(week, "rating_sum") / rn).toFixed(1)} из 5` : sum(week, "feedback") ? `Отзывов за неделю: ${sum(week, "feedback")}` : "",
+    n("error") ? `Ошибок у игроков за сутки: ${n("error")} — подробности на странице цифр` : "",
     back?.h.d0 ? `Вернулись на следующий день: ${pct(back.h.d1 ?? 0, back.h.d0)} из устройств первого визита ${back.date.slice(8)}.${back.date.slice(5, 7)}` : "",
     link ? `<a href="${link}">Все цифры и отзывы</a>` : "",
   ].filter(Boolean).join("\n");
@@ -190,6 +196,7 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 <div class="paper">${section("Действия с итогом: меню, ссылка, картинка", "share|via=", sum(s, "share"))}</div>
 <div class="paper">${section("Время до первого решения", "first|sec=", sum(s, "first"))}</div>
 </div>
+<div class="paper"><h2>Ошибки у игроков за 7 дней</h2>${s.errors?.length ? `<div class="scroll"><table><tr><th>Ошибка</th><th>Версия</th><th>Где</th><th>Раз</th><th>Последняя</th></tr>${s.errors.map(e => `<tr><td style="white-space:normal;text-align:left">${esc(e.msg)}</td><td>${esc(e.v)}</td><td>${esc(ERROR_PLACE[e.kind] ?? e.kind)}</td><td>${e.count}</td><td>${esc(e.last.slice(5))}</td></tr>`).join("")}</table></div>` : `<p class="muted">Ошибок не было</p>`}</div>
 <div class="paper"><h2>Отзывы</h2>${feedback.length ? feedback.map(f => `<div class="fb"><div class="muted">${esc(f.at.slice(0, 16).replace("T", " "))} · ${f.src === "bot" ? "бот" : "игра"}${f.rating ? ` · ${"★".repeat(f.rating)}${"☆".repeat(5 - f.rating)}` : ""}${f.who ? ` · ${esc(f.who)}` : ""}${f.ctx ? ` · ${esc(Object.values(f.ctx).join(", "))}` : ""}</div>${f.text ? `<div>${esc(f.text).replace(/\n/g, "<br>")}</div>` : ""}</div>`).join("") : `<p class="muted">Пока нет отзывов</p>`}</div>
 <div class="paper"><h2>По дням</h2><div class="scroll"><table><tr><th>День</th><th>Устройств</th><th>Новых</th><th>Партий</th><th>Финалов</th><th>Действия с отправкой</th><th>Подписались</th><th>Дело дня</th></tr>${dayRows}</table></div></div>
 </main></body></html>`;

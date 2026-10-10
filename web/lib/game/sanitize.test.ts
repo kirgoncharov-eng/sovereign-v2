@@ -67,7 +67,7 @@ test("sanitizeState пересобирает фракции из справоч�
     history: [{ year: 2025, title: "x".repeat(5000), choice: "c", headline: "h", historianNote: "" }],
   };
   const s = sanitizeState(JSON.parse(JSON.stringify(tampered)))!;
-  assert.equal(s.factions[0].name, "Грузинская мечта");
+  assert.equal(s.factions[0].name, "Партия «Согласие»");
   assert.equal(s.factions[0].approval, 100);
   assert.equal(s.resources.economy, 0);
   assert.equal(s.history[0].title.length, TEXT.title);

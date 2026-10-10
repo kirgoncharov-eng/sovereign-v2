@@ -19,6 +19,21 @@ async function redis<T>(cmd: Cmd): Promise<T> {
   return data.result as T;
 }
 
+// Несколько команд одним запросом (Upstash /pipeline): ответы в том же порядке.
+async function pipeline<T>(cmds: Cmd[]): Promise<T[]> {
+  const r = await fetch(`${url()}/pipeline`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+    body: JSON.stringify(cmds),
+    cache: "no-store",
+  });
+  const data = await r.json() as { result?: T; error?: string }[];
+  if (!r.ok || !Array.isArray(data)) throw new Error(`KV ${r.status}`);
+  const failed = data.find(d => d.error);
+  if (failed) throw new Error(failed.error);
+  return data.map(d => d.result as T);
+}
+
 // ── Память процесса ──────────────────────────────────────────────────────────
 const zsets = new Map<string, Map<string, number>>();
 const hashes = new Map<string, Map<string, string>>();
@@ -127,6 +142,36 @@ export const kv = {
   async hdel(key: string, field: string) {
     if (kvConfigured()) return void await redis(["HDEL", key, field]);
     bucket(hashes, key).delete(field);
+  },
+  // Счётчики окон с истечением: каждый ключ живёт ttl секунд с первого увеличения. Возвращает новые значения.
+  async counters(entries: { key: string; ttl: number }[]): Promise<number[]> {
+    if (kvConfigured()) {
+      const out = await pipeline<number | string | null>(entries.flatMap(e => [["SET", e.key, 0, "EX", e.ttl, "NX"], ["INCR", e.key]] as Cmd[]));
+      return entries.map((_, i) => Number(out[i * 2 + 1]));
+    }
+    return entries.map(e => {
+      const h = bucket(hashes, "counters");
+      const v = (Number(h.get(e.key)) || 0) + 1;
+      h.set(e.key, String(v));
+      return v;
+    });
+  },
+  async zrem(key: string, member: string) {
+    if (kvConfigured()) return void await redis(["ZREM", key, member]);
+    bucket(zsets, key).delete(member);
+  },
+  async del(key: string) {
+    if (kvConfigured()) return void await redis(["DEL", key]);
+    zsets.delete(key); hashes.delete(key); sets.delete(key); lists.delete(key);
+  },
+  // Список целиком заменяется новым (порядок сохраняется). Нужен, чтобы вычеркнуть записи одного человека.
+  async lreplace(key: string, values: string[]) {
+    if (kvConfigured()) {
+      await redis(["DEL", key]);
+      if (values.length) await redis(["RPUSH", key, ...values]);
+      return;
+    }
+    lists.set(key, [...values]);
   },
   async expire(key: string, seconds: number) {
     if (kvConfigured()) await redis(["EXPIRE", key, seconds]);

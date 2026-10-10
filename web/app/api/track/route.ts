@@ -1,9 +1,9 @@
 // Приём анонимных событий аналитики. Тело — {pid, events:[{e, p?}]}; отвечает 204 всегда, кроме мусора.
 import { PID, record, type TrackInput } from "@/lib/server/analytics.ts";
-import { checkRate, clientKey } from "@/lib/server/rateLimit.ts";
+import { clientKey, limit } from "@/lib/server/rateLimit.ts";
 
 export async function POST(req: Request) {
-  if (!checkRate(`track:${clientKey(req)}`).ok) return new Response(null, { status: 429 });
+  if (!(await limit(`track:${clientKey(req)}`)).ok) return new Response(null, { status: 429 });
   let body: { pid?: unknown; events?: unknown };
   try { body = JSON.parse(await req.text()); } catch { return new Response(null, { status: 400 }); }
   const pid = typeof body.pid === "string" ? body.pid : "";

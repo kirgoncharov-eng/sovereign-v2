@@ -1,0 +1,28 @@
+name: Текст или контент
+description: Нелогичная реплика, повтор, ошибка рода, новый контент
+labels: ["текст"]
+body:
+  - type: textarea
+    id: quote
+    attributes:
+      label: Цитата
+      description: Как есть, из игры.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Что не так
+      description: Говорит не тот человек, не то место и время, повтор, канцелярит, ошибка рода…
+  - type: textarea
+    id: context
+    attributes:
+      label: Где встретилось
+      description: Страна, ход, какое дело и какое решение.
+  - type: textarea
+    id: done
+    attributes:
+      label: Готово, когда
+      description: Проверяемые условия; где проверяем контекст, повтор и охват шести стран.
+    validations:
+      required: true

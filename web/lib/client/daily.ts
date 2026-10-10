@@ -2,10 +2,12 @@
 import { dailyCase } from "../game/daily.ts";
 import type { GameState } from "../game/types.ts";
 import { tgInitData, tgStartParam } from "./telegram.ts";
+import { APP_VERSION } from "../game/data.ts";
 
 // Таблица «Дела дня» сортируется по годам у власти (ходам), при равенстве — по очкам.
 export interface BoardRow { name: string; title: string; score: number; turns: number; me: boolean }
-export interface Board { uid: string; total: number; me: { rank: number; score: number; turns: number } | null; top: BoardRow[]; friends: BoardRow[] }
+// stale — партию сыграли на старой версии игры, и сервер не смог её проверить.
+export interface Board { uid: string; stale?: boolean; total: number; me: { rank: number; score: number; turns: number } | null; top: BoardRow[]; friends: BoardRow[] }
 
 const UID_KEY = "sovereign.uid";
 const REF_KEY = "sovereign.ref";
@@ -36,7 +38,7 @@ async function call(payload: Record<string, unknown>): Promise<Board | null> {
     const r = await fetch("/api/daily", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload, uid: webUid(), initData: tgInitData(), ref: ref() }),
+      body: JSON.stringify({ ...payload, v: APP_VERSION, uid: webUid(), initData: tgInitData(), ref: ref() }),
     });
     return r.ok ? await r.json() as Board : null;
   } catch {
