@@ -12,6 +12,8 @@
     "test": "node --test \"lib/**/*.test.ts\"",
     "check": "npm run lint && npm run typecheck && npm test",
     "build:demo": "node demo/build.mjs",
+    "playtest:install": "playwright install chromium",
+    "playtest": "npm run build:demo && node scripts/playtest.mjs",
     "balance": "node scripts/balance.ts"
   },
   "dependencies": {
@@ -27,6 +29,7 @@
     "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "playwright": "1.56.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

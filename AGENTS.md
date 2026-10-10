@@ -150,3 +150,6 @@ Tropico (фракции, выборы, дерзкий юмор), Suzerain (по�
 ## Скиллы проекта
 
 В `.claude/skills/`: `playtest`, `audit`, `text-review`, `release`, `steward`. Скрипты к ним — в `web/scripts/`.
+Codex обнаруживает те же навыки через относительные ссылки в `.agents/skills/`; инструкции редактируются в `.claude/skills/`.
+Локальный плейтест: `cd web && npm ci && npm run playtest:install`, затем `npm run playtest -- --turns=24`.
+Нужен Node.js 22 или новее; глобальный Playwright не требуется. Скриншоты и сводка — в `web/playtest/`.
