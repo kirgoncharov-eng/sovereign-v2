@@ -1,25 +1,44 @@
 // Люди вместо стрелок: под делом спорят два советника с противоположными интересами.
-// Экономист отвечает за казну, советник по безопасности — за силовиков. В своей области каждый говорит правду,
-// о прочем — тянет в свою сторону: цену любимого варианта преуменьшает, чужого — раздувает.
+// Кто спорит, зависит от дела: о деньгах и силе — экономист и силовик, о внешних делах — дипломат и силовик,
+// об улице и прессе — политтехнолог и экономист. В своей области лояльный советник говорит правду,
+// о прочем — тянет в свою сторону, каждый в своей манере. Нелояльный служит своему лагерю и лжёт даже в своей области.
 // Кто был прав, видно после хода: газета сверяет прогнозы с ведомостью.
 import { ACTIONS } from "./data.ts";
 import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed } from "./engine.ts";
+import { campOf, isDisloyal, mannerOf } from "./advisors.ts";
 import {
-  ABOUT_OTHER, ADMIT, ADVISOR_REASONS, AGREE, DOWNPLAY, LEVEL_PHRASES, NO_STAKE, ORDINAL, ORDINAL_LOC, VERDICTS, type Level,
+  ABOUT_OTHER, ADMIT, ADVISOR_REASONS, AGREE, ALARM, DOWNPLAY, DRY, LEVEL_PHRASES, NO_STAKE, ORDINAL, ORDINAL_LOC, VERDICTS,
+  type Level, type Manner,
 } from "../content/forecasts.ts";
-import type { AdvisorNews, Choice, GameEvent, GameState, ResourceKey } from "./types.ts";
+import type { ActionTag, AdvisorNews, Choice, GameEvent, GameState, ResourceKey } from "./types.ts";
 
 export type { Level };
 
-// Двое спорящих: своя область и второй интерес, по которому советник выбирает, когда своя не задета.
-// Экономисту важны ещё инвесторы и репутация, советнику по безопасности — контроль над элитами.
-export const DEBATERS: { id: string; interest: ResourceKey; also: ResourceKey }[] = [
-  { id: "economist", interest: "economy", also: "externalReputation" },
-  { id: "security", interest: "military", also: "politicalCapital" },
-];
+// Своя область советника и второй интерес, по которому он выбирает, когда своя не задета.
+export const ADVISOR_STAKE: Record<string, { interest: ResourceKey; also: ResourceKey }> = {
+  economist: { interest: "economy", also: "externalReputation" },
+  security: { interest: "military", also: "politicalCapital" },
+  diplomat: { interest: "externalReputation", also: "economy" },
+  strategist: { interest: "internalLegitimacy", also: "politicalCapital" },
+};
+
+// Кто спорит о деле: по тегам вариантов и задетым лагерям. Внешние дела — дипломат против силовика,
+// улица и пресса — политтехнолог против экономиста, остальное — экономист против силовика.
+const FOREIGN: ActionTag[] = ["pro_west", "pro_russia", "reform"];
+const FOREIGN_BLOCS = ["west", "russia"];
+const PUBLIC: ActionTag[] = ["propaganda", "dialogue", "anticorruption", "elite_deal", "social"];
+export function pairFor(state: Pick<GameState, "factions">, event: GameEvent): [string, string] {
+  const tags = new Set(event.choices.flatMap(c => c.tags));
+  const foreignCamp = event.affectedFactions.some(id => FOREIGN_BLOCS.includes(state.factions.find(f => f.id === id)?.bloc ?? ""));
+  if (foreignCamp || FOREIGN.some(t => tags.has(t))) return ["diplomat", "security"];
+  if (PUBLIC.some(t => tags.has(t)) && !tags.has("security") && !tags.has("repress")) return ["strategist", "economist"];
+  return ["economist", "security"];
+}
 
 // Как часто советник лукавит о том, что вне его области: слабый — почти всегда, блестящий — реже.
+// Сухая манера лукавит ещё реже, нелояльный — всегда.
 export const SPIN_CHANCE: Record<1 | 2 | 3, number> = { 1: 0.75, 2: 0.55, 3: 0.35 };
+const DRY_DISCOUNT = 0.25;
 
 const BIG = 6, SMALL = 2;
 const RESOURCES: ResourceKey[] = ["economy", "military", "internalLegitimacy", "externalReputation", "politicalCapital", "personalResource"];
@@ -38,7 +57,7 @@ export interface Claim {
   resource: ResourceKey;
   said: Level;
   truth: Level;
-  domain: boolean; // о своей области — всегда честно
+  domain: boolean; // о своей области — честно, пока советник лоялен
 }
 
 export interface AdvisorTake {
@@ -72,56 +91,65 @@ const upper = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const fillLine = (template: string, text: string, index: number) => template
   .replace("{x}", text).replace("{X}", upper(text)).replace("{n}", ORDINAL[index]).replace("{loc}", ORDINAL_LOC[index]);
 
-interface Option { choice: Choice; index: number; truth: Record<ResourceKey, Level>; delta: Record<ResourceKey, number> }
+interface Option {
+  choice: Choice;
+  index: number;
+  truth: Record<ResourceKey, Level>;
+  delta: Record<ResourceKey, number>;
+  relation: Record<string, number>; // как вариант меняет отношение лагерей к президенту
+}
 
 function optionsOf(state: GameState, event: GameEvent): Option[] {
   return event.choices.map((choice, index) => {
-    const fx = choiceEffects(state, choice).resources;
-    const delta = Object.fromEntries(RESOURCES.map(k => [k, Math.round(fx[k] ?? 0)])) as Record<ResourceKey, number>;
+    const fx = choiceEffects(state, choice);
+    const delta = Object.fromEntries(RESOURCES.map(k => [k, Math.round(fx.resources[k] ?? 0)])) as Record<ResourceKey, number>;
     const truth = Object.fromEntries(RESOURCES.map(k => [k, levelOf(delta[k])])) as Record<ResourceKey, Level>;
-    return { choice, index, truth, delta };
+    return { choice, index, truth, delta, relation: fx.factionRel };
   });
 }
 
 // Советник знает свою область: выбирает вариант, лучший для неё, затем — для второго интереса, затем — дешевле в целом.
-function favoriteOf(options: Option[], interest: ResourceKey, also: ResourceKey): Option {
-  const score = (o: Option) => o.delta[interest] * 1000 + o.delta[also] * 30 + RESOURCES.reduce((sum, k) => sum + o.delta[k], 0);
+// Нелояльный сначала смотрит, что выгодно его лагерю.
+function favoriteOf(options: Option[], interest: ResourceKey, also: ResourceKey, camp: string | null): Option {
+  const score = (o: Option) => (camp ? (o.relation[camp] ?? 0) * 100_000 : 0)
+    + o.delta[interest] * 1000 + o.delta[also] * 30 + RESOURCES.reduce((sum, k) => sum + o.delta[k], 0);
   return options.reduce((best, o) => (score(o) > score(best) ? o : best));
 }
 
-// Утверждение о своей области: честное, с причиной.
-function domainLine(favored: Option, opposed: Option, interest: ResourceKey, salt: number): { line: string; claim: Claim | null } {
+// Сдвиг утверждения в пользу своего варианта: о своём — лучше правды, о чужом — хуже.
+const toward = (target: Option, favored: Option, truth: Level, shift: number) => clamp(target === favored ? truth + shift : truth - shift);
+
+// Утверждение о своей области с причиной: честное у лояльного, со сдвигом у нелояльного.
+function domainLine(favored: Option, opposed: Option, interest: ResourceKey, salt: number, lie: boolean) {
   const pro = favored.truth[interest], contra = opposed.truth[interest];
   if (!pro && !contra) return { line: NO_STAKE[interest] ?? "", claim: null };
   const aboutOpposed = Math.abs(contra) > Math.abs(pro) || (Math.abs(contra) === Math.abs(pro) && contra < 0);
   const target = aboutOpposed ? opposed : favored;
-  const level = target.truth[interest];
-  const why = reasonOf(target.choice, interest, Math.sign(level), salt);
-  const text = `${phrase(interest, level)}${why ? `: ${why}` : ""}`;
-  return {
-    line: aboutOpposed ? fillLine(ABOUT_OTHER[salt % ABOUT_OTHER.length], text, target.index) : `${upper(text)}.`,
-    claim: { choiceId: target.choice.id, index: target.index, resource: interest, said: level, truth: level, domain: true },
-  };
+  const truth = target.truth[interest];
+  const said = toward(target, favored, truth, lie ? 1 : 0);
+  const why = said === truth ? reasonOf(target.choice, interest, Math.sign(truth), salt) : null;
+  const text = `${phrase(interest, said)}${why ? `: ${why}` : ""}`;
+  const claim: Claim = { choiceId: target.choice.id, index: target.index, resource: interest, said, truth, domain: true };
+  return { line: aboutOpposed ? fillLine(ABOUT_OTHER[salt % ABOUT_OTHER.length], text, target.index) : `${upper(text)}.`, claim };
 }
 
-// Утверждение о чужой области: здесь советник тянет в свою сторону.
-function spinLine(favored: Option, opposed: Option, interest: ResourceKey, spun: boolean, salt: number, afterOpposed: boolean) {
+// Утверждение о чужой области: здесь советник тянет в свою сторону — в своей манере.
+// smooth и dry сначала говорят о цене своего варианта, alarm — о цене чужого.
+function spinLine(favored: Option, opposed: Option, interest: ResourceKey, manner: Manner, spun: boolean, salt: number, afterOpposed: boolean) {
   const others = RESOURCES.filter(k => k !== interest);
   const worst = (o: Option) => others.reduce((a, b) => (o.delta[b] < o.delta[a] ? b : a));
   const best = (o: Option) => others.reduce((a, b) => (o.delta[b] > o.delta[a] ? b : a));
-  const shift = spun ? 1 : 0;
-  let target: Option, resource: ResourceKey, said: Level;
-  if (favored.truth[worst(favored)] < 0) {
-    target = favored; resource = worst(favored); said = clamp(favored.truth[resource] + shift); // цену своего варианта преуменьшает
-  } else if (opposed.truth[worst(opposed)] < 0) {
-    target = opposed; resource = worst(opposed); said = clamp(opposed.truth[resource] - shift); // цену чужого раздувает
-  } else if (opposed.truth[best(opposed)] > 0) {
-    target = opposed; resource = best(opposed); said = clamp(opposed.truth[resource] - shift); // выгоду чужого не замечает
-  } else return null;
-  const text = phrase(resource, said);
-  const templates = target === favored ? (said < 0 ? ADMIT : DOWNPLAY) : afterOpposed ? ["Там же {x}."] : ABOUT_OTHER;
+  const ownCost = favored.truth[worst(favored)] < 0 ? { target: favored, resource: worst(favored) } : null;
+  const rivalCost = opposed.truth[worst(opposed)] < 0 ? { target: opposed, resource: worst(opposed) } : null;
+  const rivalGain = opposed.truth[best(opposed)] > 0 ? { target: opposed, resource: best(opposed) } : null;
+  const pick = (manner === "alarm" ? [rivalCost, ownCost, rivalGain] : [ownCost, rivalCost, rivalGain]).find(Boolean);
+  if (!pick) return null;
+  const { target, resource } = pick;
+  const said = toward(target, favored, target.truth[resource], spun ? 1 : 0);
+  const aboutRival = manner === "alarm" ? ALARM : manner === "dry" ? DRY : ABOUT_OTHER;
+  const templates = target === favored ? (said < 0 ? ADMIT : DOWNPLAY) : afterOpposed ? ["Там же {x}."] : aboutRival;
   const claim: Claim = { choiceId: target.choice.id, index: target.index, resource, said, truth: target.truth[resource], domain: false };
-  return { line: fillLine(templates[salt % templates.length], text, target.index), claim };
+  return { line: fillLine(templates[salt % templates.length], phrase(resource, said), target.index), claim };
 }
 
 // Спор под делом: два советника, каждый за свой вариант. null — дело без спора.
@@ -129,28 +157,34 @@ export function debate(state: GameState): AdvisorTake[] | null {
   const event = state.currentEvent;
   if (!debateApplies(event)) return null;
   const options = optionsOf(state, event);
-  const speakers = DEBATERS.map(d => ({ ...d, advisor: state.advisors?.find(a => a.id === d.id) })).filter(d => d.advisor);
+  const speakers = pairFor(state, event).flatMap(id => {
+    const advisor = state.advisors?.find(a => a.id === id);
+    if (!advisor) return [];
+    const disloyal = isDisloyal(advisor);
+    return [{ id, ...ADVISOR_STAKE[id], advisor, disloyal, manner: mannerOf(advisor), camp: disloyal ? campOf(state, advisor)?.id ?? null : null }];
+  });
   if (speakers.length < 2) return null;
   // Против кого интрига, тот о ней не советует.
-  if (event.beat && speakers.some(d => d.advisor!.name === state.arc?.target)) return null;
-  const favorites = speakers.map(d => favoriteOf(options, d.interest, d.also));
+  if (event.beat && speakers.some(d => d.advisor.name === state.arc?.target)) return null;
+  const favorites = speakers.map(d => favoriteOf(options, d.interest, d.also, d.camp));
   return speakers.map((d, i) => {
     const favored = favorites[i];
     const rival = favorites[1 - i];
     // Спорит с вариантом соперника; если оба за одно — с тем, что хуже для своей области.
     const opposed = rival !== favored ? rival
       : options.filter(o => o !== favored).reduce((a, b) => (b.delta[d.interest] < a.delta[d.interest] ? b : a));
-    const spun = hashSeed(state.seed, "spin", state.turn, d.id) % 100 < SPIN_CHANCE[d.advisor!.skill] * 100;
+    const chance = SPIN_CHANCE[d.advisor.skill] - (d.manner === "dry" ? DRY_DISCOUNT : 0);
+    const spun = d.disloyal || hashSeed(state.seed, "spin", state.turn, d.id) % 100 < chance * 100;
     const agree = i === 1 && rival === favored;
     const salt = hashSeed(state.seed, "debate", state.turn, d.id);
     const verdicts = agree ? AGREE : VERDICTS;
     const verdict = verdicts[salt % verdicts.length].replace("{n}", ORDINAL[favored.index]);
-    const domain = domainLine(favored, opposed, d.interest, salt >>> 3);
-    const spin = spinLine(favored, opposed, d.interest, spun, salt >>> 6, domain.claim?.choiceId === opposed.choice.id);
+    const domain = domainLine(favored, opposed, d.interest, salt >>> 3, d.disloyal);
+    const spin = spinLine(favored, opposed, d.interest, d.manner, spun, salt >>> 6, domain.claim?.choiceId === opposed.choice.id);
     return {
       id: d.id,
-      name: d.advisor!.name,
-      role: d.advisor!.role,
+      name: d.advisor.name,
+      role: d.advisor.role,
       favors: favored.choice.id,
       text: [verdict, domain.line, spin?.line].filter(Boolean).join(" "),
       claims: [domain.claim, spin?.claim].filter((c): c is Claim => !!c),
