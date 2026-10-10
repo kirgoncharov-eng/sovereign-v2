@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, useState } from 'react';
 import { personProfiles } from '@/lib/client/people-text.ts';
-import { messageUnread, presidentialMessages } from '@/lib/client/presidential-inbox.ts';
+import { messageUnread, presidentialMessages, presidentialReplyActions } from '@/lib/client/presidential-inbox.ts';
 import CommitmentBrief from './CommitmentBrief.jsx';
 import { commitmentBriefs } from '@/lib/client/commitment-brief.ts';
 import { governmentLoad } from '@/lib/game/government.ts';
@@ -9,6 +9,7 @@ import EvidencePanel from './EvidencePanel.jsx';
 import MinisterPanel from './MinisterPanel.jsx';
 import SponsorPanel from './SponsorPanel.jsx';
 import GovernmentPanel from './GovernmentPanel.jsx';
+import ProjectActions from './ProjectActions.jsx';
 import { PeopleText } from './PeopleText.jsx';
 import { trackDesk, trackAppointment } from '@/lib/client/desk-analytics.ts';
 
@@ -17,6 +18,9 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
   const [everyone, setEveryone] = useState(false);
   const [governmentSelection, setGovernmentSelection] = useState('energy');
   const [messageKey, setMessageKey] = useState(null);
+  const [replyPending, setReplyPending] = useState(null);
+  const [replyError, setReplyError] = useState('');
+  const [replyReceipt, setReplyReceipt] = useState(null);
   const dialog = useRef(null);
   const titleId = useId();
   const available = !gs.daily && !gs.ended && !!gs.world;
@@ -45,7 +49,21 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
   const person = profiles.find(p => p.id === view);
   const incoming = messages.filter(m => m.person === view);
   const selected = incoming.find(m => m.key === messageKey) ?? incoming.find(m => m.needsReply) ?? incoming[0];
+  const replyActions = selected ? presidentialReplyActions(gs, selected) : [];
+  const pendingReply = replyActions.find(action => action.id === replyPending?.id) ?? null;
+  const confirmReply = () => {
+    if (!pendingReply || pendingReply.blocked) return;
+    try {
+      signAction(pendingReply.id);
+      setReplyReceipt({ key: selected.key, text: `Подписано: ${pendingReply.title}. Цена учтена в ресурсах страны. Исполнение идёт после главных решений; новые доклады придут в сообщения.` });
+      setReplyPending(null);
+      setReplyError('');
+    } catch (error) { setReplyError(error.message); }
+  };
   const open = next => {
+    setReplyPending(null);
+    setReplyError('');
+    setReplyReceipt(null);
     if (next === 'government') trackDesk(gs, 'government');
     else if (next === 'people' || profiles.some(profile => profile.id === next)) trackDesk(gs, 'messages');
     setView(next);
@@ -64,6 +82,13 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
       <button className="sv-desk-inbox" onClick={() => open('people')}><strong>Сообщения{unread ? ` · ${unread} новых` : ''}</strong><span>{waiting ? `${waiting} ждут ответа` : 'Люди и договорённости'}</span></button>
       <button className="sv-desk-government" onClick={()=>government()}><strong>Правительство</strong><span>{governmentLoad(gs.world)}/2 программ в работе</span></button>
     </nav>
+    {messages.filter(message => message.needsReply && ['energy', 'health'].includes(message.action)).map(message =>
+      <button key={message.key} className="sv-desk-link" data-assignment-reminder={message.action}
+        onClick={() => { open(message.person); setMessageKey(message.key); onRead(message.person); }}>
+        {message.action === 'energy' ? 'Энергосеть' : 'Больницы'}: {gs.world[message.action === 'energy' ? 'project' : 'health']?.status === 'unassigned'
+          ? 'назначьте исполнителя — без него работа не начнётся' : 'нужен ответ на доклад'}
+        {message.deadline !== undefined ? ` · осталось ${Math.max(0, message.deadline - gs.turn)} кв.` : ''} →
+      </button>)}
     <small className="sv-desk-attention">{gs.world.lastActionTurn === gs.turn ? 'Личное поручение подписано · главное дело ещё доступно' : 'Одно личное поручение на квартал · чтение свободно'}</small>
     <dialog ref={dialog} className="sv-desk-dialog" aria-labelledby={titleId} onCancel={e => { e.preventDefault(); close(); }} onClick={e => { if (e.target === dialog.current) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) close(); } }}>
       <header className="sv-desk-dialog-header"><h2 id={titleId}>{view === 'government' ? 'Правительство' : view === 'commitments' ? 'Ваши договорённости' : person ? 'Личное обращение' : 'Сообщения и люди'}</h2><button aria-label="Закрыть и вернуться к главному делу" onClick={() => close()}>×</button><p className="sv-desk-wallet">Экономика {gs.resources.economy} · политкапитал {gs.resources.politicalCapital} · личный ресурс {gs.resources.personalResource}</p></header>
@@ -83,10 +108,19 @@ export default function PresidentialDesk({ gs, Portrait, Scene, onAction, onRead
         {view === 'government' && <GovernmentPanel key={governmentSelection} initialProject={governmentSelection}
           gs={gs} onAction={signAction} onClose={() => close()} onDetails={project}/>}
         {person && <div className="sv-desk-correspondence"><header><Portrait name={person.name} size={42}/><div><h3><PeopleText>{person.name}</PeopleText></h3><p>{person.role}{person.relation !== null ? ` · к вам ${person.relation > 0 ? '+' : ''}${person.relation}` : ''}</p></div></header>
+          {replyReceipt && <p role="status">{replyReceipt.text}</p>}
           {!incoming.length && <p>Обращений нет. Его досье можно открыть по имени.</p>}
-          {incoming.length > 1 && <nav className="sv-desk-message-list" aria-label="Обращения человека">{incoming.map(m => <button key={m.key} aria-pressed={selected?.key === m.key} onClick={() => setMessageKey(m.key)}><strong>{m.title}</strong><span>{m.needsReply ? 'Ждёт ответа' : m.key === 'minister-mandate' || m.key === 'sponsor' ? 'Договорённость' : 'Доклад'}</span></button>)}</nav>}
+          {incoming.length > 1 && <nav className="sv-desk-message-list" aria-label="Обращения человека">{incoming.map(m => <button key={m.key} aria-pressed={selected?.key === m.key} onClick={() => { setMessageKey(m.key); setReplyPending(null); setReplyError(''); setReplyReceipt(null); }}><strong>{m.title}</strong><span>{m.needsReply ? 'Ждёт ответа' : m.key === 'minister-mandate' || m.key === 'sponsor' ? 'Договорённость' : 'Доклад'}</span></button>)}</nav>}
           {selected && <article key={selected.key} className="sv-desk-message"><small>{selected.needsReply ? 'ЖДЁТ ВАШЕГО ОТВЕТА' : 'ДОГОВОРЁННОСТЬ ИЛИ ДОКЛАД'}{selected.deadline ? ` · до конца квартала ${selected.deadline}` : ''}</small><h4>{selected.title}</h4>
-            {selected.action === 'evidence' ? <EvidencePanel gs={gs} onAction={onAction} onClose={() => close()}/> : selected.action === 'minister' ? <MinisterPanel gs={gs} Scene={Scene} onAction={onAction} onClose={() => close()}/> : selected.action === 'sponsor' ? <SponsorPanel embedded gs={gs} Scene={Scene} onAction={onAction} onViewChange={onViewChange} onClose={() => close()}/> : <><p><PeopleText>{selected.text}</PeopleText></p><button className="sv-desk-link" onClick={() => selected.action === 'government' ? government(selected.key==='housing-next'?'housing':selected.key.startsWith('program:')?selected.key.split(':')[1]:'energy') : project(selected.action)}>{selected.action === 'government' ? 'Рассмотреть проекты правительства' : 'Открыть поручения и доклады'} →</button></>}
+            {selected.action === 'evidence' ? <EvidencePanel gs={gs} onAction={onAction} onClose={() => close()}/> : selected.action === 'minister' ? <MinisterPanel gs={gs} Scene={Scene} onAction={onAction} onClose={() => close()}/> : selected.action === 'sponsor' ? <SponsorPanel embedded gs={gs} Scene={Scene} onAction={onAction} onViewChange={onViewChange} onClose={() => close()}/> : <><p><PeopleText>{selected.text}</PeopleText></p>
+              {replyActions.length > 0 && <div data-message-reply={selected.action}>
+                <p><strong>{replyActions[0].id.includes('appoint:') ? 'Назначьте исполнителя и выделите бюджет' : 'Выберите ответ на доклад'}</strong>
+                  {selected.deadline !== undefined && ` · до конца квартала ${selected.deadline}; осталось ${Math.max(0, selected.deadline - gs.turn)} кв.`}</p>
+                <ProjectActions gs={gs} actions={replyActions} quota={gs.world.lastActionTurn === gs.turn}
+                  pending={pendingReply} setPending={action => { setReplyPending(action); setReplyError(''); }}
+                  confirm={confirmReply} error={replyError}/>
+              </div>}
+              <button className="sv-desk-link" onClick={() => selected.action === 'government' ? government(selected.key==='housing-next'?'housing':selected.key.startsWith('program:')?selected.key.split(':')[1]:'energy') : project(selected.action)}>{selected.action === 'government' ? 'Рассмотреть проекты правительства' : 'Открыть поручения и доклады'} →</button></>}
           </article>}
         </div>}
         {!(person && ['minister', 'sponsor', 'evidence'].includes(selected?.action)) && view !== 'government' && <button className="sv-desk-link" onClick={() => close()}>Вернуться к главному делу →</button>}
