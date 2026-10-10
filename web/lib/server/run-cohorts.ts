@@ -16,9 +16,11 @@ export interface RunCohort {
 // Каждый рубеж записывается один раз. Метаданные старта передаются и с поздними
 // событиями: потерянный/задержавшийся первый пакет не сдвигает когорту на день финала.
 export async function recordRunMilestones(pid: string, event: TrackInput, now: number) {
-  if (!["start", "resume", "turn", "end", "share", "intro", "first"].includes(event.e)) return;
+  if (!["start", "resume", "turn", "end", "share", "intro", "first", "desk"].includes(event.e)) return;
   const p = event.p;
   const candidate = { id: p?.rid, startedAt: p?.at, version: p?.rv, source: p?.rs, mode: p?.rm, channel: p?.rc };
+  if (event.e === "desk" && (candidate.mode !== "ordinary"
+    || !["available", "messages", "government", "appointed"].includes(String(p?.kind)))) return;
   if (!validAnalyticsRun(candidate) || candidate.startedAt > now + 300_000 || now - candidate.startedAt >= TTL * 1000) return;
   const key = `an:run:${pid}:${candidate.id}`;
   const newMeasurement = await kv.hsetnx(key, "meta", JSON.stringify(candidate));
@@ -31,6 +33,16 @@ export async function recordRunMilestones(pid: string, event: TrackInput, now: n
   const cohort = `an:runs:${date}:${group}`;
   await kv.sadd(`an:runs:${date}:groups`, group);
   const milestones = ["started"];
+  if (event.e === "desk") {
+    if (run.mode !== "ordinary") return;
+    const deskMilestone: Record<string, string> = {
+      available: "deskAvailable", messages: "deskMessages", government: "deskGovernment", appointed: "deskAppointed",
+    };
+    const name = typeof p?.kind === "string" ? deskMilestone[p.kind] : undefined;
+    if (typeof name !== "string") return;
+    milestones.push("deskAvailable", name);
+    if (p?.kind === "messages" || p?.kind === "government") milestones.push("deskOpened");
+  }
   if (newMeasurement) milestones.push("windowMeasured");
   if (event.e === "resume") milestones.push("resumed");
   if (event.e === "end") milestones.push("ended");

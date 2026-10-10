@@ -7,7 +7,9 @@ import { APP_VERSION } from "../game/data.ts";
 import { inTelegram } from "./telegram.ts";
 import { acquisitionChannel } from "./acquisition-source.ts";
 
-export type TrackEvent = "open" | "start" | "resume" | "turn" | "end" | "share" | "invite" | "daily" | "intro" | "first" | "help" | "subscribe";
+export type TrackEvent =
+  | "open" | "start" | "resume" | "turn" | "end" | "share" | "invite"
+  | "daily" | "intro" | "first" | "help" | "subscribe" | "desk";
 type Props = Record<string, string | number | boolean>;
 
 const queue: { e: TrackEvent; p?: Props }[] = [];
@@ -48,7 +50,7 @@ export function track(e: TrackEvent, p?: Props) {
   if (typeof window === "undefined" || process.env.NEXT_PUBLIC_ANALYTICS === "off" || isTester()) return;
   const platform = inTelegram() ? "tg" : "web";
   const channel = acquisitionChannel();
-  const context = ["start", "resume", "turn", "end", "share", "intro", "first"].includes(e) ? runProps() : {};
+  const context = ["start", "resume", "turn", "end", "share", "intro", "first", "desk"].includes(e) ? runProps() : {};
   queue.push({ e, p: { ...p, ...context, v: APP_VERSION, platform, src: channel ? `src_${channel}` : platform } });
   if (!hooked) {
     hooked = true;

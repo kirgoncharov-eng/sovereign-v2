@@ -7,14 +7,18 @@ import { readRunCohorts, recordRunMilestones, type RunCohort } from "./run-cohor
 import { kv } from "./kv.ts";
 import { readErrors, type ErrorRow } from "./errors.ts";
 import { readAcquisitionCohorts, recordAcquisitionVisit, renderAcquisition, type AcquisitionCohort } from "./acquisition.ts";
+import { renderDeskAnalytics } from "./desk-analytics.ts";
 
-export const TRACK_EVENTS = ["open", "start", "resume", "turn", "end", "share", "invite", "daily", "intro", "first", "help", "subscribe"] as const;
+export const TRACK_EVENTS = [
+  "open", "start", "resume", "turn", "end", "share", "invite", "daily", "intro", "first", "help", "subscribe", "desk",
+] as const;
 export type TrackEventName = (typeof TRACK_EVENTS)[number];
 
 // По каким свойствам события считаем разрезы.
 const DIMS: Record<TrackEventName, string[]> = {
   open: ["src"], start: ["country", "diff", "ideo", "bio", "daily", "quick"], resume: [], turn: ["n"],
   end: ["type", "kept", "path"], share: ["via"], invite: [], daily: [], intro: [], first: ["sec"], help: [], subscribe: [],
+  desk: ["kind"],
 };
 export const COHORT_DAYS = [1, 3, 7, 14, 30];
 const TTL = 60 * 60 * 24 * 120;
@@ -190,6 +194,7 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 <div class="paper"><h2>Возвращаемость по дню первого визита</h2><p class="muted">Доля новых устройств, активных в указанный календарный день UTC после первого визита. Повторные визиты за день считаются один раз. Незавершённые интервалы показаны прочерком; смена браузера или очистка данных создаёт новое устройство.</p><div class="scroll"><table><tr><th>Пришли</th><th>Устройств</th>${COHORT_DAYS.map(k => `<th>День ${k}</th>`).join("")}</tr>${cohortRows || `<tr><td colspan="7" class="muted">Пока нет данных</td></tr>`}</table></div></div>
 <div class="grid">
 ${renderAcquisition(s.acquisition ?? [], s.runCohorts ?? [], s.observedAt ?? Date.now())}
+${renderDeskAnalytics(s.runCohorts ?? [])}
 <div class="paper">${section("Страны", "start|country=", starts)}</div>
 <div class="paper">${section("Сложность", "start|diff=", starts)}</div>
 <div class="paper">${section("Курс", "start|ideo=", starts)}</div>
