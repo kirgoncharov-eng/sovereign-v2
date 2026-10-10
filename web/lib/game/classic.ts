@@ -77,10 +77,14 @@ const FAITH: Record<"christian" | "muslim", Record<string, string>> = {
   christian: {
     church: "церковь", temple: "храм", flock_gen: "прихожан", flock_dat: "прихожанам", parishes_dat: "приходам",
     diocese_dat: "епархии", priest_gen: "священника", icons: "иконами",
+    sermons_loc: "воскресных проповедях", believer_gen: "христианина",
+    prays: "служит молебен", prays_thanks: "служит благодарственный молебен",
   },
   muslim: {
     church: "духовенство", temple: "мечеть", flock_gen: "верующих", flock_dat: "верующим", parishes_dat: "общинам",
     diocese_dat: "духовному управлению", priest_gen: "имама", icons: "плакатами",
+    sermons_loc: "пятничных проповедях", believer_gen: "верующего",
+    prays: "читает молитву", prays_thanks: "читает благодарственную молитву",
   },
 };
 const faithOf = (country: string) => FAITH[country === "Казахстан" ? "muslim" : "christian"];
@@ -412,6 +416,7 @@ export function lawEvent(state: GameState): SpecialEvent | null {
   if (!bills.length) return null;
   const def = pick(r, bills);
   const f = (t: string) => fill(t, state, slots(def));
+  const delayScene = f(cycle(BILL.delayScenes, state.seed, "bill-delay", marks.length));
   return {
     cardId: `law:${turn}:${def.id}`,
     title: f(BILL.title), source: BILL.source,
@@ -423,7 +428,7 @@ export function lawEvent(state: GameState): SpecialEvent | null {
       { id: "b", text: BILL.veto.text, hint: BILL.veto.hint, tags: def.veto, costReasons: def.vetoCosts, resolvesCrisis: null, stance: stance(def, -8, -3, 5),
         scene: f(def.vetoed), sceneFail: f(def.vetoed), headline: f(def.head.vetoed), headlineFail: f(def.head.vetoed) },
       { id: "c", text: BILL.delay.text, hint: BILL.delay.hint, tags: ["delay"], resolvesCrisis: null, stance: { [def.bloc]: -3 },
-        scene: f(BILL.delayScene), sceneFail: f(BILL.delayScene), headline: f(BILL.delayHead), headlineFail: f(BILL.delayHead) },
+        scene: delayScene, sceneFail: delayScene, headline: f(BILL.delayHead), headlineFail: f(BILL.delayHead) },
     ],
     randomEvent: null,
   };
