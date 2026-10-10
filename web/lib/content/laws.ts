@@ -371,7 +371,8 @@ export const LAWS: LawDef[] = [
   },
   {
     id: "eu_course", title: "О закреплении курса на европейскую интеграцию", short: "Вступление в ЕС — цель, записанная в законе",
-    bloc: "west", allies: ["liberal"], foes: ["russia"], conflicts: ["union_treaty"], tags: ["pro_west", "reform"], veto: ["pro_russia"],
+    // Курс на ЕС — там, где он в повестке: не для Беларуси и Казахстана, которые в союзе с Россией.
+    bloc: "west", allies: ["liberal"], foes: ["russia"], countries: ["Украина", "Молдова", "Грузия", "Армения"], conflicts: ["union_treaty"], tags: ["pro_west", "reform"], veto: ["pro_russia"],
     costs: {"politicalCapital": "часть элит против закрепления европейского курса", "personalResource": "изменение правил требует вашего постоянного участия", "internalLegitimacy": "курс на ЕС поддерживают не все избиратели"},
     perTurn: { externalReputation: 1, economy: -1 }, drift: { west: 1, russia: -1 },
     pitch: "{fac:west} {v:west:приветствовал бы|приветствовали бы} закон, закрепляющий курс на вступление в Евросоюз: любое правительство после вас будет обязано идти этим путём. Москва предупреждает через посла, что «воспримет это как выбор». Это и есть выбор.",

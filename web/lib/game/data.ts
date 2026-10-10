@@ -1,7 +1,7 @@
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "7.8";
+export const APP_VERSION = "7.9";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 // Срок — двадцать ходов (пять лет). Правление не ограничено сроком: партия идёт, пока лидер у власти.
 export const TERM = 20;
@@ -132,7 +132,7 @@ export const FACTIONS_DATA: Record<string, FactionInfo[]> = {
     { id:"media",        name:"Медиа",             desc:"Телеканалы и пресса",         emoji:"📰", baseApproval:55, bloc:"liberal", plural:true },
   ],
   "Грузия": [
-    { id:"gdream",     name:"Партия «Согласие»",   desc:"Партия основателя-миллиардера",emoji:"👑", baseApproval:35, bloc:"ruling" },
+    { id:"gdream",     name:"Народное согласие",   desc:"Партия основателя-миллиардера",emoji:"👑", baseApproval:35, bloc:"ruling" },
     { id:"opposition", name:"Проевропейская оппозиция",desc:"Бывшая правящая партия и др.",     emoji:"🌍", baseApproval:48, bloc:"liberal" },
     { id:"church",     name:"Православная церковь",desc:"Патриарх и духовенство",    emoji:"⛪", baseApproval:72, bloc:"church" },
     { id:"business",   name:"Бизнес-элиты",       desc:"Предприниматели и банки",    emoji:"💼", baseApproval:44, bloc:"business", plural:true },
@@ -211,7 +211,7 @@ export const FIGURE_ROLES: Record<string, FigureRole[]> = {
     { id:"mayor",      role:"Мэр Киева",                faction:"civil",        baseMood:"союзник" },
   ],
   "Грузия": [
-    { id:"shadow",     role:"Теневой хозяин «Согласия»", faction:"gdream",     baseMood:"враг"    },
+    { id:"shadow",     role:"Теневой хозяин «Народного согласия»", faction:"gdream",     baseMood:"враг"    },
     { id:"opp_leader", role:"Лидер оппозиции",          faction:"opposition", baseMood:"нейтрал" },
     { id:"patriarch",  role:"Католикос-патриарх",       faction:"church",     baseMood:"нейтрал" },
     { id:"amb_usa",    role:"Посол США",                 faction:"west",       baseMood:"союзник" },
@@ -327,7 +327,7 @@ export const PARTIES: Record<string, PartyInfo[]> = {
     { id:"newkz",      name:"Новый Казахстан",         blocs:["liberal"] },
   ],
   "Грузия": [
-    { id:"dream",  name:"Партия «Согласие»",       blocs:["ruling","church"] },
+    { id:"dream",  name:"Народное согласие",       blocs:["ruling","church"] },
     { id:"unity",  name:"Проевропейская коалиция", blocs:["liberal"] },
     { id:"growth", name:"Партия роста",            blocs:["business","regional","nationalist"] },
   ],
