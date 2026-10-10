@@ -4,7 +4,7 @@
 // о прочем — тянет в свою сторону, каждый в своей манере. Нелояльный служит своему лагерю и лжёт даже в своей области.
 // Кто был прав, видно после хода: газета сверяет прогнозы с ведомостью.
 import { ACTIONS } from "./data.ts";
-import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed } from "./engine.ts";
+import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed, loyaltyOf } from "./engine.ts";
 import { campOf, isDisloyal, mannerOf } from "./advisors.ts";
 import {
   ABOUT_OTHER, ADMIT, ADVISOR_REASONS, AGREE, ALARM, DOWNPLAY, DRY, LEVEL_PHRASES, NO_STAKE, ORDINAL, ORDINAL_LOC, VERDICTS,
@@ -221,6 +221,7 @@ export function forecastReview(state: GameState, choiceId: string, failed: boole
 
 // Что ход сделал с советниками в споре: выбрали вариант советника — лояльность растёт,
 // вариант его оппонента — падает; сбывшиеся прогнозы идут в счёт.
+// В отчёт идёт фактическая перемена после ограничения 0–100: у советника с лояльностью 100 рост нулевой.
 export function advisorNews(state: GameState, choiceId: string, failed: boolean): AdvisorNews[] {
   const takes = debate(state);
   if (!takes) return [];
@@ -229,9 +230,11 @@ export function advisorNews(state: GameState, choiceId: string, failed: boolean)
     const overruled = take.favors !== choiceId && takes.some(other => other !== take && other.favors === choiceId);
     const reason = take.favors === choiceId ? "followed" as const : overruled ? "overruled" as const : null;
     const own = checks.filter(check => check.take.id === take.id);
+    const nominal = reason === "followed" ? LOYALTY_FOLLOWED : reason === "overruled" ? LOYALTY_OVERRULED : 0;
+    const before = loyaltyOf(state.advisors.find(advisor => advisor.id === take.id)!);
     return {
       id: take.id,
-      loyalty: reason === "followed" ? LOYALTY_FOLLOWED : reason === "overruled" ? LOYALTY_OVERRULED : 0,
+      loyalty: Math.max(0, Math.min(100, before + nominal)) - before,
       right: own.filter(check => check.right).length,
       wrong: own.filter(check => !check.right).length,
       reason,
