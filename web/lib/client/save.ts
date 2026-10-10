@@ -90,7 +90,10 @@ function validState(s: Obj): boolean {
   if (!rows(s.keyFigures, f => fields(f, ["id", "role", "faction", "name", "loyalty"]) && integer(f.relation, -100, 100))) return false;
   if (!rows(s.advisors, a => fields(a, ["id", "name", "role", "emoji"]) && integer(a.skill, 1, 3)
     && (a.loyalty === undefined || integer(a.loyalty, 0, 100))
-    && (a.record === undefined || isObj(a.record) && integer(a.record.right) && integer(a.record.wrong)))) return false;
+    && (a.record === undefined || isObj(a.record) && integer(a.record.right) && integer(a.record.wrong))
+    && ["origin", "title", "bio"].every(key => a[key] === undefined || typeof a[key] === "string")
+    && (a.camp === undefined || a.camp === null || typeof a.camp === "string")
+    && (a.since === undefined || integer(a.since)))) return false;
   if (!rows(s.history, h => fields(h, ["title", "choice", "headline", "historianNote"]) && integer(h.year) && (h.law === undefined || h.law === null || validLawNews(h.law)))) return false;
   if (!rows(s.activeCrises, c => fields(c, ["id", "title", "description", "severity"]) && isObj(c.resourceDrain) && integer(c.turnsActive))) return false;
   if (!pending(s.pending)) return false;
@@ -102,6 +105,8 @@ function validState(s: Obj): boolean {
   if (s.laws !== undefined && !rows(s.laws, l => typeof l.id === "string" && integer(l.since) && (l.transition === undefined || l.id === "pension_reform" && fields(l.transition, ["figure", "name"]) && integer((l.transition as Obj).since) && Number((l.transition as Obj).since) >= Number(l.since) && Number((l.transition as Obj).since) <= Number(s.turn)))) return false;
   if (s.pacts !== undefined && !rows(s.pacts, p => typeof p.faction === "string" && integer(p.since) && integer(p.until) && strings(p.ban))) return false;
   if (s.former !== undefined && !strings(s.former) || s.echoes !== undefined && !isObj(s.echoes)) return false;
+  if (s.staffing !== undefined && !(isObj(s.staffing) && (s.staffing.lastTurn === null || integer(s.staffing.lastTurn))
+    && strings(s.staffing.taken) && (s.staffing.receipt === undefined || typeof s.staffing.receipt === "string"))) return false;
   if (s.world !== undefined && !validLivingWorld(s.world)) return false;
   if (s.dailyMoves !== undefined && (!validDailyMoves(s.dailyMoves) || s.dailyMoves.length !== s.turn)) return false;
   return !s.verdict || fields(s.verdict, ["verdict", "title", "epitaph", "rating"]);

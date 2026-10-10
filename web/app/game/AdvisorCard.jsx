@@ -33,6 +33,7 @@ export function AdvisorCard({ gs, advisor, id }) {
         </dd>
         {profile.camp && <><dt>Тянется к</dt><dd>«{profile.camp.name}» · к вам {signed(profile.camp.relation)}</dd></>}
         <dt>Манера</dt><dd>{profile.manner}</dd>
+        {profile.origin && <><dt>Откуда</dt><dd>{profile.origin}</dd></>}
         <dt>Прогнозы</dt>
         <dd>{forecasts}</dd>
       </dl>
