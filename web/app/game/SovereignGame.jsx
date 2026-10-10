@@ -1,6 +1,10 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
-import { ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION, TERM_RULES, TERM, localTurn, termIndex, termOrdinal, reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects, ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY } from "@/lib/game/data.ts";
+import {
+  ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION, TERM_RULES, TERM, localTurn, termIndex, termOrdinal,
+  reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects,
+  ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY
+} from "@/lib/game/data.ts";
 import { commitmentTags, choiceEffects, saboteurOf, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
@@ -1840,7 +1844,9 @@ function CountrySheet({ gs }) {
     )}
     <Fold title="Опрос" note={`у вас ${polls.leader}%${next ? ` · ${next.label.toLowerCase()} ${inTurns(next.in)}` : ""}`}><PollWidget gs={gs} bare/></Fold>
     {notes.promises && <Fold title="Обещания" note={notes.promises}><PromisesCard gs={gs} bare/></Fold>}
-    <Fold title="Конституция" note={gs.path ? `решено: ${PATH_LABEL[gs.path.id]}` : `вопрос о сроках — на ${TERMS_TURN}-м ходу`}><TermsCard gs={gs} bare/></Fold>
+    <Fold title="Конституция" note={gs.path ? `решено: ${PATH_LABEL[gs.path.id]}` : `вопрос о сроках — на ${TERMS_TURN}-м ходу`}>
+      <TermsCard gs={gs} bare/>
+    </Fold>
     <Fold title="Законы" note={notes.laws}>
       {gs.laws?.length ? <LawsCard gs={gs} bare/> : <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>Принятые законы появятся здесь.</div>}
     </Fold>
@@ -1885,7 +1891,9 @@ function PeopleSheet({ gs, onDossier, onHire }) {
       return <RelBar key={f.id} label={`${f.name} · ${share}${f.relation <= HOSTILE_RELATION ? " · вредит ⚠" : ""}`}
         val={f.relation} prevVal={prevFactions?.find(p => p.id === f.id)?.relation}/>;
     })}
-    <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, margin:"2px 0 14px", lineHeight:1.5 }}>шкала −100…+100 · ≤ {HOSTILE_RELATION} — вредит каждый ход</div>
+    <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, margin:"2px 0 14px", lineHeight:1.5 }}>
+      шкала −100…+100 · ≤ {HOSTILE_RELATION} — вредит каждый ход
+    </div>
     <Label>{"КЛЮЧЕВЫЕ ИГРОКИ"}</Label>
     {keyFigures.map(f => {
       const prev = prevFigures?.find(p => p.id === f.id && p.name === f.name);
@@ -2030,7 +2038,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   // Клавиши: 1–9 — фокус на вариант (с предпросмотром), Enter — подтвердить / следующий ход.
   useEffect(() => {
     const onKey = e => {
-      if (transition || countryOpen || contactOpen || resourceOpen || dossier || e.target.closest?.("input, textarea, [data-world-panel], [data-sponsor-panel], [data-presidential-desk]") || document.querySelector(".sv-modal")) return;
+      const covered = transition || countryOpen || contactOpen || resourceOpen || dossier;
+      const typing = e.target.closest?.("input, textarea, [data-world-panel], [data-sponsor-panel], [data-presidential-desk]");
+      if (covered || typing || document.querySelector(".sv-modal")) return;
       if (/^[1-9]$/.test(e.key)) {
         const el = document.getElementById(`opt-${e.key}`);
         if (el) { el.focus(); e.preventDefault(); }
@@ -2303,7 +2313,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <div style={{ padding:"0 24px 12px" }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.red, marginBottom:6 }}>СРОЧНО: 25 СЕКУНД — ИНАЧЕ РЕШАТ ЗА ВАС</div>
                     <div style={{ height:6, background:G.bdr }}>
-                      {urgentTurn === turn && <div key={`u${turn}`} className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:"25s", animationPlayState:countryOpen || contactOpen || resourceOpen || help || dossier ? "paused" : "running" }} onAnimationEnd={timeUp}/>}
+                      {urgentTurn === turn && <div key={`u${turn}`} className="sv-timer" onAnimationEnd={timeUp}
+                        style={{ height:"100%", background:G.red, animationDuration:"25s",
+                          animationPlayState:countryOpen || contactOpen || resourceOpen || help || dossier ? "paused" : "running" }}/>}
                     </div>
                   </div>
                 )}
