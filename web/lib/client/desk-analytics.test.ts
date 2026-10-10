@@ -1,0 +1,30 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { trackAppointment, trackDesk } from "./desk-analytics.ts";
+import { newAnalyticsRun } from "./run-context.ts";
+import { classicApi } from "../game/classic.ts";
+import { createInitialState, seededRandom } from "../game/engine.ts";
+import { openLivingWorld } from "../game/living-world.ts";
+
+test("стол измеряется только в настоящей обычной партии с миром; чтение не меняет состояние", async () => {
+  const setup = await classicApi.setup("Украина", "debut", "pragmatist", 15);
+  const initial = createInitialState("Украина", "debut", "pragmatist", setup, seededRandom(15));
+  const gs = { ...openLivingWorld(initial), analyticsRun: newAnalyticsRun("7.7", "web", false) };
+  const before = JSON.stringify(gs);
+  const events: Record<string, string | number | boolean>[] = [];
+  const send = (_event: "desk", props: Record<string, string | number | boolean>) => events.push(props);
+  trackDesk({ ...gs, world: undefined }, "messages", send);
+  trackDesk({ ...gs, daily: "2026-10-10" }, "messages", send);
+  trackDesk({ ...gs, analyticsRun: undefined }, "messages", send);
+  assert.equal(events.length, 0);
+  trackDesk(gs, "available", send);
+  trackDesk(gs, "available", send);
+  trackDesk(gs, "messages", send);
+  trackAppointment(gs, "government:priority:energy", send);
+  trackAppointment(gs, "appoint:minister", send);
+  trackAppointment(gs, "health:appoint:healthMinister", send);
+  trackAppointment(gs, "government:start:exports", send);
+  assert.deepEqual(events.map(event => event.kind), ["available", "messages", "appointed", "appointed", "appointed"]);
+  assert.equal(events[0].rid, gs.analyticsRun.id);
+  assert.equal(JSON.stringify(gs), before);
+});
