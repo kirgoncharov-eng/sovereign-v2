@@ -5,29 +5,44 @@
 import { useId, useState } from "react";
 import { advisorProfile } from "@/lib/game/advisors.ts";
 
-const stars = n => "★".repeat(n) + "☆".repeat(3 - n);
-const signed = n => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
+const lowerFirst = text => text.charAt(0).toLowerCase() + text.slice(1);
+const stars = skill => "★".repeat(skill) + "☆".repeat(3 - skill);
+const signed = value => (value > 0 ? `+${value}` : value < 0 ? `−${-value}` : "0");
 
-export function AdvisorCard({ gs, advisor, id }) {
-  const p = advisorProfile(gs, advisor);
-  const tone = p.loyalty >= 55 ? "good" : p.loyalty >= 35 ? "warn" : "bad";
+export function AdvisorCard({ gs, advisor, id, children = null }) {
+  const profile = advisorProfile(gs, advisor);
+  const tone = profile.loyalty >= 55 ? "good" : profile.loyalty >= 35 ? "warn" : "bad";
+  const fill = { width:`${profile.loyalty}%` };
+  const forecasts = profile.record.total ? `верно ${profile.record.right} из ${profile.record.total}` : "ещё не проверялись";
   return (
     <div id={id} className="sv-advisor-card" role="group" aria-label={`Карточка: ${advisor.name}`}>
       <div className="sv-advisor-card-role">{advisor.role}</div>
-      {p.bio && <p className="sv-advisor-card-bio">{p.bio}</p>}
+      {profile.bio && <p className="sv-advisor-card-bio">{profile.bio}</p>}
       <dl>
-        {p.area && <><dt>Сильная сторона</dt><dd>{p.area} · {stars(advisor.skill)} · {p.skill}</dd></>}
+        {profile.area && <><dt>Сильная сторона</dt><dd>{profile.area} · {stars(advisor.skill)} · {profile.skill}</dd></>}
         <dt>Лояльность</dt>
         <dd>
-          <span className={`sv-advisor-card-${tone}`}>{p.loyaltyWord} · {p.loyalty}</span>
-          <span className="sv-advisor-card-bar" aria-hidden="true"><span style={{ width:`${p.loyalty}%` }} className={`sv-advisor-card-fill-${tone}`}/></span>
-          {p.disloyal && <span className="sv-advisor-card-bad">Советует уже в пользу своего лагеря{p.camp ? ` «${p.camp.name}»` : ""}, а не вашу</span>}
+          <span className={`sv-advisor-card-${tone}`}>{profile.loyaltyWord} · {profile.loyalty}</span>
+          <span className="sv-advisor-card-bar" aria-hidden="true">
+            <span style={fill} className={`sv-advisor-card-fill-${tone}`}/>
+          </span>
+          {profile.disloyal && (
+            <span className="sv-advisor-card-bad">
+              Советует уже в пользу своего лагеря{profile.camp ? ` «${profile.camp.name}»` : ""}, а не вашу
+            </span>
+          )}
         </dd>
-        {p.camp && <><dt>Тянется к</dt><dd>«{p.camp.name}» · к вам {signed(p.camp.relation)}</dd></>}
-        <dt>Манера</dt><dd>{p.manner}</dd>
+        {profile.camp && <><dt>Тянется к</dt><dd>«{profile.camp.name}» · к вам {signed(profile.camp.relation)}</dd></>}
+        <dt>Манера</dt><dd>{profile.manner}</dd>
+        {profile.origin && <><dt>Откуда</dt><dd>{profile.origin}</dd></>}
         <dt>Прогнозы</dt>
-        <dd>{p.record.total ? `верно ${p.record.right} из ${p.record.total}` : "ещё не проверялись"}</dd>
+        <dd>{forecasts}</dd>
+        {profile.harmful && <><dt>Вредит</dt><dd className="sv-advisor-card-bad">сливает дела в прессу и саботирует решения своей области</dd></>}
+        {profile.dossier && (
+          <><dt>Досье</dt><dd>{profile.dossier.used ? "пущено в ход" : "собрано"}: {lowerFirst(profile.dossier.fact)}</dd></>
+        )}
       </dl>
+      {children}
     </div>
   );
 }
@@ -42,7 +57,7 @@ export default function AdvisorName({ gs, advisor, children, after = null }) {
   return (
     <span className="sv-advisor-name-wrap">
       <button type="button" className="sv-advisor-name" aria-expanded={open} aria-controls={cardId}
-        onClick={event => { event.stopPropagation(); setPinned(v => !v); setHover(false); }}
+        onClick={event => { event.stopPropagation(); setPinned(isPinned => !isPinned); setHover(false); }}
         onPointerEnter={event => { if (event.pointerType === "mouse") setHover(true); }}
         onPointerLeave={event => { if (event.pointerType === "mouse") setHover(false); }}>
         {children ?? advisor.name}
