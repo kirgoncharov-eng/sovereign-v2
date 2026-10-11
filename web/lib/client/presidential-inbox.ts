@@ -1,6 +1,7 @@
 import type { GameState } from '../game/types.ts';
 import { healthNeedsAttention } from '../game/health-aftermath.ts';
 import { personProfiles } from './people-text.ts';
+import { livingActions, type WorldAction } from '../game/living-world.ts';
 export interface PresidentialMessage {
   key: string;
   token: string;
@@ -38,7 +39,13 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
     const actor = world.people.find(p => p.id === (executor ?? (project === 'energy' ? 'minister' : 'doctor')));
     const name = actor?.figure ? gs.keyFigures.find(f => f.id === actor.figure)?.name : actor?.name;
     const person = name && personId(name);
-    if (latest && person) messages.push({ key: project, token: latest.id, person, title: latest.title, text: latest.text, action: project, needsReply: p?.status === 'unassigned' || project === 'health' && healthNeedsAttention(world.health), ...(p?.status === 'unassigned' ? { deadline: p.deadline } : {}) });
+    const deadline = p?.status === 'unassigned' ? p.deadline
+      : project === 'health' && world.health?.aftermath?.bargain?.phase === 'open' ? world.health.aftermath.due
+      : project === 'health' && world.health?.aftermath?.phase === 'open' ? world.health.aftermath.deadline : undefined;
+    if (latest && person) messages.push({ key: project, token: latest.id, person, title: latest.title,
+      text: latest.text, action: project,
+      needsReply: p?.status === 'unassigned' || project === 'health' && healthNeedsAttention(world.health),
+      ...(deadline !== undefined ? { deadline } : {}) });
   }
   if (world.government) {
     const advisor = gs.advisors.find(a => a.id === 'economist') ?? gs.advisors[0];
@@ -56,6 +63,17 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
     }
   }
   return messages;
+}
+// Только ответы на конкретное обращение: поддержка, смена поставщика и другие инициативы остаются в досье.
+export function presidentialReplyActions(gs: GameState, message: PresidentialMessage): WorldAction[] {
+  if (!message.needsReply || gs.daily || gs.ended || !gs.world) return [];
+  let prefix: string;
+  if (message.action === 'energy' && gs.world.project.status === 'unassigned') prefix = 'appoint:';
+  else if (message.action === 'health' && gs.world.health?.status === 'unassigned') prefix = 'health:appoint:';
+  else if (message.action === 'health' && gs.world.health?.aftermath?.bargain?.phase === 'open') prefix = 'health:bargain:';
+  else if (message.action === 'health' && gs.world.health?.aftermath?.phase === 'open') prefix = 'health:response:';
+  else return [];
+  return livingActions(gs).filter(action => action.id.startsWith(prefix));
 }
 export const messageUnread = (gs: GameState, message: PresidentialMessage) => gs.world?.inboxRead?.[message.key] !== message.token;
 export function readPresidentialMessages(gs: GameState, person: string): GameState {
