@@ -36,15 +36,21 @@ export async function createAdvisorArtScene(country = "Украина"): Promise
 // Show an explanation rather than exact hidden outcomes before signing.
 export function reviewChoiceBrief(state: GameState, choice: Choice) {
   const effects = choiceEffects(state, choice);
-  const costs = RES_CONFIG.filter(resource => (effects.resources[resource.key] ?? 0) < 0).flatMap(resource => {
-    const tag = choice.tags.find(candidate => (ACTIONS[candidate].res[resource.key] ?? 0) < 0);
-    const reason = choice.costReasons?.[resource.key] ?? (tag ? ACTIONS[tag].why?.[resource.key] : undefined);
-    return reason ? [{ label: resource.label, reason }] : [];
-  });
-  const warnings = RES_CONFIG.filter(resource => state.resources[resource.key] < CRISIS_THRESHOLD
-    && (effects.resources[resource.key] ?? 0) < 0).map(resource => `${resource.label} в кризисе — решение ударит и по ней`);
+  const costs = RES_CONFIG
+    .filter(resource => (effects.resources[resource.key] ?? 0) < 0)
+    .flatMap(resource => {
+      const tag = choice.tags.find(candidate => (ACTIONS[candidate].res[resource.key] ?? 0) < 0);
+      const reason = choice.costReasons?.[resource.key] ?? (tag ? ACTIONS[tag].why?.[resource.key] : undefined);
+      return reason ? [{ label: resource.label, reason }] : [];
+    });
+  const warnings = RES_CONFIG
+    .filter(resource => state.resources[resource.key] < CRISIS_THRESHOLD
+      && (effects.resources[resource.key] ?? 0) < 0)
+    .map(resource => `${resource.label} в кризисе — решение ударит и по ней`);
   const chance = successChance(state, choice);
   const percent = Math.round(chance * 100);
-  const risk = percent >= 85 ? "Низкий риск" : percent >= 70 ? "Умеренный риск" : percent >= 55 ? "Высокий риск" : "Очень высокий риск";
+  const risk = percent >= 85 ? "Низкий риск"
+    : percent >= 70 ? "Умеренный риск"
+      : percent >= 55 ? "Высокий риск" : "Очень высокий риск";
   return { costs, warnings, risk };
 }
