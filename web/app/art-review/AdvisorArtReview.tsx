@@ -70,14 +70,18 @@ export default function AdvisorArtReview({ scenes }: { scenes: AdvisorArtScene[]
         <div className={styles.controls}>
           <label>Страна
             <select value={country} disabled={signing} onChange={event => resetScene(event.target.value)}>
-              {scenes.map(candidate => <option key={candidate.state.country}>{candidate.state.country}</option>)}
+              {scenes.map(candidate => (
+                <option key={candidate.state.country}>{candidate.state.country}</option>
+              ))}
             </select>
           </label>
           <button type="button" aria-pressed={illustrated} onClick={() => setIllustrated(value => !value)}>
             {illustrated ? "Сравнить с маленькими портретами" : "Показать крупные портреты"}
           </button>
         </div>
-        {country !== "Украина" && <p className={styles.note}>Для этой страны пока используются существующие процедурные лица.</p>}
+        {country !== "Украина" && (
+          <p className={styles.note}>Для этой страны пока используются существующие процедурные лица.</p>
+        )}
       </header>
 
       <section className={`${styles.phone} ${illustrated ? styles.illustrated : styles.compact}`} aria-label="Экран дела">
@@ -140,11 +144,15 @@ export default function AdvisorArtReview({ scenes }: { scenes: AdvisorArtScene[]
 
             {brief && <div className={styles.cost} aria-live="polite">
               <p className={styles.eyebrow}>{brief.risk}</p>
-              {brief.costs.map(cost => <p key={cost.label}><strong>{cost.label.toLowerCase()}</strong> — {cost.reason}</p>)}
+              {brief.costs.map(cost => (
+                <p key={cost.label}><strong>{cost.label.toLowerCase()}</strong> — {cost.reason}</p>
+              ))}
               <p className={styles.note}>Итог зависит от исполнения. Точный расчёт — в газете после решения.</p>
             </div>}
             <button type="button" className={styles.sign} disabled={!choice || signing} onClick={sign}>
-              {signing ? "Подписываем…" : choice ? `Подписать вариант ${event.choices.indexOf(choice) + 1}` : "Выберите резолюцию"}
+              {signing ? "Подписываем…" : choice
+                ? `Подписать вариант ${event.choices.indexOf(choice) + 1}`
+                : "Выберите резолюцию"}
             </button>
             {error && <p role="alert">{error}</p>}
           </article>
