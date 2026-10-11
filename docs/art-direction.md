@@ -18,7 +18,56 @@
 Следующий этап #95 — интеграция выбранного оформления после завершения #102.
 Задачу #95 эта часть не закрывает.
 
-## Арт-направление
+## Поправка Кирилла: сохраняем стиль игры
+
+11 октября первый иллюстративный вариант отклонён: слишком гладкие лица и свет
+выбиваются из индивидуального вайба «Суверена». Активный вариант v2 — грубые
+пиксельные фото, плоские бумажные/угольные тона, угловатые силуэты и асимметрия.
+Образец — существующая графика игры. Прежние v1 оставлены только для истории.
+Новые лица генерировались встроенным image_gen по прежним портретам и кадру
+основной игры; финальные материалы — 40×50 px, lossless WebP, отображение pixelated.
+Экран сравнения обновлён, но художественная приёмка v2 ещё за Кириллом.
+
+| Активное лицо | Файл | Вес |
+| --- | --- | --- |
+| Оксана Гончар | `web/public/art/advisors/economist-v2.webp` | 2 630 байт |
+| Юрий Бондаренко | `web/public/art/advisors/security-v2.webp` | 2 930 байт |
+
+Новая пара — 5 560 байт. Вместе с архивной v1 — 103 484 байта.
+Основной размер в эскизе 80×100 px; лицо не сглаживается и не подсвечивает
+лояльность, правдивость или правильное решение.
+
+Промпт v2 для Оксаны: STYLE TRANSFER. Image 1 is the female fictional economic
+adviser to redraw; retain recognizable bob haircut, silver streak and glasses.
+Image 2 is the ACTUAL GAME STYLE reference, especially its simple blocky pixel
+scene and restrained parchment/charcoal palette. Replace the polished realistic
+engraving completely with a deliberately handcrafted low-resolution pixel-art
+bust portrait. Think native 40 by 50 pixel sprite enlarged with nearest-neighbor:
+very big square pixels, stepped contours, large flat shapes, uneven human character.
+Only five flat colors: #2a241d #544a3c #857a62 #b8ac8e #e2dac0. Flat pale paper
+background. Slightly exaggerated angular nose and off-center glasses, middle-aged
+serious woman, no glamour. Should look like a rough small ID photo printed in the
+game's paper world, not modern AI concept art. Exactly one centered head and
+shoulders, whole head visible, upright 4:5. No gradients, realistic lighting,
+paper noise, soft edges, fine hair strands, crosshatching, 3D, polished painting,
+border, text, logos, other characters. Small purposeful clusters of pixels;
+not a photorealistic face with a pixel filter.
+
+Промпт v2 для Юрия: STYLE TRANSFER. Image 1 is the fictional male security adviser
+to redraw. Image 2 is the new pixel portrait STYLE reference: match its chunky
+stepped contours and limited parchment/charcoal palette exactly. One centered
+head and shoulders of this middle-aged man, broad angular face, receding grey
+temples, heavy brows, slightly crooked nose, plain civilian jacket and open collar.
+No likeness to real people. Native 40x50-pixel sprite aesthetic enlarged nearest-neighbor:
+oversized square pixel clusters, flat fills, strong caricature silhouette,
+asymmetry and human imperfection. ONLY five colors #2a241d #544a3c #857a62 #b8ac8e
+#e2dac0. Flat pale paper background, upright4:5, full head visible. Serious attentive
+expression, not villainous. No gradients, realistic light, noise, crosshatching,
+detailed hair or skin, soft edges, photorealism, glossy AI illustration, border,
+text, insignia, flags, other people. Make the pixel grid visibly simple, like an
+imperfect ID photograph in this game's existing low-resolution paper world.
+
+## Первоначальное арт-направление (v1, отклонено)
 
 - Портреты: графит и тушь на бумаге, угольные и охристые тона. Различимые
   силуэты, лицо и характер важнее микродеталей. Без сходства с реальными политиками.

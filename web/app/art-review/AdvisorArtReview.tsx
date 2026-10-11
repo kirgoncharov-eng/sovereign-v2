@@ -19,7 +19,7 @@ function ReviewPortrait({ name, illustrated }: { name: string; illustrated: bool
     canvas.current.getContext("2d")?.drawImage(portraitCanvas(name, isFemaleName(name)), 0, 0);
   }, [name, asset]);
   return asset
-    ? <Image src={asset} width={448} height={560} alt="" unoptimized className={styles.portrait}/>
+    ? <Image src={asset} width={40} height={50} alt="" unoptimized className={styles.portrait}/>
     : <canvas ref={canvas} width={240} height={300} aria-hidden="true" className={styles.portrait}/>;
 }
 

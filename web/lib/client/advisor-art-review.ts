@@ -11,8 +11,8 @@ export interface AdvisorArtScene {
 
 // These two faces belong to this review cast only, never to a randomly generated role.
 export const ADVISOR_REVIEW_ART: Record<string, string> = {
-  "Оксана Гончар": "/art/advisors/economist-v1.webp",
-  "Юрий Бондаренко": "/art/advisors/security-v1.webp",
+  "Оксана Гончар": "/art/advisors/economist-v2.webp",
+  "Юрий Бондаренко": "/art/advisors/security-v2.webp",
 };
 
 export async function createAdvisorArtScene(country = "Украина"): Promise<AdvisorArtScene> {
