@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { classicApi } from "./classic.ts";
 import { COUNTRIES } from "./data.ts";
 import { createInitialState, resolveTurn, seededRandom, startEvent } from "./engine.ts";
-import { DEBATERS, debate, debateApplies, forecastReview, type AdvisorTake } from "./forecasts.ts";
+import { ADVISOR_STAKE, debate, debateApplies, forecastReview, pairFor, type AdvisorTake } from "./forecasts.ts";
+import { DISLOYAL_BELOW, campOf, isDisloyal, mannerOf } from "./advisors.ts";
+import { choiceEffects } from "./engine.ts";
 import type { GameState } from "./types.ts";
 
 const SLOT = /\{[^}]*\}/;
@@ -36,21 +38,21 @@ test("спор советников детерминирован для зерн
   }
 });
 
-test("советник честен в своей области и ошибается только в сторону своего варианта", async () => {
+test("лояльный советник честен в своей области и ошибается только в сторону своего варианта", async () => {
   let spun = 0, claims = 0;
   for (const country of Object.keys(COUNTRIES)) for (const seed of [7, 52]) {
-    for (const { takes } of await debates(country, seed)) {
+    for (const { state, takes } of await debates(country, seed)) {
       assert.equal(takes.length, 2);
       for (const take of takes) {
-        const interest = DEBATERS.find(d => d.id === take.id)!.interest;
+        const interest = ADVISOR_STAKE[take.id].interest;
+        const loyal = !isDisloyal(state.advisors.find(a => a.id === take.id)!);
         for (const claim of take.claims) {
           claims++;
+          if (claim.said !== claim.truth) spun++;
           if (claim.domain) {
             assert.equal(claim.resource, interest);
-            assert.equal(claim.said, claim.truth, `${take.name} лжёт о своей области`);
-            continue;
+            if (loyal) assert.equal(claim.said, claim.truth, `${take.name} лжёт о своей области`);
           }
-          if (claim.said !== claim.truth) spun++;
           // За свой вариант — не хуже правды, о чужом — не лучше: ошибка всегда в пользу своего интереса.
           if (claim.choiceId === take.favors) assert.ok(claim.said >= claim.truth, `${take.name} очерняет свой вариант`);
           else assert.ok(claim.said <= claim.truth, `${take.name} хвалит чужой вариант`);
@@ -59,6 +61,50 @@ test("советник честен в своей области и ошибае
     }
   }
   assert.ok(spun > 0 && spun < claims, `лукавых утверждений ${spun} из ${claims}`);
+});
+
+test("кто спорит, зависит от дела: в каждой стране встречаются все три пары", async () => {
+  for (const country of Object.keys(COUNTRIES)) {
+    const pairs = new Set<string>();
+    for (const seed of [11, 40]) for (const { state, takes } of await debates(country, seed, 20)) {
+      assert.deepEqual(takes.map(t => t.id), pairFor(state, state.currentEvent!));
+      pairs.add(takes.map(t => t.id).join("+"));
+    }
+    assert.ok(pairs.size >= 3, `${country}: пары ${[...pairs].join(", ")}`);
+  }
+});
+
+test("нелояльный советник служит своему лагерю: выбирает его вариант и лжёт даже в своей области", async () => {
+  let checked = 0, lies = 0;
+  for (const country of Object.keys(COUNTRIES)) {
+    for (const { state } of await debates(country, 19, 16)) {
+      const ids = pairFor(state, state.currentEvent!);
+      const traitor = state.advisors.find(a => a.id === ids[0])!;
+      const camp = campOf(state, traitor);
+      if (!camp) continue;
+      const turned = { ...state, advisors: state.advisors.map(a => (a.id === traitor.id ? { ...a, loyalty: DISLOYAL_BELOW - 10 } : a)) };
+      const take = debate(turned)!.find(t => t.id === traitor.id)!;
+      const relation = (id: string) => choiceEffects(turned, turned.currentEvent!.choices.find(c => c.id === id)!).factionRel[camp.id] ?? 0;
+      const best = Math.max(...turned.currentEvent!.choices.map(c => relation(c.id)));
+      assert.equal(relation(take.favors), best, `${country}: ${traitor.name} выбрал не вариант лагеря «${camp.name}»`);
+      for (const claim of take.claims) {
+        if (claim.said !== claim.truth) lies++;
+        if (claim.choiceId === take.favors) assert.ok(claim.said >= claim.truth);
+        else assert.ok(claim.said <= claim.truth);
+      }
+      checked++;
+    }
+  }
+  assert.ok(checked >= 20 && lies > checked / 2, `проверено ${checked}, ложных утверждений ${lies}`);
+});
+
+test("манера советника постоянна для имени и встречаются все три", async () => {
+  const manners = new Set<string>();
+  for (const country of Object.keys(COUNTRIES)) for (const advisor of (await fresh(country, 3)).advisors) {
+    assert.equal(mannerOf(advisor), mannerOf({ ...advisor }));
+    manners.add(mannerOf(advisor));
+  }
+  assert.deepEqual([...manners].sort(), ["alarm", "dry", "smooth"]);
 });
 
 test("реплики без пустых слотов, и советники спорят чаще, чем соглашаются", async () => {

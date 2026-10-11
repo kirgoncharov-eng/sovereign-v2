@@ -20,7 +20,7 @@ async function decide(state: GameState): Promise<GameState> {
 test('переход следует настоящему кварталу, не меняет игру и не возникает при повторном показе отчёта', async () => {
   const before = await fresh(), after = await decide(before);
   const snapshot = JSON.stringify([before, after]), scene = quarterTransition(before, after)!;
-  assert.equal(scene.kind,'country'); assert.equal(scene.duration,1300);
+  assert.equal(scene.kind,'country'); assert.equal(scene.duration,1000);
   assert.equal(scene.before.season,turnDate(before.seed,COUNTRIES[before.country].startYear,before.turn).season);
   assert.equal(scene.after.season,turnDate(after.seed,COUNTRIES[after.country].startYear,after.turn).season);
   assert.equal(JSON.stringify([before, after]),snapshot);
@@ -31,7 +31,7 @@ test('переход следует настоящему кварталу, не 
 test('работа больниц показывается только по новому докладу: реальные ставки, без повторной цены', async () => {
   const before = interveneWorld(await fresh(),'health:appoint:doctor'), after = await decide(before);
   const snapshot = JSON.stringify([before,after]), scene = quarterTransition(before,after)!;
-  assert.equal(scene.kind,'hospital'); assert.equal(scene.duration,2600);
+  assert.equal(scene.kind,'hospital'); assert.equal(scene.duration,1600);
   assert.equal(scene.staffing,after.world!.health!.progress); assert.ok(scene.staffing>0);
   assert.ok(scene.detail.includes(`0% → ${scene.staffing}%`));
   assert.equal(JSON.stringify([before,after]),snapshot);
