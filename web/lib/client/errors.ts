@@ -2,6 +2,7 @@
 // Одна и та же ошибка за сессию отправляется один раз, всего не больше десяти; в демо и на тестовом устройстве — ничего.
 import { webUid } from "./daily.ts";
 import { isTester } from "./analytics.ts";
+import { runProps } from "./run-context.ts";
 import { APP_VERSION } from "../game/data.ts";
 
 type Kind = "js" | "promise" | "render";
@@ -18,7 +19,7 @@ export function reportError(kind: Kind, error: unknown) {
   seen.add(key);
   const pid = webUid();
   if (!pid) return;
-  const body = JSON.stringify({ pid, errors: [{ kind, msg, v: APP_VERSION }] });
+  const body = JSON.stringify({ pid, context: { ...runProps(), lm: 1 }, errors: [{ kind, msg, v: APP_VERSION }] });
   try {
     if (!navigator.sendBeacon?.("/api/error", new Blob([body], { type: "text/plain" })))
       fetch("/api/error", { method: "POST", body, keepalive: true }).catch(() => {});
