@@ -27,7 +27,7 @@ import { DOSSIER_TEXT } from "@/lib/content/advisors.ts";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
 import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
-import { ACHIEVEMENTS, ALL_ENDINGS, bestReign, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta, unlockedCountries } from "@/lib/client/meta.ts";
+import { ACHIEVEMENTS, ALL_ENDINGS, bestReign, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta } from "@/lib/client/meta.ts";
 
 // Весь текст — из библиотеки авторских сценариев, без сети и без модели.
 // Ответ готов мгновенно — даём сцене короткую театральную паузу.
@@ -70,6 +70,7 @@ import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
+import { countryForNewRun, NEW_GAME_COUNTRY } from "@/lib/client/new-game-country.ts";
 
 const barColor = v => v >= 60 ? "var(--grn)" : v >= 35 ? "var(--amb)" : "var(--red)";
 const relColor = v => v >= 30 ? "var(--grn)" : v > -30 ? "var(--amb)" : "var(--red)";
@@ -1436,7 +1437,7 @@ function VersionLabel() {
 }
 
 function Setup({ onStart, saved, onResume }) {
-  const [country, setCountry] = useState(null);
+  const country = NEW_GAME_COUNTRY;
   const [diff, setDiff]       = useState(null);
   const [ideo, setIdeo]       = useState(null);
   const [bio, setBio]         = useState(null);
@@ -1445,16 +1446,16 @@ function Setup({ onStart, saved, onResume }) {
   const [err, setErr]         = useState(null);
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
   const meta = useMemo(() => parseMeta(metaRaw), [metaRaw]);
-  const open = unlockedCountries(meta);
   const ready = country && diff && ideo;
   const playtest = useSyncExternalStore(subscribeMeta, () => ["sponsor", "cabinet", "minister"].includes(new URLSearchParams(window.location.search).get("playtest")), () => false);
 
   const go = async (c = country, d = diff, i = ideo, daily = null, b = bio, quick = false) => {
+    c = countryForNewRun(daily);
     if (!(c && d && i) || loading) return;
     setLoading(true); setErr(null);
     try {
       // Биография: выбранная в анкете, у дела дня — общая для всех, иначе случайная.
-      const trial = !daily && playtest && c === "Украина";
+      const trial = !daily && playtest;
       const seed = daily?.seed ?? (trial ? 11 : undefined);
       if (trial) { try { localStorage.setItem("sovereign.tester", "1"); } catch {} }
       const B = daily ? BIOGRAPHIES[daily.seed % BIOGRAPHIES.length] : BIOGRAPHIES.find(x => x.id === b) ?? BIOGRAPHIES[Math.floor(Math.random() * BIOGRAPHIES.length)];
@@ -1471,7 +1472,7 @@ function Setup({ onStart, saved, onResume }) {
 
   const quick = () => {
     const pickOne = list => list[Math.floor(Math.random() * list.length)];
-    go(pickOne(open), meta.runs.length ? "coalition" : "debut", pickOne(IDEOLOGIES).id, null, null, true);
+    go(country, meta.runs.length ? "coalition" : "debut", pickOne(IDEOLOGIES).id, null, null, true);
   };
 
   // Строка анкеты: клетка для отметки, как в казённом бланке.
@@ -1482,7 +1483,10 @@ function Setup({ onStart, saved, onResume }) {
   const box = active => (
     <span aria-hidden="true" style={{ width:16, height:16, border:`2px solid ${G.txt}`, flexShrink:0, display:"inline-flex", alignItems:"center", justifyContent:"center", fontFamily:pixel, fontSize:13, lineHeight:1, color:G.red }}>{active ? "X" : ""}</span>
   );
-  const scene = useMemo(() => ({ country: dailyCase().country, seed: 7, turn: 2, legitimacy: 48, rating: 44, military: 55, security: -10, crises: 0, election: false }), []);
+  const scene = useMemo(() => ({
+    country: NEW_GAME_COUNTRY, seed: 7, turn: 2, legitimacy: 48, rating: 44,
+    military: 55, security: -10, crises: 0, election: false,
+  }), []);
   const explain = text => <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx2, lineHeight:1.45, margin:"0 0 8px" }}>{text}</div>;
   // Графа анкеты: название, суть и мелким шрифтом — что именно это меняет в игре.
   const option = (label, desc, effects) => (
@@ -1503,7 +1507,9 @@ function Setup({ onStart, saved, onResume }) {
       <div style={{ maxWidth:580, width:"100%" }}>
         <div style={{ textAlign:"center", marginBottom:26 }}>
           <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(56px, 17vw, 88px)", lineHeight:1, letterSpacing:".1em", color:G.gold, textShadow:"4px 4px 0 rgba(0,0,0,.45)" }}>СУВЕРЕН</h1>
-          <div style={{ fontFamily:narrow, fontSize:19, color:G.tx2, marginTop:12 }}>Одна страна. Один президент. Сколько лет вы продержитесь?</div>
+          <div style={{ fontFamily:narrow, fontSize:19, color:G.tx2, marginTop:12 }}>
+            Беларусь. Один президент. Сколько лет вы продержитесь?
+          </div>
         </div>
 
         {saved && (
@@ -1525,7 +1531,10 @@ function Setup({ onStart, saved, onResume }) {
         <div style={{ textAlign:"center", marginBottom:22 }}>
           <div style={{ fontFamily:serif, fontSize:18, color:G.txt, lineHeight:1.5, marginBottom:14 }}>Вы принимаете решения. Союзники торгуются, противники готовят заговор. Удержите власть — и разберитесь, кому можно верить.</div>
           <PrimaryBtn onClick={quick} disabled={loading}>{loading ? "ОТКРЫВАЕМ КАБИНЕТ…" : saved ? "НОВАЯ ПАРТИЯ" : "НАЧАТЬ ИГРУ"}</PrimaryBtn>
-          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:8 }}>{meta.runs.length ? "случайная страна и курс · сложность «Коалиция»" : "сразу в кабинет · мягкая сложность «Дебют»"}</div>
+          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:8 }}>
+            {meta.runs.length ? "Беларусь · случайный курс · сложность «Коалиция»"
+              : "Беларусь · сразу в кабинет · мягкая сложность «Дебют»"}
+          </div>
         </div>
 
         <DailyCard meta={meta} disabled={loading} onPlay={d => go(d.country, d.diff, d.ideo, d)}/>
@@ -1533,12 +1542,14 @@ function Setup({ onStart, saved, onResume }) {
         {meta.runs.length > 0 && <Archive meta={meta}/>}
 
         <button onClick={() => setCustom(v => !v)} aria-expanded={custom} aria-controls="sv-custom-setup" style={{ width:"100%", background:"transparent", border:`1px solid ${G.bdr}`, padding:"12px 16px", color:G.tx2, fontFamily:narrow, fontSize:18, marginBottom:12 }}>
-          {custom ? "Свернуть анкету ▴" : "Выбрать страну, курс и сложность ▾"}
+          {custom ? "Свернуть анкету ▴" : "Выбрать курс и сложность ▾"}
         </button>
         {playtest && <Card style={{ marginBottom:18 }}>
           <Label>ПРОВЕРКА МИРА · ЛЮДИ И ПРАВИТЕЛЬСТВО</Label>
           <p style={{ fontFamily:serif, fontSize:14, lineHeight:1.5, marginBottom:12 }}>Обычное правление с известной начальной ситуацией. Спонсор кампании, энергосеть и больницы существуют одновременно. Можно самим выйти на контакт; партия продолжается после этого столкновения.</p>
-          <PrimaryBtn disabled={loading} onClick={() => go("Украина", "debut", "pragmatist", null, "economist", true)}>НАЧАТЬ ПРОБНУЮ ПАРТИЮ</PrimaryBtn>
+          <PrimaryBtn disabled={loading} onClick={() => go(country, "debut", "pragmatist", null, "economist", true)}>
+            НАЧАТЬ ПРОБНУЮ ПАРТИЮ
+          </PrimaryBtn>
         </Card>}
         {err && <div role="alert" style={{ color:G.red, marginBottom:12 }}>{err} <button onClick={quick}>Попробовать снова</button></div>}
         {custom && <Card id="sv-custom-setup" style={{ padding:"18px 20px 22px" }}>
@@ -1550,26 +1561,13 @@ function Setup({ onStart, saved, onResume }) {
             <span className="sv-stamp" style={{ fontSize:12, transform:"rotate(4deg)" }}>своя партия</span>
           </div>
 
-          {section(1, "СТРАНА")}
-          {Object.keys(COUNTRIES).map(name => {
-            const active = country === name;
-            const locked = !open.includes(name);
-            const endings = meta.endings[name]?.length ?? 0;
-            return (
-              <button key={name} onClick={() => !locked && setCountry(name)} disabled={locked} aria-pressed={active} style={row(active, locked)}
-                title={locked ? "Откроется после первой завершённой партии" : `Открыто концовок: ${endings}/${ALL_ENDINGS.length}`}>
-                {box(active)}
-                <Flag country={name} size={21}/>
-                <span style={{ fontFamily:narrow, fontSize:18, fontWeight:700, flex:1 }}>{name}</span>
-                <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>
-                  {locked ? "закрыто" : endings > 0 ? `концовок ${endings}/${ALL_ENDINGS.length}` : ""}
-                </span>
-              </button>
-            );
-          })}
-          {country && <div className="sv-fade" style={{ fontFamily:mono, fontSize:13, color:G.tx2, lineHeight:1.6, padding:"10px 6px 2px", borderTop:`1px dashed ${G.bdr2}` }}>{COUNTRIES[country].context}<div style={{ marginTop:4 }}>Конституция: {TERM_RULES[termRule(country)].title.toLowerCase()}.</div></div>}
+          <div style={{ marginTop:18 }}><Flag country={country} size={21}/> {country}</div>
+          <div style={{ fontFamily:mono, fontSize:13, color:G.tx2, lineHeight:1.6, padding:"10px 6px 2px" }}>
+            {COUNTRIES[country].context}
+            <div style={{ marginTop:4 }}>Конституция: {TERM_RULES[termRule(country)].title.toLowerCase()}.</div>
+          </div>
 
-          {section(2, "СЛОЖНОСТЬ")}
+          {section(1, "СЛОЖНОСТЬ")}
           {explain("С чего вы начинаете: сколько ресурсов у государства, как к вам относятся группы и сколько страна теряет каждый ход без вашего участия.")}
           {Object.entries(DIFFICULTIES).map(([id, d]) => (
             <button key={id} onClick={() => setDiff(id)} aria-pressed={diff === id} style={row(diff === id)}>
@@ -1578,7 +1576,7 @@ function Setup({ onStart, saved, onResume }) {
             </button>
           ))}
 
-          {section(3, "ПОЛИТИЧЕСКИЙ КУРС")}
+          {section(2, "ПОЛИТИЧЕСКИЙ КУРС")}
           {explain("Кто поддерживает вас с первого дня и какие решения укрепляют вас лично. Решение в духе курса добавляет личный ресурс и легитимность, решение против курса их отнимает.")}
           {IDEOLOGIES.map(i => (
             <button key={i.id} onClick={() => setIdeo(i.id)} aria-pressed={ideo === i.id} style={row(ideo === i.id)}>
@@ -1587,7 +1585,7 @@ function Setup({ onStart, saved, onResume }) {
             </button>
           ))}
 
-          {section(4, "БИОГРАФИЯ — НЕОБЯЗАТЕЛЬНО")}
+          {section(3, "БИОГРАФИЯ — НЕОБЯЗАТЕЛЬНО")}
           {explain("Ваше прошлое ремесло: решения по нему исполняются надёжнее, а одна из опор крепче с самого начала. Не выберете — достанется случайная.")}
           {BIOGRAPHIES.map(b => (
             <button key={b.id} onClick={() => setBio(x => x === b.id ? null : b.id)} aria-pressed={bio === b.id} style={row(bio === b.id)}>
