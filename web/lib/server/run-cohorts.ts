@@ -1,3 +1,4 @@
+import { recordLaunchDevice } from "./launch-metrics.ts";
 import { kv } from "./kv.ts";
 import { validAnalyticsRun, type AnalyticsRun } from "../client/run-context.ts";
 import type { TrackInput } from "./analytics.ts";
@@ -16,7 +17,7 @@ export interface RunCohort {
 // Каждый рубеж записывается один раз. Метаданные старта передаются и с поздними
 // событиями: потерянный/задержавшийся первый пакет не сдвигает когорту на день финала.
 export async function recordRunMilestones(pid: string, event: TrackInput, now: number) {
-  if (!["start", "resume", "turn", "end", "share", "intro", "first", "desk"].includes(event.e)) return;
+  if (!["start", "resume", "turn", "end", "share", "intro", "first", "desk", "invite", "error"].includes(event.e)) return;
   const p = event.p;
   const candidate = { id: p?.rid, startedAt: p?.at, version: p?.rv, source: p?.rs, mode: p?.rm, channel: p?.rc };
   if (event.e === "desk" && (candidate.mode !== "ordinary"
@@ -33,6 +34,22 @@ export async function recordRunMilestones(pid: string, event: TrackInput, now: n
   const cohort = `an:runs:${date}:${group}`;
   await kv.sadd(`an:runs:${date}:groups`, group);
   const milestones = ["started"];
+  if (event.e === "first") milestones.push("turn1");
+  if (newMeasurement && p?.lm === 1) milestones.push("metricsMeasured");
+  if (run.mode === "ordinary") await recordLaunchDevice(pid, run, now);
+  if (event.e === "first" && typeof p?.seconds === "number" && Number.isFinite(p.seconds)
+    && p.seconds >= 0 && p.seconds <= 30 * 86400) {
+    const seconds = Math.round(p.seconds);
+    if (await kv.hsetnx(key, "firstSeconds", String(seconds))) {
+      await kv.hincrby(cohort, `firstSeconds:${seconds}`);
+    }
+  }
+  if (event.e === "error" && typeof p?.error === "string" && p.error.length <= 200) {
+    if (await kv.hsetnx(key, `error:${p.error}`, "1")) await kv.hincrby(cohort, "errors");
+  }
+  if (["share", "invite"].includes(event.e) && now - run.startedAt <= 3 * 864e5) {
+    milestones.push("shared3d");
+  }
   if (event.e === "desk") {
     if (run.mode !== "ordinary") return;
     const deskMilestone: Record<string, string> = {
@@ -46,14 +63,26 @@ export async function recordRunMilestones(pid: string, event: TrackInput, now: n
   if (newMeasurement) milestones.push("windowMeasured");
   if (event.e === "resume") milestones.push("resumed");
   if (event.e === "end") milestones.push("ended");
-  if (event.e === "share") milestones.push("shareAttempt");
+  if (["share", "invite"].includes(event.e)) milestones.push("shareAttempt");
   const n = event.e === "turn" ? p?.n : event.e === "end" ? p?.turns : undefined;
   if (typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 100_000) {
     for (const step of [1, 3, 5, 10, 20]) if (n >= step) milestones.push(`turn${step}`);
-    if (now - run.startedAt <= 3 * 864e5 && (event.e === "end" || n >= 20)) milestones.push("resolved3d");
+    if (event.e === "end" && n > 0 && n < 10) milestones.push("earlyDefeat");
+    if (n > 0 && now - run.startedAt <= 3 * 864e5 && (event.e === "end" || n >= 20)) {
+      milestones.push("resolved3d");
+      const turns = Math.min(n, 20);
+      if (await kv.hsetnx(key, "resolvedTurns", String(turns))) {
+        await kv.hincrby(cohort, `resolvedTurns:${turns}`);
+      }
+    }
   }
   for (const milestone of milestones) {
     if (await kv.hsetnx(key, milestone, "1")) await kv.hincrby(cohort, milestone);
+  }
+  // Оба события могут прийти в любом порядке и параллельно; пересечение тоже пишется один раз.
+  const [resolved, shared] = await kv.hmget(key, ["resolved3d", "shared3d"]);
+  if (resolved && shared && await kv.hsetnx(key, "resolvedShared", "1")) {
+    await kv.hincrby(cohort, "resolvedShared");
   }
   await Promise.all([kv.expire(key, TTL), kv.expire(cohort, TTL), kv.expire(`an:runs:${date}:groups`, TTL)]);
 }

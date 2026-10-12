@@ -7,6 +7,7 @@ import { readRunCohorts, recordRunMilestones, type RunCohort } from "./run-cohor
 import { kv } from "./kv.ts";
 import { readErrors, type ErrorRow } from "./errors.ts";
 import { readAcquisitionCohorts, recordAcquisitionVisit, renderAcquisition, type AcquisitionCohort } from "./acquisition.ts";
+import { readLaunchTraffic, renderLaunchMetrics, type LaunchTraffic } from "./launch-metrics.ts";
 import { renderDeskAnalytics } from "./desk-analytics.ts";
 
 export const TRACK_EVENTS = [
@@ -32,7 +33,8 @@ const clean = (value: unknown, maxLength = 24) =>
 export interface TrackInput { e: string; p?: Record<string, unknown> }
 
 export async function record(pid: string, events: TrackInput[], now = Date.now()) {
-  const accepted = events.filter(event => (TRACK_EVENTS as readonly string[]).includes(event.e));
+  const accepted = events.filter(event => event.p?.tester !== true
+    && (TRACK_EVENTS as readonly string[]).includes(event.e));
   if (!accepted.length) return;
   const d = dayOf(now), key = `an:${d}`;
   const ops: Promise<unknown>[] = [];
@@ -40,7 +42,7 @@ export async function record(pid: string, events: TrackInput[], now = Date.now()
   if (await kv.sadd(`an:u:${d}`, pid)) {
     ops.push(kv.expire(`an:u:${d}`, TTL), kv.hincrby(key, "players"));
     const isNew = await kv.hsetnx("an:first", pid, d);
-    ops.push(recordAcquisitionVisit(pid, accepted, now, isNew));
+    await recordAcquisitionVisit(pid, accepted, now, isNew);
     if (isNew) {
       ops.push(kv.hincrby(key, "new"), kv.hincrby(`an:cohort:${d}`, "d0"), kv.expire(`an:cohort:${d}`, TTL));
     } else {
@@ -67,6 +69,7 @@ export async function record(pid: string, events: TrackInput[], now = Date.now()
 
 export interface Stats {
   acquisition?: AcquisitionCohort[];
+  launchTraffic?: LaunchTraffic[];
   runCohorts?: RunCohort[];
   errors?: ErrorRow[];
   observedAt?: number;
@@ -77,14 +80,15 @@ const nums = (h: Record<string, string>) => Object.fromEntries(Object.entries(h)
 
 export async function readStats(n: number, now = Date.now()): Promise<Stats> {
   const dates = Array.from({ length: n }, (_, i) => dayOf(now - (n - 1 - i) * 864e5));
-  const [days, cohorts, runCohorts, errors, acquisition] = await Promise.all([
+  const [days, cohorts, runCohorts, errors, acquisition, launchTraffic] = await Promise.all([
     Promise.all(dates.map(async date => ({ date, h: nums(await kv.hgetall(`an:${date}`)) }))),
     Promise.all(dates.map(async date => ({ date, h: nums(await kv.hgetall(`an:cohort:${date}`)) }))),
     readRunCohorts(dates),
     readErrors(dates.slice(-7)),
     readAcquisitionCohorts(dates),
+    readLaunchTraffic(dates),
   ]);
-  return { days, cohorts, runCohorts, errors, acquisition, observedAt: now };
+  return { days, cohorts, runCohorts, errors, acquisition, launchTraffic, observedAt: now };
 }
 
 // ── Страница с цифрами ───────────────────────────────────────────────────────
@@ -181,6 +185,7 @@ h1{margin:0 0 4px;font-size:24px}h2{margin:0 0 10px;font-size:17px}.muted{color:
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px}
 </style></head><body><main>
 <div class="paper"><h1>Суверен · цифры</h1><div class="muted">За ${s.days.length} дн., по ${esc(today)} включительно (UTC). Счётчики по случайному идентификатору браузера. Действие с итогом не доказывает, что сообщение отправлено.</div></div>
+${renderLaunchMetrics(s.runCohorts ?? [], s.launchTraffic ?? [], s.observedAt ?? Date.now())}
 <div class="paper kpis">
 <div class="kpi"><b>${newPlayers}</b><span>новых устройств</span></div>
 <div class="kpi"><b>${dauToday}</b><span>устройств сегодня</span></div>
