@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { countryNotes, sheetAlerts, staffNote } from "./country-people.ts";
+import { countryNotes, governmentNote, inboxRows, sheetAlerts, staffNote } from "./country-people.ts";
+import { presidentialMessages, presidentialReplyActions } from "./presidential-inbox.ts";
+import { interveneWorld, openLivingWorld } from "../game/living-world.ts";
 import { classicApi } from "../game/classic.ts";
 import { COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION } from "../game/data.ts";
 import { DISLOYAL_BELOW, createInitialState, resolveTurn, seededRandom, startEvent } from "../game/engine.ts";
@@ -62,4 +64,35 @@ test("кадровый резерв: до стола молчит, затем с
   assert.equal(staffNote(hired), "решение квартала принято");
   assert.equal(staffNote({ ...hired, turn: hired.turn + 1 }), "2 кандидата");
   assert.equal(staffNote({ ...open, daily: "2026-10-10" }), null, "в «Деле дня» кадров нет");
+});
+
+test("обращения в «Людях»: кто ждёт ответа — первым, с заголовком; после ответа строка остаётся без требования", async () => {
+  for (const country of Object.keys(COUNTRIES)) {
+    const state = openLivingWorld(await fresh(country, 15));
+    const rows = inboxRows(state);
+    const messages = presidentialMessages(state);
+    assert.ok(rows.length > 0, `${country}: на столе есть обращения`);
+    assert.equal(rows.filter(row => row.waiting).length, new Set(messages.filter(m => m.needsReply).map(m => m.person)).size);
+    const firstCalm = rows.findIndex(row => !row.waiting);
+    assert.ok(firstCalm === -1 || rows.slice(firstCalm).every(row => !row.waiting), `${country}: ждущие ответа идут первыми`);
+    for (const row of rows) {
+      assert.ok(row.name && row.role && row.note && !/\{|undefined/.test(row.note), `${country}: «${row.note}»`);
+      if (row.waiting) assert.match(row.note, /^ждёт ответа: /);
+    }
+  }
+  const state = openLivingWorld(await fresh("Украина", 15));
+  const energy = presidentialMessages(state).find(message => message.key === "energy")!;
+  const answered = interveneWorld(state, presidentialReplyActions(state, energy)[0].id);
+  const row = inboxRows(answered).find(entry => entry.id === energy.person);
+  assert.equal(row?.waiting ?? false, false, "после назначения энергосеть больше не ждёт ответа");
+  assert.deepEqual(inboxRows({ ...state, daily: "2026-10-12" }), [], "в «Деле дня» стола нет");
+});
+
+test("правительство в «Стране»: программы в работе и личное поручение квартала", async () => {
+  const state = openLivingWorld(await fresh("Молдова", 3));
+  assert.deepEqual(governmentNote(state), { programs: "0 из 2 в работе", quota: "одно личное поручение на квартал свободно" });
+  const energy = presidentialMessages(state).find(message => message.key === "energy")!;
+  const assigned = interveneWorld(state, presidentialReplyActions(state, energy)[0].id);
+  assert.deepEqual(governmentNote(assigned), { programs: "1 из 2 в работе", quota: "личное поручение квартала подписано" });
+  assert.equal(governmentNote({ ...state, world: undefined }), null);
 });

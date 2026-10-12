@@ -4,6 +4,9 @@ import { CRISIS_THRESHOLD, HOSTILE_RELATION, RESOURCE_KEYS } from "../game/data.
 import { plural } from "../game/engine.ts";
 import { isDisloyal } from "../game/advisors.ts";
 import { candidatePool, staffingOpen } from "../game/staffing.ts";
+import { governmentLoad } from "../game/government.ts";
+import { personProfiles } from "./people-text.ts";
+import { messageUnread, presidentialMessages } from "./presidential-inbox.ts";
 import type { GameState } from "../game/types.ts";
 
 export type SheetId = "country" | "people";
@@ -40,4 +43,41 @@ export function staffNote(gs: GameState): string | null {
   if (gs.staffing?.lastTurn === gs.turn) return "решение квартала принято";
   const pool = candidatePool(gs).length;
   return pool ? plural(pool, "кандидат", "кандидата", "кандидатов") : "резерв на год исчерпан";
+}
+
+// ── Стол в «Людях» и «Стране» ───────────────────────────────────────────────
+// Обращения — третья группа «Людей»: кто пишет, кто ждёт ответа. Ответ даётся в том же окне стола, что и раньше.
+export interface InboxRow {
+  id: string;            // id профиля — по нему стол открывает переписку
+  name: string;
+  role: string;
+  waiting: boolean;      // хотя бы одно обращение ждёт ответа
+  unread: number;
+  note: string;          // что видно под именем: заголовок ждущего обращения, новое или договорённость
+}
+
+export function inboxRows(gs: GameState): InboxRow[] {
+  const messages = presidentialMessages(gs);
+  if (!messages.length) return [];
+  // Те же люди, что на столе: без самого президента, бывших советников и антагониста интриги.
+  return personProfiles(gs)
+    .filter(profile => !["leader", "arc-target"].includes(profile.id) && !profile.id.startsWith("former:"))
+    .filter(profile => messages.some(message => message.person === profile.id))
+    .map(profile => {
+      const own = messages.filter(message => message.person === profile.id);
+      const request = own.find(message => message.needsReply);
+      const unread = own.filter(message => messageUnread(gs, message)).length;
+      const note = request ? `ждёт ответа: ${request.title}` : unread ? plural(unread, "новое", "новых", "новых") : own[0].title;
+      return { id: profile.id, name: profile.name, role: profile.role, waiting: !!request, unread, note };
+    })
+    .sort((a, b) => Number(b.waiting) - Number(a.waiting) || b.unread - a.unread);
+}
+
+// Правительство в «Стране»: сколько программ в работе и свободно ли личное поручение квартала.
+export function governmentNote(gs: GameState): { programs: string; quota: string } | null {
+  if (gs.daily || !gs.world) return null;
+  return {
+    programs: `${governmentLoad(gs.world)} из 2 в работе`,
+    quota: gs.world.lastActionTurn === gs.turn ? "личное поручение квартала подписано" : "одно личное поручение на квартал свободно",
+  };
 }

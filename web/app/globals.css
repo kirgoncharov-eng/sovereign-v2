@@ -684,3 +684,16 @@ button:focus-visible {
 .sv-who-text small b { color: var(--red); font-weight: 700; }
 .sv-who-value { font-family: var(--font-narrow); font-size: 17px; font-weight: 700; white-space: nowrap; }
 .sv-who-body { padding: 0 0 12px 42px; }
+
+/* Переходы из «Страны» и «Людей» в окна стола: строка как у свёрнутого блока, но со стрелкой */
+.sv-fold-link {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 10px 0;
+  background: transparent; border: none; border-top: 1px solid var(--bdr); text-align: left; font-family: var(--font-narrow); color: var(--txt);
+}
+.sv-fold-link span { flex-shrink: 0; white-space: nowrap; font-size: 16px; text-transform: uppercase; letter-spacing: .04em; }
+.sv-fold-link span::after { content: " →"; color: var(--tx3); }
+.sv-fold-link small { font-size: 15px; color: var(--tx3); text-align: right; }
+.sv-who-button {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 0;
+  background: transparent; border: none; border-bottom: 1px solid var(--bdr); text-align: left; color: inherit;
+}
