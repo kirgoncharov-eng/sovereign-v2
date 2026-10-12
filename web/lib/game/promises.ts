@@ -1,10 +1,14 @@
 // Обещания: какие предложить, как считать исполнение и что бывает за обман.
 // Модуль не зависит от движка: возвращает перемены, а применяет их planTurn.
 import { ACTIONS, RES_CONFIG } from "./data.ts";
+import { campaignCopy } from "./alternate-world.ts";
 import { PROMISES, PROMISE_BROKEN, PROMISE_KEPT, PROMISE_OFFER, PROMISE_PICK, type PromiseDef } from "../content/promises.ts";
 import type { ActionTag, Faction, IdeologyId, PromiseNews, PromiseState, ResourceDelta, Resources } from "./types.ts";
 
-export const promiseDef = (id: string): PromiseDef | undefined => PROMISES.find(p => p.id === id);
+export const promiseDef = (id: string, country = ""): PromiseDef | undefined => {
+  const definition = PROMISES.find(promise => promise.id === id);
+  return definition ? campaignCopy(definition, country) : undefined;
+};
 
 // Пять обещаний на выбор: три в духе курса и два чужих. Зависит только от зерна партии —
 // у «Дела дня» набор общий для всех.

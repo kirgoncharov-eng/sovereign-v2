@@ -27,7 +27,7 @@ import { DOSSIER_TEXT } from "@/lib/content/advisors.ts";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
 import { PATH_LABEL } from "@/lib/content/terms.ts";
 import { botLink, shareCaption, shareQuery, shareResultOf } from "@/lib/share.ts";
-import { ACHIEVEMENTS, ALL_ENDINGS, bestReign, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta } from "@/lib/client/meta.ts";
+import { visibleAchievements, ALL_ENDINGS, bestReign, compactMeta, dailyCase, importMeta, parseMeta, readMetaRaw, recordRun, subscribeMeta } from "@/lib/client/meta.ts";
 
 // Весь текст — из библиотеки авторских сценариев, без сети и без модели.
 // Ответ готов мгновенно — даём сцене короткую театральную паузу.
@@ -70,6 +70,7 @@ import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
+import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM } from "@/lib/game/alternate-world.ts";
 import { countryForNewRun, NEW_GAME_COUNTRY } from "@/lib/client/new-game-country.ts";
 
 const barColor = v => v >= 60 ? "var(--grn)" : v >= 35 ? "var(--amb)" : "var(--red)";
@@ -282,7 +283,7 @@ function PollWidget({ gs, bare = false }) {
       </div>
       {info && (
         <div style={{ fontFamily:serif, fontSize:12, color:G.tx2, lineHeight:1.5, marginBottom:10, padding:"8px 10px", background:G.bg3, borderRadius:0 }}>
-          Голосуют группы общества — по своему весу. Группа поддерживает вас тем сильнее, чем лучше её отношение к вам и чем выше легитимность и экономика. Недовольные уходят к партии-конкуренту своего лагеря. Запад и Кремль не голосуют. Рейтинг ≤ {LIMITS.endRating}% — революция.
+          Голосуют группы общества — по своему весу. Группа поддерживает вас тем сильнее, чем лучше её отношение к вам и чем выше легитимность и экономика. Недовольные уходят к партии-конкуренту своего лагеря. Внешние партнёры не голосуют. Рейтинг ≤ {LIMITS.endRating}% — революция.
         </div>
       )}
       {rows.map(r => {
@@ -416,7 +417,7 @@ function LawEffects({ def, law }) {
     </span>
   );
 }
-const BLOC_LABEL = { security:"силовики", business:"бизнес", church:"церковь", liberal:"либералы", west:"Запад", russia:"Москва", nationalist:"националисты", regional:"регионы", ruling:"правящая партия" };
+const BLOC_LABEL = { security:"силовики", business:"бизнес", church:"церковь", liberal:"либералы", west:"торговые партнёры", russia:"Россия", nationalist:"националисты", regional:"регионы", ruling:"правящая партия" };
 function LawLines({ gs, c, effects = true }) {
   const def = c.law && lawDef(c.law.id);
   if (!def) return null;
@@ -1149,7 +1150,7 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
         <div className="sv-hud-row" style={{ position:"relative" }}>
           {info && <ResourceInfo gs={gs} kind={info} onClose={() => setInfo(null)}/>}
           <div className="sv-hud-who" style={{ minWidth:0 }}>
-            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, whiteSpace:"nowrap" }}>{gs.country} · {termNo ? `срок ${ROMAN[termNo] ?? termNo + 1}` : ci.label.toLowerCase()}<span className="sv-hud-turn"> · ход {local}/{TERM}</span></div>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, whiteSpace:"normal", lineHeight:1.15 }}>{gs.country === ALTERNATE_COUNTRY ? "Беларусь" : gs.country} · {termNo ? `срок ${ROMAN[termNo] ?? termNo + 1}` : ci.label.toLowerCase()}<span className="sv-hud-turn"> · {gs.country === ALTERNATE_COUNTRY ? `${gs.year} · ход ${gs.turn + 1}` : `ход ${local}/${TERM}`}</span></div>
             <div style={{ fontFamily:pixel, fontSize:15, color:G.gold, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", textTransform:"uppercase" }}>{gs.leader.name}</div>
           </div>
           <div className="sv-hud-res">
@@ -1350,7 +1351,7 @@ function HowToPlay({ onClose }) {
 
 function DailyCard({ meta, disabled, onPlay }) {
   const d = useMemo(() => dailyCase(), []);
-  const done = meta.runs.find(r => r.daily === d.date);
+  const done = meta.runs.find(r => r.daily === d.date && r.country === d.country);
   const [, mm, dd] = d.date.split("-");
   const [place, setPlace] = useState(null);
   useEffect(() => {
@@ -1369,6 +1370,9 @@ function DailyCard({ meta, disabled, onPlay }) {
         <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginTop:3 }}>
           {done ? `ваш итог: «${done.title}» · ${END_TYPES[done.endType]}${place ? ` · ${place.me.rank}-е место из ${place.total}` : ""}` : "одна партия на всех — сравните итог с друзьями"}
         </div>
+        {d.date < ALTERNATE_DAILY_FROM && <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, marginTop:4 }}>
+          Сегодня — прежний сценарий. С 13 октября — альтернативная история.
+        </div>}
       </div>
       {done
         ? <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>новое дело завтра</span>
@@ -1386,12 +1390,12 @@ function Archive({ meta }) {
         style={{ width:"100%", display:"flex", flexWrap:"wrap", gap:"4px 12px", justifyContent:"space-between", alignItems:"center", background:"transparent", border:"none", color:G.txt, padding:0, textAlign:"left" }}>
         <span style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx2, whiteSpace:"nowrap" }}>АРХИВ ПРАВИТЕЛЕЙ</span>
         <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }}>
-          партий {meta.runs.length} · концовок {endings}/{ALL_ENDINGS.length} · достижений {meta.achievements.length}/{ACHIEVEMENTS.length} {openList ? "▴" : "▾"}
+          партий {meta.runs.length} · концовок {endings}/{ALL_ENDINGS.length} · достижений {meta.achievements.length}/{visibleAchievements(meta).length} {openList ? "▴" : "▾"}
         </span>
       </button>
       {openList && (
         <div className="sv-fade" style={{ marginTop:14 }}>
-          {ACHIEVEMENTS.map(a => {
+          {visibleAchievements(meta).map(a => {
             const got = meta.achievements.includes(a.id);
             return (
               <div key={a.id} style={{ display:"flex", gap:10, marginBottom:6, opacity:got ? 1 : .5 }}>
@@ -1508,7 +1512,7 @@ function Setup({ onStart, saved, onResume }) {
         <div style={{ textAlign:"center", marginBottom:26 }}>
           <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(56px, 17vw, 88px)", lineHeight:1, letterSpacing:".1em", color:G.gold, textShadow:"4px 4px 0 rgba(0,0,0,.45)" }}>СУВЕРЕН</h1>
           <div style={{ fontFamily:narrow, fontSize:19, color:G.tx2, marginTop:12 }}>
-            Беларусь. Один президент. Сколько лет вы продержитесь?
+            Беларусь, 1978. Другая история. Сколько лет вы продержитесь?
           </div>
         </div>
 
@@ -1529,11 +1533,11 @@ function Setup({ onStart, saved, onResume }) {
 
 
         <div style={{ textAlign:"center", marginBottom:22 }}>
-          <div style={{ fontFamily:serif, fontSize:18, color:G.txt, lineHeight:1.5, marginBottom:14 }}>Вы принимаете решения. Союзники торгуются, противники готовят заговор. Удержите власть — и разберитесь, кому можно верить.</div>
+          <div style={{ fontFamily:serif, fontSize:18, color:G.txt, lineHeight:1.5, marginBottom:14 }}>В этой истории независимая Беларусь сохранилась после 1918 года. Теперь заводы требуют денег, союзники торгуются, противники готовят заговор. Удержите власть — и разберитесь, кому можно верить.</div>
           <PrimaryBtn onClick={quick} disabled={loading}>{loading ? "ОТКРЫВАЕМ КАБИНЕТ…" : saved ? "НОВАЯ ПАРТИЯ" : "НАЧАТЬ ИГРУ"}</PrimaryBtn>
           <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:8 }}>
-            {meta.runs.length ? "Беларусь · случайный курс · сложность «Коалиция»"
-              : "Беларусь · сразу в кабинет · мягкая сложность «Дебют»"}
+            {meta.runs.length ? "Беларусь, 1978 · случайный курс · сложность «Коалиция»"
+              : "Беларусь, 1978 · сразу в кабинет · мягкая сложность «Дебют»"}
           </div>
         </div>
 
@@ -1614,7 +1618,7 @@ const promisedTo = (gs, def) => gs.factions.filter(f => f.bloc === def.bloc).map
 // Первый день в кабинете: кто вы и что обещали — вместо длинного досье перед игрой.
 function BriefCard({ gs }) {
   const ci = IDEOLOGIES.find(i => i.id === gs.ideo);
-  const titles = (gs.promises ?? []).map(p => promiseDef(p.id)?.title).filter(Boolean);
+  const titles = (gs.promises ?? []).map(p => promiseDef(p.id, gs.country)?.title).filter(Boolean);
   return (
     <div className="sv-paper sv-fade" style={{ marginBottom:10, padding:"12px 16px", display:"flex", gap:12, alignItems:"center" }}>
       <Portrait name={gs.leader.name} size={44}/>
@@ -1639,7 +1643,7 @@ function PromisePicker({ gs, offered, picked, setPicked }) {
         Отметьте {PROMISE_PICK} обещания, с которыми вы шли на выборы. Исполненное укрепит доверие и тех, кому вы его дали. Нарушенное обойдётся дороже, чем кажется.
       </div>
       {offered.map(id => {
-        const def = promiseDef(id), on = picked.includes(id), full = !on && picked.length >= PROMISE_PICK;
+        const def = promiseDef(id, gs.country), on = picked.includes(id), full = !on && picked.length >= PROMISE_PICK;
         const to = promisedTo(gs, def);
         return (
           <button key={id} onClick={() => toggle(id)} aria-pressed={on} disabled={full}
@@ -1665,7 +1669,7 @@ function PromisesCard({ gs, final = false, style, bare = false }) {
     <Box style={bare ? undefined : { marginTop:10, ...style }}>
       {!bare && <Label>{"ОБЕЩАНИЯ"}</Label>}
       {gs.promises.map(p => {
-        const def = promiseDef(p.id);
+        const def = promiseDef(p.id, gs.country);
         if (!def) return null;
         const g = def.goal;
         const mark = p.status === "kept" ? ["✔", G.grn] : p.status === "broken" ? ["✖", G.red] : ["☐", G.tx2];
@@ -2330,7 +2334,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
                 {sceneOf(event) !== "square" && (
                   <figure className="sv-scene" style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
-                    <SquareView gs={gs} sceneKey={sceneOf(event)} partner={event.source === "Кремль" ? "ru" : "eu"} height={60}/>
+                    <SquareView gs={gs} sceneKey={sceneOf(event)} partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60}/>
                   </figure>
                 )}
                 {event.special && <SpecialHeader gs={gs} event={event}/>}
@@ -2705,7 +2709,7 @@ function Collection() {
   const items = [
     ["ИНТРИГИ", `${meta.arcs?.length ?? 0}/${ARCS.length}`],
     ["КОНЦОВКИ", `${endings}/${ALL_ENDINGS.length}`],
-    ["ДОСТИЖЕНИЯ", `${meta.achievements.length}/${ACHIEVEMENTS.length}`],
+    ["ДОСТИЖЕНИЯ", `${meta.achievements.length}/${visibleAchievements(meta).length}`],
   ];
   return (
     <div style={{ display:"flex", justifyContent:"center", gap:24, flexWrap:"wrap", margin:"4px 0 18px", order:7 }}>

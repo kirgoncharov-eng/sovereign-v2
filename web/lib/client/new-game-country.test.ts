@@ -7,8 +7,8 @@ import { classicApi } from "../game/classic.ts";
 import { createInitialState, resolveTurn, seededRandom, startEvent } from "../game/engine.ts";
 import { parseSave } from "./save.ts";
 
-test("новая обычная кампания начинается за Беларусь; общее дело дня не переназначается", () => {
-  assert.equal(NEW_GAME_COUNTRY, "Беларусь");
+test("новая обычная кампания начинается в альтернативном 1978 году; общее дело дня не переназначается", () => {
+  assert.equal(NEW_GAME_COUNTRY, "Беларусь · 1978");
   assert.equal(countryForNewRun(), NEW_GAME_COUNTRY);
   assert.equal(countryForNewRun(null), NEW_GAME_COUNTRY);
   const dailyCountries = new Set<string>();
@@ -22,7 +22,7 @@ test("новая обычная кампания начинается за Бе�
   assert.ok(dailyCountries.size > 1);
 });
 
-test("сохранения шести стран продолжаются и повторно загружаются без смены страны", async () => {
+test("прежние и историческая кампании продолжаются и повторно загружаются без смены страны", async () => {
   for (const country of Object.keys(COUNTRIES)) {
     const seed = 1;
     const intro = await classicApi.setup(country, "debut", "pragmatist", seed);

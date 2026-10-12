@@ -1,3 +1,4 @@
+import { campaignLabel } from "../game/alternate-world.ts";
 // Карточка итога правления — картинка для сторис и мессенджеров (1080×1350).
 import { ARCS } from "../content/arcs.ts";
 import { runScore } from "../game/daily.ts";
@@ -73,7 +74,7 @@ export async function resultCard(gs: GameState): Promise<Blob | null> {
   // имя, страна, срок
   const tx = 520, tw = W - tx - 80;
   ctx.fillStyle = INK2; ctx.font = `36px ${NARROW}`;
-  ctx.fillText(`${country.flag} ${gs.country} · ${country.startYear}–${gs.year}`, tx, 290);
+  ctx.fillText(`${country.flag} ${campaignLabel(gs.country)} · ${country.startYear}–${gs.year}`, tx, 290);
   ctx.fillStyle = INK; ctx.font = `700 68px ${SERIF}`;
   const nameLines = wrap(ctx, gs.leader.name, tx, 370, tw, 76, 2);
   stamp(ctx, v.title, tx + tw / 2, 370 + nameLines * 76 + 60, loss ? RED : STAMP_OK, 38);

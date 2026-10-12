@@ -1,9 +1,11 @@
 // Заголовки к предложениям совета (см. council-a.ts, council-b.ts): [при успехе, при провале].
+import { ALTERNATE_COUNCIL_HEADLINES } from "./alternate-history-extras.ts";
 import type { HeadlinePair } from "./headlines-cards.ts";
 
 type Roles = Partial<Record<"strategist" | "economist" | "security" | "diplomat", HeadlinePair>>;
 
 export const COUNCIL_HEADLINES: Record<string, Roles> = {
+  ...ALTERNATE_COUNCIL_HEADLINES,
   // позднее правление
   late_son: {
     strategist: ["Фирма сына президента сменила владельца", "Новый владелец фирмы сына президента — её охранник"],

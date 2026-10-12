@@ -6,6 +6,7 @@ import {
   IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, RECOVERY_BELOW, RECOVERY_RATE,
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES, SURVIVAL_ENDS, CONTINUE_ENDS, TERM_FATIGUE, DEATH_FROM, DEATH_STEP, localTurn,
 } from "./data.ts";
+import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
 import { ARCS } from "../content/arcs.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { NAMES } from "../content/narration.ts";
@@ -173,9 +174,12 @@ export function isFemaleName(name: string): boolean {
   return FEMALE_NAMES.has(first) || (/[ая]$/.test(first) && !MALE_A.has(first));
 }
 // Интрига на срок. В следующем сроке — другая: сыгранные не повторяются, пока есть новые.
-export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "factions">, rand: () => number, played: string[] = []): ArcState {
-  const pool = ARCS.filter(a => !played.includes(a.id));
-  const list = pool.length ? pool : ARCS;
+export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "factions"> & Partial<Pick<GameState, "country">>, rand: () => number, played: string[] = []): ArcState {
+  const available = state.country === ALTERNATE_COUNTRY && !played.length
+    ? ARCS.filter(arc => arc.id === "alt_contracts")
+    : ARCS.filter(arc => !arc.countries || arc.countries.includes(state.country ?? ""));
+  const pool = available.filter(arc => !played.includes(arc.id));
+  const list = pool.length ? pool : available;
   const arc = list[Math.floor(rand() * list.length)];
   const blocOf = (fig: Figure) => state.factions.find(f => f.id === fig.faction)?.bloc;
   let who: { name: string; role: string } | undefined;
@@ -190,15 +194,17 @@ export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "fact
 }
 
 // Эпизод интриги, который должен случиться на следующем ходу (если есть).
-export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<GameState, "world" | "daily">>) {
+export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<GameState, "world" | "daily" | "country">>) {
   const arc = ARCS.find(a => a.id === state.arc?.id);
   if (!arc || !state.arc) return null;
-  const idx = arc.beats.findIndex(b => b.turn === localTurn(state.turn + 1) && !state.arc!.done.includes(b.turn));
+  const scheduledTurn = (turn: number) => state.country === ALTERNATE_COUNTRY && state.turn < 20 && turn === 1 ? 2 : turn;
+  const idx = arc.beats.findIndex(beat => scheduledTurn(beat.turn) === localTurn(state.turn + 1) && !state.arc!.done.includes(beat.turn));
   if (idx < 0) return null;
   const beat = arc.beats[idx];
   const documentedNetwork = !state.daily && arc.id === 'money' && beat.turn === 16
     && state.world?.evidence?.target === state.arc.target && state.world.evidence.networkVerifiedAt !== undefined;
-  const variant = documentedNetwork ? beat.variants[0] : beat.variants.find(v => !v.requires || v.requires.some(f => state.arc!.flags.includes(f))) ?? beat.variants[beat.variants.length - 1];
+  const variant = documentedNetwork ? beat.variants[0] : beat.variants.find(variant => (!variant.requires || variant.requires.some(flag => state.arc!.flags.includes(flag)))
+    && (!variant.requiresAll || variant.requiresAll.every(flag => state.arc!.flags.includes(flag)))) ?? beat.variants[beat.variants.length - 1];
   return { arc, beat, variant, episode: idx + 1, total: arc.beats.length };
 }
 
@@ -411,10 +417,11 @@ export function choiceEffects(state: Pick<GameState, "ideo" | "factions"> & Part
   const appr: Record<string, number> = {};
   const ideo = IDEOLOGY_ACTIONS[state.ideo];
   addDelta(res, choice.arc?.effect);
+  addDelta(res, choice.policyEffect);
   for (const tag of choice.deal?.pure ? [] : choice.tags) {
     const a = ACTIONS[tag];
     if (!a) continue;
-    addDelta(res, a.res);
+    if (!choice.policyEffect) addDelta(res, a.res);
     if (ideo.aligned.includes(tag)) addDelta(res, IDEOLOGY_BONUS);
     if (ideo.opposed.includes(tag)) addDelta(res, IDEOLOGY_PENALTY);
     for (const f of state.factions) {
@@ -700,6 +707,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 export function resolveTurn(state: GameState, choiceId: string, narration: Narration): GameState {
   const plan = planTurn(state, choiceId);
   const event = state.currentEvent!;
+  const tracksOutcomes = ARCS.find(arc => arc.id === state.arc?.id)?.trackOutcomes;
   const turn = state.turn + 1;
 
   let crises = plan.crises;
@@ -776,9 +784,13 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
         [...plan.reign.arcs, ...(state.arc ? [state.arc.id] : [])]), flags: ["later"] }
       : state.arc ? {
         ...state.arc,
-        flags: plan.choice.arc?.flag ? [...state.arc.flags, plan.choice.arc.flag] : state.arc.flags,
+        flags: plan.choice.arc?.flag
+          ? [...state.arc.flags, ...(tracksOutcomes && plan.success ? [`ok:${plan.choice.arc.flag}`] : []), plan.choice.arc.flag]
+          : state.arc.flags,
         done: event.beat ? [...state.arc.done, event.beat.turn] : state.arc.done,
-        epilogue: plan.choice.arc?.epilogue ?? state.arc.epilogue,
+        epilogue: tracksOutcomes && !plan.success
+          ? plan.choice.arc?.epilogueFail ?? state.arc.epilogue
+          : plan.choice.arc?.epilogue ?? state.arc.epilogue,
       } : null,
     stats: {
       crisesResolved: (state.stats?.crisesResolved ?? 0) + (plan.resolvedCrisis ? 1 : 0),

@@ -1,8 +1,9 @@
 // «Дело дня» и очки партии — общие для клиента и сервера.
+import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM, LEGACY_COUNTRIES } from "./alternate-world.ts";
 import { promisesBroken, promisesKept } from "./promises.ts";
 import { computePolls, hashSeed, isSurvival, seededRandom } from "./engine.ts";
 import { END_BONUS } from "./terms.ts";
-import { COUNTRIES, IDEOLOGIES, RES_CONFIG } from "./data.ts";
+import { IDEOLOGIES, RES_CONFIG } from "./data.ts";
 import type { DifficultyId, GameState, IdeologyId } from "./types.ts";
 
 // «Дело дня»: одна и та же партия у всех игроков в течение суток — можно сравнить итог с друзьями.
@@ -14,11 +15,11 @@ export function dailyCase(now = new Date()) {
 export function dailyCaseForDate(date: string) {
   const seed = hashSeed("daily", date);
   const r = seededRandom(seed);
-  const countries = Object.keys(COUNTRIES);
+  const legacyCountry = LEGACY_COUNTRIES[Math.floor(r() * LEGACY_COUNTRIES.length)];
   const diffs: DifficultyId[] = ["coalition", "coalition", "crisis"];
   return {
     date, seed,
-    country: countries[Math.floor(r() * countries.length)],
+    country: date >= ALTERNATE_DAILY_FROM ? ALTERNATE_COUNTRY : legacyCountry,
     diff: diffs[Math.floor(r() * diffs.length)],
     ideo: IDEOLOGIES[Math.floor(r() * IDEOLOGIES.length)].id as IdeologyId,
   };

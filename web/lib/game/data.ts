@@ -1,7 +1,9 @@
+import { ALTERNATE_CONTEXT, ALTERNATE_COUNTRY } from "./alternate-world.ts";
+
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "7.17";
+export const APP_VERSION = "8.0";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 // Срок — двадцать ходов (пять лет). Правление не ограничено сроком: партия идёт, пока лидер у власти.
 export const TERM = 20;
@@ -34,6 +36,7 @@ export interface CountryInfo {
 }
 
 export const COUNTRIES: Record<string, CountryInfo> = {
+  [ALTERNATE_COUNTRY]: { flag: "◈", context: ALTERNATE_CONTEXT, startYear: 1978, capital: "Минск" },
   "Беларусь": { flag:"🇧🇾", context:"Беларусь после долгого единоличного правления. Санкции Запада, жёсткая зависимость от России, силовики привыкли к авторитаризму, оппозиция в эмиграции и подполье, общество разорвано.", startYear:2025, capital:"Минск" },
   "Украина":  { flag:"🇺🇦", context:"Украина в послевоенной реконструкции. Кандидат ЕС. Западные союзники устают, олигархи ослаблены, общество истощено и требует победы.", startYear:2025, capital:"Киев" },
   "Грузия":   { flag:"🇬🇪", context:"Малое государство. Абхазия и Ю.Осетия оккупированы Россией. Один олигарх контролирует правящую партию. Заявка на ЕС под угрозой. Улица против власти.", startYear:2025, capital:"Тбилиси" },
@@ -60,7 +63,7 @@ export const DIFFICULTIES: Record<DifficultyId, { label: string; emoji: string; 
 };
 
 export const IDEOLOGIES: { id: IdeologyId; emoji: string; label: string; desc: string }[] = [
-  { id:"liberal",     emoji:"◈", label:"Либерал",     desc:"Реформы · ЕС · Права человека" },
+  { id:"liberal",     emoji:"◈", label:"Либерал",     desc:"Реформы · Открытые рынки · Права человека" },
   { id:"nationalist", emoji:"◆", label:"Националист", desc:"Суверенитет · Традиции · Государство" },
   { id:"pragmatist",  emoji:"◇", label:"Прагматик",   desc:"Результат и баланс — главное" },
   { id:"leftist",     emoji:"●", label:"Левый",        desc:"Справедливость · Антиолигархия" }
@@ -111,6 +114,17 @@ export interface FactionInfo {
 }
 
 export const FACTIONS_DATA: Record<string, FactionInfo[]> = {
+  [ALTERNATE_COUNTRY]: [
+    { id: "siloviki", name: "Служба порядка", desc: "Полиция, армия и управление безопасности", emoji: "🛡️", baseApproval: 35, bloc: "security" },
+    { id: "gossektor", name: "Промышленная палата", desc: "Заводы, банки и экспортные договоры", emoji: "🏭", baseApproval: 45, bloc: "business" },
+    { id: "regions", name: "Областные советы", desc: "Губернаторы, районные бюджеты и подрядчики", emoji: "🌾", baseApproval: 55, bloc: "regional", plural: true },
+    { id: "opposition", name: "Гражданское движение", desc: "Реформаторы, профсоюзы и городские собрания", emoji: "✊", baseApproval: 60, bloc: "liberal" },
+    { id: "nationalists", name: "Союз республики", desc: "Самостоятельность, язык и отечественное производство", emoji: "◆", baseApproval: 50, bloc: "nationalist" },
+    { id: "church", name: "Совет приходов", desc: "Приходы, благотворительные общества и сельские общины", emoji: "⛪", baseApproval: 48, bloc: "church" },
+    { id: "west", name: "Торговый союз", desc: "Европейские рынки, кредит и стандарты продукции", emoji: "🌍", baseApproval: 45, bloc: "west" },
+    { id: "russia", name: "Российская делегация", desc: "Топливные поставки, железная дорога и заводские заказы", emoji: "🚂", baseApproval: 35, bloc: "russia" },
+    { id: "media", name: "Независимые редакции", desc: "Газеты, радио и читательские письма", emoji: "📰", baseApproval: 58, bloc: "liberal", plural: true },
+  ],
   "Беларусь": [
     { id:"siloviki",   name:"Силовые структуры", desc:"КГБ, МВД, ОМОН",             emoji:"🛡️", baseApproval:32, bloc:"security", plural:true },
     { id:"gossektor",  name:"Гос. предприятия",   desc:"Директорат заводов",          emoji:"🏭", baseApproval:38, bloc:"business", plural:true },
@@ -190,6 +204,18 @@ export interface FigureRole {
 }
 
 export const FIGURE_ROLES: Record<string, FigureRole[]> = {
+  [ALTERNATE_COUNTRY]: [
+    { id: "interior", role: "Министр внутренних дел", faction: "siloviki", baseMood: "нейтрал" },
+    { id: "security", role: "Начальник управления безопасности", faction: "siloviki", baseMood: "нейтрал" },
+    { id: "amb_russia", role: "Посол России", faction: "russia", baseMood: "нейтрал" },
+    { id: "amb_eu", role: "Посол Торгового союза", faction: "west", baseMood: "нейтрал" },
+    { id: "opp_leader", role: "Лидер Гражданского движения", faction: "opposition", baseMood: "союзник" },
+    { id: "oligarch", role: "Директор промышленного концерна", faction: "gossektor", baseMood: "нейтрал" },
+    { id: "governor", role: "Губернатор промышленного округа", faction: "regions", baseMood: "нейтрал" },
+    { id: "nat_leader", role: "Председатель Союза республики", faction: "nationalists", baseMood: "нейтрал" },
+    { id: "patriarch", role: "Председатель Совета приходов", faction: "church", baseMood: "нейтрал" },
+    { id: "journalist", role: "Редактор областной газеты", faction: "media", baseMood: "союзник" },
+  ],
   "Беларусь": [
     { id:"interior",   role:"Министр внутренних дел", faction:"siloviki",   baseMood:"враг"    },
     { id:"kgb",        role:"Директор КГБ",            faction:"siloviki",   baseMood:"враг"    },
@@ -286,6 +312,7 @@ export const CONTINUE_ENDS: readonly string[] = ["reelected", "zeroed", "premier
 // Модели сроков, по которым живут страны игры. Это модели, а не пересказ действующих
 // конституций: от модели зависит, какие пути остаться у власти открыты лидеру.
 export const CONSTITUTION: Record<string, TermRule> = {
+  [ALTERNATE_COUNTRY]: "no_limits",
   "Беларусь": "no_limits", "Украина": "two_terms", "Казахстан": "single_term",
   "Грузия": "parliamentary", "Молдова": "parliamentary", "Армения": "parliamentary",
 };
@@ -301,6 +328,11 @@ export const TERM_RULES: Record<TermRule, { title: string; text: string }> = {
 export interface PartyInfo { id: string; name: string; blocs: Bloc[] }
 
 export const PARTIES: Record<string, PartyInfo[]> = {
+  [ALTERNATE_COUNTRY]: [
+    { id: "labour", name: "Труд и порядок", blocs: ["business", "security"] },
+    { id: "citizens", name: "Гражданское движение", blocs: ["liberal", "regional"] },
+    { id: "republic", name: "Союз республики", blocs: ["nationalist", "church"] },
+  ],
   "Беларусь": [
     { id:"order",  name:"Партия порядка",          blocs:["security","business"] },
     { id:"union",  name:"Союзное государство",     blocs:["church","nationalist"] },

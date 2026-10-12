@@ -1,3 +1,4 @@
+import { campaignLabel } from "./game/alternate-world.ts";
 // Итог партии в ссылке: из этих параметров сервер рисует карточку (/api/card) и страницу со
 // ссылкой-превью (/r). Общий код для клиента и сервера: что попало в ссылку — то и на картинке.
 import { COUNTRIES, END_TYPES, SURVIVAL_ENDS, reignLength } from "./game/data.ts";
@@ -47,7 +48,7 @@ export function parseShare(p: Params): ShareResult | null {
   const arc = str(get("a"), 40);
   return {
     name, country, end: END_TYPES[end as keyof typeof END_TYPES] ? end : "collapse", title: str(get("v"), 40),
-    turns: num(get("t"), 0, 400), from: num(from, 1990, 2100), to: num(to, 1990, 2100), rating: num(get("r"), 0, 100),
+    turns: num(get("t"), 0, 400), from: num(from, 1900, 2200), to: num(to, 1900, 2200), rating: num(get("r"), 0, 100),
     score: num(get("s"), 0, 99999), kept: num(kept, 0, 3), promised: num(promised, 0, 3),
     ...(daily ? { daily } : {}), ...(arc ? { arc, solved: get("o") === "1" } : {}),
   };
@@ -57,7 +58,7 @@ export const survived = (r: ShareResult) => SURVIVAL_ENDS.includes(r.end);
 
 // Подпись под ссылкой и в превью: коротко, с вызовом.
 export function shareCaption(r: ShareResult) {
-  const where = `${r.country}, ${r.from}–${r.to}`;
+  const where = `${campaignLabel(r.country)}, ${r.from}–${r.to}`;
   const how = END_TYPES[r.end as keyof typeof END_TYPES] ?? "";
   const title = `${r.name} — «${r.title || how}»`;
   const promises = r.promised ? ` Обещаний сдержано: ${r.kept} из ${r.promised}.` : "";

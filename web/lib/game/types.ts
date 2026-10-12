@@ -74,6 +74,7 @@ export interface Crisis {
 }
 
 export interface Choice {
+  policyEffect?: ResourceDelta; // authored fiscal effect; tags still express commitments and execution risk
   politicalTags?: ActionTag[];
   pensionTransition?: { figure: string; name: string };
   evidenceResponse?: 'refer' | 'port';
@@ -127,6 +128,7 @@ export interface Pact {
 export interface PactNews { signed: string[]; kept: string[]; broken: string[] }
 
 export interface ArcChoice {
+  epilogueFail?: string;
   flag: string;
   ok: string;
   fail?: string;

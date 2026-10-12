@@ -3,6 +3,7 @@
 // об улице и прессе — политтехнолог и экономист. В своей области лояльный советник говорит правду,
 // о прочем — тянет в свою сторону, каждый в своей манере. Нелояльный служит своему лагерю и лжёт даже в своей области.
 // Кто был прав, видно после хода: газета сверяет прогнозы с ведомостью.
+import { campaignText } from "./alternate-world.ts";
 import { ACTIONS } from "./data.ts";
 import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed, loyaltyOf } from "./engine.ts";
 import { campOf, isDisloyal, mannerOf } from "./advisors.ts";
@@ -80,6 +81,7 @@ export function debateApplies(event: GameEvent | null | undefined): event is Gam
 // Почему вариант двигает опору: причина именно этого решения, слова советника о своей области или общая причина по тегу.
 function reasonOf(choice: Choice, resource: ResourceKey, sign: number, salt: number): string | null {
   if (sign < 0 && choice.costReasons?.[resource]) return choice.costReasons[resource]!;
+  if (choice.policyEffect) return null;
   const tag = choice.tags.find(candidate => Math.sign(ACTIONS[candidate]?.res[resource] ?? 0) === sign);
   if (!tag) return null;
   const own = ADVISOR_REASONS[resource]?.[tag];
@@ -187,7 +189,7 @@ export function debate(state: GameState): AdvisorTake[] | null {
       name: speaker.advisor.name,
       role: speaker.advisor.role,
       favors: favored.choice.id,
-      text: [verdict, domain.line, spin?.line].filter(Boolean).join(" "),
+      text: campaignText([verdict, domain.line, spin?.line].filter(Boolean).join(" "), state.country),
       claims: [domain.claim, spin?.claim].filter((claim): claim is Claim => !!claim),
     };
   });
