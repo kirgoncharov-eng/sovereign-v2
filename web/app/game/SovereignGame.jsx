@@ -19,7 +19,7 @@ import { effectiveLaw, lawDef } from "@/lib/game/laws.ts";
 import { debate } from "@/lib/game/forecasts.ts";
 import { ORDINAL } from "@/lib/content/forecasts.ts";
 import { advisorProfile, newsLine } from "@/lib/game/advisors.ts";
-import { countryNotes, sheetAlerts, staffNote } from "@/lib/client/country-people.ts";
+import { countryNotes, governmentNote, inboxRows, sheetAlerts, staffNote } from "@/lib/client/country-people.ts";
 import AdvisorName, { AdvisorCard } from "./AdvisorCard.jsx";
 import StaffPanel, { DossierActions } from "./StaffPanel.jsx";
 import { hireAdvisor, applyDossier } from "@/lib/game/staffing.ts";
@@ -1800,6 +1800,11 @@ function Fold({ title, note, children }) {
   );
 }
 
+// Строка-переход: как свёрнутый блок, но открывает окно (правительство, доклады, переписку).
+function SheetLink({ title, note, onClick }) {
+  return <button type="button" className="sv-fold-link" onClick={onClick}><span>{title}</span>{note && <small>{note}</small>}</button>;
+}
+
 // Строка человека — одна для советника и ключевого игрока: портрет, имя, кто он и главное число.
 function PersonRow({ name, line, value, valueColor, warn, children }) {
   return (
@@ -1817,9 +1822,10 @@ function PersonRow({ name, line, value, valueColor, warn, children }) {
   );
 }
 
-function CountrySheet({ gs }) {
+function CountrySheet({ gs, onGovernment, onReports }) {
   const { resources, prevResources, turn } = gs;
   const notes = countryNotes(gs);
+  const government = gs.ended ? null : governmentNote(gs);
   const polls = computePolls(gs.country, gs.factions, gs.resources);
   const next = nextElection(gs);
   return <>
@@ -1828,6 +1834,13 @@ function CountrySheet({ gs }) {
     <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, margin:"6px 0 10px", lineHeight:1.5 }}>
       ниже {CRISIS_THRESHOLD} — кризис · ≤ {LIMITS.endResource} — падение власти · ниже 30 — понемногу восстанавливается
     </div>
+    {government && <>
+      <div style={{ marginTop:14 }}><Label>{"ПРАВИТЕЛЬСТВО"}</Label></div>
+      <SheetLink title="Программы" note={government.programs} onClick={onGovernment}/>
+      <SheetLink title="Поручения и доклады"
+        note={`энергосеть ${gs.world.project.progress}%${gs.world.health ? ` · больницы ${gs.world.health.progress}%` : ""}`} onClick={onReports}/>
+      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, margin:"4px 0 12px" }}>{upperFirst(government.quota)}</div>
+    </>}
     {notes.pending && (
       <Fold title="Ожидается" note={notes.pending}>
         {[...gs.pending].sort((a, b) => a.due - b.due).map(p => {
@@ -1862,12 +1875,28 @@ function CountrySheet({ gs }) {
   </>;
 }
 
-function PeopleSheet({ gs, onDossier, onHire }) {
+function PeopleSheet({ gs, onDossier, onHire, onInbox }) {
   const { factions, prevFactions, keyFigures, prevFigures } = gs;
   const staff = staffNote(gs);
+  const inbox = gs.ended ? [] : inboxRows(gs);
   const voters = factions.filter(f => !NON_VOTING_BLOCS.includes(f.bloc));
   const total = voters.reduce((sum, f) => sum + f.approval, 0) || 1;
   return <>
+    {inbox.length > 0 && <>
+      <Label>{"ОБРАЩЕНИЯ"}</Label>
+      {inbox.map(row => (
+        <button key={row.id} type="button" className="sv-who-button" onClick={() => onInbox(row.id)}>
+          <Portrait name={row.name} size={32}/>
+          <span className="sv-who-text">
+            <strong>{row.name}</strong>
+            <small>{row.role} · {row.waiting ? <b>{row.note}</b> : row.note}</small>
+          </span>
+          <span className="sv-who-value" aria-hidden="true">→</span>
+        </button>
+      ))}
+      <SheetLink title="Все сообщения и договорённости" onClick={() => onInbox("people")}/>
+      <div style={{ height:14 }}/>
+    </>}
     {gs.advisors?.length > 0 && <>
       <Label>{"ОКРУЖЕНИЕ"}</Label>
       {gs.advisors.map(advisor => {
@@ -1938,6 +1967,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const finishTransition = useCallback(() => { setTransition(null); window.scrollTo({top:0}); }, []);
   const [stamping, setStamping] = useState(null); // резолюция, на которую опускается печать
   const sheetBody = useRef(null);
+  const deskRef = useRef(null);
   const [dossier, setDossier] = useState(false);   // телефон: «Страна» или «Люди» открыты поверх игры
   const [resolutionInView, setResolutionInView] = useState(false);
   useEffect(() => { gsRef.current = gs; }, [gs]);
@@ -2144,6 +2174,14 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     : null;
 
   const alerts = sheetAlerts(gs);
+  const inbox = inboxRows(gs);
+  const waitingReplies = inbox.filter(row => row.waiting).length;
+  const unreadMessages = inbox.reduce((sum, row) => sum + row.unread, 0);
+  // Подпись под «Людьми»: кто ждёт ответа важнее новых писем, новые письма — важнее списка разделов.
+  const peopleHint = waitingReplies ? `${plural(waitingReplies, "обращение ждёт", "обращения ждут", "обращений ждут")} ответа`
+    : unreadMessages ? plural(unreadMessages, "новое сообщение", "новых сообщения", "новых сообщений") : null;
+  // Из «Людей» и «Страны» — в окно стола: раздел закрывается, окно открывается поверх игры.
+  const fromSheet = action => { setDossier(false); requestAnimationFrame(action); };
   // На телефоне раздел открывается поверх игры; на широком экране он и так виден в боковой колонке.
   const openSheet = id => {
     setSideTab(id);
@@ -2170,7 +2208,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               <button key={sheet.id} onClick={() => openSheet(sheet.id)} aria-pressed={sideTab === sheet.id} aria-expanded={dossier && sideTab === sheet.id}>
                 <strong>{sheet.label}</strong>
                 {alerts[sheet.id] > 0 && <span className="sv-sheet-alert" title={sheet.alert}>{alerts[sheet.id]} ⚠</span>}
-                <span className="sv-sheet-hint">{sheet.hint}</span>
+                <span className="sv-sheet-hint">
+                  {sheet.id === "people" && peopleHint ? peopleHint : sheet.hint}
+                </span>
               </button>
             ))}
           </nav>
@@ -2180,7 +2220,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               <strong>{SHEETS.find(sheet => sheet.id === sideTab)?.label}</strong>
               <button onClick={() => setDossier(false)} aria-label="Закрыть и вернуться к делу">×</button>
             </div>
-            {sideTab === "country" ? <CountrySheet gs={gs}/> : <PeopleSheet gs={gs}
+            {sideTab === "country" ? <CountrySheet gs={gs}
+              onGovernment={() => fromSheet(() => deskRef.current?.government())}
+              onReports={() => fromSheet(() => countryPanel.current?.showReport())}/> : <PeopleSheet gs={gs}
+              onInbox={id => fromSheet(() => (id === "people" ? deskRef.current?.people() : deskRef.current?.person(id)))}
               onDossier={(id, action) => {
                 if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
                 prefetch.current = null; setArmed(null); setPreview(null);
@@ -2195,7 +2238,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         </div>
 
         <div className="sv-main" inert={dossier || undefined}>
-          {!busy && !recap && gs.world && <PresidentialDesk gs={gs} Portrait={Portrait} Scene={SquareView} onViewChange={open => {if(open)countryPanel.current?.close();setContactOpen(open);}}
+          {!busy && !recap && gs.world && <PresidentialDesk ref={deskRef} entry={false} gs={gs} Portrait={Portrait} Scene={SquareView}
+            onViewChange={open => {if(open)countryPanel.current?.close();setContactOpen(open);}}
             onRead={person => { if (!inFlight.current) commit(readPresidentialMessages(gsRef.current, person)); }}
             onDesk={() => document.getElementById("sv-main-case")?.scrollIntoView({behavior:"smooth",block:"start"})}
             onProject={id => countryPanel.current?.showProject(id)} onAction={id => {
