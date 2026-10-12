@@ -1,6 +1,7 @@
 // Ошибки у игроков: что сломалось, на какой версии и сколько раз. Без стека и без данных партии —
 // только короткий текст ошибки, чтобы увидеть сбой в цифрах раньше, чем о нём напишут.
 // Ключи: an:err:<день> — хэш «версия|вид|текст» → число, an:<день>.error — всего за день.
+import { recordRunMilestones } from "./run-cohorts.ts";
 import { kv } from "./kv.ts";
 
 const TTL = 60 * 60 * 24 * 30;
@@ -29,10 +30,15 @@ export function parseErrors(raw: unknown): ErrorInput[] {
   });
 }
 
-export async function recordErrors(items: ErrorInput[], now = Date.now()) {
-  if (!items.length) return;
+export async function recordErrors(
+  items: ErrorInput[], now = Date.now(), pid?: string, context?: Record<string, unknown>,
+) {
+  if (!items.length || context?.tester === true) return;
   const d = dayOf(now);
   await Promise.all([
+    ...(pid ? items.map(item => recordRunMilestones(pid, {
+      e: "error", p: { ...context, error: `${item.kind}|${normalizeError(item.msg)}` },
+    }, now)) : []),
     ...items.map(e => kv.hincrby(`an:err:${d}`, `${e.v}|${e.kind}|${e.msg}`)),
     kv.hincrby(`an:${d}`, "error", items.length),
     kv.expire(`an:err:${d}`, TTL),
