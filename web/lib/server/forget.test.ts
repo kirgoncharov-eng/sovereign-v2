@@ -22,3 +22,21 @@ test("/forget: подписка, таблица, друзья и отзывы и
   assert.deepEqual(await kv.smembers("friends:tg88"), []);
   assert.deepEqual((await kv.lrange(FB_LIST, 10)).map(r => JSON.parse(r).text), ["чужой"]);
 });
+
+
+test('/forget removes historical version tables without deleting other players', async () => {
+  const now = Date.UTC(2026, 9, 14);
+  const date = '2026-10-14';
+  for (const key of [`daily:${date}:v8.0`, `daily:${date}:v8.1`]) {
+    await kv.sadd(`daily:${date}:editions`, key);
+    await kv.zaddNx(key, 500, 'tg901');
+    await kv.zaddNx(key, 400, 'tg902');
+    await kv.hset(`${key}:info`, 'tg901', '{}');
+  }
+  await forgetUser(901, '', 'test:historical:subs', 'test:historical:feedback', now);
+  for (const key of [`daily:${date}:v8.0`, `daily:${date}:v8.1`]) {
+    assert.equal(await kv.zscore(key, 'tg901'), null);
+    assert.equal(await kv.hget(`${key}:info`, 'tg901'), null);
+    assert.equal(await kv.zscore(key, 'tg902'), 400);
+  }
+});

@@ -32,7 +32,7 @@ function CasePicture({ state, sceneKey }: { state: GameState; sceneKey: SceneKey
 }
 
 export default function TurnInterfaceReview({ scenes }: { scenes: AdvisorArtScene[] }) {
-  const [country, setCountry] = useState("Украина");
+  const [country, setCountry] = useState(scenes[0].state.country);
   const [onDesk, setOnDesk] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<GameState | null>(null);

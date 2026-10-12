@@ -15,7 +15,8 @@ export async function forgetUser(chat: number, who: string, subsKey: string, fbS
   await Promise.all([...friends.map(f => kv.srem(`friends:${f}`, uid)), kv.del(`friends:${uid}`)]);
   for (let i = 0; i < DAYS_KEPT; i++) {
     const date = new Date(now - (i - 1) * 864e5).toISOString().slice(0, 10);
-    await Promise.all([kv.zrem(`daily:${date}`, uid), kv.hdel(`daily:${date}:info`, uid)]);
+    const keys = new Set([`daily:${date}`, ...await kv.smembers(`daily:${date}:editions`)]);
+    await Promise.all([...keys].flatMap(key => [kv.zrem(key, uid), kv.hdel(`${key}:info`, uid)]));
   }
   if (who) {
     const all = await kv.lrange(FB_LIST, 1000);

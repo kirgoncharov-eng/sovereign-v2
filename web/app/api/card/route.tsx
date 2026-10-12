@@ -1,3 +1,4 @@
+import { campaignLabel } from "@/lib/game/alternate-world.ts";
 // Карточка итога картинкой: /api/card?<параметры из lib/share.ts>. Широкая (1200×630) — для превью
 // ссылки в Telegram, &f=story — вертикальная (1080×1920) для историй.
 import { readFile } from "node:fs/promises";
@@ -52,7 +53,7 @@ export async function GET(req: Request) {
       <div style={{ display: "flex", height: 2 * s, background: RULE, marginTop: 5 * s }} />
 
       <div style={{ display: "flex", flexDirection: "column", flexGrow: 1, justifyContent: "center", gap: 22 * s, alignItems: story ? "center" : "flex-start", textAlign: story ? "center" : "left" }}>
-        <div style={{ fontFamily: "Handjet", fontSize: 36 * s, color: INK2 }}>{`${r.country} · ${r.from}–${r.to}`}</div>
+        <div style={{ fontFamily: "Handjet", fontSize: 36 * s, color: INK2 }}>{`${campaignLabel(r.country)} · ${r.from}–${r.to}`}</div>
         <div style={{ fontWeight: 700, fontSize: (r.name.length > 22 ? 58 : 70) * s, lineHeight: 1.05 }}>{r.name}</div>
         {stamp}
         {r.arc ? <div style={{ fontFamily: "Handjet", fontSize: 32 * s, color: r.solved ? GREEN : RED }}>{`Интрига «${r.arc}»: ${r.solved ? "раскрыта" : "осталась тайной"}`}</div> : null}

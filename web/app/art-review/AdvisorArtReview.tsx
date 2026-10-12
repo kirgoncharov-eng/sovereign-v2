@@ -24,7 +24,7 @@ function ReviewPortrait({ name, illustrated }: { name: string; illustrated: bool
 }
 
 export default function AdvisorArtReview({ scenes }: { scenes: AdvisorArtScene[] }) {
-  const [country, setCountry] = useState("Украина");
+  const [country, setCountry] = useState(scenes[0].state.country);
   const [illustrated, setIllustrated] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<GameState | null>(null);

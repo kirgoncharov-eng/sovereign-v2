@@ -1,3 +1,4 @@
+import { campaignCopy } from "./alternate-world.ts";
 // Кадры: президент сам собирает окружение. Раз в год в резерве три кандидата из разных каналов —
 // два «серьёзных» и один абсурдный (родня или человек со стороны). Назначение — замена: кандидат садится в кресло
 // одного из советников, прежний уходит. Это кадровое решение квартала: стоит ресурсов и меняет отношения лагерей,
@@ -72,7 +73,7 @@ export function candidatePool(state: GameState): Candidate[] {
     };
   });
   const taken = new Set(state.staffing?.taken ?? []);
-  return pool.filter(candidate => !taken.has(candidate.id));
+  return campaignCopy(pool.filter(candidate => !taken.has(candidate.id)), state.country);
 }
 
 // Резерв виден с того же хода, что и стол; в «Деле дня» и после финала его нет.

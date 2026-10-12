@@ -47,7 +47,7 @@ async function call(payload: Record<string, unknown>): Promise<Board | null> {
 }
 
 export const submitDaily = (gs: GameState) => call(gs.dailyMoves?.length === gs.turn ? {
-  action: "submit", date: gs.daily, moves: gs.dailyMoves,
+  action: "submit", date: gs.daily, country: gs.country, moves: gs.dailyMoves,
 } : { action: "board", date: gs.daily }); // старая партия остаётся доступна, но без проверяемого результата
 export const fetchBoard = (date = dailyCase().date) => call({ action: "board", date });
 

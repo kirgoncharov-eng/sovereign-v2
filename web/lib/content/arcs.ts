@@ -1,9 +1,11 @@
 // Сквозные сюжетные линии — позвоночник триллера. В каждой партии тайно запускается одна.
 // Эпизоды идут на заданных ходах; выборы ставят флаги, от флагов зависят следующие эпизоды и развязка.
 // Слоты: {target} — главный антагонист линии, {capital}, {leader}.
+import { ALTERNATE_ARC } from "./alternate-history.ts";
 import type { ActionTag, ResourceDelta, ResourceKey } from "../game/types.ts";
 
 export interface BeatChoice {
+  policyEffect?: ResourceDelta;
   text: string;
   hint: string;
   tags: ActionTag[];
@@ -12,18 +14,22 @@ export interface BeatChoice {
   ok: string;              // что происходит при успехе
   fail?: string;           // при провале (если нет — берётся общий текст провала)
   effect?: ResourceDelta;  // сюжетный эффект сверх цены действия
-  epilogue?: string;       // строка для исторического вердикта (финальные эпизоды)
+  epilogue?: string;
+  epilogueFail?: string;       // строка для исторического вердикта (финальные эпизоды)
   removes?: boolean;       // при успехе антагонист уходит с поста — его место занимает преемник
 }
 
 export interface BeatVariant {
   requires?: string[];     // хотя бы один флаг из списка
+  requiresAll?: string[];  // все флаги: например, обе успешные проверки
   title: string;
   description: string;
   choices: BeatChoice[];
 }
 
 export interface Arc {
+  countries?: string[];
+  trackOutcomes?: boolean;
   id: string;
   title: string;
   teaser: string;          // показывается на вступлении — без спойлеров
@@ -34,6 +40,7 @@ export interface Arc {
 }
 
 export const ARCS: Arc[] = [
+  ALTERNATE_ARC,
   {
     id: "mole", title: "Крот",
     teaser: "Кто-то из самых близких людей уже работает против вас. Вы пока об этом не знаете.",

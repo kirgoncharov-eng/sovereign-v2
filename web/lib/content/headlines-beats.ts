@@ -1,8 +1,11 @@
 // Заголовки к эпизодам интриг: газета видит только публичную сторону тайной истории.
 // Ключ — текст варианта эпизода.
+import { ALTERNATE_ARC } from "./alternate-history.ts";
 import type { HeadlinePair } from "./headlines-cards.ts";
 
 export const BEAT_HEADLINES: Record<string, HeadlinePair> = {
+  ...Object.fromEntries(ALTERNATE_ARC.beats.flatMap(beat => beat.variants.flatMap(variant => variant.choices.map(choice =>
+    [choice.text, [choice.ok.split('. ')[0].slice(0, 78), choice.fail!.split('. ')[0].slice(0, 78)] as HeadlinePair])))),
   // Пропавший журналист
   "Поручить полиции найти его немедленно": ["Полиция объявила розыск журналиста", "Розыск журналиста начали с опозданием на сутки"],
   "Публично пообещать, что расследование будет под вашим контролем": ["Президент: «Я лично прослежу, чтобы его нашли»", "«Под контролем»: следователи так и не приехали в редакцию"],

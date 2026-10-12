@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { COUNTRIES } from "@/lib/game/data.ts";
+import { ALTERNATE_COUNTRY } from "@/lib/game/alternate-world.ts";
 import { createAdvisorArtScene } from "@/lib/client/advisor-art-review.ts";
 import TurnInterfaceReview from "./TurnInterfaceReview";
 
@@ -9,6 +9,6 @@ export const metadata: Metadata = {
 };
 
 export default async function InterfaceReviewPage() {
-  const scenes = await Promise.all(Object.keys(COUNTRIES).map(createAdvisorArtScene));
+  const scenes = await Promise.all([ALTERNATE_COUNTRY].map(createAdvisorArtScene));
   return <TurnInterfaceReview scenes={scenes}/>;
 }

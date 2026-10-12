@@ -53,6 +53,7 @@ const finiteJson = (v: unknown): boolean => typeof v === "number" ? Number.isFin
   : Array.isArray(v) ? v.every(finiteJson) : isObj(v) ? Object.values(v).every(finiteJson) : true;
 const choices = (v: unknown) => rows(v, c => fields(c, ["id", "text", "hint"]) && Array.isArray(c.tags)
   && c.tags.every(t => ACTION_TAGS.includes(t)) && (c.resolvesCrisis === null || typeof c.resolvesCrisis === "string")
+  && (c.policyEffect === undefined || deltas(c.policyEffect))
   && (c.politicalTags === undefined || Array.isArray(c.politicalTags) && c.politicalTags.every(t => ACTION_TAGS.includes(t)))
   && (c.pensionTransition === undefined || fields(c.pensionTransition, ['figure', 'name']))
   && (c.evidenceResponse === undefined || ['refer', 'port'].includes(String(c.evidenceResponse)))

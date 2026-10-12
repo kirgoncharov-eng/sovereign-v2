@@ -1,3 +1,4 @@
+import { LEGACY_COUNTRIES } from "../game/alternate-world.ts";
 // Мета-прогрессия между партиями: архив правлений, коллекция концовок, достижения, открытие стран.
 import { COUNTRIES } from "../game/data.ts";
 import { ARCS } from "../content/arcs.ts";
@@ -60,8 +61,13 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id:"patriarch",   title:"Патриарх",          desc:"Править двадцать лет",                           check: gs => gs.turn >= 80 },
   { id:"in_office",   title:"До последнего дня", desc:"Умереть на посту",                               check: gs => gs.endType === "died" },
   { id:"all_secrets", title:"Все тайны",        desc:"Довести до развязки каждую интригу",            check: (_, m) => ARCS.every(a => m.arcs?.includes(a.id)) },
-  { id:"traveler",    title:"Путешественник",    desc:"Сыграть за все страны",                          check: (_, m) => Object.keys(COUNTRIES).every(c => m.runs.some(r => r.country === c)) },
+  { id:"traveler",    title:"Путешественник",    desc:"Сыграть за все страны",                          check: (_, m) => LEGACY_COUNTRIES.every(country => m.runs.some(run => run.country === country)) },
 ];
+
+// The old travel badge remains in saved collections, without advertising closed campaigns to newcomers.
+export function visibleAchievements(meta: Pick<Meta, "achievements">) {
+  return ACHIEVEMENTS.filter(achievement => achievement.id !== "traveler" || meta.achievements.includes(achievement.id));
+}
 
 const empty = (): Meta => ({ runs: [], endings: {}, achievements: [] });
 

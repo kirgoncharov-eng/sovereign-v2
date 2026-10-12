@@ -8,6 +8,9 @@ export type SceneKey =
   | "office" | "cabinet" | "archive" | "dinner";
 
 const BY_CARD: Record<string, SceneKey> = {
+  alt_wages: "factory", alt_fuel: "energy", alt_standards: "factory", alt_district: "hospital",
+  alt_rail: "border", alt_radio: "tv", alt_harvest: "field", alt_archive: "archive",
+  law_alt_export_guarantee: "money", law_alt_open_orders: "hospital",
   // позднее правление
   late_son: "money", late_health: "hospital", late_portraits: "stamp", late_old_friend: "stamp", late_generation: "protest",
   late_court: "stamp", late_monument: "construction", late_succession: "army", late_foreign_cover: "press", late_predecessor: "meeting",
@@ -54,7 +57,7 @@ const BY_BEAT: Record<string, SceneKey> = {
   "Неудобный вопрос": "press", "Последнее сообщение": "office", "Номер на ладони": "office", "Месяц тишины": "archive",
   "Объект номер четыре": "army", "Показания журналиста": "press", "Дело закрыто": "tv",
 };
-const BY_ARC: Record<string, SceneKey> = { generals: "army", mole: "meeting", kompromat: "tv", money: "money", reporter: "meeting" };
+const BY_ARC: Record<string, SceneKey> = { alt_contracts: "archive", generals: "army", mole: "meeting", kompromat: "tv", money: "money", reporter: "meeting" };
 
 const BY_SOURCE: Record<string, SceneKey> = {
   "Парламент": "stamp",
