@@ -10,7 +10,10 @@ description: Выпуск версии «Суверена» — версия, п
 1. **Ветка.** Работа идёт в назначенной ветке; `main` меняет только пользователь мёржем. Убедиться, что ветка свежая: `git fetch origin main && git merge origin/main`.
 2. **Версия.** Поднять `APP_VERSION` в `web/lib/game/data.ts`, если менялись движок или контент: по ней сервер проверяет «Дело дня», а статистика делит когорты.
 3. **Проверки.** `cd web && npm run check && npm run build`, `node scripts/stress.ts`, скилл `playtest`.
-4. **Демо.** `npm run build:demo` и публикация `web/demo/dist/sovereign.html` в демо-артефакт https://claude.ai/artifact/UYpVV5TniJ251TCeei6E2z (Artifact publish с этим `url`).
+4. **Демо.** `npm run build:demo`; результат — `web/demo/dist/sovereign.html`.
+   При доступном Claude Artifact publish обновить прежний демо-артефакт https://claude.ai/artifact/UYpVV5TniJ251TCeei6E2z.
+   Если инструмент недоступен, передать локальный файл и отметить, что артефакт не опубликован.
+   Выкладку игры проверять отдельно: успешный деплой, коммит, APP_VERSION и дата; записать в STATUS.md.
 5. **Заметки о выпуске** — 3–6 строк для игроков: что нового, без технических слов. Отдать пользователю; если он скажет — опубликовать как GitHub Release с тегом `v<APP_VERSION>`.
 6. **Бот.** Если менялись команды или описание бота (`web/lib/server/bot.ts`), напомнить пользователю открыть `/api/telegram/setup?key=<STATS_SECRET>` после деплоя.
 7. **Notion.** Короткая отметка о выпуске в последней записи «Аудиты» или новая запись, если это крупный выпуск.
