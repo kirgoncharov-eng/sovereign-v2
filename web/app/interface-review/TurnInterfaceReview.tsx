@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { reviewConversation } from "@/lib/client/advisor-conversation-review.ts";
 import { reviewChoiceBrief, type AdvisorArtScene } from "@/lib/client/advisor-art-review.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { squareStateOf } from "@/lib/client/square-state.ts";
@@ -45,6 +46,7 @@ export default function TurnInterfaceReview({ scenes }: { scenes: AdvisorArtScen
   const event = scene.state.currentEvent!;
   const choice = event.choices.find(candidate => candidate.id === selected);
   const brief = choice ? reviewChoiceBrief(scene.state, choice) : null;
+  const conversation = reviewConversation(scene);
   const paragraphs = event.description.split(/\n\s*\n/);
   const [dateline, ...story] = paragraphs;
 
@@ -79,7 +81,7 @@ export default function TurnInterfaceReview({ scenes }: { scenes: AdvisorArtScen
       <header className={styles.studio}>
         <p className={styles.eyebrow}>Суверен · студия</p>
         <h1>Один ход на столе</h1>
-        <p>Играбельный образец. Одно настоящее дело, две компоновки, прежние текст и правила.</p>
+        <p>Играбельный образец. Настоящее дело, авторский разговор советников и прежние правила.</p>
         <div className={styles.controls}>
           <label>Страна
             <select aria-label="Страна" value={country} disabled={signing} onChange={change => reset(change.target.value)}>
@@ -114,27 +116,49 @@ export default function TurnInterfaceReview({ scenes }: { scenes: AdvisorArtScen
           </article>
 
           <section className={styles.debate} aria-label="Спор советников">
-            <p className={styles.sectionLabel}>На полях · два мнения</p>
-            {scene.takes.map(take => {
-              const advisor = scene.state.advisors.find(candidate => candidate.id === take.id)!;
-              const profile = advisorProfile(scene.state, advisor);
-              const favorsIndex = event.choices.findIndex(candidate => candidate.id === take.favors);
-              return <details key={`${country}-${take.id}-${onDesk}`} open={!onDesk} className={styles.advisor}>
-                <summary>
-                  <Portrait name={take.name}/>
-                  <span className={styles.person}><strong>{take.name}</strong><small>{take.role}</small></span>
-                  <span className={styles.position}>Вариант {favorsIndex + 1}<small>поддерживает</small></span>
-                </summary>
-                <blockquote>«{take.text}»</blockquote>
-                <details className={styles.profile}>
-                  <summary>Что известно об этом человеке</summary>
-                  <p>{profile.bio}</p>
-                  <p>Сильная сторона: {profile.area}. {profile.skill}.</p>
-                  <p>Лояльность: {profile.loyaltyWord}. Манера: {profile.manner}.</p>
-                  <p>Лагерь: {profile.camp?.name ?? "нет связи"}.</p>
-                </details>
-              </details>;
-            })}
+            <p className={styles.sectionLabel}>За закрытыми дверями</p>
+            {conversation ? <ol className={styles.conversation}>
+              {conversation.map(line => {
+                const supports = selected === line.speaker.favors;
+                const favorsIndex = event.choices.findIndex(candidate => candidate.id === line.speaker.favors);
+                const classes = [styles.speech, line.reply ? styles.reply : "", supports ? styles.supporting : ""];
+                return <li key={`${country}-${line.id}`} className={classes.join(" ")}
+                  data-speaker={line.speaker.id} data-supporting={supports}>
+                  <div className={styles.speaker}>
+                    <Portrait name={line.speaker.name}/>
+                    <span className={styles.person}>
+                      <strong>{line.speaker.name}</strong><small>{line.speaker.role}</small>
+                    </span>
+                    <span className={styles.position}>За вариант {favorsIndex + 1}</span>
+                  </div>
+                  <blockquote>«{line.text}»</blockquote>
+                  {supports && <span className={styles.supportLabel}>Поддерживает ваш выбор</span>}
+                </li>;
+              })}
+            </ol> : null}
+            <details className={styles.arguments} open={conversation ? undefined : true}>
+              <summary>Полные доводы и сведения о советниках</summary>
+              {scene.takes.map(take => {
+                const advisor = scene.state.advisors.find(candidate => candidate.id === take.id)!;
+                const profile = advisorProfile(scene.state, advisor);
+                const favorsIndex = event.choices.findIndex(candidate => candidate.id === take.favors);
+                return <section key={`${country}-${take.id}`} className={styles.advisor}>
+                  <div className={styles.speaker}>
+                    <Portrait name={take.name}/>
+                    <span className={styles.person}><strong>{take.name}</strong><small>{take.role}</small></span>
+                    <span className={styles.position}>За вариант {favorsIndex + 1}</span>
+                  </div>
+                  <blockquote>«{take.text}»</blockquote>
+                  <details className={styles.profile}>
+                    <summary>Что известно об этом человеке</summary>
+                    <p>{profile.bio}</p>
+                    <p>Сильная сторона: {profile.area}. {profile.skill}.</p>
+                    <p>Лояльность: {profile.loyaltyWord}. Манера: {profile.manner}.</p>
+                    <p>Лагерь: {profile.camp?.name ?? "нет связи"}.</p>
+                  </details>
+                </section>;
+              })}
+            </details>
           </section>
 
           <section className={styles.resolution}>

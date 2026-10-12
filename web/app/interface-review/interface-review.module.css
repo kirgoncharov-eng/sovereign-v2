@@ -448,3 +448,90 @@
   border: 1px solid #aba188;
   margin: 14px 0;
 }
+
+.conversation {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.speech {
+  padding: 14px 12px;
+  margin-top: 12px;
+  border-left: 2px solid #b4a788;
+  background: #404438;
+}
+
+.reply {
+  margin-left: 18px;
+}
+
+.speech[data-speaker="economist"] {
+  border-left-color: #c38f72;
+}
+
+.speaker {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px;
+}
+
+.speech .speaker {
+  padding: 0;
+}
+
+.speech blockquote {
+  margin: 14px 0 0;
+  font: 17px/1.5 var(--font-serif), Georgia, serif;
+}
+
+.supporting {
+  background: #515747;
+  border-left-width: 4px;
+  padding-left: 10px;
+}
+
+.supportLabel {
+  display: block;
+  font: 12px/1.5 Arial, sans-serif;
+  margin-top: 10px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.arguments {
+  margin-top: 18px;
+  font: 13px/1.5 Arial, sans-serif;
+}
+
+.arguments > summary {
+  padding: 12px 8px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.linear .speech {
+  background: transparent;
+  border-left-color: #817550;
+}
+
+.linear .speech[data-speaker="economist"] {
+  border-left-color: #813f30;
+}
+
+.linear .supporting {
+  background: #d6caa7;
+}
+
+@media (max-width: 359px) {
+  .speech {
+    padding-right: 10px;
+  }
+  .reply {
+    margin-left: 12px;
+  }
+  .speech .position {
+    max-width: 50px;
+  }
+}
