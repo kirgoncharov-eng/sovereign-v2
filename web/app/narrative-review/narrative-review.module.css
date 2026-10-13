@@ -1,0 +1,38 @@
+.desk { min-height: 100vh; padding: 24px 14px 48px; background: #25231e; color: #dbd0ae; }
+.desk > * { max-width: 660px; margin-left: auto; margin-right: auto; }
+.topline, .label { font: 700 15px "Handjet SV", sans-serif; letter-spacing: .055em; }
+.topline { color: #b2a78c; margin-bottom: 22px; }
+.header { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; }
+.header h1 { font: 700 clamp(28px, 7vw, 42px) "Handjet SV", sans-serif; margin: 0; }
+.header p { font: 16px "Handjet SV", sans-serif; margin: 5px 0 0; }
+.flag { flex: 0 0 55px; height: 36px; display: grid; place-items: center; background: #32362f;
+  border: 1px solid #bdb89c; color: #eee6ce; font: bold 33px Georgia, serif; }
+.navigation { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.navigation button, .approaches button, .skip { font: 17px "Handjet SV", sans-serif; color: inherit;
+  background: transparent; border: 1px solid #80765e; padding: 9px 12px; text-align: left; }
+.navigation [aria-current], .navigation [aria-pressed="true"] { border-color: #cfc09b; text-decoration: underline; }
+.paper { background: #dfd5b6; color: #302e27; padding: clamp(20px, 5vw, 34px); border: 2px solid #8d8166;
+  box-shadow: 5px 5px 0 #171610; }
+.paper h2 { font: bold clamp(28px, 6vw, 36px) "Liberation Serif SV", Georgia, serif; margin: 20px 0; }
+.paper p { font: 18px/1.75 "Liberation Serif SV", Georgia, serif; margin: 0 0 20px; }
+.label { color: #746b56; }
+.primary { display: block; width: 100%; background: #30332a; color: #eee5ca; border: 2px solid #30332a;
+  font: 700 20px "Handjet SV", sans-serif; padding: 15px; margin-top: 24px; text-align: center; }
+.skip { display: block; margin: 14px auto 0; border: 0; text-decoration: underline; }
+.approaches { display: grid; gap: 8px; margin: 14px 0 22px; }
+.approaches button { font-size: 20px; padding: 12px; }
+.approaches [aria-pressed="true"] { border: 2px solid #30332a; background: #c9bea0; }
+.conversation { border-top: 1px solid #9d9175; padding-top: 20px; }
+.conversation p { padding-left: 13px; border-left: 3px solid #596754; }
+.conversation strong { display: block; font: 700 18px "Handjet SV", sans-serif; margin-bottom: 5px; }
+.conversation p.objection { margin-left: 22px; border-color: #8b4e3d; }
+.paper p.price { font: italic 16px/1.6 "Liberation Serif SV", Georgia, serif; background: #cfc5a6; padding: 12px; }
+.report { border-top: 2px solid #79715d; margin-top: 26px; padding-top: 18px; }
+.report .navigation { margin-top: 12px; }
+.paper p.thread { font-style: italic; color: #615a47; }
+.horizon { padding: 20px 0; font: 18px/1.65 "Liberation Serif SV", Georgia, serif; }
+.horizon summary { cursor: pointer; font: 22px "Handjet SV", sans-serif; }
+.horizon p { margin: 18px 0 0; }
+.footer { font: 15px/1.5 "Handjet SV", sans-serif; color: #b2a78c; }
+.desk button { cursor: pointer; }
+.desk button:focus-visible, .horizon summary:focus-visible { outline: 3px solid #987447; outline-offset: 3px; }
