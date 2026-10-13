@@ -66,7 +66,10 @@ export default function AdvisorArtReview({ scenes }: { scenes: AdvisorArtScene[]
       <header className={styles.reviewHeader}>
         <p className={styles.eyebrow}>Суверен · студия</p>
         <h1>Люди за решениями</h1>
-        <p>Эскиз спора советников. Настоящее дело и расчёт; обычная партия и сохранение не затрагиваются.</p>
+        <p>
+          {"Эскиз спора советников. Настоящее дело и расчёт; обычная партия"
+            + " и сохранение не затрагиваются."}
+        </p>
         <div className={styles.controls}>
           <label>Страна
             <select value={country} disabled={signing} onChange={event => resetScene(event.target.value)}>
@@ -80,7 +83,9 @@ export default function AdvisorArtReview({ scenes }: { scenes: AdvisorArtScene[]
           </button>
         </div>
         {country !== "Украина" && (
-          <p className={styles.note}>Для этой страны пока используются существующие процедурные лица.</p>
+          <p className={styles.note}>
+            Для этой страны пока используются существующие процедурные лица.
+          </p>
         )}
       </header>
 
@@ -147,7 +152,9 @@ export default function AdvisorArtReview({ scenes }: { scenes: AdvisorArtScene[]
               {brief.costs.map(cost => (
                 <p key={cost.label}><strong>{cost.label.toLowerCase()}</strong> — {cost.reason}</p>
               ))}
-              <p className={styles.note}>Итог зависит от исполнения. Точный расчёт — в газете после решения.</p>
+              <p className={styles.note}>
+                Итог зависит от исполнения. Точный расчёт — в газете после решения.
+              </p>
             </div>}
             <button type="button" className={styles.sign} disabled={!choice || signing} onClick={sign}>
               {signing ? "Подписываем…" : choice
