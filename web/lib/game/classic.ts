@@ -47,6 +47,7 @@ import { storyLetters } from "./stories.ts";
 import { advisorNews, forecastReview } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { sanitizeProposals } from "./sanitize.ts";
+import { isOrdinaryNewspaperEvent, newspaperHeadline } from "./newspaper-editions.ts";
 import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
 
 type Rand = () => number;
@@ -1203,6 +1204,19 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     const lines = LEAKS[id]?.lines;
     return advisor && lines ? [lines[hashSeed(state.seed, "leak-line", state.turn, id) % lines.length].replace("{name}", advisor.name)] : [];
   });
+  const baseHeadline = finale ? finale.head : plan.election ? electionHeadline(plan.election)
+    : (plan.success ? plan.choice.headline : plan.choice.headlineFail)
+      ?? fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state);
+  const headline = newspaperHeadline({
+    base: baseHeadline,
+    event: state.currentEvent?.title ?? "Решение президента",
+    choice: plan.choice.text,
+    success: plan.success,
+    seed: state.seed,
+    turn: state.turn + 1,
+    ordinary: isOrdinaryNewspaperEvent(state.currentEvent?.card)
+      && !finale && !plan.election && !act && !arc && !plan.choice.law,
+  });
   return {
     press,
     heard: said,
@@ -1212,8 +1226,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     ...(leaks.length ? { leaks } : {}),
     ...(appeared.length ? { cast: appeared } : {}),
     scene: state.currentEvent ? sceneAfter(state.currentEvent, plan.choice, plan.success) : "square",
-    headline: finale ? finale.head : plan.election ? electionHeadline(plan.election)
-      : (plan.success ? plan.choice.headline : plan.choice.headlineFail) ?? fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state),
+    headline,
     narrative: chapter(...parts),
     document,
     reactions,

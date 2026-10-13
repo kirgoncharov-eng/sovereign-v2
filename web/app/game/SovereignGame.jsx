@@ -72,6 +72,7 @@ import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM } from "@/lib/game/alternate-world.ts";
 import { countryForNewRun, NEW_GAME_COUNTRY } from "@/lib/client/new-game-country.ts";
+import { newspaperName } from "@/lib/game/newspaper-editions.ts";
 
 const barColor = v => v >= 60 ? "var(--grn)" : v >= 35 ? "var(--amb)" : "var(--red)";
 const relColor = v => v >= 30 ? "var(--grn)" : v > -30 ? "var(--amb)" : "var(--red)";
@@ -2426,7 +2427,18 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               <Card style={{ marginBottom:12, padding:"20px 24px 22px" }}>
                 <div className="sv-reveal">
                 <div className="sv-paper-drop" style={{ borderTop:`4px solid ${G.txt}`, borderBottom:`2px solid ${G.txt}`, padding:"8px 0 6px", marginBottom:12, textAlign:"center" }}>
-                  <div style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(30px, 8vw, 46px)", lineHeight:1.02, textTransform:"uppercase", letterSpacing:".06em" }}>Вечерний {COUNTRIES[gs.country].capital}</div>
+                  <div
+                    style={{
+                      fontFamily:narrow,
+                      fontWeight:700,
+                      fontSize:"clamp(30px, 8vw, 46px)",
+                      lineHeight:1.02,
+                      textTransform:"uppercase",
+                      letterSpacing:".06em",
+                    }}
+                  >
+                    {newspaperName(gs.country, gs.seed, turn)}
+                  </div>
                   <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:5 }}>{gs.year} · выпуск № {turn} · цена 5 коп.</div>
                 </div>
                 <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>

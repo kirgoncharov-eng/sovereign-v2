@@ -83,15 +83,16 @@ test('contemporary country plots are unavailable in 1978; historical content sta
             assert.ok(!event.cardId.includes('foreign_agents') && !event.cardId.includes('constitution'));
     }
 });
-test('legacy dates and six campaign traces stay byte-identical to baseline 6ecc5c7', async () => {
-    // Independent traces captured from the unmodified commit, not calculated by this implementation.
+test('legacy dates, mechanics and non-newspaper text stay byte-identical to baseline', async () => {
+    // #107 deliberately changes newspaper headlines. Normalising only that presentation field
+    // keeps this an independent regression guard for every other part of the six campaign traces.
     const hashes: Record<string, string> = {
-        'Беларусь': '4c30b2bc3b32a1c5607f3be2182558796b3f1769dc8685c8ed3c7ae37f153b53',
-        'Украина': '29db16c55b5a29e8e2f8829ed716f2451b1838345454f22d674dc69d9983095b',
-        'Грузия': '22d3f14311607a614f5af8ae9fe7065560902410ba376fb04c2125e7eca83b2b',
-        'Молдова': '6aa60c7b5be1dbc660986bbd1de89919e0885005a25ae0cda9a1bc01501b646e',
-        'Армения': 'd7022e1e6bd7fac1477f639cbaf67e9a0337b6d149ca2068890a674177377e60',
-        'Казахстан': '42f4b68fa4e747c5b91c948aeaa1bbe3b0fbaaa62f01be9accadf1499c50d0ea'
+        'Беларусь': '34487d4192b09eac2a7b29af976f50c2c0aee42d93c7e8043e0cdc0ff36b96e7',
+        'Украина': 'a7632085b4e90ff19abfd664a6c16df4ea28addfa25f0df1c489ed5afd877e1e',
+        'Грузия': '6a243a031977dd8bf47966457da18decb724c46f5b3ee62486f6228f63b9cb53',
+        'Молдова': 'ae17dc3c570c8e3a8cf8214f30f2fa5ed8b663d34463c35e71039111bd34e37b',
+        'Армения': 'b8264b4c32a232b3a13171e403b079cb064edabde35c3fda0e5087a08bd1a2e5',
+        'Казахстан': '245819f596c8adcdaaef47345d68e5caad4295b51d8dab495d0ff0bd667cf7a7'
     };
     for (const country of LEGACY_COUNTRIES) {
         let state = await fresh(country);
@@ -100,7 +101,8 @@ test('legacy dates and six campaign traces stay byte-identical to baseline 6ecc5
             const choice = state.currentEvent!.choices[state.turn % state.currentEvent!.choices.length];
             state = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
         }
-        assert.equal(createHash('sha256').update(JSON.stringify(state)).digest('hex'), hashes[country], country);
+        const trace = JSON.stringify(state, (key, value) => key === 'headline' ? '__HEADLINE__' : value);
+        assert.equal(createHash('sha256').update(trace).digest('hex'), hashes[country], country);
     }
     assert.deepEqual(dailyCaseForDate('2026-10-12'), {
         date: '2026-10-12',
