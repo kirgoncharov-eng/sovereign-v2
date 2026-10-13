@@ -6,7 +6,10 @@ export interface EarlyThread {
   failed: [string, string, string];
 }
 
+import { ALTERNATE_EARLY_THREAD } from "./alternate-history-extras.ts";
+
 export const EARLY_THREADS: Record<string, EarlyThread> = {
+  alt_contracts: ALTERNATE_EARLY_THREAD,
   reporter: {
     opening: {
       police: "Редактор звонит после полицейского доклада: «Они ищут нашего коллегу или проверяют, что мы о нём знаем?» Теперь вам придётся проверять и тех, кому вы поручили поиск.",

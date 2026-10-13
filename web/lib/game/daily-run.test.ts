@@ -5,6 +5,8 @@ import { classicApi, budgetChoice, callChoice, pressChoice } from "./classic.ts"
 import { conveneCouncil, resolveTurn, startEvent } from "./engine.ts";
 import { runScore } from "./daily.ts";
 import type { DailyMove, GameState } from "./types.ts";
+import { APP_VERSION } from "./data.ts";
+import { dailyCaseForDate } from "./daily.ts";
 import { POST } from "../../app/api/daily/route.ts";
 
 // Независимо собираем ходы так, как это делает UI, затем сравниваем с серверным воспроизведением.
@@ -74,4 +76,22 @@ test("API дела дня: выдуманные очки отвергаются,
   const duplicate = await POST(request({ moves: [] }));
   assert.equal(duplicate.status, 200);
   assert.deepEqual((await duplicate.json()).me, board.me);
+});
+
+
+test('a cached client or a save from another daily world cannot enter the new table', async () => {
+  const date = new Date().toISOString().slice(0, 10);
+  const request = (body: Record<string, unknown>) => new Request('http://localhost/api/daily', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-real-ip': 'historical-stale' },
+    body: JSON.stringify({ uid: 'staleworld01', action: 'submit', date, moves: [], ...body }),
+  });
+  const oldClient = await POST(request({ v: '7.17' }));
+  assert.equal(oldClient.status, 200);
+  assert.equal((await oldClient.json()).stale, true);
+  const otherCountry = dailyCaseForDate(date).country === 'Беларусь' ? 'Украина' : 'Беларусь';
+  const oldSave = await POST(request({ v: APP_VERSION, country: otherCountry }));
+  assert.equal(oldSave.status, 200);
+  const rejected = await oldSave.json();
+  assert.equal(rejected.stale, true);
+  assert.equal(rejected.me, null);
 });

@@ -2,6 +2,7 @@
 // Площадь показывает состояние страны: сколько людей вышло протестовать, кто их сдерживает,
 // машут ли флагами сторонники, не подтянулась ли к зданию техника. Рисуется в низком разрешении
 // и растягивается без сглаживания.
+import { ALTERNATE_COUNTRY } from "../game/alternate-world.ts";
 import { hashSeed, seededRandom } from "../game/engine.ts";
 import type { Season } from "../game/calendar.ts";
 
@@ -59,6 +60,7 @@ function squareDescription(s: SquareState): string {
 // Флаги упрощены до полос: по ним площадь узнаётся с первого взгляда.
 type Flag = { dir: "h" | "v"; bands: string[]; mark?: string; cross?: string };
 const FLAGS: Record<string, Flag> = {
+  [ALTERNATE_COUNTRY]: { dir: "h", bands: ["#415960", "#dfbc64", "#415960"] },
   "Беларусь": { dir: "h", bands: ["#c8313e", "#c8313e", "#4aa657"] },
   "Украина": { dir: "h", bands: ["#2f6fc0", "#f2cd2e"] },
   "Грузия": { dir: "h", bands: ["#f2f2ee"], cross: "#d8262c" },
@@ -249,6 +251,7 @@ export function flagPx(px: Px, country: string, x: number, y: number, w: number,
   drawFlag(px, FLAGS[country] ?? PARTNER_FLAGS[country], x, y, w, h, frame);
 }
 const PARTNER_FLAGS: Record<string, Flag> = {
+  trade1978: { dir: "v", bands: ["#415960", "#dfbc64", "#415960"] },
   eu: { dir: "h", bands: ["#2a4aa0"], mark: "#f2cd2e" },
   ru: { dir: "h", bands: ["#f2f2ee", "#2f5fb0", "#cc2a2e"] },
 };

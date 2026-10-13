@@ -2,7 +2,8 @@
 // Друзья появляются, когда игрок приходит по ссылке-приглашению другого игрока.
 import { isObj } from "../../../lib/game/sanitize.ts";
 import { replayDaily } from "../../../lib/game/daily-run.ts";
-import { runScore } from "../../../lib/game/daily.ts";
+import { runScore, dailyCaseForDate } from "../../../lib/game/daily.ts";
+import { dailyBoardKey } from "../../../lib/game/alternate-world.ts";
 import { classicApi } from "../../../lib/game/classic.ts";
 import { kv } from "../../../lib/server/kv.ts";
 import { clientKey, limit } from "../../../lib/server/rateLimit.ts";
@@ -42,7 +43,7 @@ const RANK = 10000;
 const unpack = (s: number) => ({ turns: Math.floor(s / RANK), score: s % RANK });
 
 async function board(date: string, uid: string) {
-  const key = `daily:${date}`;
+  const key = dailyBoardKey(date, APP_VERSION);
   const [top, total, rank, score, friendIds] = await Promise.all([
     kv.ztop(key, 10), kv.zcard(key), kv.zrank(key, uid), kv.zscore(key, uid), kv.smembers(`friends:${uid}`),
   ]);
@@ -78,7 +79,11 @@ export async function POST(req: Request) {
 
   try {
     if (body.action === "submit") {
-      const key = `daily:${date}`;
+      if (typeof body.v === "string" && body.v !== APP_VERSION
+        || typeof body.country === "string" && body.country !== dailyCaseForDate(date).country) {
+        return Response.json({ uid: who.uid, stale: true, ...(await board(date, who.uid)) });
+      }
+      const key = dailyBoardKey(date, APP_VERSION);
       // Повторный запрос (в том числе после потери ответа) возвращает уже записанный результат.
       if (await kv.zscore(key, who.uid) === null) {
         let verified;
@@ -91,6 +96,9 @@ export async function POST(req: Request) {
         }
         const score = Math.min(RANK - 1, runScore(verified));
         const verdict = await classicApi.ending(verified);
+        const editions = `daily:${date}:editions`;
+        await kv.sadd(editions, key);
+        await kv.expire(editions, TTL);
         if (await kv.zaddNx(key, verified.turn * RANK + score, who.uid)) {
           const info: Info = { name: who.name, title: text(verdict.title, 40), end: verified.endType!, turns: verified.turn };
           await kv.hset(`${key}:info`, who.uid, JSON.stringify(info));

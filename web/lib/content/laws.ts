@@ -4,6 +4,7 @@
 //
 // Слоты в текстах — как в карточках дел: {fac:блок}, {fig:блок}, {capital}, {country}.
 // Законопроект вносит группа bloc: если её в стране нет, закон в этой партии не предлагают.
+import { ALTERNATE_LAWS } from "./alternate-history.ts";
 import type { CardCondition, CardChoice } from "./events.ts";
 import type { ActionTag, Bloc, ResourceDelta, ResourceKey } from "../game/types.ts";
 
@@ -29,6 +30,7 @@ export interface LawDef {
 }
 
 export const LAWS: LawDef[] = [
+  ...ALTERNATE_LAWS,
   {
     id: "foreign_agents", title: "Об иностранных агентах", short: "СМИ и НКО с зарубежными деньгами — под особым надзором",
     bloc: "security", allies: ["russia"], foes: ["liberal", "west"], tags: ["repress", "security"], veto: ["reform"],

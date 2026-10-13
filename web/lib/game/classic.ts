@@ -1,3 +1,4 @@
+import { ALTERNATE_COUNTRY, ALTERNATE_PARTIES, ALTERNATE_SPEECHES, ALTERNATE_SHARED_CARDS, ALTERNATE_SHARED_LAWS, campaignCopy } from "./alternate-world.ts";
 import { pensionCall } from './pension-call.ts';
 import { withEvidenceChoice } from './private-evidence.ts';
 import { mandatePublicEvent } from './minister-public.ts';
@@ -110,7 +111,7 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
         const cap = COUNTRIES[state.country].capital;
         return arg ? CAPITAL_CASES[cap]?.[arg as keyof (typeof CAPITAL_CASES)[string]] ?? cap : cap;
       }
-      case "country": return state.country;
+      case "country": return state.country === ALTERNATE_COUNTRY ? "Беларусь" : state.country;
       case "leader": return state.leader.name;
       case "rival": return rivalName(state);
       case "crisis": return state.activeCrises[0]?.title ?? "кризис";
@@ -155,9 +156,12 @@ const neededBlocs = (card: EventCard) =>
 
 export function cardAvailable(card: EventCard, state: GameState): boolean {
   if (card.countries && !card.countries.includes(state.country)) return false;
+  if (state.country === ALTERNATE_COUNTRY && !card.id.startsWith("alt_") && !card.id.startsWith("law_")
+    && !ALTERNATE_SHARED_CARDS.has(card.id)) return false;
   if (card.notArc && state.arc && card.notArc.includes(state.arc.id)) return false;
   if (neededBlocs(card).some(b => !state.factions.some(f => f.bloc === b))) return false;
   const w = card.when ?? {};
+  if (w.seasons && !w.seasons.includes(turnDate(state.seed, COUNTRIES[state.country].startYear, state.turn).season)) return false;
   const turn = state.turn + 1;
   const blocRel = (bloc: Bloc) => state.factions.filter(f => f.bloc === bloc).map(f => f.relation);
   if (w.minTurn && turn < w.minTurn) return false;
@@ -183,6 +187,7 @@ const cardWeight = (card: EventCard) =>
   (card.weight ?? 1) * (Object.keys(card.when ?? {}).some(k => k !== "minTurn") || card.countries ? 2 : 1);
 
 export function pickCard(state: GameState, r: Rand): EventCard {
+  if (state.country === ALTERNATE_COUNTRY && state.turn === 0) return EVENT_CARDS.find(card => card.id === "alt_wages")!;
   const fresh = EVENT_CARDS.filter(c => !state.usedEvents?.includes(c.id) && cardAvailable(c, state));
   const pool = fresh.length ? fresh : EVENT_CARDS.filter(c => cardAvailable(c, state));
   const total = pool.reduce((s, c) => s + cardWeight(c), 0);
@@ -208,9 +213,10 @@ export function beatEvent(state: GameState): GameEvent | null {
     affectedFactions: [],
     choices: variant.choices.map((c, i) => ({
       id: ["a", "b", "c"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags, resolvesCrisis: null,
+      ...(c.policyEffect ? { policyEffect: c.policyEffect } : {}),
       ...(c.costReasons ? { costReasons: Object.fromEntries(Object.entries(c.costReasons).map(([k, v]) => [k, fill(v!, state)])) } : {}),
       ...(c.removes && villain ? { deal: { figure: villain.id, replace: heir } } : {}),
-      arc: { flag: c.flag, ok: fill(c.ok, state) + (c.removes ? heirLine : ""), ...(c.fail ?? BEAT_FAILS[c.text] ? { fail: fill(c.fail ?? BEAT_FAILS[c.text], state) } : {}), effect: c.effect ?? {}, ...(c.epilogue ? { epilogue: fill(c.epilogue, state) } : {}) },
+      arc: { flag: c.flag, ok: fill(c.ok, state) + (c.removes ? heirLine : ""), ...(c.fail ?? BEAT_FAILS[c.text] ? { fail: fill(c.fail ?? BEAT_FAILS[c.text], state) } : {}), effect: c.effect ?? {}, ...(c.epilogue ? { epilogue: fill(c.epilogue, state) } : {}), ...(c.epilogueFail ? { epilogueFail: fill(c.epilogueFail, state) } : {}) },
       ...headlines(BEAT_HEADLINES[c.text], state),
     })),
     council: null,
@@ -424,7 +430,8 @@ export function lawEvent(state: GameState): SpecialEvent | null {
 
   // Законопроект: не принят, не противоречит действующим, его автор есть в стране, давно не вносился.
   const offered = (id: string) => marks.some(m => m[2] === id && turn - Number(m[1]) < LAW_REPEAT);
-  const bills = LAWS.filter(def => !inForce.some(l => l.id === def.id) && hasBloc(def.bloc) && !offered(def.id)
+  const bills = LAWS.filter(def => (state.country !== ALTERNATE_COUNTRY || def.id.startsWith("alt_") || ALTERNATE_SHARED_LAWS.has(def.id))
+    && !inForce.some(l => l.id === def.id) && hasBloc(def.bloc) && !offered(def.id)
     && (!def.countries || def.countries.includes(state.country))
     && !def.conflicts?.some(c => inForce.some(l => l.id === c)));
   if (!bills.length) return null;
@@ -850,6 +857,10 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
     affectedFactions: state.factions.filter(f => blocs.has(f.bloc)).slice(0, 4).map(f => f.id),
     choices: card.choices.map((c, i) => ({
       id: ["a", "b", "c", "d"][i], text: fill(c.text, state), hint: c.hint, tags: c.tags,
+      ...(c.deal ? { deal: c.deal } : {}),
+      ...(c.politicalTags ? { politicalTags: c.politicalTags } : {}),
+      ...(c.policyEffect ? { policyEffect: c.policyEffect } : {}),
+      ...(c.stance ? { stance: c.stance } : {}),
       ...(c.costReasons ? { costReasons: Object.fromEntries(Object.entries(c.costReasons).map(([k, v]) => [k, fill(v!, state)])) } : {}),
       resolvesCrisis: c.resolves ? crisisId : null,
       ...(escalated
@@ -1284,7 +1295,7 @@ function personName(country: string, r: Rand, male = false, used?: Set<string>):
 
 // Роли, которые в этих странах занимают только мужчины: иначе тексты событий звучат нелепо.
 // Тексты интриг написаны о мужчине-антагонисте: роли, из которых он выбирается, всегда достаются мужчинам.
-const MALE_ROLES = new Set(["patriarch", "catholicos", "mufti", "general", "kgb", "knb", "interior", "sbu", "security", "shadow", "clan", "prosecutor", "oligarch", "opp_leader", "activist", "nat_leader", "revanchist"]);
+const MALE_ROLES = new Set(["governor", "patriarch", "catholicos", "mufti", "general", "kgb", "knb", "interior", "sbu", "security", "shadow", "clan", "prosecutor", "oligarch", "opp_leader", "activist", "nat_leader", "revanchist"]);
 
 function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?: number): Intro {
   const r = seed === undefined ? Math.random : seededRandom(hashSeed(seed, "intro"));
@@ -1292,9 +1303,10 @@ function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?
   const unique = (male = false) => personName(country, r, male, surnames);
   const foreign = (pool: { first: string[]; last: string[] }) => `${pick(r, pool.first)} ${pick(r, pool.last)}`;
   const leader = unique(true);
+  const party = pick(r, IDEOLOGY_PARTIES[ideo]);
   return {
-    leader: { name: leader, party: pick(r, IDEOLOGY_PARTIES[ideo]), bio: pick(r, BIOS) },
-    speech: SPEECHES[ideo][0].replaceAll("{country}", country),
+    leader: { name: leader, party: country === ALTERNATE_COUNTRY ? ALTERNATE_PARTIES[ideo] : party, bio: pick(r, BIOS) },
+    speech: country === ALTERNATE_COUNTRY ? ALTERNATE_SPEECHES[ideo] : SPEECHES[ideo][0].replaceAll("{country}", country),
     situation: `${COUNTRIES[country].context} ${DIFFICULTY_SITUATION[diff]}`,
     players: FIGURE_ROLES[country].map(f => FOREIGN_NAMES[f.id] ? foreign(FOREIGN_NAMES[f.id]) : unique(MALE_ROLES.has(f.id))),
     // Советник по безопасности — всегда мужчина: из советников выбирается «крот», а тексты интриги — в мужском роде.
@@ -1356,9 +1368,9 @@ function buildVerdict(state: GameState): Verdict {
 
 // Тот же интерфейс, что у ИИ-клиента, — экран игры не знает, кто пишет текст.
 export const classicApi = {
-  setup: async (country: string, diff: string, ideo: string, seed?: number) => buildIntro(country, diff as DifficultyId, ideo as IdeologyId, seed),
-  event: async (state: GameState) => buildEvent(state),
-  consequence: async (state: GameState, choiceId: string) => buildNarration(state, choiceId),
-  council: async (state: GameState) => buildCouncil(state),
-  ending: async (state: GameState) => buildVerdict(state),
+  setup: async (country: string, diff: string, ideo: string, seed?: number) => campaignCopy(buildIntro(country, diff as DifficultyId, ideo as IdeologyId, seed), country),
+  event: async (state: GameState) => campaignCopy(buildEvent(state), state.country),
+  consequence: async (state: GameState, choiceId: string) => campaignCopy(buildNarration(state, choiceId), state.country),
+  council: async (state: GameState) => campaignCopy(buildCouncil(state), state.country),
+  ending: async (state: GameState) => campaignCopy(buildVerdict(state), state.country),
 };

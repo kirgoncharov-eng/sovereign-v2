@@ -33,7 +33,7 @@ function CasePicture({ state, sceneKey }: { state: GameState; sceneKey: SceneKey
 }
 
 export default function TurnInterfaceReview({ scenes }: { scenes: AdvisorArtScene[] }) {
-  const [country, setCountry] = useState("Украина");
+  const [country, setCountry] = useState(scenes[0].state.country);
   const [onDesk, setOnDesk] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<GameState | null>(null);
@@ -81,7 +81,10 @@ export default function TurnInterfaceReview({ scenes }: { scenes: AdvisorArtScen
       <header className={styles.studio}>
         <p className={styles.eyebrow}>Суверен · студия</p>
         <h1>Один ход на столе</h1>
-        <p>Играбельный образец. Настоящее дело, авторский разговор советников и прежние правила.</p>
+        <p>
+          {"Играбельный образец. Настоящее дело, авторский разговор советников"
+            + " и прежние правила."}
+        </p>
         <div className={styles.controls}>
           <label>Страна
             <select aria-label="Страна" value={country} disabled={signing} onChange={change => reset(change.target.value)}>
@@ -185,7 +188,11 @@ export default function TurnInterfaceReview({ scenes }: { scenes: AdvisorArtScen
                 <p key={cost.label}><strong>{cost.label}</strong> — {cost.reason}</p>
               ))}
               <p className={styles.note}>Итог зависит от исполнения. Точный расчёт — после решения.</p>
-            </aside> : <p className={styles.note}>Выберите вариант, чтобы увидеть объяснение цены и исполнения.</p>}
+            </aside> : (
+              <p className={styles.note}>
+                Выберите вариант, чтобы увидеть объяснение цены и исполнения.
+              </p>
+            )}
             <button type="button" className={styles.action} disabled={!choice || signing} onClick={sign}>
               {signing ? "Подписываем…" : choice
                 ? `Подписать вариант ${event.choices.indexOf(choice) + 1}` : "Выберите резолюцию"}
@@ -212,7 +219,9 @@ export default function TurnInterfaceReview({ scenes }: { scenes: AdvisorArtScen
               })}
             </div>
           </section>
-          <p className={styles.note}>В образце одно дело. Можно повторить его с другой резолюцией или компоновкой.</p>
+          <p className={styles.note}>
+            В образце одно дело. Можно повторить его с другой резолюцией или компоновкой.
+          </p>
           <button type="button" className={styles.action} onClick={() => reset()}>Повторить дело</button>
         </article>}
       </section>

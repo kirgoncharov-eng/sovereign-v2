@@ -1,10 +1,13 @@
+import type { Season } from "../game/calendar.ts";
 // Библиотека сценариев для режима без ИИ.
 // Слоты в тексте: {capital} {country} {leader} {rival} {crisis}
 //   {fig:блок} — имя ключевой фигуры из фракции этого блока, {fac:блок} — название фракции.
 // Карточка с {fig:X}/{fac:X} автоматически доступна только странам, где есть фракция блока X.
-import type { ActionTag, Bloc, IdeologyId, ResourceDelta, ResourceKey } from "../game/types.ts";
+import { ALTERNATE_EVENTS } from "./alternate-history.ts";
+import type { Deal, ActionTag, Bloc, IdeologyId, ResourceDelta, ResourceKey } from "../game/types.ts";
 
 export interface CardCondition {
+  seasons?: Season[];
   low?: ResourceKey[];     // ресурс ниже 30
   high?: ResourceKey[];    // ресурс выше 60
   hostile?: Bloc;          // фракция блока настроена враждебно (≤ −40)
@@ -18,6 +21,10 @@ export interface CardCondition {
 }
 
 export interface CardChoice {
+  policyEffect?: ResourceDelta;
+  stance?: Partial<Record<Bloc, number>>;
+  deal?: Deal;
+  politicalTags?: ActionTag[];
   text: string;
   hint: string;
   tags: ActionTag[];
@@ -423,7 +430,8 @@ const LAW_CARDS: EventCard[] = LAWS.map(l => ({
   source: l.followUp.source, title: l.followUp.title, description: l.followUp.description, choices: l.followUp.choices,
 }));
 
-export const EVENT_CARDS: EventCard[] = [...AUTHORED_CARDS, ...MORE_CARDS, ...GENERATED_CARDS, ...LAW_CARDS, ...LATE_CARDS];
+export const EVENT_CARDS: EventCard[] = [
+  ...ALTERNATE_EVENTS,...AUTHORED_CARDS, ...MORE_CARDS, ...GENERATED_CARDS, ...LAW_CARDS, ...LATE_CARDS];
 
 export interface RandomCard { title: string; description: string; effect: ResourceDelta }
 

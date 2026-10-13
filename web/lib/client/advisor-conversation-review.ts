@@ -1,5 +1,6 @@
 import type { AdvisorArtScene } from "./advisor-art-review.ts";
 import type { AdvisorTake } from "../game/forecasts.ts";
+import { ALTERNATE_COUNTRY } from "../game/alternate-world.ts";
 
 export interface ReviewConversationLine {
   id: string;
@@ -11,28 +12,34 @@ export interface ReviewConversationLine {
 // Authored conversation for one review scene, not a generic wrapper around forecasts.
 // Guards keep this dialogue off other cases and incompatible advisor positions.
 export function reviewConversation(scene: AdvisorArtScene): ReviewConversationLine[] | null {
-  if (scene.state.turn !== 0) return null;
   const event = scene.state.currentEvent;
-  if (event?.beat?.arcId !== "kompromat" || event.beat.episode !== 1) return null;
-  const trace = event.choices.find(choice => choice.arc?.flag === "o_trace");
-  const hide = event.choices.find(choice => choice.arc?.flag === "o_hide");
+  if (scene.state.country !== ALTERNATE_COUNTRY || !event) return null;
+  const guarantee = event.choices.find(choice => choice.law?.id === "alt_export_guarantee");
+  const reject = event.choices.find(choice => choice.tags.includes("austerity"));
   const security = scene.takes.find(take => take.id === "security");
   const economist = scene.takes.find(take => take.id === "economist");
-  if (!trace || !hide || !security || !economist) return null;
-  if (security.favors !== trace.id || economist.favors !== hide.id) return null;
+  if (!guarantee || !reject || !security || !economist) return null;
+  if (security.favors !== guarantee.id || economist.favors !== reject.id) return null;
   return [
     {
       id: "opening", speaker: security, reply: false,
-      text: "Кто-то очень хотел, чтобы эта открытка попала лично к вам. Поручите охране найти отправителя.",
+      text: [
+        "Проведите гарантии.",
+        "Без оборотных денег директора начнут сокращать смены раньше,"
+          + " чем парламент назначит проверяющего.",
+      ].join(" "),
     },
     {
       id: "objection", speaker: economist, reply: true,
-      text: "И сколько людей вы подключите к поискам? Пока открытка лежит на этом столе. "
-        + "Не хватало ещё слухов, что президент кого-то разыскивает в первый же день.",
+      text: "Гарантия — это не заказ, а обещание казны оплатить чужой срыв. "
+        + "Пока никто не назвал того, кто проверит договоры.",
     },
     {
       id: "response", speaker: security, reply: true,
-      text: "Тогда начнём с тех, кто принял почту. Или будем ждать, пока отправитель сам решит объявиться?",
+      text: [
+        "Без гарантий банки придержат ссуды уже сегодня.",
+        "Комитет будет искать проверяющего, а заводы — кого сократить.",
+      ].join(" "),
     },
   ];
 }

@@ -1,11 +1,13 @@
 // Авторские предложения совета: у каждого события — свои, из области каждого советника.
 // Кортеж: [тег, предложение, обоснование, сцена при успехе, сцена при провале].
+import { ALTERNATE_COUNCIL } from "./alternate-history-extras.ts";
 import type { ActionTag } from "../game/types.ts";
 
 export type Proposal = [ActionTag, string, string, string, string];
 export type CouncilCard = Partial<Record<"strategist" | "economist" | "security" | "diplomat", Proposal>>;
 
 export const COUNCIL_A: Record<string, CouncilCard> = {
+  ...ALTERNATE_COUNCIL,
   strike: {
     strategist: ["propaganda", "Показать по телевизору, кто на самом деле довёл завод до долгов", "перевести гнев на прежнее руководство",
       "Вечерний выпуск открывается документами: зарплаты рабочих годами уходили на счета бывшего директора. Толпа на проспекте редеет — злость нашла другой адрес.",
