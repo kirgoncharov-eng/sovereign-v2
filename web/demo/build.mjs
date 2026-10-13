@@ -24,12 +24,14 @@ const result = await build({
   target: "es2020",
   jsx: "automatic",
   write: false,
+  outfile: path.join(here, "dist", "game.js"),
   define: { "process.env.NODE_ENV": '"production"', "process.env.NEXT_PUBLIC_SHARE_URL": '""', "process.env.NEXT_PUBLIC_ANALYTICS": '"off"', "process.env.NEXT_PUBLIC_BOT_USERNAME": '""' },
   plugins: [demoAliases],
   logLevel: "warning",
 });
 
-const js = result.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
+const js = result.outputFiles.find(file => file.path.endsWith('.js')).text.replace(/<\/script/gi, "<\\/script");
+const componentCss = result.outputFiles.find(file => file.path.endsWith('.css'))?.text ?? '';
 // Стили общие с веб-версией: app/globals.css без директивы Tailwind.
 const globals = (await readFile(path.join(root, "app", "globals.css"), "utf8")).replace(/@import\s+"tailwindcss";\s*/, "");
 // Пиксельные шрифты из public/fonts встраиваются в страницу: у демо нет своего сервера.
@@ -41,7 +43,7 @@ const fonts = "https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400
 const html = `<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Суверен</title>
 <link rel="stylesheet" href="${fonts}">
-<style>${css}</style>
+<style>${css}\n${componentCss}</style>
 <div id="root"></div>
 <script>${js}</script>
 `;

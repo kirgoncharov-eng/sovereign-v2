@@ -8,7 +8,7 @@ const serif = PT_Serif({ variable: "--font-serif", subsets: ["latin", "cyrillic"
 const ptMono = PT_Mono({ variable: "--font-ptmono", subsets: ["latin", "cyrillic"], weight: "400" });
 const hand = Marck_Script({ variable: "--font-hand", subsets: ["latin", "cyrillic"], weight: "400" });
 
-const DESCRIPTION = "Беларусь, 1978: альтернативная история и вымышленные люди. Заводы, договоры, выборы и предательства — сколько лет вы продержитесь у власти?";
+const DESCRIPTION = "Неманская республика, 1978. Земли Беларуси в другой истории. Заводы, договоры, выборы и предательства — сколько лет вы продержитесь у власти?";
 
 export const metadata: Metadata = {
   title: "Суверен — политический триллер",

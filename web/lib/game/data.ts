@@ -3,7 +3,7 @@ import { ALTERNATE_CONTEXT, ALTERNATE_COUNTRY } from "./alternate-world.ts";
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "8.1";
+export const APP_VERSION = "8.2";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 // Срок — двадцать ходов (пять лет). Правление не ограничено сроком: партия идёт, пока лидер у власти.
 export const TERM = 20;
@@ -36,7 +36,7 @@ export interface CountryInfo {
 }
 
 export const COUNTRIES: Record<string, CountryInfo> = {
-  [ALTERNATE_COUNTRY]: { flag: "◈", context: ALTERNATE_CONTEXT, startYear: 1978, capital: "Минск" },
+  [ALTERNATE_COUNTRY]: { flag: "≋", context: ALTERNATE_CONTEXT, startYear: 1978, capital: "Минск" },
   "Беларусь": { flag:"🇧🇾", context:"Беларусь после долгого единоличного правления. Санкции Запада, жёсткая зависимость от России, силовики привыкли к авторитаризму, оппозиция в эмиграции и подполье, общество разорвано.", startYear:2025, capital:"Минск" },
   "Украина":  { flag:"🇺🇦", context:"Украина в послевоенной реконструкции. Кандидат ЕС. Западные союзники устают, олигархи ослаблены, общество истощено и требует победы.", startYear:2025, capital:"Киев" },
   "Грузия":   { flag:"🇬🇪", context:"Малое государство. Абхазия и Ю.Осетия оккупированы Россией. Один олигарх контролирует правящую партию. Заявка на ЕС под угрозой. Улица против власти.", startYear:2025, capital:"Тбилиси" },

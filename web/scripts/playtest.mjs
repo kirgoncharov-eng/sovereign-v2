@@ -84,6 +84,11 @@ await wait(900);
 await page.screenshot({ path: shot("0-title") });
 await page.getByRole("button", { name: /начать игру/i }).first().tap();
 await wait(900);
+const opening = page.getByRole("button", { name: /Открыть первое дело/i });
+if (await opening.isVisible()) {
+  await page.screenshot({ path: shot("0-opening"), fullPage: true });
+  await opening.tap();
+}
 
 const timeline = [];
 let firstDecisionMs = null, deskOnTurn1 = false, stuck = false, ended = false;
