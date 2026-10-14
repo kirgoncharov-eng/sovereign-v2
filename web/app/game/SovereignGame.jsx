@@ -70,7 +70,9 @@ import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
-import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM } from "@/lib/game/alternate-world.ts";
+import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM, countryName } from "@/lib/game/alternate-world.ts";
+import PresidentialOpening, { PresidentialCouncil, RepublicAtlas } from "./PresidentialOpening.jsx";
+import { hasPresidentialCouncil } from "@/lib/game/presidential-story.ts";
 import { countryForNewRun, NEW_GAME_COUNTRY } from "@/lib/client/new-game-country.ts";
 import { newspaperName } from "@/lib/game/newspaper-editions.ts";
 
@@ -868,7 +870,8 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
   const [err, setErr]   = useState(null);
   const proposals = gs.currentEvent?.council;
   const charges = gs.councilCharges ?? 0;
-  const silent = proposals?.length ? (gs.advisors ?? []).filter(a => !proposals.some(p => p.advisor?.id === a.id)) : [];
+  const presidential = gs.country === ALTERNATE_COUNTRY;
+  const silent = !presidential && proposals?.length ? (gs.advisors ?? []).filter(a => !proposals.some(p => p.advisor?.id === a.id)) : [];
   if (gs.currentEvent?.choices.some(c => c.projectReview)) {
     return <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>Кабинет уже приложил фактический доклад. Выберите, кто представит результат; новая программа запускается отдельно в правительстве.</div>;
   }
@@ -886,7 +889,7 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
   const convene = async () => {
     if (busy || charges <= 0) return;
     setBusy(true); setErr(null);
-    try { onConvened(await game.council(gs)); }
+    try { onConvened(await game.council(gs), gs.currentEvent); }
     catch (e) { setErr(e.message); }
     finally { setBusy(false); }
   };
@@ -907,7 +910,13 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
           Без предложений по этому делу: {silent.map(a => a.name).join(", ")}
         </div>
       )}
-      {proposals?.length ? proposals.map((c, i) => (
+      {hasPresidentialCouncil(gs) ? <PresidentialCouncil key={gs.turn} gs={gs}>
+        {(choice, index) => <button {...optProps(choice, index)}
+          style={{ display:"block", width:"100%", textAlign:"left", padding:16, background:G.bg3, border:`1px solid ${G.bdr2}`, color:G.txt }}>
+          <ChoicePreview gs={gs} c={choice}/>
+          {stamping === choice.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
+        </button>}
+      </PresidentialCouncil> : proposals?.length ? proposals.map((c, i) => (
         <button key={c.id} {...optProps(c, i)}
           style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 16px", marginBottom:6, borderRadius:0, background:"transparent", border:`1px dashed ${G.bdr2}`, color:G.txt, position:"relative" }}>
           <ChoicePreview gs={gs} c={c}/>
@@ -916,7 +925,7 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
       )) : (
         <>
           <div style={{ fontFamily:serif, fontSize:14, color:G.tx3, fontStyle:"italic", marginBottom:10 }}>
-            Каждый советник предложит свой ход с точной ценой.
+            {presidential ? "Разобрать варианты с советниками: кто возражает, чем рискуем и что останется после подписи." : "Каждый советник предложит свой ход с точной ценой."}
           </div>
           <button onClick={convene} disabled={busy || charges <= 0 || Array.isArray(proposals)}
             style={{ background:"transparent", border:`1.5px solid ${charges?G.gold:G.bdr}`, color:charges?G.gold:G.tx3, padding:"8px 18px", borderRadius:0, fontSize:15, fontWeight:700, opacity:charges && !Array.isArray(proposals)?1:.5 }}>
@@ -1151,7 +1160,7 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
         <div className="sv-hud-row" style={{ position:"relative" }}>
           {info && <ResourceInfo gs={gs} kind={info} onClose={() => setInfo(null)}/>}
           <div className="sv-hud-who" style={{ minWidth:0 }}>
-            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, whiteSpace:"normal", lineHeight:1.15 }}>{gs.country === ALTERNATE_COUNTRY ? "Беларусь" : gs.country} · {termNo ? `срок ${ROMAN[termNo] ?? termNo + 1}` : ci.label.toLowerCase()}<span className="sv-hud-turn"> · {gs.country === ALTERNATE_COUNTRY ? `${gs.year} · ход ${gs.turn + 1}` : `ход ${local}/${TERM}`}</span></div>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, whiteSpace:"normal", lineHeight:1.15 }}>{countryName(gs.country)} · {termNo ? `срок ${ROMAN[termNo] ?? termNo + 1}` : ci.label.toLowerCase()}<span className="sv-hud-turn"> · {gs.country === ALTERNATE_COUNTRY ? `${gs.year} · ход ${gs.turn + 1}` : `ход ${local}/${TERM}`}</span></div>
             <div style={{ fontFamily:pixel, fontSize:15, color:G.gold, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", textTransform:"uppercase" }}>{gs.leader.name}</div>
           </div>
           <div className="sv-hud-res">
@@ -1272,7 +1281,7 @@ function Recap({ gs, onClose }) {
         <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>РАНЕЕ В «СУВЕРЕНЕ»</div>
         <div id="recap-title" style={{ fontFamily:narrow, fontWeight:700, fontSize:30, lineHeight:1.15, margin:"6px 0 4px" }}>{gs.leader.name}</div>
         <div style={{ fontFamily:narrow, fontSize:16, color:G.tx2, marginBottom:14 }}>
-          <Flag country={gs.country}/> {gs.country} · {gs.year} · {reignLength(gs.turn)} у власти
+          <Flag country={gs.country}/> {countryName(gs.country)} · {gs.year} · {reignLength(gs.turn)} у власти
         </div>
         <div style={{ borderTop:`2px solid ${G.txt}`, paddingTop:8, marginBottom:12 }}>
           {gs.history.slice(-3).map((h, i) => (
@@ -1513,7 +1522,7 @@ function Setup({ onStart, saved, onResume }) {
         <div style={{ textAlign:"center", marginBottom:26 }}>
           <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(56px, 17vw, 88px)", lineHeight:1, letterSpacing:".1em", color:G.gold, textShadow:"4px 4px 0 rgba(0,0,0,.45)" }}>СУВЕРЕН</h1>
           <div style={{ fontFamily:narrow, fontSize:19, color:G.tx2, marginTop:12 }}>
-            Беларусь, 1978. Другая история. Сколько лет вы продержитесь?
+            Неманская республика, 1978. Другая история. Сколько лет вы продержитесь?
           </div>
         </div>
 
@@ -1534,11 +1543,11 @@ function Setup({ onStart, saved, onResume }) {
 
 
         <div style={{ textAlign:"center", marginBottom:22 }}>
-          <div style={{ fontFamily:serif, fontSize:18, color:G.txt, lineHeight:1.5, marginBottom:14 }}>В этой истории независимая Беларусь сохранилась после 1918 года. Теперь заводы требуют денег, союзники торгуются, противники готовят заговор. Удержите власть — и разберитесь, кому можно верить.</div>
+          <div style={{ fontFamily:serif, fontSize:18, color:G.txt, lineHeight:1.5, marginBottom:14 }}>Минск, 1978 год. Неманская республика — земли Беларуси в другой истории. Теперь заводы требуют денег, союзники торгуются, противники готовят заговор. Удержите власть — и разберитесь, кому можно верить.</div>
           <PrimaryBtn onClick={quick} disabled={loading}>{loading ? "ОТКРЫВАЕМ КАБИНЕТ…" : saved ? "НОВАЯ ПАРТИЯ" : "НАЧАТЬ ИГРУ"}</PrimaryBtn>
           <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:8 }}>
-            {meta.runs.length ? "Беларусь, 1978 · случайный курс · сложность «Коалиция»"
-              : "Беларусь, 1978 · сразу в кабинет · мягкая сложность «Дебют»"}
+            {meta.runs.length ? "Неманская республика, 1978 · случайный курс · сложность «Коалиция»"
+              : "Неманская республика, 1978 · сразу в кабинет · мягкая сложность «Дебют»"}
           </div>
         </div>
 
@@ -1566,7 +1575,7 @@ function Setup({ onStart, saved, onResume }) {
             <span className="sv-stamp" style={{ fontSize:12, transform:"rotate(4deg)" }}>своя партия</span>
           </div>
 
-          <div style={{ marginTop:18 }}><Flag country={country} size={21}/> {country}</div>
+          <div style={{ marginTop:18 }}><Flag country={country} size={21}/> {countryName(country)}</div>
           <div style={{ fontFamily:mono, fontSize:13, color:G.tx2, lineHeight:1.6, padding:"10px 6px 2px" }}>
             {COUNTRIES[country].context}
             <div style={{ marginTop:4 }}>Конституция: {TERM_RULES[termRule(country)].title.toLowerCase()}.</div>
@@ -1626,7 +1635,7 @@ function BriefCard({ gs }) {
       <div style={{ minWidth:0 }}>
         <div style={{ fontFamily:pixel, fontSize:12, color:G.tx3, marginBottom:3 }}>ПЕРВЫЙ ДЕНЬ В КАБИНЕТЕ</div>
         <div style={{ fontFamily:serif, fontSize:15, color:G.txt, lineHeight:1.5 }}>
-          Вы — <b>{gs.leader.name}</b>, президент. <Flag country={gs.country}/> {gs.country}, курс — {ci?.label.toLowerCase()}.
+          Вы — <b>{gs.leader.name}</b>, президент. <Flag country={gs.country}/> {countryName(gs.country)}, курс — {ci?.label.toLowerCase()}.
           {titles.length > 0 && <> Вы обещали избирателям: {titles.map(t => `«${t}»`).join(", ")}.</>}
         </div>
       </div>
@@ -1686,6 +1695,12 @@ function PromisesCard({ gs, final = false, style, bare = false }) {
   );
 }
 
+function HistoricalIntro({ gs, onGo }) {
+  const [dossier, setDossier] = useState(false);
+  if (dossier) return <Intro gs={gs} onGo={onGo}/>;
+  return <PresidentialOpening gs={gs} onGo={() => onGo(offeredPromises(gs.seed, gs.ideo).suggested)} onDossier={() => setDossier(true)}/>;
+}
+
 function Intro({ gs, onGo }) {
   const tg = useTelegramButtons();
   const { offered, suggested } = useMemo(() => offeredPromises(gs.seed, gs.ideo), [gs.seed, gs.ideo]);
@@ -1704,7 +1719,7 @@ function Intro({ gs, onGo }) {
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"28px 16px" }}>
       <div style={{ maxWidth:660, width:"100%" }}>
         <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:12 }}><Flag country={country}/> {country.toUpperCase()} · НОВОЕ РУКОВОДСТВО</div>
+          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:12 }}><Flag country={country}/> {countryName(country).toUpperCase()} · НОВОЕ РУКОВОДСТВО</div>
           <Divider/>
         </div>
         <Card style={{ marginBottom:12 }}>
@@ -1832,6 +1847,7 @@ function CountrySheet({ gs, onGovernment, onReports }) {
   const polls = computePolls(gs.country, gs.factions, gs.resources);
   const next = nextElection(gs);
   return <>
+    {gs.country === ALTERNATE_COUNTRY && <RepublicAtlas gs={gs}/>}
     <Label>{"РЕСУРСЫ"}</Label>
     {RES_CONFIG.map(r => <ResBar key={r.key} k={r.key} label={SHORT[r.key]} val={resources[r.key]} prev={prevResources ? prevResources[r.key] : undefined}/>)}
     <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, margin:"6px 0 10px", lineHeight:1.5 }}>
@@ -2390,7 +2406,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     {TIP_TURNS[gs.turn]}
                   </div>
                 )}
-                <AdvisorDebate gs={gs} takes={takes}/>
+                {!hasPresidentialCouncil(gs) && <AdvisorDebate gs={gs} takes={takes}/>}
                 {urgent && (
                   <div style={{ padding:"0 24px 12px" }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.red, marginBottom:6 }}>СРОЧНО: 25 СЕКУНД — ИНАЧЕ РЕШАТ ЗА ВАС</div>
@@ -2402,7 +2418,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </div>
                 )}
                 <div id="sv-choice-list">
-                {event.choices.map((c, i) => (
+                {(hasPresidentialCouncil(gs) ? [] : event.choices).map((c, i) => (
                   <button key={c.id} {...optProps(c, i + 1)}
                     style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
                     <span style={{ position:"absolute", left:22, top:13, fontFamily:serif, fontWeight:700, fontSize:18, color:G.tx3 }}>{i + 1}.</span>
@@ -2411,7 +2427,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </button>
                 ))}
                 <div style={{ padding:"0 24px 12px" }}>
-                <CouncilPanel gs={gs} stamping={stamping} debated={!!takes} onConvened={list => commit(conveneCouncil(gsRef.current, list))} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
+                <CouncilPanel gs={gs} stamping={stamping} debated={!!takes}
+                  onConvened={(list, discussedEvent) => {
+                    if (gsRef.current.currentEvent === discussedEvent) commit(conveneCouncil(gsRef.current, list));
+                  }} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
                 </div>
                 </div>
               </Card>
@@ -2646,7 +2665,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}
-        onJump={() => document.getElementById("opt-1")?.scrollIntoView({ behavior:"smooth", block:"center" })}
+        onJump={() => (document.getElementById("opt-1") ?? document.querySelector("#sv-choice-list .sv-opt"))
+          ?.scrollIntoView({ behavior:"smooth", block:"center" })}
         onSkip={() => window.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter" }))}
         onGuide={() => countryPanel.current?.startHospital("assign")}
         onGuideReport={() => countryPanel.current?.startHospital("report")}
@@ -2741,7 +2761,7 @@ function shareText(gs) {
   const c = COUNTRIES[gs.country];
   const rating = computePolls(gs.country, gs.factions, gs.resources).leader;
   return [
-    `${c.flag} СУВЕРЕН · ${gs.daily ? `дело дня ${gs.daily.split("-").reverse().slice(0, 2).join(".")} · ` : ""}${gs.country}`,
+    `${c.flag} СУВЕРЕН · ${gs.daily ? `дело дня ${gs.daily.split("-").reverse().slice(0, 2).join(".")} · ` : ""}${countryName(gs.country)}`,
     `${gs.leader.name} — «${v.title}»`,
     `${c.startYear}–${gs.year} · у власти ${reignLength(gs.turn)} · ${END_TYPES[gs.endType] ?? ""}`,
     `Оценка истории: ${v.rating} · рейтинг ${rating}%`,
@@ -3006,7 +3026,7 @@ function Ending({ gs, setGs, onRestart }) {
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"32px 16px" }}>
       <div style={{ maxWidth:660, width:"100%", display:"flex", flexDirection:"column" }}>
         <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:12 }}><Flag country={gs.country}/> {gs.country.toUpperCase()} · {gs.endType ? END_TYPES[gs.endType].toUpperCase() : "КОНЕЦ ПРАВЛЕНИЯ"}</div>
+          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:12 }}><Flag country={gs.country}/> {countryName(gs.country).toUpperCase()} · {gs.endType ? END_TYPES[gs.endType].toUpperCase() : "КОНЕЦ ПРАВЛЕНИЯ"}</div>
           <Divider/>
         </div>
 
@@ -3159,11 +3179,13 @@ export default function App() {
         d = { ...d, analyticsRun: newAnalyticsRun(APP_VERSION, inTelegram() ? "tg" : "web", !!d.daily) };
         setRunContext(d.analyticsRun);
         track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily, quick:!!quick });
-        // Быстрая партия и дело дня — сразу в кабинет: обещания берутся подсказанные, досье открывается в игре.
-        if (quick) { setGs(openDeskWhenDue({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) })); setScreen("game"); }
+        // У исторической обычной партии есть первое утро. Дело дня открывается сразу.
+        if (quick && (d.daily || d.country !== ALTERNATE_COUNTRY)) { setGs(openDeskWhenDue({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) })); setScreen("game"); }
         else { setGs(d); setScreen("intro"); track("intro"); }
       }}/>}
-      {screen==="intro"  && <Intro  gs={gs} onGo={picks=>{ setGs(g => openDeskWhenDue({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>}
+      {screen==="intro" && (gs.country === ALTERNATE_COUNTRY ? <HistoricalIntro gs={gs}
+        onGo={picks=>{ setGs(g => openDeskWhenDue({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>
+        : <Intro gs={gs} onGo={picks=>{ setGs(g => openDeskWhenDue({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>) }
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
     </PeopleProvider>

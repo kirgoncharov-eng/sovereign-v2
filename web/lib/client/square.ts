@@ -58,9 +58,9 @@ function squareDescription(s: SquareState): string {
 }
 
 // Флаги упрощены до полос: по ним площадь узнаётся с первого взгляда.
-type Flag = { dir: "h" | "v"; bands: string[]; mark?: string; cross?: string };
+type Flag = { dir: "h" | "v"; bands: string[]; mark?: string; cross?: string; river?: string };
 const FLAGS: Record<string, Flag> = {
-  [ALTERNATE_COUNTRY]: { dir: "h", bands: ["#415960", "#dfbc64", "#415960"] },
+  [ALTERNATE_COUNTRY]: { dir: "h", bands: ["#293b38"], river: "#dfcfaa" },
   "Беларусь": { dir: "h", bands: ["#c8313e", "#c8313e", "#4aa657"] },
   "Украина": { dir: "h", bands: ["#2f6fc0", "#f2cd2e"] },
   "Грузия": { dir: "h", bands: ["#f2f2ee"], cross: "#d8262c" },
@@ -277,6 +277,13 @@ function drawFlag(px: Px, f: Flag | undefined, x: number, y: number, w: number, 
     const cx = Math.floor(w / 2), cy = Math.floor(h / 2);
     for (let c = 0; c < w; c++) px(x + c, y + cy + wave(c), 1, 1, f.cross);
     for (let rr = 0; rr < h; rr++) px(x + cx, y + rr + wave(cx), 1, 1, f.cross);
+  }
+  if (f.river) {
+    for (let column = 0; column < w; column++) {
+      const bend = Math.floor(column * 4 / w) % 2;
+      const row = Math.min(h - 1, Math.floor(h / 2) - 1 + bend);
+      px(x + column, y + row + wave(column), 1, Math.max(1, Math.floor(h / 5)), f.river);
+    }
   }
   if (f.mark) px(x + Math.floor(w / 2) - 1, y + Math.floor(h / 2) - 1 + wave(Math.floor(w / 2)), 2, 2, f.mark);
 }

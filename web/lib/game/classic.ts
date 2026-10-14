@@ -48,6 +48,7 @@ import { advisorNews, forecastReview } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import { isOrdinaryNewspaperEvent, newspaperHeadline } from "./newspaper-editions.ts";
+import { presidentialCouncil } from "./presidential-story.ts";
 import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
 
 type Rand = () => number;
@@ -112,7 +113,7 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
         const cap = COUNTRIES[state.country].capital;
         return arg ? CAPITAL_CASES[cap]?.[arg as keyof (typeof CAPITAL_CASES)[string]] ?? cap : cap;
       }
-      case "country": return state.country === ALTERNATE_COUNTRY ? "Беларусь" : state.country;
+      case "country": return state.country === ALTERNATE_COUNTRY ? "Неманская республика" : state.country;
       case "leader": return state.leader.name;
       case "rival": return rivalName(state);
       case "crisis": return state.activeCrises[0]?.title ?? "кризис";
@@ -1244,6 +1245,8 @@ const COUNCIL_CARDS = { ...COUNCIL_A, ...COUNCIL_B };
 const FAIL_SCENES: Record<string, string[]> = { ...FAIL_A, ...FAIL_B };
 
 function buildCouncil(state: GameState): Choice[] {
+  const presidential = presidentialCouncil(state);
+  if (presidential !== null) return presidential;
   // A generic policy proposal cannot answer a factual question about this signature.
   if (state.currentEvent?.choices.some(c => c.mandateResponse || c.projectReview)) return [];
   const r = seededRandom(hashSeed(state.seed, "council", state.turn));
