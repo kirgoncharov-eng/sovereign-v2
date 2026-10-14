@@ -72,7 +72,8 @@ import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM, countryName } from "@/lib/game/alternate-world.ts";
 import PresidentialOpening, { PresidentialCouncil, RepublicAtlas } from "./PresidentialOpening.jsx";
-import { hasPresidentialCouncil } from "@/lib/game/presidential-story.ts";
+import { hasPresidentialCouncil, isPresidentialDiscussion } from "@/lib/game/presidential-story.ts";
+import { hasInvestigationDebate } from "@/lib/content/investigation-debates.ts";
 import { isFactoryOpening } from "@/lib/client/factory-scene.ts";
 import FactoryLive from "./FactoryLive.jsx";
 import { countryForNewRun, NEW_GAME_COUNTRY } from "@/lib/client/new-game-country.ts";
@@ -873,12 +874,23 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
   const proposals = gs.currentEvent?.council;
   const charges = gs.councilCharges ?? 0;
   const presidential = gs.country === ALTERNATE_COUNTRY;
+  const discussion = isPresidentialDiscussion(gs);
+  const canConvene = discussion || charges > 0;
   const silent = !presidential && proposals?.length ? (gs.advisors ?? []).filter(a => !proposals.some(p => p.advisor?.id === a.id)) : [];
   if (gs.currentEvent?.choices.some(c => c.projectReview)) {
     return <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>Кабинет уже приложил фактический доклад. Выберите, кто представит результат; новая программа запускается отдельно в правительстве.</div>;
   }
   if (gs.currentEvent?.choices.some(c => c.mandateResponse)) {
     return <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}`, fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3 }}>Пресс-служба ждёт вашего ответа по конкретной подписи. Проверка документов доступна среди решений; обычное предложение совета этот вопрос не закрывает.</div>;
+  }
+  if (hasInvestigationDebate(gs)) {
+    return <PresidentialCouncil key={gs.turn} gs={gs}>
+      {(choice, index) => <button {...optProps(choice, index)}
+        style={{ display:"block", width:"100%", textAlign:"left", padding:16, background:G.bg3, border:`1px solid ${G.bdr2}`, color:G.txt }}>
+        <ChoicePreview gs={gs} c={choice}/>
+        {stamping === choice.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
+      </button>}
+    </PresidentialCouncil>;
   }
   if (gs.currentEvent?.beat || gs.currentEvent?.special) {
     return (
@@ -889,7 +901,7 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
   }
 
   const convene = async () => {
-    if (busy || charges <= 0) return;
+    if (busy || !canConvene) return;
     setBusy(true); setErr(null);
     try { onConvened(await game.council(gs), gs.currentEvent); }
     catch (e) { setErr(e.message); }
@@ -900,7 +912,7 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
     <div style={{ marginTop:6, paddingTop:14, borderTop:`1px solid ${G.bdr}` }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
         <span style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>Совет</span>
-        <span style={{ fontFamily:narrow, fontSize:15, color:charges?G.gold:G.tx3 }}>{charges ? `можно собрать ещё ${plural(charges, "раз", "раза", "раз")}` : "больше не соберётся"}</span>
+        <span style={{ fontFamily:narrow, fontSize:15, color:charges?G.gold:G.tx3 }}>{discussion ? "обсуждение бесплатно" : charges ? `можно собрать ещё ${plural(charges, "раз", "раза", "раз")}` : "больше не соберётся"}</span>
       </div>
       {Array.isArray(proposals) && !proposals.length && (
         <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx3, marginBottom:4 }}>
@@ -929,9 +941,9 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
           <div style={{ fontFamily:serif, fontSize:14, color:G.tx3, fontStyle:"italic", marginBottom:10 }}>
             {presidential ? "Разобрать варианты с советниками: кто возражает, чем рискуем и что останется после подписи." : "Каждый советник предложит свой ход с точной ценой."}
           </div>
-          <button onClick={convene} disabled={busy || charges <= 0 || Array.isArray(proposals)}
-            style={{ background:"transparent", border:`1.5px solid ${charges?G.gold:G.bdr}`, color:charges?G.gold:G.tx3, padding:"8px 18px", borderRadius:0, fontSize:15, fontWeight:700, opacity:charges && !Array.isArray(proposals)?1:.5 }}>
-            {busy ? "Советники собираются…" : charges ? "Собрать совет" : "Совет исчерпан"}
+          <button onClick={convene} disabled={busy || !canConvene || Array.isArray(proposals)}
+            style={{ background:"transparent", border:`1.5px solid ${canConvene?G.gold:G.bdr}`, color:canConvene?G.gold:G.tx3, padding:"8px 18px", borderRadius:0, fontSize:15, fontWeight:700, opacity:canConvene && !Array.isArray(proposals)?1:.5 }}>
+            {busy ? "Советники собираются…" : discussion ? "Обсудить подпись" : charges ? "Собрать совет" : "Совет исчерпан"}
           </button>
           {err && <div style={{ fontFamily:narrow, fontSize:15, color:G.amb, marginTop:8 }}>✖ {err}</div>}
         </>
@@ -1248,6 +1260,11 @@ const TIP_TURNS = [
   "✔ под вариантом — шаг к вашему предвыборному обещанию, ✖ — его нарушение. Обещания и опоры — в досье.",
   "Опора ниже 20 — кризис, 4 и ниже — падение власти. Совет можно собрать несколько раз за правление: он назовёт точные цифры. Все правила — под «?» наверху.",
 ];
+const HISTORICAL_TIPS = [
+  'Выберите резолюцию. Можно бесплатно обсудить подпись с советниками: предложение, возражение и ответ. Цена указана под вариантом.',
+  TIP_TURNS[1],
+  'Опора ниже 20 — кризис, 4 и ниже — падение власти. В закрытом разговоре можно сразу раскрыть все реплики или подписать недочитанный вариант.',
+];
 const tutorialSeen = () => { try { return localStorage.getItem(TUTORIAL_KEY) === "1"; } catch { return true; } };
 
 function SoundToggle() {
@@ -1308,7 +1325,8 @@ function Recap({ gs, onClose }) {
   );
 }
 
-function HowToPlay({ onClose }) {
+function HowToPlay({ gs, onClose }) {
+  const historical = gs.country === ALTERNATE_COUNTRY && !gs.daily;
   const close = () => { try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch { /* недоступно */ } onClose(); };
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose(); };
@@ -1317,8 +1335,12 @@ function HowToPlay({ onClose }) {
   }, [onClose]);
   const desktop = typeof matchMedia === "function" && matchMedia("(pointer:fine)").matches;
   const items = [
-    ["Каждый ход — одно решение", `Под каждым вариантом — риск и смысл решения. Над вариантами спорят два советника: экономист не ошибается насчёт казны, советник по безопасности — насчёт силовиков, а об остальном каждый тянет в свою сторону. Кто был прав, газета покажет после хода.${desktop ? "" : " Коснитесь варианта, чтобы выбрать его. Подпишите отдельной кнопкой внизу."}`],
-    ["Точные цифры — у советников", "Сколько именно стоит решение, каков шанс и что аукнется позже, знают только советники. Совет можно собрать несколько раз за правление — берегите его для трудных дел."],
+    ["Каждый ход — одно решение", historical
+      ? "Под вариантом показаны смысл и цена. Можно выслушать советников, выбрать резолюцию и подписать её отдельной кнопкой. Итог появится в газете."
+      : `Под каждым вариантом — риск и смысл решения. Над вариантами спорят два советника: экономист не ошибается насчёт казны, советник по безопасности — насчёт силовиков, а об остальном каждый тянет в свою сторону. Кто был прав, газета покажет после хода.${desktop ? "" : " Коснитесь варианта, чтобы выбрать его. Подпишите отдельной кнопкой внизу."}`],
+    [historical ? "Разберите подпись с советниками" : "Точные цифры — у советников", historical
+      ? "Обсуждение бесплатно. Выслушайте предложение, возражение и ответ, затем подпишите выбранный вариант. Можно сразу раскрыть весь разговор или подписать, не дочитывая. Цена решения остаётся под вариантом."
+      : "Сколько именно стоит решение, каков шанс и что аукнется позже, знают только советники. Совет можно собрать несколько раз за правление — берегите его для трудных дел."],
     ["Не дайте ресурсам рухнуть", "Ниже 20 — кризис, 4 и ниже — падение власти. Легитимность на нуле — революция, враждебные силовики — переворот."],
     ["Цель — продержаться", "Партия не кончается со сроком: если вы остались у власти, начинается следующий. Срок — двадцать ходов, ход — квартал. Каждый новый срок тяжелее прошлого: власть приедается. Счёт идёт на годы у власти — в «Деле дня» таблица сортирует именно по ним."],
     ["Что останется после вас", "Кроме рекорда лет у власти есть другие цели: довести интригу до развязки, сдержать обещания, изменить законы или передать власть добровольно. Итог правления расскажет, что получилось. Уход по своей воле — тоже окончание истории."],
@@ -1790,7 +1812,9 @@ function Intro({ gs, onGo }) {
               </div>
             ))}
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10 }}>
-              Совет можно собрать {plural(gs.councilCharges, "раз", "раза", "раз")} за мандат · победа на парламентских выборах даёт ещё один
+              {gs.country === ALTERNATE_COUNTRY && !gs.daily
+                ? 'Советники бесплатно обсуждают вашу подпись. Решение и ответственность остаются за вами.'
+                : <>Совет можно собрать {plural(gs.councilCharges, "раз", "раза", "раз")} за мандат · победа на парламентских выборах даёт ещё один</>}
             </div>
           </Card>
         )}
@@ -2218,7 +2242,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     <div style={{ minHeight:"100vh", background:G.bg }}>
       <div className="sv-window"><SquareView gs={gs} height={64} describe/></div>
       <Hud gs={gs} onInfoChange={setResourceOpen} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => { setHelp(true); track("help"); }}/>
-      {help && <HowToPlay onClose={() => setHelp(false)}/>}
+      {help && <HowToPlay gs={gs} onClose={() => setHelp(false)}/>}
       {recap && <Recap gs={gs} onClose={onRecapDone}/>}
       <div style={{ display:"flex", justifyContent:"center", padding:"14px" }}>
       <div className="sv-game-grid" style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px minmax(0, 1fr)", gap:14 }}>
@@ -2407,10 +2431,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 <div id="sv-resolution" style={{ padding:"0 24px" }}><Label>{"Резолюция"}</Label></div>
                 {tips && TIP_TURNS[gs.turn] && (
                   <div className="sv-fade" style={{ margin:"-4px 24px 12px", padding:"8px 12px", borderLeft:`3px solid var(--blue)`, background:G.bg3, fontFamily:narrow, fontSize:15, color:G.tx2, lineHeight:1.45 }}>
-                    {TIP_TURNS[gs.turn]}
+                    {gs.country === ALTERNATE_COUNTRY && !gs.daily ? HISTORICAL_TIPS[gs.turn] : TIP_TURNS[gs.turn]}
                   </div>
                 )}
-                {!hasPresidentialCouncil(gs) && <AdvisorDebate gs={gs} takes={takes}/>}
+                {!hasPresidentialCouncil(gs) && !isPresidentialDiscussion(gs) && !hasInvestigationDebate(gs) && <AdvisorDebate gs={gs} takes={takes}/>}
                 {urgent && (
                   <div style={{ padding:"0 24px 12px" }}>
                     <div style={{ fontFamily:pixel, fontSize:13, color:G.red, marginBottom:6 }}>СРОЧНО: 25 СЕКУНД — ИНАЧЕ РЕШАТ ЗА ВАС</div>
@@ -2422,7 +2446,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </div>
                 )}
                 <div id="sv-choice-list">
-                {(hasPresidentialCouncil(gs) ? [] : event.choices).map((c, i) => (
+                {(hasPresidentialCouncil(gs) || hasInvestigationDebate(gs) ? [] : event.choices).map((c, i) => (
                   <button key={c.id} {...optProps(c, i + 1)}
                     style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
                     <span style={{ position:"absolute", left:22, top:13, fontFamily:serif, fontWeight:700, fontSize:18, color:G.tx3 }}>{i + 1}.</span>
@@ -2434,7 +2458,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 <CouncilPanel gs={gs} stamping={stamping} debated={!!takes}
                   onConvened={(list, discussedEvent) => {
                     if (gsRef.current.currentEvent === discussedEvent) commit(conveneCouncil(gsRef.current, list));
-                  }} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
+                  }} optProps={(choice, index) => optProps(choice,
+                    hasInvestigationDebate(gs) || hasPresidentialCouncil(gs) ? index + 1 : event.choices.length + index + 1)}/>
                 </div>
                 </div>
               </Card>

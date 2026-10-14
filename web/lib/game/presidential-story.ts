@@ -1,6 +1,11 @@
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
 import type { Choice, GameState } from './types.ts';
 import { ADVISOR_ROLES } from './data.ts';
+import { hasInvestigationDebate, INVESTIGATION_DEBATES } from '../content/investigation-debates.ts';
+
+export function isPresidentialDiscussion(state: GameState): boolean {
+    return !state.daily && state.country === ALTERNATE_COUNTRY && (presidentialCouncil(state)?.length ?? 0) > 0;
+}
 
 export function hasPresidentialCouncil(state: GameState): boolean {
     return state.country === ALTERNATE_COUNTRY && !!state.currentEvent?.council?.length
@@ -161,14 +166,16 @@ export const HISTORICAL_DEBATES: Record<string, readonly [DebateExchange, Debate
 
 export function hasAuthoredDebate(state: GameState, index: number): boolean {
     return state.country === ALTERNATE_COUNTRY && !state.daily
-        && !!state.currentEvent?.choices[index] && !!HISTORICAL_DEBATES[state.currentEvent.card ?? '']?.[index];
+        && !!state.currentEvent?.choices[index]
+        && (!!HISTORICAL_DEBATES[state.currentEvent.card ?? '']?.[index] || hasInvestigationDebate(state));
 }
 
 export function presidentialConversation(state: GameState, index: number) {
     const choice = state.currentEvent?.choices[index];
     if (!choice) return [];
     const cardId = state.currentEvent?.card;
-    const authored = state.country === ALTERNATE_COUNTRY && cardId ? HISTORICAL_DEBATES[cardId]?.[index] : undefined;
+    const authored = hasInvestigationDebate(state) ? INVESTIGATION_DEBATES[choice.text]
+        : state.country === ALTERNATE_COUNTRY && cardId ? HISTORICAL_DEBATES[cardId]?.[index] : undefined;
     const expert = ADVISOR_ROLES.find(role => role.domain.some(tag => choice.tags.includes(tag)))?.id ?? 'strategist';
     const lines: ReadonlyArray<readonly [string, string]> = authored ?? [
         [expert, `Перед нами конкретная резолюция: «${choice.text}». ${choice.hint || 'Сначала разберём её цену.'}`],

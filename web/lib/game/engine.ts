@@ -7,6 +7,7 @@ import {
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES, SURVIVAL_ENDS, CONTINUE_ENDS, TERM_FATIGUE, DEATH_FROM, DEATH_STEP, localTurn,
 } from "./data.ts";
 import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
+import { isPresidentialDiscussion } from './presidential-story.ts';
 import { ARCS } from "../content/arcs.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { NAMES } from "../content/narration.ts";
@@ -250,10 +251,11 @@ export function startEvent(state: GameState, event: GameEvent & { cardId?: strin
   return { ...state, currentEvent: cardId ? { ...ev, card: cardId } : ev, lastTurn: null, usedEvents };
 }
 
-// Совет собран: предложения советников добавляются к вариантам, тратится один сбор.
+// Дополнительные предложения расходуют сбор; обсуждение исходной исторической подписи бесплатно.
 export function conveneCouncil(state: GameState, proposals: Choice[]): GameState {
-  if (!state.currentEvent || state.councilCharges <= 0) return state;
-  const spent = proposals.length ? 1 : 0; // если советникам нечего сказать, сбор не засчитывается
+  const discussion = isPresidentialDiscussion(state) && JSON.stringify(proposals) === JSON.stringify(state.currentEvent?.choices);
+  if (!state.currentEvent || (!discussion && state.councilCharges <= 0)) return state;
+  const spent = proposals.length && !discussion ? 1 : 0;
   return {
     ...state,
     councilCharges: state.councilCharges - spent,

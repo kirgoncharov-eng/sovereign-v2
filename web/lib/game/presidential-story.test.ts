@@ -21,7 +21,7 @@ test('council retains exact policy, obligations and narration of every factory r
         assert.deepEqual(proposals, state.currentEvent!.choices);
         const council = conveneCouncil(state, proposals);
         const loaded = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'game', state: council }))!.state;
-        assert.equal(loaded.councilCharges, state.councilCharges - 1);
+        assert.equal(loaded.councilCharges, state.councilCharges);
         for (const choice of proposals) {
             const directNarration = await classicApi.consequence(state, choice.id);
             const councilNarration = await classicApi.consequence(loaded, choice.id);
