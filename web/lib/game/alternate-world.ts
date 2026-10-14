@@ -1,3 +1,4 @@
+import { historicalSceneText } from "../content/historical-scenes.ts";
 import type { IdeologyId } from "./types.ts";
 // A separate campaign, never an alias or migration of contemporary saves.
 export const ALTERNATE_COUNTRY = "Беларусь · 1978";
@@ -81,7 +82,7 @@ const ERA_PHRASES: [
     ["Курс на Европу", "Новые рынки"],
 ];
 export function eraText(text: string): string {
-    const adapted = ERA_PHRASES.reduce((result, [source, replacement]) => result.replaceAll(source, replacement), text);
+    const adapted = ERA_PHRASES.reduce((result, [source, replacement]) => result.replaceAll(source, replacement), historicalSceneText(text));
     return adapted.replace(/(?<![А-Яа-яЁё])ЕС(?![А-Яа-яЁё])/g, "Торговый союз");
 }
 export function campaignText(text: string, country: string): string {

@@ -1,3 +1,4 @@
+import { historicalSceneText } from "../content/historical-scenes.ts";
 import { ALTERNATE_COUNTRY, ALTERNATE_PARTIES, ALTERNATE_SPEECHES, ALTERNATE_SHARED_CARDS, ALTERNATE_SHARED_LAWS, campaignCopy } from "./alternate-world.ts";
 import { historicalEcho } from '../content/historical-echoes.ts';
 import { pensionCall } from './pension-call.ts';
@@ -99,7 +100,8 @@ const faithOf = (country: string) => FAITH[country === "Казахстан" ? "m
 // Подстановка слотов {capital} {fig:security} и т.п.
 export function fill(tpl: string, state: GameState, extra: Record<string, string> = {}): string {
   // Род по персонажу: {g:west:он|она} — форма для того, кто стоит за {fig:west}.
-  const gendered = tpl.replace(/\{g:(\w+):([^|{}]*)\|([^{}]*)\}/g, (_m, bloc: string, he: string, she: string) => {
+  const historical = state.country === ALTERNATE_COUNTRY ? historicalSceneText(tpl) : tpl;
+  const gendered = historical.replace(/\{g:(\w+):([^|{}]*)\|([^{}]*)\}/g, (_m, bloc: string, he: string, she: string) => {
     const name = figureOf(state, bloc)?.name;
     return name && isFemaleName(name) ? she : he;
   });
