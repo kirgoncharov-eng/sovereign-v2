@@ -76,8 +76,9 @@ export function presidentialReplyActions(gs: GameState, message: PresidentialMes
   return livingActions(gs).filter(action => action.id.startsWith(prefix));
 }
 export const messageUnread = (gs: GameState, message: PresidentialMessage) => gs.world?.inboxRead?.[message.key] !== message.token;
-export function readPresidentialMessages(gs: GameState, person: string): GameState {
-  const messages = presidentialMessages(gs).filter(m => m.person === person && messageUnread(gs, m));
+export function readPresidentialMessages(gs: GameState, person: string, messageKey?: string): GameState {
+  const messages = presidentialMessages(gs).filter(m => m.person === person
+    && (messageKey === undefined || m.key === messageKey) && messageUnread(gs, m));
   if (!messages.length || !gs.world) return gs;
   return { ...gs, world: { ...gs.world, inboxRead: { ...gs.world.inboxRead, ...Object.fromEntries(messages.map(m => [m.key, m.token])) } } };
 }

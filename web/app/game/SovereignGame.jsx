@@ -2261,7 +2261,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         <div className="sv-main" inert={dossier || undefined}>
           {!busy && !recap && gs.world && <PresidentialDesk ref={deskRef} entry={false} gs={gs} Portrait={Portrait} Scene={SquareView}
             onViewChange={open => {if(open)countryPanel.current?.close();setContactOpen(open);}}
-            onRead={person => { if (!inFlight.current) commit(readPresidentialMessages(gsRef.current, person)); }}
+            onRead={(person, key) => {
+              if (!inFlight.current) commit(readPresidentialMessages(gsRef.current, person, key));
+            }}
             onDesk={() => document.getElementById("sv-main-case")?.scrollIntoView({behavior:"smooth",block:"start"})}
             onProject={id => countryPanel.current?.showProject(id)} onAction={id => {
             if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
