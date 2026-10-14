@@ -1,8 +1,7 @@
 "use client";
 import { useState } from "react";
-import { REPUBLIC_PLACES, presidentialConversation } from "@/lib/game/presidential-story.ts";
+import { REPUBLIC_PLACES, presidentialConversation, hasAuthoredDebate } from "@/lib/game/presidential-story.ts";
 import styles from "./presidential.module.css";
-import { isFactoryOpening } from '@/lib/client/factory-scene.ts';
 import { pageFx } from '@/lib/client/fx.ts';
 
 export default function PresidentialOpening({ gs, onGo, onDossier }) {
@@ -70,7 +69,7 @@ export function PresidentialCouncil({ gs, children }) {
       {choices.map((choice, position) => <button key={choice.id} type="button" aria-pressed={index === position}
         onClick={() => setSelected(position)}>{position + 1}. {choice.text}</button>)}
     </div>
-    <SpokenExchange key={index} lines={presidentialConversation(gs, index)} staged={isFactoryOpening(gs)}/>
+    <SpokenExchange key={index} lines={presidentialConversation(gs, index)} staged={hasAuthoredDebate(gs, index)}/>
     {children(choices[index], index)}
   </section>;
 }
