@@ -889,7 +889,7 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
   const convene = async () => {
     if (busy || charges <= 0) return;
     setBusy(true); setErr(null);
-    try { onConvened(await game.council(gs)); }
+    try { onConvened(await game.council(gs), gs.currentEvent); }
     catch (e) { setErr(e.message); }
     finally { setBusy(false); }
   };
@@ -2427,7 +2427,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </button>
                 ))}
                 <div style={{ padding:"0 24px 12px" }}>
-                <CouncilPanel gs={gs} stamping={stamping} debated={!!takes} onConvened={list => commit(conveneCouncil(gsRef.current, list))} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
+                <CouncilPanel gs={gs} stamping={stamping} debated={!!takes}
+                  onConvened={(list, discussedEvent) => {
+                    if (gsRef.current.currentEvent === discussedEvent) commit(conveneCouncil(gsRef.current, list));
+                  }} optProps={(c, i) => optProps(c, event.choices.length + i + 1)}/>
                 </div>
                 </div>
               </Card>
@@ -2662,7 +2665,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}
-        onJump={() => document.getElementById("opt-1")?.scrollIntoView({ behavior:"smooth", block:"center" })}
+        onJump={() => (document.getElementById("opt-1") ?? document.querySelector("#sv-choice-list .sv-opt"))
+          ?.scrollIntoView({ behavior:"smooth", block:"center" })}
         onSkip={() => window.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter" }))}
         onGuide={() => countryPanel.current?.startHospital("assign")}
         onGuideReport={() => countryPanel.current?.startHospital("report")}
