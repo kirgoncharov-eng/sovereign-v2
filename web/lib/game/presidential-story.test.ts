@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { ALTERNATE_COUNTRY, countryName, eraText } from './alternate-world.ts';
 import { classicApi } from './classic.ts';
 import { conveneCouncil, createInitialState, resolveTurn, seededRandom, startEvent } from './engine.ts';
-import { hasPresidentialCouncil, presidentialConversation, presidentialCouncil } from './presidential-story.ts';
+import { HISTORICAL_DEBATES, hasAuthoredDebate, hasPresidentialCouncil, presidentialConversation, presidentialCouncil } from './presidential-story.ts';
+import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { parseSave } from '../client/save.ts';
 import { SAVE_VERSION } from './data.ts';
 
@@ -34,17 +35,61 @@ test('council retains exact policy, obligations and narration of every factory r
     }
 });
 
-test('conversation uses current advisors and refers to the selected proposal', async () => {
+test('conversation uses current advisors and refers to the selected proposal across all historical cases', async () => {
     const state = await firstCase();
-    for (let index = 0; index < 3; index++) {
-        const lines = presidentialConversation(state, index);
-        assert.equal(lines.length, 3);
-        assert.ok(lines.every(line => state.advisors.some(advisor => advisor.name === line.name)));
+    for (const card of ALTERNATE_EVENTS) {
+        assert.ok(HISTORICAL_DEBATES[card.id], `missing authored debate for ${card.id}`);
+        const cardState = historicalCase(state, card);
+        for (let index = 0; index < 3; index++) {
+            const lines = presidentialConversation(cardState, index);
+            assert.equal(hasAuthoredDebate(cardState, index), true);
+            assert.equal(lines.length, 3, `${card.id} choice ${index} should have 3 lines`);
+            assert.ok(lines.every(line => state.advisors.some(advisor => advisor.name === line.name)));
+            assert.notEqual(lines[0].name, lines[1].name, `${card.id} choice ${index} objection must come from another advisor`);
+        }
     }
     assert.match(presidentialConversation(state, 1).map(line => line.text).join(' '), /три года/);
     const generic = { ...state, currentEvent: { ...state.currentEvent!, card: 'another-case' } };
     assert.ok(presidentialConversation(generic, 0)[0].text.includes(state.currentEvent!.choices[0].text));
     assert.deepEqual(presidentialConversation(state, 20), []);
+    assert.equal(hasAuthoredDebate({ ...state, daily: '2026-10-14' }, 0), false);
+    assert.equal(hasAuthoredDebate({ ...state, country: 'Беларусь' }, 0), false);
+    assert.equal(hasAuthoredDebate(generic, 0), false);
+    assert.equal(hasAuthoredDebate(state, 20), false);
+});
+
+function historicalCase(state: Awaited<ReturnType<typeof firstCase>>, card: typeof ALTERNATE_EVENTS[number]) {
+    return startEvent({ ...state, turn: 8 }, {
+        ...state.currentEvent!, cardId: card.id, title: card.title, source: card.source, description: card.description,
+        choices: card.choices.map((choice, index) => ({
+            ...choice, id: ['a', 'b', 'c'][index], sceneFail: choice.fail,
+            headline: choice.head?.[0], headlineFail: choice.head?.[1], resolvesCrisis: null,
+        })),
+    });
+}
+
+test('all historical conversations retain exact resolutions and their outcomes after council and reload', async () => {
+    for (const seed of [1, 7, 21]) {
+        const base = await firstCase(seed);
+        for (const card of ALTERNATE_EVENTS) {
+            const state = historicalCase(base, card);
+            const proposals = await classicApi.council(state);
+            assert.deepEqual(proposals, state.currentEvent!.choices);
+            const loaded = parseSave(JSON.stringify({
+                version: SAVE_VERSION, screen: 'game', state: conveneCouncil(state, proposals),
+            }))!.state;
+            for (const choice of proposals) {
+                const directReport = await classicApi.consequence(state, choice.id);
+                const councilReport = await classicApi.consequence(loaded, choice.id);
+                assert.deepEqual(councilReport, directReport);
+                const direct = resolveTurn(state, choice.id, directReport);
+                const discussed = resolveTurn(loaded, choice.id, councilReport);
+                assert.deepEqual(discussed.resources, direct.resources);
+                assert.deepEqual(discussed.factions, direct.factions);
+                assert.deepEqual(discussed.pending, direct.pending);
+            }
+        }
+    }
 });
 
 test('legacy councils are untouched and scripted special cases cannot be replaced', async () => {
