@@ -68,3 +68,20 @@ export function pageFx() {
 export function outcomeFx(success: boolean) {
   haptic(success ? "success" : "error");
 }
+
+// Короткий механический звонок; только при поднятии трубки самим игроком.
+export function telephoneFx() {
+  const context = audio();
+  if (!context) return;
+  for (const offset of [0, 0.16]) {
+    const start = context.currentTime + offset;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = 'triangle';
+    oscillator.frequency.value = 920;
+    gain.gain.setValueAtTime(0.035, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.12);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(start); oscillator.stop(start + 0.13);
+  }
+}

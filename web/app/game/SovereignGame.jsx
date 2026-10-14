@@ -73,6 +73,8 @@ import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/l
 import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM, countryName } from "@/lib/game/alternate-world.ts";
 import PresidentialOpening, { PresidentialCouncil, RepublicAtlas } from "./PresidentialOpening.jsx";
 import { hasPresidentialCouncil } from "@/lib/game/presidential-story.ts";
+import { isFactoryOpening } from "@/lib/client/factory-scene.ts";
+import FactoryLive from "./FactoryLive.jsx";
 import { countryForNewRun, NEW_GAME_COUNTRY } from "@/lib/client/new-game-country.ts";
 import { newspaperName } from "@/lib/game/newspaper-editions.ts";
 
@@ -2349,7 +2351,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </div>
                 )}
                 <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
-                {sceneOf(event) !== "square" && (
+                {isFactoryOpening(gs) ? <FactoryLive/> : sceneOf(event) !== "square" && (
                   <figure className="sv-scene" style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
                     <SquareView gs={gs} sceneKey={sceneOf(event)} partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60}/>
                   </figure>

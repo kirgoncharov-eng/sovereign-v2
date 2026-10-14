@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { REPUBLIC_PLACES, presidentialConversation } from "@/lib/game/presidential-story.ts";
 import styles from "./presidential.module.css";
+import { isFactoryOpening } from '@/lib/client/factory-scene.ts';
+import { pageFx } from '@/lib/client/fx.ts';
 
 export default function PresidentialOpening({ gs, onGo, onDossier }) {
   return <main className={styles.arrival}>
@@ -37,6 +39,26 @@ export default function PresidentialOpening({ gs, onGo, onDossier }) {
   </main>;
 }
 
+function SpokenExchange({ lines, staged }) {
+  const [visible, setVisible] = useState(staged ? 1 : lines.length);
+  const next = () => { pageFx(); setVisible(count => Math.min(lines.length, count + 1)); };
+  return <>
+    <div className={styles.conversation} aria-live="polite" aria-relevant="additions">
+      {lines.slice(0, visible).map((line, position) => <div className={`${styles.line} ${styles.spoken}`} key={position}>
+        <div className={styles.speaker}><b>{line.name}</b><small>{line.role}</small></div>
+        <p>{line.text}</p>
+      </div>)}
+    </div>
+    {visible < lines.length && <div className={styles.exchangeActions}>
+      <button type="button" onClick={next}>{visible === 1 ? 'Выслушать возражение →' : 'Дать ответить →'}</button>
+      <button type="button" onClick={() => setVisible(lines.length)}>Весь разговор</button>
+    </div>}
+    <p className={styles.attribution}>{visible < lines.length
+      ? 'Можно продолжить разговор или подписать решение сейчас.'
+      : 'Совет высказался. Резолюция и ответственность остаются вашими.'}</p>
+  </>;
+}
+
 export function PresidentialCouncil({ gs, children }) {
   const [selected, setSelected] = useState(0);
   const choices = gs.currentEvent?.choices ?? [];
@@ -48,13 +70,7 @@ export function PresidentialCouncil({ gs, children }) {
       {choices.map((choice, position) => <button key={choice.id} type="button" aria-pressed={index === position}
         onClick={() => setSelected(position)}>{position + 1}. {choice.text}</button>)}
     </div>
-    <div className={styles.conversation} aria-live="polite">
-      {presidentialConversation(gs, index).map((line, position) => <div className={styles.line} key={`${index}-${position}`}>
-        <div className={styles.speaker}><b>{line.name}</b><small>{line.role}</small></div>
-        <p>{line.text}</p>
-      </div>)}
-    </div>
-    <p className={styles.attribution}>Совет высказался. Резолюция и ответственность остаются вашими.</p>
+    <SpokenExchange key={index} lines={presidentialConversation(gs, index)} staged={isFactoryOpening(gs)}/>
     {children(choices[index], index)}
   </section>;
 }

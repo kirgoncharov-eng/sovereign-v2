@@ -3,9 +3,11 @@ import { monthYear, turnDate } from '../game/calendar.ts';
 import type { GameState } from '../game/types.ts';
 import { squareStateOf } from './square-state.ts';
 import type { SquareState } from './square.ts';
+import { factoryOutcome, type FactoryOutcome } from './factory-scene.ts';
 
 export interface QuarterTransition {
-  kind: 'country' | 'hospital';
+  kind: 'country' | 'hospital' | 'factory';
+  factory?: FactoryOutcome;
   duration: number;
   from: string;
   to: string;
@@ -23,6 +25,13 @@ export function quarterTransition(before: GameState, after: GameState): QuarterT
   const hospital = previous?.status === 'running' && !!health && after.world?.dispatches.some(item => item.project === 'health' && item.turn === after.turn && ['report','news'].includes(item.kind));
   const beforeScene = { ...squareStateOf(before, 1), season: date(before.turn).season };
   const afterScene = { ...squareStateOf(after, 2), season: date(after.turn).season };
+  const factory = factoryOutcome(before, after);
+  if (factory) return {
+    kind: 'factory', factory, duration: 6500,
+    from: monthYear(date(before.turn)), to: monthYear(date(after.turn)),
+    title: factory.headline, detail: factory.detail,
+    before: beforeScene, after: afterScene, staffing: 0,
+  };
   return {
     kind: hospital ? 'hospital' : 'country', duration: hospital ? 1600 : 1000,
     from: monthYear(date(before.turn)), to: monthYear(date(after.turn)),
