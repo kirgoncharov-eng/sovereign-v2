@@ -20,7 +20,10 @@ export default function QuarterTransition({ scene, onDone }) {
     <div className="sv-quarter-card">
       <div className="sv-quarter-date">{scene.from} → {scene.to}</div>
       <h2>{scene.title}</h2>
-      <canvas ref={canvas} width={240} height={92} className="sv-px" role="img" aria-label={scene.kind==='hospital'?'Посыльный с документами покидает резиденцию. У районной больницы продолжается работа.':'Посыльный с документами пересекает площадь. Наступает новый квартал.'}/>
+      <canvas ref={canvas} width={240} height={92} className="sv-px" role="img"
+        aria-label={scene.kind === 'factory' ? `Распоряжение доставлено на завод. ${scene.title}`
+          : scene.kind === 'hospital' ? 'Посыльный покидает резиденцию. У районной больницы продолжается работа.'
+            : 'Посыльный с документами пересекает площадь. Наступает новый квартал.'}/>
       <p>{scene.detail}</p>
       <div className="sv-quarter-time" aria-hidden="true"><span style={{animationDuration:`${scene.duration}ms`}}/></div>
       <button ref={skip} onClick={onDone}>К итогам решения →</button>

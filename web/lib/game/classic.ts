@@ -137,9 +137,12 @@ export function dateline(state: GameState, kind: PlaceKind | "beat" = "desk"): s
   const d = turnDate(state.seed, COUNTRIES[state.country].startYear, t);
   const weather = cycle([...WEATHER_BY_SEASON[d.season], ...WEATHER_ANY], state.seed, "weather", t);
   if (kind === "beat") return fill(`${d.day} ${MONTHS_GEN[d.month]} ${d.year}, ${d.weekday}. ${weather}`, state);
-  const place = cycle(PLACES[kind], state.seed, "place", t);
+  const factoryOpening = state.country === ALTERNATE_COUNTRY && !state.daily && t === 0 && (kind === 'desk' || kind === 'crisis');
+  const place = factoryOpening ? 'Кабинет президента. На столе папка завода, рядом телефон секретариата.'
+    : cycle(PLACES[kind], state.seed, "place", t);
   // Ночное место — ночное время; дневная погода или место — дневное. Ночью «жары в кабинетах» не бывает.
-  const time = pick(r, NIGHT.has(place) ? NIGHT_TIMES : DAYLIGHT.has(weather) || DAYLIGHT.has(place) ? DAY_TIMES : TIMES);
+  const time = factoryOpening ? '08:15'
+    : pick(r, NIGHT.has(place) ? NIGHT_TIMES : DAYLIGHT.has(weather) || DAYLIGHT.has(place) ? DAY_TIMES : TIMES);
   const sky = NIGHT.has(place) && DAYLIGHT.has(weather) ? "" : ` ${weather}`;
   return fill(`${d.day} ${MONTHS_GEN[d.month]} ${d.year}, ${d.weekday}, ${time}.${sky} ${place}`, state);
 }
