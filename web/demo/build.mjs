@@ -1,7 +1,7 @@
 // Сборка играбельного демо для артефакта claude.ai: один HTML-файл без сервера.
 // Запуск: npm run build:demo → demo/dist/sovereign.html
 import { build } from "esbuild";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,12 +40,21 @@ const inlined = await Promise.all([...globals.matchAll(/url\(\/fonts\/([\w.-]+)\
 const css = (await readFile(path.join(here, "page.css"), "utf8")) + inlined.reduce((acc, [from, to]) => acc.replaceAll(from, to), globals);
 const fonts = "https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Mono&family=Marck+Script&display=swap";
 
+// Inline the historical art so the standalone demo never depends on /art URLs.
+const art = {};
+for (const folder of ["scenes", "figures"]) {
+  for (const name of await readdir(path.join(root, "public", "art", folder))) {
+    if (!name.endsWith(".webp")) continue;
+    art[`/art/${folder}/${name}`] = `data:image/webp;base64,${(await readFile(path.join(root, "public", "art", folder, name))).toString("base64")}`;
+  }
+}
+
 const html = `<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Суверен</title>
 <link rel="stylesheet" href="${fonts}">
 <style>${css}\n${componentCss}</style>
 <div id="root"></div>
-<script>${js}</script>
+<script>window.__SOVEREIGN_ART__=${JSON.stringify(art)};${js}</script>
 `;
 
 await mkdir(path.join(here, "dist"), { recursive: true });
