@@ -45,7 +45,8 @@ const kindOf = page => page.evaluate(() => {
   return "card";
 });
 const titleOf = page => page.evaluate(() =>
-  [...document.querySelectorAll("h2")].map(h => h.innerText).find(t => t && !/Сообщения и люди/.test(t)) ?? "");
+  [...document.querySelectorAll("h2")].filter(heading => heading.getClientRects().length > 0)
+    .map(heading => heading.innerText).find(text => text && !/Сообщения и люди|Корреспонденция/.test(text)) ?? "");
 const deskVisible = page => page.evaluate(() =>
   [...document.querySelectorAll("button")].some(b => /^Сообщения/.test(b.innerText.trim()) || /^Правительство/.test(b.innerText.trim())));
 
