@@ -1,4 +1,5 @@
 import { ALTERNATE_COUNTRY, ALTERNATE_PARTIES, ALTERNATE_SPEECHES, ALTERNATE_SHARED_CARDS, ALTERNATE_SHARED_LAWS, campaignCopy } from "./alternate-world.ts";
+import { historicalEcho } from '../content/historical-echoes.ts';
 import { pensionCall } from './pension-call.ts';
 import { withEvidenceChoice } from './private-evidence.ts';
 import { mandatePublicEvent } from './minister-public.ts';
@@ -1022,7 +1023,8 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // Эхо прошлых решений: сначала — какое именно решение аукнулось, чтобы связь была видна. Не больше двух за ход:
   // газета, в которой аукается всё сразу, читается как список.
   for (const m of plan.matured.slice(0, MAX_ECHOES)) {
-    const story = m.story || maturedStory(m.label, (echoed[m.label] = (echoed[m.label] ?? 0) + 1) - 1);
+    const story = m.story || historicalEcho(state.country, m)
+      || maturedStory(m.label, (echoed[m.label] = (echoed[m.label] ?? 0) + 1) - 1);
     after.push(`${echoLead(state, m)}${story}`);
   }
   if (plan.election) {
