@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
+import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import {
   ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION, TERM_RULES, TERM, localTurn, termIndex, termOrdinal,
   reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects,
@@ -68,6 +68,26 @@ import QuarterTransition from "./QuarterTransition.jsx";
 import { CASE_LEAD, NEWS_LEAD, ledgerRows, splitLead } from "@/lib/client/brief.ts";
 import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
+import { artSource, historicalEventArt, historicalResultArt, historicalPortraitArt, HISTORICAL_SCENE_ART } from "@/lib/client/historical-art.ts";
+const HistoricalArtContext = createContext(null);
+function HistoricalArtProvider({ state, children }) {
+  const runKey = state?.country === ALTERNATE_COUNTRY ? `sovereign.art-roster.${state.seed}` : null;
+  const [bound, setBound] = useState(null);
+  const rosterText = JSON.stringify((state?.keyFigures ?? []).map(figure => [figure.id, figure.name]));
+  useEffect(() => {
+    if (!runKey) return;
+    let roster;
+    try { roster = JSON.parse(localStorage.getItem(runKey) || "null"); } catch { /* Storage may be unavailable. */ }
+    if (!roster || typeof roster !== "object" || Array.isArray(roster)) {
+      roster = Object.fromEntries(JSON.parse(rosterText));
+      try { localStorage.setItem(runKey, JSON.stringify(roster)); } catch { /* Cosmetic binding only. */ }
+    }
+    const timer = setTimeout(() => setBound({ runKey, roster }), 0);
+    return () => clearTimeout(timer);
+  }, [runKey, rosterText]);
+  const roster = bound?.runKey === runKey ? bound.roster : null;
+  return <HistoricalArtContext.Provider value={{ state, roster }}>{children}</HistoricalArtContext.Provider>;
+}
 import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM, countryName } from "@/lib/game/alternate-world.ts";
@@ -140,12 +160,20 @@ function photoCanvas(name) {
   return c;
 }
 function Portrait({ name, size = 44, style }) {
+  const { state, roster } = useContext(HistoricalArtContext) ?? {};
+  const src = roster ? historicalPortraitArt(state, name, roster) : null;
+  const [failed, setFailed] = useState(null);
   const ref = useRef(null);
   useEffect(() => {
     const c = ref.current;
     if (!c || !name) return;
     c.getContext("2d").drawImage(photoCanvas(name), 0, 0);
-  }, [name]);
+  }, [name, src, failed]);
+  // Direct images also work in the offline demo and preserve our pre-sized art.
+  // eslint-disable-next-line @next/next/no-img-element
+  if (src && failed !== src) return <img src={artSource(src)} onError={() => setFailed(src)} alt=""
+    data-figure-art={src} className="sv-px" style={{ width:size, height:Math.round(size * 1.25), objectFit:"cover",
+      objectPosition:"center top", border:"2px solid #2a241d", flexShrink:0, ...style }}/>;
   return <canvas ref={ref} width={PHOTO_W} height={PHOTO_H} aria-hidden="true" className="sv-px"
     style={{ width:size, height:Math.round(size * 1.25), border:"2px solid #2a241d", flexShrink:0, ...style }}/>;
 }
@@ -788,6 +816,9 @@ const quoteName = n => (String(n).includes("«") ? n : `«${n}»`);
 // Ночь выборов: протоколы приходят один за другим. Первыми считают города — и они тянут цифры
 // в сторону соперника; к концу ночи подтягиваются регионы, и проценты сходятся к итогу.
 function ElectionNight({ e, party, onDone }) {
+  const { state } = useContext(HistoricalArtContext) ?? {};
+  const art = state?.country === ALTERNATE_COUNTRY ? artSource(HISTORICAL_SCENE_ART.ballot.src) : null;
+  const background = art ? `linear-gradient(rgba(24,23,19,.9),rgba(24,23,19,.9)),url(${art}) center/cover` : "var(--bg-deep)";
   const [p, setP] = useState(0);
   const doneRef = useRef(onDone);
   useEffect(() => { doneRef.current = onDone; }, [onDone]);
@@ -817,7 +848,8 @@ function ElectionNight({ e, party, onDone }) {
     </div>
   );
   return (
-    <div onClick={() => onDone()} style={{ background:"var(--bg-deep)", border:"2px solid #000", boxShadow:"var(--hard)", padding:"18px 20px 20px", marginBottom:12, cursor:"pointer", position:"relative" }}>
+    <div onClick={() => onDone()} style={{ background,
+      border:"2px solid #000", boxShadow:"var(--hard)", padding:"18px 20px 20px", marginBottom:12, cursor:"pointer", position:"relative" }}>
       <div style={{ display:"flex", justifyContent:"space-between", gap:10, marginBottom:14 }}>
         <span style={{ fontFamily:pixel, fontSize:13, color:G.red }}>● ПРЯМОЙ ЭФИР · ЦИК</span>
         <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>ОБРАБОТАНО {Math.floor(p)}%</span>
@@ -1056,9 +1088,11 @@ function rubricOf(t) {
   return RUBRICS[tag] || "Политика";
 }
 
-function SquareView({ gs, scene, sceneKey, partner, height = 48, mono = false, still = false, describe = false, style }) {
+function SquareView({ gs, scene, sceneKey, partner, art, height = 48, mono = false, still = false, describe = false, style }) {
   const wrap = useRef(null), ref = useRef(null);
   const [w, setW] = useState(0);
+  const [failed, setFailed] = useState(null);
+  const showArt = art && failed !== art.src;
   useEffect(() => {
     const el = wrap.current;
     if (!el) return;
@@ -1091,10 +1125,15 @@ function SquareView({ gs, scene, sceneKey, partner, height = 48, mono = false, s
     animate();
     motion?.addEventListener("change", animate);
     return () => { clearInterval(t); motion?.removeEventListener("change", animate); };
-  }, [key, lw, height, w, still]);
+  }, [key, lw, height, w, still, showArt]);
   return (
     <div ref={wrap} style={{ width:"100%", ...style }}>
-      {w > 0 && <canvas ref={ref} width={lw} height={height} className="sv-px" aria-label={sceneKey && sceneKey !== "square" ? SCENE_CAPTION[sceneKey] : `Площадь перед резиденцией. ${squareCaption(st0)}`}
+      {/* Direct image: fixed canvas slot, error fallback and standalone demo. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {showArt && w > 0 ? <img src={artSource(art.src)} alt={art.caption} data-scene-art={art.src}
+        onError={() => setFailed(art.src)} style={{ display:"block", width:"100%", height:height * (w / lw),
+          objectFit:"cover", objectPosition:"center 65%", filter:mono ? "grayscale(1) contrast(1.15) sepia(.25)" : "none" }}/>
+        : w > 0 && <canvas ref={ref} width={lw} height={height} className="sv-px" aria-label={sceneKey && sceneKey !== "square" ? SCENE_CAPTION[sceneKey] : `Площадь перед резиденцией. ${squareCaption(st0)}`}
         style={{ display:"block", width:"100%", height:height * (w / lw), filter: mono ? "grayscale(1) contrast(1.15) sepia(.25)" : "none" }}/>}
       {describe && <div aria-live="polite" style={{ fontFamily:narrow, fontSize:14, lineHeight:1.4, color:G.tx2, background:G.bg2, padding:"6px 12px", textAlign:"center" }}>{squareCaption(st0)}</div>}
     </div>
@@ -2379,7 +2418,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
                 {isFactoryOpening(gs) ? <FactoryLive/> : sceneOf(event) !== "square" && (
                   <figure className="sv-scene" style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
-                    <SquareView gs={gs} sceneKey={sceneOf(event)} partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60}/>
+                    <SquareView gs={gs} art={historicalEventArt(gs.country, event, sceneOf(event))} sceneKey={sceneOf(event)}
+                      partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60}/>
                   </figure>
                 )}
                 {event.special && <SpecialHeader gs={gs} event={event}/>}
@@ -2492,8 +2532,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>
                 <h2 id="sv-turn-result" className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.1, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}><PeopleText>{lastTurn.headline}</PeopleText></h2>
                 <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
-                  <SquareView gs={gs} sceneKey={lastTurn.scene} height={36} mono still/>
-                  <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>{SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции</figcaption>
+                  <SquareView gs={gs} art={historicalResultArt(gs, lastTurn.scene)}
+                    sceneKey={lastTurn.scene} height={36} mono still/>
+                  <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>
+                    {historicalResultArt(gs, lastTurn.scene)?.caption ?? SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции
+                  </figcaption>
                 </figure>
                 {(() => {
                   const { lead, rest } = splitLead(lastTurn.narrative, NEWS_LEAD);
@@ -3203,6 +3246,7 @@ export default function App() {
   const restart = () => { setRunContext(undefined); clearSave(); setGs(null); setScreen("setup"); };
 
   return (
+    <HistoricalArtProvider state={gs}>
     <PeopleProvider gs={gs} Portrait={Portrait}>
       {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={(d, quick)=>{
         d = { ...d, analyticsRun: newAnalyticsRun(APP_VERSION, inTelegram() ? "tg" : "web", !!d.daily) };
@@ -3218,5 +3262,6 @@ export default function App() {
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
     </PeopleProvider>
+    </HistoricalArtProvider>
   );
 }
