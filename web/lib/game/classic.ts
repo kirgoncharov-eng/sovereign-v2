@@ -1101,7 +1101,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // Кампания 1978: в ночь выборов газета открывается результатом, а после дела дня подводит итог срока —
   // что страна запомнила из решений, законы и обещания (#147). Особые развязки «вопроса о сроках» пишут свой финал.
   const closing = !finale && plan.election?.kind === "president" && state.country === ALTERNATE_COUNTRY
-    ? termFinale(state, plan.election, reignOf(state).term + 1) : null;
+    ? termFinale(state, plan.election, reignOf(state).term + 1, { laws: plan.laws, promises: plan.promises }) : null;
   const parts = closing
     ? [closing.result, scene, ...after, ...closing.summary, intercut, hook]
     : [scene, ...after, finale?.text ?? electionLine, intercut, hook];
