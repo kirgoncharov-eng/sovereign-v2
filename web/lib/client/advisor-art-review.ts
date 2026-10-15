@@ -1,4 +1,5 @@
 import { classicApi } from "../game/classic.ts";
+import { ALTERNATE_COUNTRY } from "../game/alternate-world.ts";
 import { ACTIONS, COUNTRIES, CRISIS_THRESHOLD, RES_CONFIG } from "../game/data.ts";
 import { choiceEffects, createInitialState, resolveTurn, seededRandom, startEvent, successChance } from "../game/engine.ts";
 import { debate, type AdvisorTake } from "../game/forecasts.ts";
@@ -27,7 +28,7 @@ export async function createAdvisorArtScene(country = "Украина"): Promise
     if (takes?.length === 2 && takes[0].id === "economist" && takes[1].id === "security") {
       if (takes[0].favors !== takes[1].favors) return { state, takes };
     }
-    const choice = state.currentEvent!.choices[0];
+    const choice = state.currentEvent!.choices[country === ALTERNATE_COUNTRY && index === 0 ? 1 : 0];
     state = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
   }
   throw new Error(`Не найден спор для страны: ${country}`);

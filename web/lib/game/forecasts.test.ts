@@ -7,6 +7,7 @@ import { ADVISOR_STAKE, debate, debateApplies, forecastReview, pairFor, type Adv
 import { DISLOYAL_BELOW, campOf, isDisloyal, mannerOf } from "./advisors.ts";
 import { choiceEffects } from "./engine.ts";
 import type { GameState } from "./types.ts";
+import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
 
 const SLOT = /\{[^}]*\}/;
 
@@ -23,7 +24,8 @@ async function debates(country: string, seed: number, turns = 30): Promise<{ sta
     const takes = debate(s);
     if (takes) out.push({ state: s, takes });
     const ev = s.currentEvent!;
-    const choice = ev.press || ev.call || ev.budget ? ev.choices[1] : ev.choices.find(c => !c.path) ?? ev.choices[0];
+    const choice = country === ALTERNATE_COUNTRY && seed === 40 && s.turn === 0 ? ev.choices[1]
+      : ev.press || ev.call || ev.budget ? ev.choices[1] : ev.choices.find(c => !c.path) ?? ev.choices[0];
     s = resolveTurn(s, choice.id, await classicApi.consequence(s, choice.id));
   }
   return out;

@@ -11,6 +11,8 @@ import { NAMES } from '../content/narration.ts';
 import { traitOf } from './people.ts';
 import type { TraitId } from './people.ts';
 import type { GameState, ResourceDelta, Choice } from './types.ts';
+import { ALTERNATE_COUNTRY } from './alternate-world.ts';
+import { signedHistoricalCase } from './first-term-schedule.ts';
 export type WorldPersonId = 'minister' | 'governor' | 'engineer' | 'healthMinister' | 'doctor';
 export interface WorldPerson {
     id: WorldPersonId;
@@ -81,7 +83,11 @@ const append = (world: LivingWorld, d: Omit<WorldDispatch, 'id'>): LivingWorld =
 });
 export function openLivingWorld(gs: GameState): GameState {
     if (gs.daily || gs.ended) return gs;
+    const historical = gs.country === ALTERNATE_COUNTRY;
+    if (historical && !gs.world && !signedHistoricalCase(gs, 'alt_fuel')) return gs;
     if (gs.world?.health) return ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor(gs))));
+    const openHealth = !historical || signedHistoricalCase(gs, 'alt_district');
+    if (gs.world && !openHealth) return ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor(gs))));
     const previous = gs.world;
     const used = new Set([...(previous?.people.map(person => person.name) ?? []), gs.leader.name, ...gs.keyFigures.map(f => f.name), ...gs.advisors.map(entry => entry.name), ...(gs.former ?? [])]);
     const pool = NAMES[gs.country] ?? NAMES['Беларусь'];
@@ -110,15 +116,16 @@ export function openLivingWorld(gs: GameState): GameState {
             id: 'engineer', name: name('engineer'), role: 'Главный инженер энергосети', competence: 3, relation: 8, trait: 'idealist', goal: 'Восстановить надёжную сеть, не жертвуя качеством ради срока'
         },
     ];
-    people.push({
+    if (openHealth) people.push({
         id: 'healthMinister', name: name('healthMinister'), role: 'Министр здравоохранения', competence: 2, relation: 45, trait: 'careerist', goal: 'Открыть районные отделения в срок и сохранить самостоятельность ведомства'
     }, {
         id: 'doctor', name: name('doctor'), role: 'Главный врач районной больницы', competence: 3, relation: 12, trait: 'idealist', goal: 'Закрепить специалистов на постоянных ставках и не оголить соседние больницы'
     });
     let world: LivingWorld = previous ? {
-        ...previous, people, health: newHealthProject(gs.turn)
+        ...previous, people, ...(openHealth ? { health: newHealthProject(gs.turn) } : {})
     } : {
-        version: 1, openedTurn: gs.turn, lastTick: gs.turn, lastActionTurn: null, people, health: newHealthProject(gs.turn), project: {
+        version: 1, openedTurn: gs.turn, lastTick: gs.turn, lastActionTurn: null, people,
+        ...(openHealth ? { health: newHealthProject(gs.turn) } : {}), project: {
             priority: 'balanced', status: 'unassigned', executor: null, deadline: gs.turn + 4, progress: 0, reported: 0, funds: 0, secured: false, inspected: false, procurementFixed: false, deal: false, cover: false, verified: null, lastFactors: []
         }, dispatches: []
     };
@@ -126,7 +133,7 @@ export function openLivingWorld(gs: GameState): GameState {
         world = append(world, {
             turn: gs.turn, kind: 'letter', title: 'Промышленный регион · письмо из диспетчерской', text: `Директор энергосети просит заменить изношенные узлы в течение года. Сейчас электричество отключают по графику; заводы заканчивают смены раньше. За соседним столом ${people[0].name} предлагает взять работу под личный контроль. ${people[2].name} предупреждает: нынешний поставщик требует переделки оборудования. Новый договор обойдётся дороже, а местные подрядчики готовы адаптировать поставку, если сохранят заказы. Заводы требуют подключить их первыми; районная больница просит не отодвигать жилые кварталы.`
         });
-    world = append(world, {
+    if (openHealth) world = append(world, {
         project: 'health', turn: gs.turn, kind: 'letter', title: 'Районные больницы · письмо главного врача', text: `${people.find(person => person.id === 'doctor')!.name} просит укомплектовать районные отделения в течение года. Кабинеты и койки есть, но специалистов не хватает. ${people.find(person => person.id === 'healthMinister')!.name} предлагает постоянный набор; местные власти могут согласовать назначения, но уже участвуют в восстановлении энергосети. Временный перевод врачей даст быстрый результат за счёт областных больниц.`
     });
     return ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor({ ...gs, world }))));
@@ -158,8 +165,18 @@ export function livingActions(gs: GameState): WorldAction[] {
     if (project.status === 'unassigned')
         for (const actor of world.people.filter(person => ['minister', 'governor', 'engineer'].includes(person.id))) {
             const person = worldPerson(gs, actor.id)!;
+            const deadlineOrigin = gs.country === ALTERNATE_COUNTRY
+                ? 'Он отсчитывается от письма по итогам топливного дела'
+                : 'Он отсчитывается от начала правления';
             list.push({
-                id: `appoint:${actor.id}`, title: `Поручить проект: ${person.name}`, detail: `${person.role}. Компетенция ${person.competence}/3, отношение к вам ${person.relation > 0 ? '+' : ''}${person.relation}. ${person.goal}. Срок — конец квартала ${project.deadline}; осталось ${Math.max(0, project.deadline - gs.turn)} кв. Он отсчитывается от начала правления, назначение его не продлевает. Без исполнителя работа не начнётся.${world.health?.status === 'running' && world.health.executor === person.id ? ' Уже руководит больницами: оба проекта будут идти медленнее.' : ''}`, cost: {
+                id: `appoint:${actor.id}`, title: `Поручить проект: ${person.name}`,
+                detail: `${person.role}. Компетенция ${person.competence}/3, отношение к вам `
+                    + `${person.relation > 0 ? '+' : ''}${person.relation}. ${person.goal}. `
+                    + `Срок — конец квартала ${project.deadline}; осталось ${Math.max(0, project.deadline - gs.turn)} кв. `
+                    + `${deadlineOrigin}, назначение его не продлевает. Без исполнителя работа не начнётся.`
+                    + (world.health?.status === 'running' && world.health.executor === person.id
+                        ? ' Уже руководит больницами: оба проекта будут идти медленнее.' : ''),
+                cost: {
                     economy: -4, politicalCapital: -2
                 }
             });
