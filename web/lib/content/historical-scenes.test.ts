@@ -6,6 +6,7 @@ import { INTERCUTS } from './roles.ts';
 import { CALL_DEMANDS } from './calls.ts';
 import { PRESS_QUESTIONS } from './press.ts';
 import { ARCS } from './arcs.ts';
+import { STORIES, type StoryContext } from './stories.ts';
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES, campaignCopy } from '../game/alternate-world.ts';
 import { classicApi, fill, pressChoice } from '../game/classic.ts';
 import { createInitialState, seededRandom, startEvent } from '../game/engine.ts';
@@ -18,6 +19,8 @@ const sources = [
   ...PRESS_QUESTIONS.flatMap(question => [question.text, ...question.answers.map(answer => answer.text)]),
   ...ARCS.flatMap(arc => arc.beats.flatMap(beat => beat.variants.flatMap(variant => [variant.title, variant.description,
     ...variant.choices.flatMap(choice => [choice.ok, choice.fail ?? ''])]))),
+  ...new Set(STORIES.flatMap(story => story.steps.flatMap(step => [true, false].map(crisis =>
+    step.text({ crisis, mood: 'neutral', res: {} } as unknown as StoryContext) ?? '')))),
 ];
 const slots = (text: string) => [...text.matchAll(/\{[^{}]+\}/g)].map(match => match[0]).sort();
 async function fresh(country = ALTERNATE_COUNTRY) {
@@ -26,7 +29,7 @@ async function fresh(country = ALTERNATE_COUNTRY) {
 }
 
 test('scene keys match canonical content and preserve slots and surrounding chapters', () => {
-  assert.equal(HISTORICAL_SCENES.length, 17);
+  assert.equal(HISTORICAL_SCENES.length, 20);
   assert.equal(new Set(HISTORICAL_SCENES.map(scene => scene.source)).size, HISTORICAL_SCENES.length);
   for (const scene of HISTORICAL_SCENES) {
     assert.equal(sources.filter(source => source.includes(scene.source)).length, 1, scene.id);
@@ -93,5 +96,17 @@ test('all press tones keep their mechanical price after restaging', async () => 
     assert.deepEqual(after.tags, before.tags);
     assert.equal(after.resolvesCrisis, before.resolvesCrisis);
     assert.notEqual(after.scene, before.scene);
+  }
+});
+
+test('кампания 1978: шаги личных историй не связаны днями недели — между письмами проходят кварталы (#143)', () => {
+  const weekday = /суббот|понедельник|воскресень|вторник|четверг|в среду|в пятницу/i;
+  for (const story of STORIES) {
+    for (const step of story.steps) {
+      for (const crisis of [true, false]) for (const mood of ['warm', 'cold', 'neutral'] as const) {
+        const text = step.text({ crisis, mood, res: { economy: 50, internalLegitimacy: 50 } } as unknown as StoryContext);
+        if (text) assert.doesNotMatch(historicalSceneText(text), weekday, `${story.id}: «${text}»`);
+      }
+    }
   }
 });
