@@ -86,7 +86,7 @@ test("ночь выборов: падеж партии, перевес; зако
   assert.match(won.summary[0], /закупочную цену подняли/);
   assert.match(won.summary[0], /«О гарантиях экспортных заказов»/);
   assert.match(won.summary[0], /Из 3 предвыборных обещаний выполнено 1, нарушено 1/);
-  assert.match(won.summary[1], /^Второй срок начинается в январе/);
+  assert.match(won.summary[1], /^Начинается второй срок\./);
   // Обещание, исполненное самим решением хода выборов, газета считает исполненным (замечание ревью #154).
   const keptNow = termFinale(state, election("won", 40, 30), 1, { laws: [], promises: [{ ...open, status: "kept" }] });
   assert.match(keptNow.summary[0], /Единственное предвыборное обещание выполнено\./);
@@ -114,7 +114,8 @@ test("кампания 1978: газета ночи выборов открыва
     if (result.outcome !== "won" || !narrative.startsWith("Президентские выборы.")) continue; // особая развязка «вопроса о сроках»
     wins++;
     assert.match(narrative, /Наутро газеты вспоминают весь срок\./, `seed ${seed}`);
-    assert.match(narrative, /Второй срок начинается в январе/, `seed ${seed}`);
+    assert.match(narrative, /Начинается второй срок\./, `seed ${seed}`);
+    assert.doesNotMatch(narrative, /в январе/, `seed ${seed}`);
     const promises = state.promises ?? [];
     const kept = promises.filter(promise => promise.status === "kept").length;
     const broken = promises.filter(promise => promise.status === "broken").length;
@@ -130,6 +131,6 @@ test("прежние страны — архив: ночь выборов пиш
   for (const seed of [1, 2, 3]) {
     const state = await playToElection("Грузия", seed);
     const narrative = state.lastTurn?.narrative ?? "";
-    assert.doesNotMatch(narrative, /Наутро газеты вспоминают весь срок|срок начинается в январе/, `seed ${seed}`);
+    assert.doesNotMatch(narrative, /Наутро газеты вспоминают весь срок|Начинается второй срок\./, `seed ${seed}`);
   }
 });

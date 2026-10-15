@@ -12,7 +12,6 @@ export interface TermOutcome { laws: LawInForce[]; promises: PromiseState[] }
 
 const MAX_MEMORIES = 3;
 
-const upper = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const put = (template: string, slots: Record<string, string | number>) =>
   template.replace(/\{(\w+)\}/g, (whole, key: string) => (key in slots ? String(slots[key]) : whole));
 
@@ -77,6 +76,6 @@ export function termFinale(state: GameState, election: Election, nextTerm: numbe
   ].filter(Boolean).join(" ");
   return {
     result: `${put(TERM_FINALE.won, slots)} ${marginLine(election)}`,
-    summary: [summary, put(TERM_FINALE.next, { ordinal: upper(termOrdinal(nextTerm)) })],
+    summary: [summary, put(TERM_FINALE.next, { ordinal: termOrdinal(nextTerm) })],
   };
 }
