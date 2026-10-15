@@ -13,7 +13,7 @@ export const STORY_GAP = 4;
 export const STORY_STEP = 2;
 const WARM = 20, COLD = -20;
 
-export interface StoryLetter { kind: LetterKind; from: string; role?: string; text: string; story: string }
+export interface StoryLetter { kind: LetterKind; from: string; role?: string; text: string; story: string; departs?: string }
 
 // Кто подходит на роль героя по должности. От интриги не зависит, чтобы порядок историй не менялся
 // посреди партии, когда в новом сроке появляется новый антагонист.
@@ -55,12 +55,14 @@ export function storyLetters(state: GameState, turn = state.turn + 1): StoryLett
     if (!step) return;
     const hero = heroOf(state, story);
     if (story.who !== "self" && !hero) return; // единственный подходящий человек сейчас — антагонист
-    const text = step.text(contextOf(state, hero));
+    const context = contextOf(state, hero);
+    const text = step.text(context);
     if (!text) return;
     letters.push({
       kind: step.kind, story: story.id, text: bySex(text, hero),
       from: hero?.name ?? story.sender ?? "",
       ...(hero ? { role: hero.role } : {}),
+      ...(hero && step.departs?.(context) ? { departs: hero.id } : {}),
     });
   });
   return letters;

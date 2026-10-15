@@ -725,12 +725,22 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     crises = [...crises, { ...newCrisis, id: `c${turn}`, turnsActive: 0 }];
   }
 
+  // Преемник из истории письма (#143): приходит с позицией своей группы, как и после сделки.
+  // Если человека на этом ходу уже сменили решением, письмо его не трогает.
+  const keyFigures = plan.keyFigures.map(fig => {
+    const heir = narration.succession?.find(entry => entry.figure === fig.id);
+    const before = state.keyFigures.find(old => old.id === fig.id);
+    if (!heir || fig.name !== before?.name) return fig;
+    const relation = clampRel((plan.factions.find(f => f.id === fig.faction)?.relation ?? 0) * 0.7);
+    return { ...fig, name: heir.name, relation, loyalty: loyaltyLabel(relation) };
+  });
+
   return {
     ...state,
     resources: plan.resources, prevResources: { ...state.resources },
     ...(plan.world ? { world: plan.world } : {}),
     factions: plan.factions, prevFactions: state.factions.map(f => ({ ...f })),
-    keyFigures: plan.keyFigures, prevFigures: state.keyFigures.map(f => ({ ...f })),
+    keyFigures, prevFigures: state.keyFigures.map(f => ({ ...f })),
     advisors: applyAdvisorNews(state.advisors, narration.advisorNews),
     activeCrises: crises,
     turn,
@@ -778,7 +788,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     promises: plan.promises,
     laws: plan.laws,
     path: plan.termResult ? null : plan.path,
-    former: [...(state.former ?? []), ...state.keyFigures.filter(f => !plan.keyFigures.some(g => g.name === f.name)).map(f => f.name)],
+    former: [...(state.former ?? []), ...state.keyFigures.filter(f => !keyFigures.some(g => g.name === f.name)).map(f => f.name)],
     echoes: plan.matured.reduce((acc, m) => ({ ...acc, [m.label]: (acc[m.label] ?? 0) + 1 }), { ...(state.echoes ?? {}) }),
     // Флаг «later»: эпизоды интриги во втором сроке знают, что президент не новый.
     arc: plan.termResult

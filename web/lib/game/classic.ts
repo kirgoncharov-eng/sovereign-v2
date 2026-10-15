@@ -1201,8 +1201,18 @@ function buildNarration(state: GameState, choiceId: string): Narration {
 
   const key = plan.newCrisisKey;
   // Личные сообщения: истории людей продолжаются, пока правление идёт.
-  const letters = plan.endType && !isSurvival(plan.endType) ? [] : storyLetters(state)
-    .map(letter => ({ ...letter, text: fill(letter.text, state, { name: letter.from, role: lower(letter.role ?? "") }) }));
+  const stories = plan.endType && !isSurvival(plan.endType) ? [] : storyLetters(state);
+  // Кампания 1978: кто ушёл с поста в истории письма, уступает место преемнику — мир это помнит (#143).
+  // Прежние страны — архив: там письма по-прежнему ничего не меняют.
+  const succession = state.country !== ALTERNATE_COUNTRY ? [] : stories.flatMap(letter => {
+    const figure = letter.departs ? state.keyFigures.find(fig => fig.id === letter.departs) : undefined;
+    return figure ? [{ figure: figure.id, name: successorName(state, figure), role: figure.role }] : [];
+  });
+  const letters = stories.map(({ departs, ...letter }) => {
+    const heir = departs ? succession.find(entry => entry.figure === departs) : undefined;
+    const text = fill(letter.text, state, { name: letter.from, role: lower(letter.role ?? "") });
+    return { ...letter, text: heir ? `${text} Новый ${lower(heir.role)} — ${heir.name}.` : text };
+  });
   // Газета сверяет прогнозы советников с тем, что вышло: так видно, кому и в чём верить.
   const forecasts = forecastReview(state, choiceId, !plan.success);
   const advisorUpdates = advisorNews(state, choiceId, !plan.success);
@@ -1229,6 +1239,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     press,
     heard: said,
     ...(letters.length ? { letters } : {}),
+    ...(succession.length ? { succession: succession.map(({ figure, name }) => ({ figure, name })) } : {}),
     ...(forecasts.length ? { forecasts } : {}),
     ...(advisorUpdates.length ? { advisorNews: advisorUpdates } : {}),
     ...(leaks.length ? { leaks } : {}),
