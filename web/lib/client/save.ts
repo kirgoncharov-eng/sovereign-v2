@@ -66,8 +66,14 @@ const event = (v: unknown) => isObj(v) && fields(v, ["title", "source", "descrip
   && (v.choices as unknown[]).length >= 2 && (!v.council || choices(v.council))
   && (!v.doc || isObj(v.doc) && strings(v.doc.facts) && strings(v.doc.lines) && typeof v.doc.author === "string")
   && (!v.press || isObj(v.press) && typeof v.press.outlet === "string" && rows(v.press.questions, q => fields(q, ["id", "who", "topic", "text"]) && rows(q.answers, a => fields(a, ["text", "tone"]) && isObj(a.res) && isObj(a.rel))))
-  && (!v.call || fields(v.call, ["figure", "trait", "demand"]) && ((v.call as Obj).negotiation === undefined || (v.call as Obj).negotiation === "pension" && integer((v.call as Obj).lawSince))) && (!v.budget || isObj(v.budget) && integer(v.budget.total));
-const validLawNews = (v: unknown) => isObj(v) && typeof v.id === 'string' && ['enact', 'repeal', 'amend'].includes(String(v.act)) && typeof v.passed === 'boolean';
+  && (!v.call || fields(v.call, ["figure", "trait", "demand"])
+    && ((v.call as Obj).negotiation === undefined
+      || (v.call as Obj).negotiation === "pension" && integer((v.call as Obj).lawSince)
+      || (v.call as Obj).negotiation === "journalist" && typeof (v.call as Obj).context === "string"))
+  && (!v.budget || isObj(v.budget) && integer(v.budget.total));
+
+const validLawNews = (v: unknown) => isObj(v) && typeof v.id === 'string'
+  && ['enact', 'repeal', 'amend'].includes(String(v.act)) && typeof v.passed === 'boolean';
 const report = (v: unknown) => isObj(v) && fields(v, ["headline", "narrative", "historianNote", "choiceText"])
   && strings(v.reactions) && strings(v.tags) && isObj(v.resourceChanges) && isObj(v.factionRelChanges)
   && (v.law === undefined || v.law === null || validLawNews(v.law))

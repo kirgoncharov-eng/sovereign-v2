@@ -196,7 +196,10 @@ export interface GameEvent {
   special?: { kind: "overture" | "insider" | "mole" | "pact" | "inspect" | "press" | "call" | "budget" | "terms"; figure: string | null; faction: string } | null; // особое дело
   doc?: { facts: string[]; lines: string[]; author: string; key: number | null } | null;  // проверка документа: справка и строки доклада
   press?: { outlet: string; questions: PressQuestion[] } | null;       // пресс-конференция
-  call?: { figure: string; trait: string; demand: string; negotiation?: 'pension'; lawSince?: number } | null;    // звонок по защищённой линии
+  call?: {
+    figure: string; trait: string; demand: string;
+    negotiation?: 'pension' | 'journalist'; lawSince?: number; context?: string;
+  } | null; // звонок по защищённой линии
   budget?: { total: number } | null;                                  // предвыборный бюджет
   beat?: { arcId: string; arcTitle: string; turn: number; episode: number; total: number } | null; // эпизод интриги
   randomEvent: RandomEvent | null;
