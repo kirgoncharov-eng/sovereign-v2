@@ -30,6 +30,20 @@ export function splitLead(text: string, { limit, least }: { limit: number; least
   return { lead, rest };
 }
 
+// Газета не повторяет заголовок: если рассказ начинается той же фразой, что и заголовок, она убирается.
+// Сравниваются слова без регистра и знаков — «Банк выдал комплект.» и «Банк выдал комплект» совпадают.
+const normalized = (text: string) => (text.toLowerCase().match(/[\p{L}\d]+/gu) ?? []).join(" ");
+
+export function withoutHeadline(narrative: string, headline: string): string {
+  const target = normalized(headline);
+  if (!target) return narrative;
+  const [first, ...others] = String(narrative ?? "").split(/\n\n+/);
+  const sentences = first.split(/(?<=[.!?…])\s+/);
+  if (normalized(sentences[0]) !== target) return narrative;
+  const remainder = sentences.slice(1).join(" ").trim();
+  return [remainder, ...others].filter(Boolean).join("\n\n");
+}
+
 export interface LedgerRow {
   k: string;
   delta: number;
