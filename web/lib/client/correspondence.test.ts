@@ -4,6 +4,7 @@ import { classicApi } from '../game/classic.ts';
 import { createInitialState, seededRandom } from '../game/engine.ts';
 import { openLivingWorld, interveneWorld } from '../game/living-world.ts';
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES } from '../game/alternate-world.ts';
+import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { correspondence, correspondenceStatus } from './correspondence.ts';
 import {
   messageUnread, presidentialMessages, presidentialReplyActions, readPresidentialMessages,
@@ -12,7 +13,14 @@ import {
 test('корреспонденция сохраняет реальные письма и чтение не снимает требование ответа во всех кампаниях', async () => {
   for (const country of [ALTERNATE_COUNTRY, ...LEGACY_COUNTRIES]) {
     const setup = await classicApi.setup(country, 'debut', 'pragmatist', 15);
-    const state = openLivingWorld(createInitialState(country, 'debut', 'pragmatist', setup, seededRandom(15)));
+    const initial = createInitialState(country, 'debut', 'pragmatist', setup, seededRandom(15));
+    const state = openLivingWorld(country === ALTERNATE_COUNTRY ? {
+      ...initial,
+      turn: 13,
+      history: ALTERNATE_EVENTS.filter(card => ['alt_fuel', 'alt_district'].includes(card.id)).map(card => ({
+        year: 1978, title: card.title, choice: card.choices[0].text, headline: '', historianNote: '', success: true,
+      })),
+    } : initial);
     const before = JSON.stringify(state);
     const letters = correspondence(state);
     assert.deepEqual(letters.map(letter => letter.key).sort(), presidentialMessages(state).map(letter => letter.key).sort());

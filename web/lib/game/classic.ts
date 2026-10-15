@@ -51,6 +51,7 @@ import { advisorNews, forecastReview } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import { isOrdinaryNewspaperEvent, newspaperHeadline } from "./newspaper-editions.ts";
+import { FIRST_TERM_CASES, firstTermLaw, scheduledFirstTerm } from "./first-term-schedule.ts";
 import { presidentialCouncil } from "./presidential-story.ts";
 import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
 
@@ -392,13 +393,13 @@ const LAW_GAP = 2;          // не чаще раза в два хода
 const LAW_CHANCE = 0.85;    // почти всегда, когда можно
 const LAW_REPEAT = 8;       // отклонённый или отложенный законопроект вернётся не раньше чем через 8 ходов
 
-export function lawEvent(state: GameState): SpecialEvent | null {
+export function lawEvent(state: GameState, requestedId?: string): SpecialEvent | null {
   const turn = state.turn + 1;
   if (turn < 2 || isTermEnd(turn) || dueBeat(state)) return null;
   const marks = (state.usedEvents ?? []).filter(u => u.startsWith("law:")).map(u => u.split(":"));
   if (turn - Math.max(-LAW_GAP, ...marks.map(m => Number(m[1]) || 0)) < LAW_GAP) return null;
   const r = seededRandom(hashSeed(state.seed, "law", state.turn));
-  if (r() > LAW_CHANCE) return null;
+  if (r() > LAW_CHANCE && !requestedId) return null;
   const inForce = state.laws ?? [];
   const hasBloc = (bloc: Bloc) => state.factions.some(f => f.bloc === bloc);
   const slots = (def: LawDef) => ({ law: def.title });
@@ -412,7 +413,7 @@ export function lawEvent(state: GameState): SpecialEvent | null {
   };
 
   // Отмена: закон действует давно, а те, против кого он, озлоблены.
-  const angry = inForce.map(l => ({ l, def: lawDef(l.id)! })).filter(({ l, def }) => def && turn - l.since >= 4
+  const angry = inForce.map(l => ({ l, def: lawDef(l.id)! })).filter(({ l, def }) => !requestedId && def && turn - l.since >= 4
     && !marks.some(m => m[2] === "repeal" && m[3] === l.id)
     && Object.entries(effectiveLaw(def, l).drift ?? {}).some(([bloc, d]) => (d ?? 0) < 0 && state.factions.some(f => f.bloc === bloc && f.relation <= -35)));
   if (angry.length && r() < 0.5) {
@@ -439,7 +440,8 @@ export function lawEvent(state: GameState): SpecialEvent | null {
 
   // Законопроект: не принят, не противоречит действующим, его автор есть в стране, давно не вносился.
   const offered = (id: string) => marks.some(m => m[2] === id && turn - Number(m[1]) < LAW_REPEAT);
-  const bills = LAWS.filter(def => (state.country !== ALTERNATE_COUNTRY || def.id.startsWith("alt_") || ALTERNATE_SHARED_LAWS.has(def.id))
+  const bills = LAWS.filter(def => (!requestedId || def.id === requestedId)
+    && (state.country !== ALTERNATE_COUNTRY || def.id.startsWith("alt_") || ALTERNATE_SHARED_LAWS.has(def.id))
     && !inForce.some(l => l.id === def.id) && hasBloc(def.bloc) && !offered(def.id)
     && (!def.countries || def.countries.includes(state.country))
     && !def.conflicts?.some(c => inForce.some(l => l.id === c)));
@@ -530,8 +532,9 @@ export function inspectEvent(state: GameState): SpecialEvent | null {
   const turn = state.turn + 1;
   // Сверка докладов — дело первого срока: дальше аппарат уже знает, что вы читаете бумаги.
   const dates = inspectTurns(state.seed);
-  const slot = termIndex(turn) === 0 ? calendarSlot(state, 'ins', dates, [dates[1] - 1, TERM]) : null;
-  const k = slot === null ? -1 : dates.indexOf(slot);
+  const historicalSecond = state.country === ALTERNATE_COUNTRY && !state.daily && termIndex(turn) === 1;
+  const slot = termIndex(turn) === 0 || historicalSecond ? calendarSlot(state, 'ins', dates, [dates[1] - 1, TERM]) : null;
+  const k = slot === null ? -1 : dates.indexOf(localTurn(slot));
   if (k < 0 || dueBeat(state)) return null;
   const docs=MANAGEMENT_DOSSIERS.filter(d=>state.factions.some(f=>f.bloc===d.bloc))
     .sort((a,b)=>hashSeed(state.seed,'management',a.id)-hashSeed(state.seed,'management',b.id));
@@ -833,6 +836,7 @@ export function budgetChoice(state: GameState, alloc: Record<string, number>, de
 export const budgetLimit = (debt: boolean) => BUDGET_TOTAL + (debt ? BUDGET_DEBT : 0);
 
 function buildEvent(state: GameState): GameEvent & { cardId?: string } {
+  if (scheduledFirstTerm(state)) return buildFirstTermEvent(state);
   const terms = termsEvent(state);
   if (terms) return terms;
   const beat = beatEvent(state);
@@ -849,7 +853,36 @@ function buildEvent(state: GameState): GameEvent & { cardId?: string } {
   const bill = lawEvent(state);
   if (bill) return bill;
   const r = seededRandom(hashSeed(state.seed, "event", state.turn));
-  let card = pickCard(state, r);
+  return buildCardEvent(state, pickCard(state, r), r);
+}
+
+function buildFirstTermEvent(state: GameState): GameEvent & { cardId?: string } {
+  const turn = state.turn + 1;
+  const preferred = FIRST_TERM_CASES[turn];
+  if (!preferred) {
+    const fixed = termsEvent(state) ?? beatEvent(state)
+      ?? (turn === 8 ? budgetEvent(state) : null)
+      ?? ([9, 19].includes(turn) ? pressEvent(state) : null)
+      ?? ([11, 17].includes(turn) ? callEvent(state) : null);
+    if (fixed) return fixed;
+    if (turn === 14) {
+      const political = lawEvent(state, firstTermLaw(state)) ?? specialEvent(state);
+      if (political) return political;
+    }
+  }
+  const available = EVENT_CARDS.filter(card => card.id.startsWith('alt_') && cardAvailable(card, state));
+  const unused = available.filter(card => !state.usedEvents.includes(card.id));
+  const ready = unused.filter(card => (card.id !== 'alt_fuel' || turn >= 5)
+    && (card.id !== 'alt_district' || turn >= 13) && (card.id !== 'alt_archive' || turn >= 20));
+  const card = ready.find(card => card.id === preferred)
+    ?? ready.find(card => card.id === 'alt_radio') ?? ready[0]
+    ?? available.find(card => card.id === preferred) ?? available[0];
+  if (!card) throw new Error('No historical case available for the first term');
+  return buildCardEvent(state, card, seededRandom(hashSeed(state.seed, "event", state.turn)));
+}
+
+function buildCardEvent(state: GameState, selected: EventCard, r: Rand): GameEvent & { cardId?: string } {
+  let card = selected;
   const crisisId = state.activeCrises[0]?.id ?? null;
   // Обострение кризиса: описание и ходы под конкретный тип кризиса.
   const crisisKey = Object.keys(state.activeCrises[0]?.resourceDrain ?? {})[0] as keyof typeof CRISIS_ESCALATE | undefined;
