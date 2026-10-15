@@ -28,6 +28,7 @@ import { ECHOES } from "../content/echoes.ts";
 import { sceneAfter } from "../content/scene-map.ts";
 import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OPPOSITION_SPECIAL, OUTLETS } from "../content/newspaper.ts";
 import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
+import { termFinale } from "./term-finale.ts";
 import { effectiveLaw, lawDef } from "./laws.ts";
 import { DEEDS, ELECTION_NIGHT, INTERCUTS, roleGroup } from "../content/roles.ts";
 import { TERMS_TURN, electionKind, fellTrying, isTermEnd, reignOf, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
@@ -1130,7 +1131,13 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     ? earlyArcHook(state) ?? fill(cycle(arcDef.hooks, state.seed, "hook", hookIdx), state) : null;
   const died = plan.endType === "died" ? { head: pick(r, DIED.head), text: pick(r, DIED.text) } : null;
   const finale = died ?? finaleOf(state, plan);
-  const parts = [scene, ...after, finale?.text ?? electionLine, intercut, hook];
+  // Кампания 1978: в ночь выборов газета открывается результатом, а после дела дня подводит итог срока —
+  // что страна запомнила из решений, законы и обещания (#147). Особые развязки «вопроса о сроках» пишут свой финал.
+  const closing = !finale && plan.election?.kind === "president" && state.country === ALTERNATE_COUNTRY
+    ? termFinale(state, plan.election, reignOf(state).term + 1, { laws: plan.laws, promises: plan.promises }) : null;
+  const parts = closing
+    ? [closing.result, scene, ...after, ...closing.summary, intercut, hook]
+    : [scene, ...after, finale?.text ?? electionLine, intercut, hook];
 
   // То, что уже звучало в партии, не повторяется, пока в пуле есть свежие варианты.
   const heard = new Set(state.history.flatMap(h => h.heard ?? []));
