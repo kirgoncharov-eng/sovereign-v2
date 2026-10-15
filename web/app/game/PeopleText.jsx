@@ -18,7 +18,7 @@ export function PeopleProvider({ gs, Portrait, children }) {
     if(!active)return;
     const outside=e=>{if(!card.current?.contains(e.target)&&!active.anchor.contains(e.target))setActive(null);};
     const key=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();active.anchor.focus();setActive(null);}};
-    const scroll=e=>{if(!card.current?.contains(e.target))setActive(null);};
+    const scroll=e=>{if(!(e.target instanceof Node)||!card.current?.contains(e.target))setActive(null);};
     document.addEventListener('pointerdown',outside);document.addEventListener('keydown',key,true);
     window.addEventListener('scroll',scroll,true);window.addEventListener('resize',scroll);
     return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',key,true);window.removeEventListener('scroll',scroll,true);window.removeEventListener('resize',scroll);};

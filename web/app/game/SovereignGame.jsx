@@ -14,6 +14,8 @@ import { ARCS } from "@/lib/content/arcs.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
 import { monthYear, turnDate } from "@/lib/game/calendar.ts";
+import { JOURNALIST_CALL_TITLE } from '@/lib/game/journalist-call.ts';
+import JournalistCall from './JournalistCall.jsx';
 import NegotiationCall from "./NegotiationCall.jsx";
 import { effectiveLaw, lawDef } from "@/lib/game/laws.ts";
 import { debate } from "@/lib/game/forecasts.ts";
@@ -882,7 +884,8 @@ function SpecialHeader({ gs, event }) {
       <Portrait name={fig.name} size={44}/>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, lineHeight:1.4 }}>
         <div style={{ fontFamily:serif, fontSize:15, fontWeight:700, color:G.txt }}>{fig.name}</div>
-        <div>{fig.role} · {TRAITS[traitOf(gs.seed, fig, fac.bloc)].label} — {TRAIT_TIP[traitOf(gs.seed, fig, fac.bloc)]}</div>
+        <div>{fig.role}{gs.currentEvent?.call?.negotiation !== 'journalist'
+          && <> · {TRAITS[traitOf(gs.seed, fig, fac.bloc)].label} — {TRAIT_TIP[traitOf(gs.seed, fig, fac.bloc)]}</>}</div>
         <div>к вам лично <b style={{ color:relColor(fig.relation) }}>{signed(fig.relation)}</b> · лагерь «{fac.name}» <b style={{ color:relColor(fac.relation) }}>{signed(fac.relation)}</b></div>
       </div>
     </div>
@@ -2446,6 +2449,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     commit({ ...gsRef.current, currentEvent: { ...cur, choices: [final, cur.choices[1]] } });
                     choose(final, { budget: { alloc, debt } });
                   }}/>
+              ) : event.call?.negotiation === "journalist" ? (
+                <JournalistCall gs={gs} stamping={stamping} onFinish={choose}
+                  renderPromises={choice => <PromiseLines gs={gs} c={choice}/>}/>
               ) : event.call?.negotiation ? (
                 <NegotiationCall gs={gs} stamping={stamping} onFinish={choose} renderPromises={c=><PromiseLines gs={gs} c={c}/>}/>
               ) : event.call ? (
@@ -2675,6 +2681,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 <div key={p.id} className="sv-paper" style={{ marginBottom:8, padding:"12px 16px", borderRadius:0 }}>
                   <div style={{ fontFamily:serif, fontSize:16, fontWeight:700, marginBottom:2 }}>{p.label}</div>
                   <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:6 }}>эхо решения {p.event ? `по делу «${p.event}»` : `«${p.source}»`}{p.from !== undefined ? ` · ${monthYear(turnDate(gs.seed, COUNTRIES[gs.country].startYear, p.from))}` : ""}</div>
+                  {p.event === JOURNALIST_CALL_TITLE && p.story && (
+                    <p data-journalist-report style={{ fontFamily:serif, fontSize:16, lineHeight:1.5, margin:"8px 0" }}>
+                      <PeopleText>{p.story}</PeopleText>
+                    </p>
+                  )}
                   <ResourceChips delta={p.res}/>
                 </div>
               ))}

@@ -1,6 +1,7 @@
 import { historicalSceneText } from "../content/historical-scenes.ts";
 import { ALTERNATE_COUNTRY, ALTERNATE_PARTIES, ALTERNATE_SPEECHES, ALTERNATE_SHARED_CARDS, ALTERNATE_SHARED_LAWS, campaignCopy } from "./alternate-world.ts";
 import { historicalEcho } from '../content/historical-echoes.ts';
+import { JOURNALIST_CALL_TITLE, journalistCall } from './journalist-call.ts';
 import { pensionCall } from './pension-call.ts';
 import { withEvidenceChoice } from './private-evidence.ts';
 import { mandatePublicEvent } from './minister-public.ts';
@@ -685,7 +686,7 @@ export function callEvent(state: GameState): SpecialEvent | null {
   const k = slot === null ? -1 : CALL_TURNS.indexOf(localTurn(slot));
   if (k < 0 || dueBeat(state)) return null;
   const called = new Set((state.usedEvents ?? []).filter(u => u.startsWith("call:")).map(u => u.split(":")[2]));
-  const negotiated = pensionCall(state, slot!, called);
+  const negotiated = journalistCall(state, slot!, called) ?? pensionCall(state, slot!, called);
   if (negotiated) return negotiated;
   const facOf = (f: Figure) => state.factions.find(x => x.id === f.faction);
   const pool = state.keyFigures.filter(f => f.name !== state.arc?.target && !called.has(f.id) && facOf(f));
@@ -1058,7 +1059,10 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const echoed: Record<string, number> = { ...(state.echoes ?? {}) };
   // Эхо прошлых решений: сначала — какое именно решение аукнулось, чтобы связь была видна. Не больше двух за ход:
   // газета, в которой аукается всё сразу, читается как список.
-  for (const m of plan.matured.slice(0, MAX_ECHOES)) {
+  // Доклад по обещанию не должен исчезнуть за лимитом общих эхо.
+  const reports = [...plan.matured].sort((left, right) =>
+    Number(right.event === JOURNALIST_CALL_TITLE) - Number(left.event === JOURNALIST_CALL_TITLE));
+  for (const m of reports.slice(0, MAX_ECHOES)) {
     const story = m.story || historicalEcho(state.country, m)
       || maturedStory(m.label, (echoed[m.label] = (echoed[m.label] ?? 0) + 1) - 1);
     after.push(`${echoLead(state, m)}${story}`);
