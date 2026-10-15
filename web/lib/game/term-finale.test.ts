@@ -7,6 +7,7 @@ import { PARTIES, TERM } from "./data.ts";
 import { termFinale, termMemories } from "./term-finale.ts";
 import { ALTERNATE_EVENTS } from "../content/alternate-history.ts";
 import { PARTY_GENITIVE, TERM_FINALE, TERM_MEMORY } from "../content/term-finale.ts";
+import { NEWS_LEAD, splitLead, withoutHeadline } from "../client/brief.ts";
 import type { Election, GameState, HistoryEntry } from "./types.ts";
 
 // Критерии #147 (п. 6): ночь выборов в кампании 1978 года подводит итог срока, а не прячет его за делом дня.
@@ -81,23 +82,23 @@ test("ночь выборов: падеж партии, перевес; зако
     promises: [{ id: "a", progress: 1, status: "kept" as const }, { id: "b", progress: 0, status: "broken" as const }, open],
   };
   const won = termFinale(state, election("won", 27, 26), 1, after);
-  assert.equal(won.result, `${TERM_FINALE.won.replace("{pct}", "27").replace("{rivalPct}", "26").replace("{rival}", "Гражданского движения")} `
-    + TERM_FINALE.margin.narrow);
-  assert.match(won.summary[0], /закупочную цену подняли/);
-  assert.match(won.summary[0], /«О гарантиях экспортных заказов»/);
-  assert.match(won.summary[0], /Из 3 предвыборных обещаний выполнено 1, нарушено 1/);
-  assert.match(won.summary[1], /^Начинается второй срок\./);
+  assert.ok(won.lead.startsWith(`${TERM_FINALE.won.replace("{pct}", "27").replace("{rivalPct}", "26").replace("{rival}", "Гражданского движения")} `
+    + `${TERM_FINALE.margin.narrow} ${TERM_FINALE.summary}`));
+  assert.match(won.lead, /закупочную цену подняли/);
+  assert.match(won.lead, /«О гарантиях экспортных заказов»/);
+  assert.match(won.lead, /Из 3 предвыборных обещаний выполнено 1, нарушено 1/);
+  assert.match(won.after[0], /^Начинается второй срок\./);
   // Обещание, исполненное самим решением хода выборов, газета считает исполненным (замечание ревью #154).
   const keptNow = termFinale(state, election("won", 40, 30), 1, { laws: [], promises: [{ ...open, status: "kept" }] });
-  assert.match(keptNow.summary[0], /Единственное предвыборное обещание выполнено\./);
+  assert.match(keptNow.lead, /Единственное предвыборное обещание выполнено\./);
   const brokenNow = termFinale(state, election("won", 40, 30), 1, { laws: [], promises: [{ ...open, status: "broken" }, { ...open, id: "b" }] });
-  assert.match(brokenNow.summary[0], /не выполнено ни одного, нарушено 1/);
-  assert.equal(termFinale(state, election("won", 50, 20), 1, after).result.endsWith(TERM_FINALE.margin.wide), true);
+  assert.match(brokenNow.lead, /не выполнено ни одного, нарушено 1/);
+  assert.equal(termFinale(state, election("won", 50, 20), 1, after).lead.includes(TERM_FINALE.margin.wide), true);
   const lost = termFinale(state, election("lost", 24, 38), 1, after);
-  assert.equal(lost.result, "Президентские выборы. К полуночи всё ясно: у «Гражданского движения» 38%, у вас 24%. "
+  assert.equal(lost.lead, "Президентские выборы. К полуночи всё ясно: у «Гражданского движения» 38%, у вас 24%. "
     + "В штабе молча выключают телевизоры.");
-  assert.deepEqual(lost.summary, []);
-  assert.match(termFinale(stateWith([]), election("won", 40, 30), 1, { laws: [], promises: [] }).summary[0], new RegExp(TERM_FINALE.noCases));
+  assert.deepEqual(lost.after, []);
+  assert.match(termFinale(stateWith([]), election("won", 40, 30), 1, { laws: [], promises: [] }).lead, new RegExp(TERM_FINALE.noCases));
 });
 
 test("кампания 1978: газета ночи выборов открывается результатом и подводит итог срока", async () => {
@@ -113,7 +114,9 @@ test("кампания 1978: газета ночи выборов открыва
     assert.doesNotMatch(narrative, /у «Гражданское движение»|у «Труд и порядок»|у «Союз республики»|\{|undefined/, `seed ${seed}`);
     if (result.outcome !== "won" || !narrative.startsWith("Президентские выборы.")) continue; // особая развязка «вопроса о сроках»
     wins++;
-    assert.match(narrative, /Наутро газеты вспоминают весь срок\./, `seed ${seed}`);
+    // Итог срока — в первом абзаце: газета показывает его без «Читать полностью».
+    assert.match(narrative.split("\n\n")[0], /Наутро газеты вспоминают весь срок\./, `seed ${seed}`);
+    assert.deepEqual(splitLead(withoutHeadline(narrative, report.headline), NEWS_LEAD).lead, [narrative.split("\n\n")[0]], `seed ${seed}`);
     assert.match(narrative, /Начинается второй срок\./, `seed ${seed}`);
     assert.doesNotMatch(narrative, /в январе/, `seed ${seed}`);
     const promises = state.promises ?? [];
