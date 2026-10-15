@@ -34,6 +34,8 @@ export async function forwardFeedback(userId: number, feedbackId: string, chat: 
 export async function deleteFeedbackCopies(userId: number, now = Date.now()): Promise<number> {
   const key = feedbackCopiesKey(userId);
   const copies = await kv.hgetall(key);
+  // Если процесс остановится посреди вызовов Telegram, запрос уже останется в очереди.
+  if (Object.keys(copies).length) await kv.hset(FB_CLEANUP, String(userId), String(now));
   let pending = 0;
   for (const [feedbackId, raw] of Object.entries(copies)) {
     let copy: FeedbackCopy;

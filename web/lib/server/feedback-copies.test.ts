@@ -7,8 +7,13 @@ process.env.TELEGRAM_BOT_TOKEN = 'test:feedback-copies';
 const requests: { method: string; body: Record<string, unknown> }[] = [];
 let reply: unknown = { ok: true, result: { message_id: 71 } };
 let rejectRequest = false;
+let cleanupAtDelete: string | null = null;
 globalThis.fetch = (async (url: string, init?: { body?: string }) => {
-  requests.push({ method: String(url).split('/').pop()!, body: JSON.parse(init?.body ?? '{}') });
+  const request = { method: String(url).split('/').pop()!, body: JSON.parse(init?.body ?? '{}') };
+  requests.push(request);
+  if (request.method === 'deleteMessage' && request.body.chat_id === 902) {
+    cleanupAtDelete = await kv.hget(FB_CLEANUP, '1102');
+  }
   if (rejectRequest) throw new Error('network timeout');
   return Response.json(reply);
 }) as typeof fetch;
@@ -28,6 +33,7 @@ test('failed deletion retains the exact copy reference, queues cleanup, and retr
   await forwardFeedback(1102, 'feedback-b', 902, 'text');
   reply = { ok: false, description: 'message cannot be deleted' };
   assert.equal(await deleteFeedbackCopies(1102, 1234), 1);
+  assert.equal(cleanupAtDelete, '1234', 'cleanup is durable before the first Telegram call');
   assert.equal(await kv.hget(FB_CLEANUP, '1102'), '1234');
   assert.ok(await kv.hget(feedbackCopiesKey(1102), 'feedback-b'));
   reply = { ok: true };
