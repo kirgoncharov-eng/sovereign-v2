@@ -9,6 +9,8 @@ import { DISLOYAL_BELOW, createInitialState, resolveTurn, seededRandom, startEve
 import { DESK_FROM } from "../game/desk-timing.ts";
 import { candidatePool, hireAdvisor } from "../game/staffing.ts";
 import type { GameState } from "../game/types.ts";
+import { ALTERNATE_COUNTRY } from "../game/alternate-world.ts";
+import { ALTERNATE_EVENTS } from "../content/alternate-history.ts";
 
 async function fresh(country = "Грузия", seed = 4): Promise<GameState> {
   return createInitialState(country, "debut", "pragmatist", await classicApi.setup(country, "debut", "pragmatist", seed), seededRandom(seed));
@@ -68,7 +70,12 @@ test("кадровый резерв: до стола молчит, затем с
 
 test("обращения в «Людях»: кто ждёт ответа — первым, с заголовком; после ответа строка остаётся без требования", async () => {
   for (const country of Object.keys(COUNTRIES)) {
-    const state = openLivingWorld(await fresh(country, 15));
+    const initial = await fresh(country, 15);
+    const fuel = ALTERNATE_EVENTS.find(card => card.id === 'alt_fuel')!;
+    const state = openLivingWorld(country === ALTERNATE_COUNTRY ? {
+      ...initial, turn: 5,
+      history: [{ year: 1979, title: fuel.title, choice: fuel.choices[0].text, headline: '', historianNote: '', success: true }],
+    } : initial);
     const rows = inboxRows(state);
     const messages = presidentialMessages(state);
     assert.ok(rows.length > 0, `${country}: на столе есть обращения`);
