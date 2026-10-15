@@ -76,6 +76,7 @@ const report = (v: unknown) => isObj(v) && fields(v, ["headline", "narrative", "
   && (!v.document || isObj(v.document) && typeof v.document.title === "string" && strings(v.document.lines))
   && (!v.press || rows(v.press, p => fields(p, ["outlet", "headline"])))
   && (!v.letters || rows(v.letters, l => fields(l, ["kind", "from", "text", "story"])))
+  && (v.succession === undefined || rows(v.succession, entry => fields(entry, ["figure", "name"])))
   && (!v.forecasts || strings(v.forecasts))
   && (!v.leaks || strings(v.leaks))
   && (!v.advisorNews || rows(v.advisorNews, n => typeof n.id === "string" && integer(n.loyalty, -100, 100) && integer(n.right) && integer(n.wrong)));

@@ -100,6 +100,22 @@ export const HISTORICAL_SCENES = [
     source: "«Это решение суда, а не президента»",
     replacement: "«Основания проверки объяснит министерство»",
   },
+  // Интрига о журналисте во втором сроке: эпизоды идут через кварталы, а не через месяц (#143).
+  {
+    id: "arc:journalist:silence-title",
+    source: "Месяц тишины",
+    replacement: "Год тишины",
+  },
+  {
+    id: "arc:journalist:silence",
+    source: "Прошёл месяц. Поиски официально продолжаются, но в сводках журналиста больше нет.",
+    replacement: "Прошёл год. Поиски официально продолжаются, но в сводках журналиста давно нет.",
+  },
+  {
+    id: "arc:journalist:silence-promise",
+    source: "«Мне пообещали то же, что и месяц назад»",
+    replacement: "«Мне пообещали то же, что и год назад»",
+  },
 ] as const;
 
 export function historicalSceneText(text: string): string {
