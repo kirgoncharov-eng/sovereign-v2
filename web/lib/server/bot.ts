@@ -66,12 +66,17 @@ export const HELP = `<b>Как играть</b>
 export const PRIVACY = (url: string) => `<b>Какие данные хранит игра</b>
 
 • Ваш номер чата в Telegram — чтобы присылать «Дело дня» по утрам, пока вы не напишете /stop.
-• Имя из Telegram — в таблице «Дела дня» его видят другие игроки; запись живёт трое суток.
-• Ваши отзывы — их читает автор игры.
+• Имя из Telegram — в таблице «Дела дня» его видят другие игроки; таблица живёт 72 часа после последнего принятого результата.
+• Ваши отзывы — их читает автор игры. Новые отзывы из бота связаны с вашим Telegram ID; копии приходят автору в Telegram.
 • Анонимная статистика по случайному номеру браузера: какие ходы проходят и где бросают. Имени и Telegram в ней нет.
 
-Ничего не продаётся и не передаётся рекламным сетям. Удалить всё, что связано с вашим Telegram, — /forget.${url ? `\n\n<a href="${url}/privacy">Полный текст</a>` : ""}`;
-export const FORGOTTEN = "Готово: подписка, место в таблицах, друзья и ваши отзывы удалены. Если снова откроете игру из Telegram, результат «Дела дня» запишется заново.";
+Ничего не продаётся и не передаётся рекламным сетям. Запросить удаление данных Telegram — /forget.
+Старые отзывы без ID и неучтённые копии требуют отдельного уточнения.${url ? `\n\n<a href="${url}/privacy">Полный текст</a>` : ""}`;
+export const FORGOTTEN = "Подписка, результаты в действующих таблицах, друзья и отзывы с вашим Telegram ID удалены. "
+  + "Для отключения сообщений сохранён запрет рассылки; вернуть её можно командой /start. "
+  + "Старые отзывы без ID и неучтённые копии нельзя безопасно найти по имени. Для их уточнения пришлите точный текст через /feedback. "
+  + "Если снова отправите результат «Дела дня», он запишется заново.";
+export const PRIVATE_DATA = "Для отзыва или удаления данных напишите мне в личном чате Telegram.";
 
 export const FALLBACK = "Я не веду переписку — только дела. Кабинет открывается кнопкой ниже, «Дело дня» — по команде /daily, а рассказать, что понравилось и что нет, — /feedback.";
 
@@ -96,7 +101,10 @@ async function askFeedback(chat: number, st: FbState) {
   await kv.hset(FB_STATE, String(chat), JSON.stringify(st));
   await send(chat, FB_QUESTIONS[st.step], st.step === 2 ? rateKeyboard() : skipKeyboard());
 }
-async function answerFeedback(chat: number, st: FbState, answer: string, who: string) {
+async function answerFeedback(chat: number, st: FbState, answer: string, from?: TelegramSender) {
+  const userId = privateUserId(chat, from);
+  if (!userId) return send(chat, PRIVATE_DATA, null);
+  const who = whoOf(from);
   const last = st.rating ? 1 : 2;
   if (st.step < last) return askFeedback(chat, { ...st, step: st.step + 1, a: [...st.a, answer] });
   const a = st.rating ? [...st.a, answer] : st.a;
@@ -104,7 +112,7 @@ async function answerFeedback(chat: number, st: FbState, answer: string, who: st
   await kv.hdel(FB_STATE, String(chat));
   const [ending, unfair] = a;
   const text = [ending && `Как закончилась, где скучно: ${ending}`, unfair && `Нечестно или странно: ${unfair}`].filter(Boolean).join("\n");
-  await saveFeedback({ at: new Date().toISOString(), src: "bot", rating, text, who });
+  await saveFeedback({ at: new Date().toISOString(), src: "bot", rating, text, who, telegramUserId: userId });
   await send(chat, FB_THANKS, playButton("Сыграть ещё"));
 }
 
@@ -123,11 +131,15 @@ const menu = () => ({
 });
 
 // ── Ответ на обновление от Telegram ─────────────────────────────────────────
+interface TelegramSender { id?: number; username?: string; first_name?: string }
+// В личном чате chat.id совпадает с from.id. Никогда не берём владельца из имени/текста/ID группы.
+const privateUserId = (chat: number, from?: TelegramSender): number | null =>
+  from && Number.isSafeInteger(from.id) && from.id! > 0 && from.id === chat ? from.id : null;
 export interface Update {
-  message?: { chat?: { id?: number }; text?: string; from?: { username?: string; first_name?: string } };
-  callback_query?: { id?: string; data?: string; message?: { chat?: { id?: number } }; from?: { username?: string; first_name?: string } };
+  message?: { chat?: { id?: number }; text?: string; from?: TelegramSender };
+  callback_query?: { id?: string; data?: string; message?: { chat?: { id?: number } }; from?: TelegramSender };
 }
-const whoOf = (from?: { username?: string; first_name?: string }) => (from?.username ? `@${from.username}` : from?.first_name ?? "");
+const whoOf = (from?: TelegramSender) => (from?.username ? `@${from.username}` : from?.first_name ?? "");
 
 // Диагностика: когда последний раз писал Telegram и что он последним отклонил. Видно на GET /api/telegram.
 export const DIAG = "tg:diag";
@@ -165,7 +177,7 @@ export async function handleUpdate(update: Update) {
     else if (cb.data === "fbno") await send(chat, "Хорошо, не отвлекаю. Если захочется рассказать — /feedback.", playButton("Сыграть ещё"));
     else if (cb.data === "fbskip" || cb.data?.startsWith("fbr:")) {
       const st = await fbState(chat);
-      if (st) await answerFeedback(chat, st, cb.data === "fbskip" ? "" : cb.data.slice(4), whoOf(cb.from));
+      if (st) await answerFeedback(chat, st, cb.data === "fbskip" ? "" : cb.data.slice(4), cb.from);
     }
     return;
   }
@@ -174,10 +186,11 @@ export async function handleUpdate(update: Update) {
   if (!chat) return;
   const cmd = text.startsWith("/") ? text.split(/[\s@]/)[0] : "";
   const arg = cmd ? text.slice(text.indexOf(cmd) + cmd.length).replace(/^@\S+/, "").trim() : "";
+  if (cmd === '/forget' && !privateUserId(chat, update.message?.from)) return send(chat, PRIVATE_DATA, null);
   // Идёт опрос: обычный текст — это ответ; любая команда опрос прерывает.
   if (!cmd) {
     const st = await fbState(chat);
-    if (st) return answerFeedback(chat, st, text.slice(0, 1000), whoOf(update.message?.from));
+    if (st) return answerFeedback(chat, st, text.slice(0, 1000), update.message?.from);
   } else await kv.hdel(FB_STATE, String(chat)).catch(() => {});
   if (cmd === "/start" && arg === "feedback") {
     await askFeedback(chat, { step: 0, a: [] });
@@ -209,8 +222,13 @@ export async function handleUpdate(update: Update) {
   } else if (cmd === "/privacy") {
     await send(chat, PRIVACY(appUrl().replace(/\/$/, "")), null);
   } else if (cmd === "/forget") {
-    await forgetUser(chat, whoOf(update.message?.from), SUBS, FB_STATE);
-    await send(chat, FORGOTTEN, null);
+    const userId = privateUserId(chat, update.message?.from);
+    if (!userId) return send(chat, PRIVATE_DATA, null);
+    const result = await forgetUser(userId, SUBS, FB_STATE);
+    const copies = result.copiesPending
+      ? " Не все копии у автора удалились автоматически: запрос сохранён для ручной очистки; её завершение пока не подтверждено."
+      : " Учтённые копии отзывов у автора удалены либо не создавались.";
+    await send(chat, FORGOTTEN + copies, null);
   } else if (cmd === "/daily") {
     await send(chat, dailyText(), playButton("Взяться за дело"));
   } else if (cmd === "/help") {
