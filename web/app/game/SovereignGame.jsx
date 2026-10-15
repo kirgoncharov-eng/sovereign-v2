@@ -65,7 +65,7 @@ import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
 import { warningDetails } from "@/lib/client/warning-detail.ts";
 import { squareStateOf } from "@/lib/client/square-state.ts";
 import QuarterTransition from "./QuarterTransition.jsx";
-import { CASE_LEAD, NEWS_LEAD, ledgerRows, splitLead } from "@/lib/client/brief.ts";
+import { CASE_LEAD, NEWS_LEAD, ledgerRows, splitLead, withoutHeadline } from "@/lib/client/brief.ts";
 import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { artSource, historicalEventArt, historicalResultArt, historicalPortraitArt, HISTORICAL_SCENE_ART } from "@/lib/client/historical-art.ts";
@@ -2539,7 +2539,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </figcaption>
                 </figure>
                 {(() => {
-                  const { lead, rest } = splitLead(lastTurn.narrative, NEWS_LEAD);
+                  const { lead, rest } = splitLead(withoutHeadline(lastTurn.narrative, lastTurn.headline), NEWS_LEAD);
                   const reactions = (lastTurn.reactions || []).slice(0, 2);
                   const press = lastTurn.press ?? [];
                   // Историк подводит черту только в конце главы — иначе его реплики приедаются.

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CASE_LEAD, NEWS_LEAD, TAIL_LEAST, TOP_CHANGES, ledgerRows, splitLead, wordCount } from "./brief.ts";
+import { CASE_LEAD, NEWS_LEAD, TAIL_LEAST, TOP_CHANGES, ledgerRows, splitLead, withoutHeadline, wordCount } from "./brief.ts";
 import { classicApi } from "../game/classic.ts";
 import { COUNTRIES } from "../game/data.ts";
 import { createInitialState, resolveTurn, seededRandom, startEvent } from "../game/engine.ts";
@@ -79,4 +79,35 @@ test("на настоящих партиях завязка дела и газе
       if (news.rest.length) assert.ok(newsWords <= 90, `${where}: газета до «Читать полностью» — ${newsWords} слов`);
     }
   }
+});
+
+test("газета не повторяет заголовок первой фразой (#149)", () => {
+  const narrative = "Банк выдал полный комплект, включая гарантийное приложение. В государственном архиве этой страницы нет.\n\nВторой абзац.";
+  assert.equal(withoutHeadline(narrative, "Банк выдал полный комплект, включая гарантийное приложение"),
+    "В государственном архиве этой страницы нет.\n\nВторой абзац.");
+  assert.equal(withoutHeadline("Комплект выдан.\n\nВторой абзац.", "«Комплект выдан»"), "Второй абзац.", "кавычки и точка не мешают");
+  assert.equal(withoutHeadline("Комплект выдан.", "Комплект выдан"), "", "только заголовок — газета без пустого абзаца");
+  assert.equal(withoutHeadline(narrative, "Другой заголовок"), narrative, "без повтора текст не меняется");
+  assert.equal(withoutHeadline(narrative, ""), narrative);
+});
+
+test("на настоящих партиях кампании 1978 года заголовок не повторяется в тексте газеты", async () => {
+  const sentence = (text: string) => (text.split(/(?<=[.!?…])\s+/)[0].toLowerCase().match(/[\p{L}\d]+/gu) ?? []).join(" ");
+  let repeats = 0, total = 0;
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    const intro = await classicApi.setup("Беларусь · 1978", "debut", "pragmatist", seed);
+    let state = createInitialState("Беларусь · 1978", "debut", "pragmatist", intro, seededRandom(seed));
+    for (let turn = 0; turn < 25 && !state.ended; turn++) {
+      state = startEvent(state, await classicApi.event(state));
+      const choices = state.currentEvent!.choices;
+      const id = choices[(turn + seed) % choices.length].id;
+      state = resolveTurn(state, id, await classicApi.consequence(state, id));
+      const { headline, narrative } = state.lastTurn!;
+      const shown = withoutHeadline(narrative, headline);
+      total++;
+      if (shown && sentence(shown) === sentence(headline)) repeats++;
+    }
+  }
+  assert.ok(total > 100, `сыграно ${total} ходов`);
+  assert.equal(repeats, 0, `повтор заголовка в ${repeats} ходах из ${total}`);
 });
