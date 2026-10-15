@@ -139,6 +139,11 @@ export const kv = {
     if (kvConfigured()) return redis<string[]>(["LRANGE", key, 0, n - 1]);
     return (lists.get(key) ?? []).slice(0, n);
   },
+  // Удаление точных записей не перезаписывает отзывы, пришедшие параллельно.
+  async lrem(key: string, value: string) {
+    if (kvConfigured()) return void await redis(['LREM', key, 0, value]);
+    lists.set(key, (lists.get(key) ?? []).filter(entry => entry !== value));
+  },
   async hdel(key: string, field: string) {
     if (kvConfigured()) return void await redis(["HDEL", key, field]);
     bucket(hashes, key).delete(field);

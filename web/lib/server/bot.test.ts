@@ -89,11 +89,11 @@ test("бот: опрос из трёх вопросов сохраняет от�
 
   await handleUpdate({ message: { chat: { id: 7 }, text: "/start feedback" } });
   assert.equal(last().body.text, FB_QUESTIONS[0]);
-  await handleUpdate({ message: { chat: { id: 7 }, text: "Переворот на 12-м ходу, скучно с 8-го", from: { username: "tester" } } });
+  await handleUpdate({ message: { chat: { id: 7 }, text: "Переворот на 12-м ходу, скучно с 8-го", from: { id: 7, username: "tester" } } });
   assert.equal(last().body.text, FB_QUESTIONS[1]);
-  await handleUpdate({ callback_query: { id: "q2", data: "fbskip", message: { chat: { id: 7 } } } });
+  await handleUpdate({ callback_query: { id: "q2", data: "fbskip", message: { chat: { id: 7 } }, from: { id: 7 } } });
   assert.equal(last().body.text, FB_QUESTIONS[2]);
-  await handleUpdate({ callback_query: { id: "q3", data: "fbr:4", message: { chat: { id: 7 } }, from: { username: "tester" } } });
+  await handleUpdate({ callback_query: { id: "q3", data: "fbr:4", message: { chat: { id: 7 } }, from: { id: 7, username: "tester" } } });
   assert.equal(last().body.text, FB_THANKS);
   const toAdmin = calls.find(c => c.body.chat_id === 99 && /Отзыв в боте/.test(String(c.body.text)));
   assert.ok(toAdmin, "отзыв переслан автору");
@@ -149,11 +149,11 @@ test("возвращаемость: подписка из игры по подп
   assert.ok(await kv.hget(FOLLOWUP, "502"), "рано — подождёт следующего утра");
 
   // ответ: оценка кнопкой, потом два вопроса словами (второй можно пропустить)
-  await handleUpdate({ callback_query: { id: "m1", data: "fbq:5", message: { chat: { id: 501 } }, from: { first_name: "Нино" } } });
+  await handleUpdate({ callback_query: { id: "m1", data: "fbq:5", message: { chat: { id: 501 } }, from: { id: 501, first_name: "Нино" } } });
   assert.equal(last().body.text, FB_QUESTIONS[0]);
-  await handleUpdate({ message: { chat: { id: 501 }, text: "Затянуло, но выборы слишком быстрые", from: { first_name: "Нино" } } });
+  await handleUpdate({ message: { chat: { id: 501 }, text: "Затянуло, но выборы слишком быстрые", from: { id: 501, first_name: "Нино" } } });
   assert.equal(last().body.text, FB_QUESTIONS[1]);
-  await handleUpdate({ callback_query: { id: "m2", data: "fbskip", message: { chat: { id: 501 } }, from: { first_name: "Нино" } } });
+  await handleUpdate({ callback_query: { id: "m2", data: "fbskip", message: { chat: { id: 501 } }, from: { id: 501, first_name: "Нино" } } });
   assert.equal(last().body.text, FB_THANKS);
   const [fb] = await readFeedback(1);
   assert.equal(fb.rating, 5);
@@ -188,4 +188,49 @@ test("/stop отменяет вопрос об отзыве и запрещае�
   assert.equal(await kv.sismember(OPT_OUT, String(id)), false);
   assert.equal(await kv.sismember(SUBS, String(id)), true);
   assert.ok(await kv.hget(FOLLOWUP, String(id)), "явная повторная подписка работает");
+});
+
+test('feedback ownership comes from verified private from.id, never a display name or group chat', async () => {
+  const { kv } = await import('./kv.ts');
+  const { FB_STATE } = await import('./bot.ts');
+  const { FB_LIST, readFeedback } = await import('./feedback.ts');
+  await kv.del(FB_LIST);
+  for (const user of [{ id: 1501, username: 'oldname' }, { id: 1502, first_name: 'Alex' }, { id: 1503 }]) {
+    await kv.hset(FB_STATE, String(user.id), JSON.stringify({ step: 2, a: ['my game', 'my issue'] }));
+    await handleUpdate({ callback_query: {
+      id: `rating-${user.id}`, data: 'fbr:4', message: { chat: { id: user.id } }, from: user,
+    } });
+  }
+  assert.deepEqual((await readFeedback()).map(feedback => feedback.telegramUserId).sort(), [1501, 1502, 1503]);
+  await kv.hset(FB_STATE, '-1504', JSON.stringify({ step: 2, a: ['group text'] }));
+  await handleUpdate({ callback_query: {
+    id: 'group-rating', data: 'fbr:4', message: { chat: { id: -1504 } }, from: { id: 1504, first_name: 'Alex' },
+  } });
+  assert.equal((await readFeedback()).length, 3, 'group feedback is not attributed to the group ID');
+  await handleUpdate({ message: { chat: { id: 1501 }, from: { id: 1502 }, text: '/forget' } });
+  assert.equal((await readFeedback()).length, 3, 'mismatched sender cannot delete another user');
+  await handleUpdate({ message: { chat: { id: 1501 }, text: '/forget' } });
+  assert.equal((await readFeedback()).length, 3, 'missing sender cannot delete data');
+  await handleUpdate({ message: { chat: { id: 1501 }, from: { id: 1501, username: 'newname' }, text: '/forget' } });
+  assert.deepEqual((await readFeedback()).map(feedback => feedback.telegramUserId).sort(), [1502, 1503]);
+  assert.match(String(last().body.text), /Старые отзывы без ID/);
+  assert.match(String(last().body.text), /завершение пока не подтверждено/);
+  assert.doesNotMatch(String(last().body.text), /всё.*удалено/);
+});
+
+test('/forget keeps opt-out so an old signed Mini App permission cannot restore followup', async () => {
+  const { createHmac } = await import('node:crypto');
+  const { FOLLOWUP, OPT_OUT, subscribeFromApp } = await import('./followup.ts');
+  const { kv } = await import('./kv.ts');
+  const userId = 1601;
+  const fields = { auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: userId, allows_write_to_pm: true }) };
+  const check = Object.entries(fields).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}=${value}`).join('\n');
+  const secret = createHmac('sha256', 'WebAppData').update('123:test').digest();
+  const initData = new URLSearchParams({ ...fields, hash: createHmac('sha256', secret).update(check).digest('hex') }).toString();
+  await handleUpdate({ message: { chat: { id: userId }, from: { id: userId }, text: '/forget' } });
+  await subscribeFromApp({ initData, run: { ход: 20 } }, '123:test');
+  assert.equal(await kv.hget(FOLLOWUP, String(userId)), null);
+  assert.equal(await kv.sismember(OPT_OUT, String(userId)), true);
+  await handleUpdate({ message: { chat: { id: userId }, from: { id: userId }, text: '/start' } });
+  assert.equal(await kv.sismember(OPT_OUT, String(userId)), false);
 });
