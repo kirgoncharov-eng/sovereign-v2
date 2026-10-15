@@ -1131,12 +1131,12 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     ? earlyArcHook(state) ?? fill(cycle(arcDef.hooks, state.seed, "hook", hookIdx), state) : null;
   const died = plan.endType === "died" ? { head: pick(r, DIED.head), text: pick(r, DIED.text) } : null;
   const finale = died ?? finaleOf(state, plan);
-  // Кампания 1978: в ночь выборов газета открывается результатом, а после дела дня подводит итог срока —
-  // что страна запомнила из решений, законы и обещания (#147). Особые развязки «вопроса о сроках» пишут свой финал.
-  const closing = !finale && plan.election?.kind === "president" && state.country === ALTERNATE_COUNTRY
+  // Кампания 1978: в ночь выборов газета открывается результатом и итогом срока — что страна запомнила из решений,
+  // законы и обещания (#147); первый абзац виден без «Читать полностью». Особые развязки «вопроса о сроках» пишут свой финал.
+  const night = !finale && plan.election?.kind === "president" && state.country === ALTERNATE_COUNTRY
     ? termFinale(state, plan.election, reignOf(state).term + 1, { laws: plan.laws, promises: plan.promises }) : null;
-  const parts = closing
-    ? [closing.result, scene, ...after, ...closing.summary, intercut, hook]
+  const parts = night
+    ? [night.lead, scene, ...after, ...night.after, intercut, hook]
     : [scene, ...after, finale?.text ?? electionLine, intercut, hook];
 
   // То, что уже звучало в партии, не повторяется, пока в пуле есть свежие варианты.

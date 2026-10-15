@@ -60,13 +60,14 @@ function marginLine(election: Election): string {
   return margin <= 3 ? TERM_FINALE.margin.narrow : margin <= 10 ? TERM_FINALE.margin.clear : TERM_FINALE.margin.wide;
 }
 
-// Ночь выборов: результат — первым абзацем газеты, итог срока — после дела дня.
+// Ночь выборов: результат и итог срока — одним первым абзацем, чтобы игрок видел развязку без «Читать полностью»;
+// начало следующего срока — после дела дня.
 // nextTerm — номер срока, который начнётся после победы (0 — первый); outcome — законы и обещания после решения.
 export function termFinale(state: GameState, election: Election, nextTerm: number, outcome: TermOutcome)
-  : { result: string; summary: string[] } {
+  : { lead: string; after: string[] } {
   const rival = PARTY_GENITIVE[election.top.name] ?? election.top.name;
   const slots = { pct: election.leader, rivalPct: election.top.share, rival };
-  if (election.outcome !== "won") return { result: put(TERM_FINALE.lost, slots), summary: [] };
+  if (election.outcome !== "won") return { lead: put(TERM_FINALE.lost, slots), after: [] };
   const memories = termMemories(state);
   const summary = [
     TERM_FINALE.summary,
@@ -75,7 +76,7 @@ export function termFinale(state: GameState, election: Election, nextTerm: numbe
     promisesLine(outcome.promises),
   ].filter(Boolean).join(" ");
   return {
-    result: `${put(TERM_FINALE.won, slots)} ${marginLine(election)}`,
-    summary: [summary, put(TERM_FINALE.next, { ordinal: termOrdinal(nextTerm) })],
+    lead: `${put(TERM_FINALE.won, slots)} ${marginLine(election)} ${summary}`,
+    after: [put(TERM_FINALE.next, { ordinal: termOrdinal(nextTerm) })],
   };
 }
