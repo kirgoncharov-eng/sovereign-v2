@@ -3,12 +3,16 @@
 import { dayOf } from "./analytics.ts";
 import { kv } from "./kv.ts";
 import { botApi } from "./telegram.ts";
+import { randomUUID } from 'node:crypto';
+import { forwardFeedback } from './feedback-copies.ts';
 
 export const FB_LIST = "fb:list";
 const FB_MAX = 500;
 export const ADMIN = "tg:admin"; // поле chat — куда слать отзывы и утреннюю сводку
 
 export interface Feedback {
+  id?: string;
+  telegramUserId?: number;     // только подтверждённый from.id бота; имя не является идентификатором
   at: string;
   src: "game" | "bot";
   rating?: number;             // 1–5
@@ -40,11 +44,18 @@ export function feedbackHtml(f: Feedback): string {
 }
 
 export async function saveFeedback(f: Feedback, now = Date.now()) {
+  if (f.src === 'bot' && (!Number.isSafeInteger(f.telegramUserId) || f.telegramUserId! <= 0)) {
+    throw new Error('Bot feedback requires a verified Telegram user ID');
+  }
+  const feedback = { ...f, id: randomUUID() };
   const day = `an:${dayOf(now)}`;
-  await kv.lpush(FB_LIST, JSON.stringify(f), FB_MAX);
+  await kv.lpush(FB_LIST, JSON.stringify(feedback), FB_MAX);
   await kv.hincrby(day, "feedback");
   if (f.rating) { await kv.hincrby(day, "rating_sum", f.rating); await kv.hincrby(day, "rating_n"); }
-  await notifyAdmin(feedbackHtml(f));
+  if (f.src === 'bot') {
+    const chat = await adminChat();
+    if (chat) await forwardFeedback(f.telegramUserId!, feedback.id, chat, feedbackHtml(feedback));
+  } else await notifyAdmin(feedbackHtml(feedback));
 }
 
 export async function readFeedback(n = 50): Promise<Feedback[]> {
