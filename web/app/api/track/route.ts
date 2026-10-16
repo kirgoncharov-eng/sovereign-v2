@@ -1,4 +1,4 @@
-// Приём анонимных событий аналитики. Тело — {pid, events:[{e, p?}]}; отвечает 204 всегда, кроме мусора.
+// Приём событий по псевдонимному PID. Тело — {pid, events:[{e, p?}]}; 204 при приёме, 400/429 при отказе.
 import { PID, record, type TrackInput } from "@/lib/server/analytics.ts";
 import { clientKey, limit } from "@/lib/server/rateLimit.ts";
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { COMMANDS, DESCRIPTION, HELP, SHORT_DESCRIPTION, WELCOME, dailyText, handleUpdate, setupProfile } from "./bot.ts";
+import { COMMANDS, DESCRIPTION, HELP, PRIVACY, SHORT_DESCRIPTION, WELCOME, dailyText, handleUpdate, setupProfile } from "./bot.ts";
 
 // Вместо Telegram — запись вызовов.
 const calls: { method: string; body: Record<string, unknown> }[] = [];
@@ -12,6 +12,19 @@ process.env.TELEGRAM_BOT_TOKEN = "123:test";
 process.env.APP_URL = "https://example.test";
 
 const last = () => calls.at(-1)!;
+
+test('/privacy describes pseudonymous data and does not promise complete erasure or a finished policy', async () => {
+  await handleUpdate({ message: { chat: { id: 1701 }, from: { id: 1701 }, text: '/privacy' } });
+  const text = String(last().body.text);
+  assert.equal(text, PRIVACY('https://example.test'));
+  assert.ok(text.length < 4096);
+  assert.doesNotMatch(text, /Анонимная статистика|Имени и Telegram в ней нет/);
+  assert.match(text, /гарантировать анонимность нельзя/);
+  assert.match(text, /Текущая партия — в браузере/);
+  assert.match(text, /не удаляет статистику по номеру браузера и облачный прогресс Telegram/);
+  assert.match(text, /Полная политика ещё не завершена/);
+  assert.match(text, /\/feedback в личном чате/);
+});
 
 test("бот: приветствие с обложкой и кнопками, команды, кнопки меню, ответ на любой текст", async () => {
   await handleUpdate({ message: { chat: { id: 7 }, text: "/start" } });
