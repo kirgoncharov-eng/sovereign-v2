@@ -1,23 +1,12 @@
 import { campaignLabel } from "@/lib/game/alternate-world.ts";
 // Карточка итога картинкой: /api/card?<параметры из lib/share.ts>. Широкая (1200×630) — для превью
 // ссылки в Telegram, &f=story — вертикальная (1080×1920) для историй.
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { loadCardFonts } from "@/lib/server/card-fonts.ts";
 import { ImageResponse } from "next/og";
 import { END_TYPES, reignShort } from "@/lib/game/data.ts";
 import { BOT_USERNAME, parseShare, shareCaption, survived } from "@/lib/share.ts";
 
 const PAPER = "#d9cfb2", INK = "#2a241d", INK2 = "#5a5040", RED = "#a02f24", GREEN = "#3d6a27", RULE = "#2a241d";
-
-let fonts: Promise<{ name: string; data: Buffer; weight: 400 | 700; style: "normal" | "italic" }[]> | null = null;
-const loadFonts = () => fonts ??= Promise.all([
-  ["Handjet", "handjet-bold.ttf", 700, "normal"], ["Handjet", "handjet-regular.ttf", 400, "normal"],
-  ["Serif", "LiberationSerif-Bold.ttf", 700, "normal"], ["Serif", "LiberationSerif-Regular.ttf", 400, "normal"],
-  ["Serif", "LiberationSerif-Italic.ttf", 400, "italic"],
-].map(async ([name, file, weight, style]) => ({
-  name: name as string, data: await readFile(join(process.cwd(), "assets/fonts", file as string)),
-  weight: weight as 400 | 700, style: style as "normal" | "italic",
-})));
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -76,7 +65,7 @@ export async function GET(req: Request) {
   );
 
   return new ImageResponse(img, {
-    width: W, height: H, fonts: await loadFonts(),
+    width: W, height: H, fonts: await loadCardFonts(),
     headers: { "Cache-Control": "public, max-age=31536000, immutable" },
   });
 }

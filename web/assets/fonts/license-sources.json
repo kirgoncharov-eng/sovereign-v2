@@ -1,0 +1,44 @@
+[
+  {
+    "family": "Geist",
+    "repo": "google/fonts",
+    "path": "ofl/geist/OFL.txt",
+    "blob": "61f6f4b7853081236aec6407f2dd3c7170997f84"
+  },
+  {
+    "family": "Handjet",
+    "repo": "google/fonts",
+    "path": "ofl/handjet/OFL.txt",
+    "blob": "316f93d5d998793b932096e87de6a26c656fd9d4"
+  },
+  {
+    "family": "Tiny5",
+    "repo": "google/fonts",
+    "path": "ofl/tiny5/OFL.txt",
+    "blob": "4e073c9a2b3f82812331ddd0dfcc5f2a07c27df7"
+  },
+  {
+    "family": "Liberation",
+    "repo": "liberationfonts/liberation-fonts",
+    "path": "LICENSE",
+    "blob": "aba73e8a403084a93a245ca00e4a0db007886e0a"
+  },
+  {
+    "family": "PTSerif",
+    "repo": "google/fonts",
+    "path": "ofl/ptserif/OFL.txt",
+    "blob": "e9f47cb8b582b7277c90c706f1a688348554a2c3"
+  },
+  {
+    "family": "PTMono",
+    "repo": "google/fonts",
+    "path": "ofl/ptmono/OFL.txt",
+    "blob": "2e078d089d7c8f39a585dc490a8587f21576be2e"
+  },
+  {
+    "family": "MarckScript",
+    "repo": "google/fonts",
+    "path": "ofl/marckscript/OFL.txt",
+    "blob": "a06635f4e388ec16b1a4d2c9f81a8d44c271ec07"
+  }
+]
