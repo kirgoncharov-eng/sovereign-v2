@@ -42,7 +42,7 @@ const fonts = "https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400
 
 // Inline the historical art so the standalone demo never depends on /art URLs.
 const art = {};
-for (const folder of ["scenes", "figures"]) {
+for (const folder of ["scenes", "figures", "gemini-next"]) {
   for (const name of await readdir(path.join(root, "public", "art", folder))) {
     if (!name.endsWith(".webp")) continue;
     art[`/art/${folder}/${name}`] = `data:image/webp;base64,${(await readFile(path.join(root, "public", "art", folder, name))).toString("base64")}`;
