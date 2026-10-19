@@ -1,0 +1,102 @@
+[
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 1"
+      },
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 2"
+      },
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 3"
+      }
+    ],
+    "charset": "UTF-8",
+    "conversationClear": true,
+    "mode": "CSS1Compat",
+    "overflow": false,
+    "topicHeight": 94,
+    "width": 320
+  },
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 1"
+      },
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 2"
+      },
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 3"
+      }
+    ],
+    "charset": "UTF-8",
+    "conversationClear": true,
+    "mode": "CSS1Compat",
+    "overflow": false,
+    "topicHeight": 44,
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 1"
+      },
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 2"
+      },
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 3"
+      }
+    ],
+    "charset": "UTF-8",
+    "conversationClear": true,
+    "mode": "CSS1Compat",
+    "overflow": false,
+    "topicHeight": 44,
+    "width": 400
+  },
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 1"
+      },
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 2"
+      },
+      {
+        "height": 44,
+        "inside": true,
+        "text": "Вариант 3"
+      }
+    ],
+    "charset": "UTF-8",
+    "conversationClear": true,
+    "mode": "CSS1Compat",
+    "overflow": false,
+    "topicHeight": 44,
+    "width": 1280
+  }
+]

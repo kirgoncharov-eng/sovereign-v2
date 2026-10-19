@@ -144,12 +144,13 @@
 }
 
 .tabs {
-  display:grid;
-  gap:6px;
-  margin-bottom:22px
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
 }
 
-.tabs button,.places button {
+.tabs button, .places button {
   background:transparent;
   border:1px solid var(--bdr);
   color:inherit;
@@ -158,6 +159,13 @@
   text-align:left;
   cursor:pointer;
   min-height:44px
+}
+
+.tabs button {
+  flex: 1 1 80px;
+  min-width: 0;
+  padding: 8px 10px;
+  text-align: center;
 }
 
 .tabs button[aria-pressed=true],.places button[aria-pressed=true] {
