@@ -1,10 +1,13 @@
 // Истории людей во времени: какая история идёт, кто её герой и какое сообщение приходит в этом ходу.
-// Ничего не хранит в сохранении: всё выводится из зерна партии, номера хода и текущего состояния,
-// поэтому одинаково считается в браузере и при проверке «Дела дня» на сервере.
+// Всё выводится из зерна партии, номера хода и текущего состояния, поэтому одинаково считается
+// в браузере и при проверке «Дела дня» на сервере. Единственное, что хранится, — ответы игрока
+// на письма в кампании 1978 года (#156): их нет в «Деле дня» и в архивных странах.
 import { STORIES, type LetterKind, type Story, type StoryContext } from "../content/stories.ts";
+import { STORY_REPLIES, type ReplyOption, type StoryReplies } from "../content/story-replies.ts";
 import { roleGroup } from "../content/roles.ts";
-import { hashSeed, isFemaleName } from "./engine.ts";
-import type { Figure, GameState } from "./types.ts";
+import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
+import { applyDeltas, clampRel, hashSeed, isFemaleName } from "./engine.ts";
+import type { Figure, GameState, LetterReply } from "./types.ts";
 
 // Первые два хода — только дело и газета; истории начинаются с третьего.
 export const STORY_FIRST_TURN = 3;
@@ -13,7 +16,10 @@ export const STORY_GAP = 4;
 export const STORY_STEP = 2;
 const WARM = 20, COLD = -20;
 
-export interface StoryLetter { kind: LetterKind; from: string; role?: string; text: string; story: string; departs?: string }
+export interface StoryLetter {
+  kind: LetterKind; from: string; role?: string; text: string; story: string; departs?: string;
+  hero?: string; replies?: LetterReply[];
+}
 
 // Кто подходит на роль героя по должности. От интриги не зависит, чтобы порядок историй не менялся
 // посреди партии, когда в новом сроке появляется новый антагонист.
@@ -25,6 +31,25 @@ const candidates = (state: GameState, story: Story) => state.keyFigures
 function heroOf(state: GameState, story: Story): Figure | null {
   if (story.who === "self") return null;
   return candidates(state, story).find(f => f.name !== state.arc?.target) ?? null;
+}
+
+// Ответы на письма есть только в обычной партии кампании 1978 года.
+function repliesFor(state: GameState, story: Story): StoryReplies | undefined {
+  return state.country === ALTERNATE_COUNTRY && !state.daily ? STORY_REPLIES[story.id] : undefined;
+}
+
+// Герой отвеченной истории закреплён ответом: письмо не перейдёт к другому человеку, если сменится антагонист.
+function storyHero(state: GameState, story: Story): Figure | null {
+  const pinned = state.storyReplies?.[story.id]?.hero;
+  return (pinned && state.keyFigures.find(figure => figure.id === pinned)) || heroOf(state, story);
+}
+
+// Какой ответ дан на эту историю и действует ли он для шага `index`.
+function answerFor(state: GameState, story: Story, index: number): ReplyOption | undefined {
+  const replies = repliesFor(state, story);
+  const answer = state.storyReplies?.[story.id];
+  if (!replies || !answer || index <= replies.step) return undefined;
+  return replies.options.find(option => option.id === answer.reply);
 }
 
 // Порядок историй в партии — свой для каждого зерна; истории без героя в этой стране пропускаются.
@@ -51,19 +76,48 @@ export function storyLetters(state: GameState, turn = state.turn + 1): StoryLett
   storyOrder(state).forEach((story, k) => {
     const offset = turn - (STORY_FIRST_TURN + k * STORY_GAP);
     if (offset < 0 || offset % STORY_STEP) return;
-    const step = story.steps[offset / STORY_STEP];
+    const index = offset / STORY_STEP;
+    const step = story.steps[index];
     if (!step) return;
-    const hero = heroOf(state, story);
+    const hero = storyHero(state, story);
     if (story.who !== "self" && !hero) return; // единственный подходящий человек сейчас — антагонист
-    const context = contextOf(state, hero);
-    const text = step.text(context);
+    // Ответ игрока решает ветку вместо отношения героя; у ответа могут быть и свои тексты.
+    const answer = answerFor(state, story, index);
+    const context = answer ? { ...contextOf(state, hero), mood: answer.mood } : contextOf(state, hero);
+    const own = answer?.steps?.[index]?.(context);
+    const text = own === undefined ? step.text(context) : own;
     if (!text) return;
+    const replies = repliesFor(state, story);
+    const offer = replies && replies.step === index && !state.storyReplies?.[story.id] ? replies.options : [];
     letters.push({
       kind: step.kind, story: story.id, text: bySex(text, hero),
       from: hero?.name ?? story.sender ?? "",
       ...(hero ? { role: hero.role } : {}),
       ...(hero && step.departs?.(context) ? { departs: hero.id } : {}),
+      ...(offer.length ? {
+        ...(hero ? { hero: hero.id } : {}),
+        replies: offer.map(({ id, text, cost, relation }) => ({ id, text, cost, ...(relation ? { relation } : {}) })),
+      } : {}),
     });
   });
   return letters;
+}
+
+// Ответ на письмо итога хода (#156): цена списывается сразу, история запоминает ответ и героя.
+// Отвечать можно, пока письмо на виду, — один раз на историю.
+export function replyToLetter(state: GameState, storyId: string, replyId: string): GameState {
+  const letter = state.lastTurn?.letters?.find(item => item.story === storyId && item.replies?.length);
+  const option = STORY_REPLIES[storyId]?.options.find(item => item.id === replyId);
+  if (!letter || !option || state.daily || state.ended || state.country !== ALTERNATE_COUNTRY) {
+    throw new Error("На это письмо сейчас нельзя ответить");
+  }
+  if (state.storyReplies?.[storyId]) throw new Error("Ответ на это письмо уже отправлен");
+  const hero = letter.hero;
+  return {
+    ...state,
+    resources: applyDeltas(state.resources, option.cost),
+    keyFigures: !option.relation || !hero ? state.keyFigures : state.keyFigures.map(figure => figure.id !== hero ? figure
+      : { ...figure, relation: clampRel(figure.relation + option.relation!) }),
+    storyReplies: { ...state.storyReplies, [storyId]: { reply: option.id, turn: state.turn, ...(hero ? { hero } : {}) } },
+  };
 }

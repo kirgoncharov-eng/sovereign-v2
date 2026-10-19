@@ -214,7 +214,15 @@ export interface NewCrisis {
 
 // Текст, который модель пишет по уже посчитанному движком итогу хода.
 // Личное сообщение от человека из истории: письмо, звонок, записка или строка из сводки.
-export interface Letter { kind: "letter" | "call" | "note" | "report"; from: string; role?: string; text: string; story: string }
+export interface Letter {
+  kind: "letter" | "call" | "note" | "report"; from: string; role?: string; text: string; story: string;
+  hero?: string;            // id героя истории: ответ закрепляет историю за ним (#156)
+  replies?: LetterReply[];  // на это письмо можно ответить — кампания 1978 года, обычная партия
+}
+// Резолюция на письме: что подписывает президент и чего это стоит (#156).
+export interface LetterReply { id: string; text: string; cost: ResourceDelta; relation?: number }
+// Данный ответ: какой, на каком ходу и кому — чтобы история не сменила адресата в новом сроке.
+export interface StoryReply { reply: string; turn: number; hero?: string }
 
 export interface Narration {
   headline: string;
@@ -373,6 +381,7 @@ export interface GameState {
   echoes?: Record<string, number>; // сколько раз уже звучало эхо каждого отложенного последствия
   former?: string[];      // люди, ушедшие с постов: их имена не достаются преемникам
   staffing?: Staffing;
+  storyReplies?: Record<string, StoryReply>; // ответы на личные письма: история → ответ (#156)
   currentEvent: GameEvent | null;
   lastTurn: TurnReport | null;
   ended: boolean;
