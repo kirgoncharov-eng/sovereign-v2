@@ -7,6 +7,7 @@ import { createInitialState, conveneCouncil, seededRandom, startEvent } from '..
 import { presidentialConversation, hasAuthoredDebate } from '../game/presidential-story.ts';
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { parseSave } from '../client/save.ts';
+import { advisorNews, forecastReview } from '../game/forecasts.ts';
 import { SAVE_VERSION } from '../game/data.ts';
 
 test('every branch of the five contract episodes speaks through two actual advisors, including the former director', async () => {
@@ -28,6 +29,17 @@ test('every branch of the five contract episodes speaks through two actual advis
       seen.add(key);
       const lines = presidentialConversation(state, index);
       assert.equal(lines.length, 3, key);
+      for (const failed of [false, true]) {
+        const choiceId = state.currentEvent!.choices[index].id;
+        const updates = advisorNews(state, choiceId, failed);
+        assert.deepEqual(forecastReview(state, choiceId, failed), []);
+        assert.equal(updates.length, 2);
+        for (const update of updates) {
+          const person = state.advisors.find(advisor => advisor.id === update.id)!;
+          assert.equal(update.loyalty, person.name === lines[0].name ? 3 : -5, key);
+          assert.equal(update.right + update.wrong, 0);
+        }
+      }
       assert.equal(new Set(lines.map(line => line.name)).size, 2);
       assert.ok(lines.every(line => state.advisors.some(advisor => advisor.name === line.name)));
       assert.equal(hasAuthoredDebate(state, index), true);

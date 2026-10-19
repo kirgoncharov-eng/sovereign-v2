@@ -3,6 +3,7 @@
 // об улице и прессе — политтехнолог и экономист. В своей области лояльный советник говорит правду,
 // о прочем — тянет в свою сторону, каждый в своей манере. Нелояльный служит своему лагерю и лжёт даже в своей области.
 // Кто был прав, видно после хода: газета сверяет прогнозы с ведомостью.
+import { authoredDebate, hasAuthoredDebate, isPresidentialDiscussion } from "./presidential-story.ts";
 import { campaignText } from "./alternate-world.ts";
 import { ACTIONS } from "./data.ts";
 import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed, loyaltyOf } from "./engine.ts";
@@ -201,10 +202,15 @@ const RES_NAME: Record<ResourceKey, string> = {
 };
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
 
+// Авторский или нейтральный разговор заменяет генерируемый спор в игровом интерфейсе.
+const usesPresidentialConversation = (state: GameState) => isPresidentialDiscussion(state)
+  || (state.currentEvent?.choices.some((_, index) => hasAuthoredDebate(state, index)) ?? false);
+
 // После хода: что советники говорили о выбранном варианте и что вышло на деле (без чужих кризисов и эха).
 export interface ForecastCheck { take: AdvisorTake; claim: Claim; delta: number; right: boolean }
 
 export function forecastChecks(state: GameState, choiceId: string, failed: boolean): ForecastCheck[] {
+  if (usesPresidentialConversation(state)) return [];
   const takes = debate(state);
   const chosen = state.currentEvent?.choices.find(choice => choice.id === choiceId);
   if (!takes || !chosen) return [];
@@ -226,6 +232,21 @@ export function forecastReview(state: GameState, choiceId: string, failed: boole
 // вариант его оппонента — падает; сбывшиеся прогнозы идут в счёт.
 // В отчёт идёт фактическая перемена после ограничения 0–100: у советника с лояльностью 100 рост нулевой.
 export function advisorNews(state: GameState, choiceId: string, failed: boolean): AdvisorNews[] {
+  const index = state.currentEvent?.choices.findIndex(choice => choice.id === choiceId) ?? -1;
+  const exchange = hasAuthoredDebate(state, index) ? authoredDebate(state, index) : undefined;
+  if (exchange) {
+    const proponent = exchange[0]?.[0], critic = exchange[1]?.[0];
+    return state.advisors.filter(advisor => advisor.id === proponent || advisor.id === critic).map(advisor => {
+      const reason = advisor.id === proponent ? "followed" as const : "overruled" as const;
+      const nominal = reason === "followed" ? LOYALTY_FOLLOWED : LOYALTY_OVERRULED;
+      const before = loyaltyOf(advisor);
+      return {
+        id: advisor.id, loyalty: Math.max(0, Math.min(100, before + nominal)) - before,
+        right: 0, wrong: 0, reason,
+      };
+    });
+  }
+  if (usesPresidentialConversation(state)) return [];
   const takes = debate(state);
   if (!takes) return [];
   const checks = forecastChecks(state, choiceId, failed);
