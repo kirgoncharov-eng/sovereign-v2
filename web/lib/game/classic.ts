@@ -48,6 +48,7 @@ import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PA
 import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } from "./people.ts";
 import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { storyLetters } from "./stories.ts";
+import { ARCHIVE_CARD, archiveDescription } from "./archive-memory.ts";
 import { advisorNews, forecastReview } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { sanitizeProposals } from "./sanitize.ts";
@@ -895,7 +896,10 @@ function buildCardEvent(state: GameState, selected: EventCard, r: Rand): GameEve
     cardId: card.id,
     title: fill(card.title, state),
     source: card.source,
-    description: chapter(dateline(state, SOURCE_PLACE[card.source] ?? (warningLevel(state) === "critical" ? "crisis" : "desk")), fill(card.description, state), state.turn > 0 && EVENT_EXT[card.id] && fill(EVENT_EXT[card.id], state)),
+    // Финальное дело срока помнит заводское расследование (#178).
+    description: chapter(dateline(state, SOURCE_PLACE[card.source] ?? (warningLevel(state) === "critical" ? "crisis" : "desk")),
+      fill((card.id === ARCHIVE_CARD && archiveDescription(state)) || card.description, state),
+      state.turn > 0 && EVENT_EXT[card.id] && fill(EVENT_EXT[card.id], state)),
     isCritical: warningLevel(state) === "critical",
     affectedFactions: state.factions.filter(f => blocs.has(f.bloc)).slice(0, 4).map(f => f.id),
     choices: card.choices.map((c, i) => ({
