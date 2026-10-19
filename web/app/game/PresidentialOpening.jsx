@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { REPUBLIC_PLACES, presidentialConversation, hasAuthoredDebate } from "@/lib/game/presidential-story.ts";
+import { artSource, HISTORICAL_ADVISOR_ART, historicalPortraitArt } from "@/lib/client/historical-art.ts";
 import styles from "./presidential.module.css";
 import { pageFx } from '@/lib/client/fx.ts';
 
@@ -38,15 +39,35 @@ export default function PresidentialOpening({ gs, onGo, onDossier }) {
   </main>;
 }
 
-function SpokenExchange({ lines, staged }) {
+function SpokenExchange({ gs, lines, staged }) {
   const [visible, setVisible] = useState(staged ? 1 : lines.length);
   const next = () => { pageFx(); setVisible(count => Math.min(lines.length, count + 1)); };
   return <>
     <div className={styles.conversation} aria-live="polite" aria-relevant="additions">
-      {lines.slice(0, visible).map((line, position) => <div className={`${styles.line} ${styles.spoken}`} key={position}>
-        <div className={styles.speaker}><b>{line.name}</b><small>{line.role}</small></div>
-        <p>{line.text}</p>
-      </div>)}
+      {lines.slice(0, visible).map((line, position) => {
+        const portraitSrc = (line.id && HISTORICAL_ADVISOR_ART[line.id]?.src) || (gs ? historicalPortraitArt(gs, line.name) : null);
+        return (
+          <div className={`${styles.line} ${styles.spoken}`} key={position}>
+            <div className={styles.speaker}>
+              {portraitSrc && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={artSource(portraitSrc)}
+                  alt={line.name}
+                  width={44}
+                  height={44}
+                  className={styles.speakerPortrait}
+                />
+              )}
+              <div className={styles.speakerInfo}>
+                <b>{line.name}</b>
+                <small>{line.role}</small>
+              </div>
+            </div>
+            <p>{line.text}</p>
+          </div>
+        );
+      })}
     </div>
     {visible < lines.length && <div className={styles.exchangeActions}>
       <button type="button" onClick={next}>{visible === 1 ? 'Выслушать возражение →' : 'Дать ответить →'}</button>
@@ -70,7 +91,7 @@ export function PresidentialCouncil({ gs, children }) {
         aria-pressed={index === position} aria-label={`Обсудить вариант ${position + 1}: ${choice.text}`}
         onClick={() => setSelected(position)}>Вариант {position + 1}</button>)}
     </div>
-    <SpokenExchange key={index} lines={presidentialConversation(gs, index)} staged={hasAuthoredDebate(gs, index)}/>
+    <SpokenExchange key={index} gs={gs} lines={presidentialConversation(gs, index)} staged={hasAuthoredDebate(gs, index)}/>
     {children(choices[index], index)}
   </section>;
 }

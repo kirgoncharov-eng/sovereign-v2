@@ -187,8 +187,29 @@
 
 .speaker {
   display:flex;
+  flex-direction:row;
+  align-items:center;
+  gap:12px;
+  font:18px/1.3 var(--font-narrow),serif;
+  margin-bottom:6px
+}
+
+.speakerPortrait {
+  width:44px;
+  height:44px;
+  border-radius:2px;
+  border:1px solid var(--bdr2);
+  box-shadow:var(--hard);
+  object-fit:cover;
+  flex-shrink:0;
+  image-rendering:pixelated;
+  background:var(--bg3)
+}
+
+.speakerInfo {
+  display:flex;
   flex-direction:column;
-  font:18px/1.3 var(--font-narrow),serif
+  min-width:0
 }
 
 .speaker small {
