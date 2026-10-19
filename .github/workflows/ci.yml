@@ -20,6 +20,18 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      # STATUS.md меняется только отдельным статус-PR: иначе любые два открытых PR конфликтуют (AGENTS.md).
+      - name: STATUS.md — только отдельным PR
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        run: |
+          changed=$(git diff --name-only HEAD^1 HEAD)
+          if echo "$changed" | grep -qx 'STATUS.md' && [ "$(echo "$changed" | wc -l)" -gt 1 ]; then
+            echo "::error file=STATUS.md::STATUS.md меняется только отдельным статус-PR без других файлов (AGENTS.md)."
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
