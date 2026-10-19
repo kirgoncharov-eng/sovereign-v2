@@ -21,6 +21,10 @@ export const HISTORICAL_SCENE_ART = {
   bridge: { src: '/art/scenes/bridge.webp', caption: 'Осмотр мостов после паводка' },
   protest: { src: '/art/scenes/protest.webp', caption: 'Собрание у университета' },
   ballot: { src: '/art/scenes/ballot.webp', caption: 'Подсчёт избирательных бюллетеней' },
+  wages: { src: '/art/gemini-next/wages-gate.webp', caption: 'Проходная тракторного завода зимой' },
+  electionNight: { src: '/art/gemini-next/election-night.webp', caption: 'Кабинет президента в ночь подсчёта голосов' },
+  electionDefeat: { src: '/art/gemini-next/election-defeat.webp', caption: 'Штаб кампании в полночь после поражения' },
+  parliamentHall: { src: '/art/gemini-next/parliament-hall.webp', caption: 'Правительственная ложа в зале парламента' },
 } as const;
 export type HistoricalArt = { src: string; caption: string };
 export const HISTORICAL_OUTCOME_ART = {
@@ -29,19 +33,26 @@ export const HISTORICAL_OUTCOME_ART = {
   bridgeToll: { src: '/art/gemini-next/bridge-toll.webp', caption: 'На восстановленном мосту взимают плату за проезд' },
   districtRepairs: { src: '/art/gemini-next/district-repairs.webp', caption: 'Ремонт больницы продолжается с новым подрядчиком' },
   districtDelayed: { src: '/art/gemini-next/district-delayed.webp', caption: 'Ремонт больницы не сдвинулся, крыша продолжает течь' },
+  districtCompleted: { src: '/art/gemini-next/district-completed.webp', caption: 'Крыша районной больницы полностью отремонтирована' },
+  wagesAudit: { src: '/art/gemini-next/wages-audit.webp', caption: 'Выплата зарплаты и проверка заводских договоров' },
+  wagesAdvance: { src: '/art/gemini-next/wages-advance.webp', caption: 'Отгрузка тракторов под трёхлетний экспортный аванс' },
+  wagesRetool: { src: '/art/gemini-next/wages-retool.webp', caption: 'Перестройка цеха и переобучение рабочих' },
+  wagesGate: { src: '/art/gemini-next/wages-gate.webp', caption: 'Заводские цеха остановлены, рабочие ждут у проходной' },
 } satisfies Record<string, HistoricalArt>;
 const bridgeDossier = MANAGEMENT_DOSSIERS.find(dossier => dossier.id === 'bridges')!;
 const bridgeOutcomes = [
   HISTORICAL_OUTCOME_ART.bridgeTemporary, HISTORICAL_OUTCOME_ART.bridgeRestored, HISTORICAL_OUTCOME_ART.bridgeToll,
 ];
 const districtCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_district')!;
+const wagesCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_wages')!;
 const CARD_ART: Record<string, HistoricalArt> = {
+  alt_wages: HISTORICAL_SCENE_ART.wages,
   alt_fuel: HISTORICAL_SCENE_ART.fuel, alt_standards: HISTORICAL_SCENE_ART.standards,
   alt_district: HISTORICAL_SCENE_ART.district, alt_rail: HISTORICAL_SCENE_ART.rail,
   alt_radio: HISTORICAL_SCENE_ART.radio, alt_harvest: HISTORICAL_SCENE_ART.harvest,
   alt_archive: HISTORICAL_SCENE_ART.archive,
-  law_alt_export_guarantee: HISTORICAL_SCENE_ART.export,
-  law_alt_open_orders: HISTORICAL_SCENE_ART.orders,
+  law_alt_export_guarantee: HISTORICAL_SCENE_ART.parliamentHall,
+  law_alt_open_orders: HISTORICAL_SCENE_ART.parliamentHall,
 };
 const MODE_ART: Partial<Record<SceneKey, HistoricalArt>> = {
   press: HISTORICAL_SCENE_ART.press, phone: HISTORICAL_SCENE_ART.phone,
@@ -65,7 +76,11 @@ export function historicalEventArt(country: string, event: GameEvent, scene: Sce
 
 export function historicalResultArt(state: GameState, scene: SceneKey): HistoricalArt | null {
   if (state.country !== ALTERNATE_COUNTRY) return null;
-  if (state.lastTurn?.election) return HISTORICAL_SCENE_ART.ballot;
+  if (state.lastTurn?.election) {
+    if (state.lastTurn.election.outcome === 'won') return HISTORICAL_SCENE_ART.electionNight;
+    if (state.lastTurn.election.outcome === 'lost') return HISTORICAL_SCENE_ART.electionDefeat;
+    return HISTORICAL_SCENE_ART.ballot;
+  }
   const completed = state.history.at(-1);
   // Opening a bridge is a delayed result, not a photograph of the signed estimate.
   for (const pending of state.lastTurn?.matured ?? []) {
@@ -77,8 +92,15 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
     if (completed.success === false) return HISTORICAL_OUTCOME_ART.districtDelayed;
     if (completed.success === true) {
       if (completed.choice === districtCard.choices[0].text) return HISTORICAL_OUTCOME_ART.districtRepairs;
-      // The other successful choices finish the roof. Don't show leaks or unfinished repairs.
-      return null;
+      return HISTORICAL_OUTCOME_ART.districtCompleted;
+    }
+  }
+  if (completed?.title === wagesCard.title) {
+    if (completed.success === false) return HISTORICAL_OUTCOME_ART.wagesGate;
+    if (completed.success === true) {
+      if (completed.choice === wagesCard.choices[0].text) return HISTORICAL_OUTCOME_ART.wagesAudit;
+      if (completed.choice === wagesCard.choices[1].text) return HISTORICAL_OUTCOME_ART.wagesAdvance;
+      if (completed.choice === wagesCard.choices[2].text) return HISTORICAL_OUTCOME_ART.wagesRetool;
     }
   }
   const title = completed?.title;
@@ -96,17 +118,34 @@ export const HISTORICAL_ADDITIONAL_FIGURE_ART = {
   journalist: { src: '/art/gemini-next/journalist-female.webp', female: true },
 } as const;
 
+export const HISTORICAL_ADVISOR_ART: Record<string, { src: string; female: boolean }> = {
+  strategist: { src: '/art/gemini-next/adv-strategist.webp', female: true },
+  economist: { src: '/art/gemini-next/adv-economist.webp', female: true },
+  security: { src: '/art/gemini-next/adv-security.webp', female: false },
+  diplomat: { src: '/art/gemini-next/adv-diplomat.webp', female: true },
+};
+
 export function historicalPortraitArt(
   state: GameState | null, name: string, roster?: Record<string, string> | null,
 ): string | null {
   if (!state || state.country !== ALTERNATE_COUNTRY || state.leader.name === name) return null;
   const figure = state.keyFigures.find(person => person.name === name);
-  if (!figure || (roster && roster[figure.id] !== name)) return null;
-  const role = FIGURE_ROLES[ALTERNATE_COUNTRY].find(role => role.id === figure.id && role.role === figure.role);
-  const female = isFemaleName(name);
-  const alternative = role && HISTORICAL_ADDITIONAL_FIGURE_ART[role.id as keyof typeof HISTORICAL_ADDITIONAL_FIGURE_ART];
-  const art = alternative?.female === female ? alternative : role && HISTORICAL_FIGURE_ART[role.id];
-  return art && art.female === isFemaleName(name) ? art.src : null;
+  if (figure) {
+    if (roster && roster[figure.id] !== name) return null;
+    const role = FIGURE_ROLES[ALTERNATE_COUNTRY].find(role => role.id === figure.id && role.role === figure.role);
+    const female = isFemaleName(name);
+    const alternative = role && HISTORICAL_ADDITIONAL_FIGURE_ART[role.id as keyof typeof HISTORICAL_ADDITIONAL_FIGURE_ART];
+    const art = alternative?.female === female ? alternative : role && HISTORICAL_FIGURE_ART[role.id];
+    return art && art.female === female ? art.src : null;
+  }
+  const advisor = state.advisors?.find(person => person.name === name);
+  if (advisor) {
+    const key = `advisor:${advisor.id}`;
+    if (roster && roster[key] && roster[key] !== name) return null;
+    const art = HISTORICAL_ADVISOR_ART[advisor.id];
+    return art && art.female === isFemaleName(name) ? art.src : null;
+  }
+  return null;
 }
 
 declare global { interface Window { __SOVEREIGN_ART__?: Record<string, string> } }
