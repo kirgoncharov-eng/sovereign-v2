@@ -2,29 +2,85 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, statSync } from 'node:fs';
 import { HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, historicalEventArt, historicalResultArt,
-  historicalPortraitArt } from './historical-art.ts';
+  historicalPortraitArt, HISTORICAL_OUTCOME_ART, HISTORICAL_ADDITIONAL_FIGURE_ART } from './historical-art.ts';
+import { MANAGEMENT_DOSSIERS } from '../content/management.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { sceneOf } from '../content/scene-map.ts';
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES } from '../game/alternate-world.ts';
 import { classicApi } from '../game/classic.ts';
-import { createInitialState, seededRandom } from '../game/engine.ts';
+import { createInitialState, resolveTurn, seededRandom, startEvent } from '../game/engine.ts';
+import type { GameState } from '../game/types.ts';
 
 async function fresh() {
   return createInitialState(ALTERNATE_COUNTRY, 'debut', 'pragmatist',
     await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', 21), seededRandom(21));
 }
 
-test('all 24 mapped WebP files exist and the game art stays below 800KB', () => {
-  const paths = [...Object.values(HISTORICAL_SCENE_ART), ...Object.values(HISTORICAL_FIGURE_ART)].map(art => art.src);
-  assert.equal(paths.length, 24);
-  assert.equal(new Set(paths).size, 24);
+test('all 31 mapped WebP files exist within the image budgets', () => {
+  const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
+    HISTORICAL_ADDITIONAL_FIGURE_ART].flatMap(group => Object.values(group).map(art => art.src));
+  assert.equal(paths.length, 31);
+  assert.equal(new Set(paths).size, 31);
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
     assert.ok(existsSync(file), src);
     bytes += statSync(file).size;
+    if (src.includes('/gemini-next/')) {
+      assert.ok(statSync(file).size <= (src.includes('male.webp') ? 10_000 : 100_000), src);
+    }
   }
-  assert.ok(bytes < 800_000);
+  assert.ok(bytes < 1_100_000);
+});
+
+test('hospital photos distinguish failed repair, ongoing works and a finished roof after reload', async () => {
+  const base = await fresh();
+  const card = ALTERNATE_EVENTS.find(card => card.id === 'alt_district')!;
+  for (const [index, choice] of card.choices.entries()) {
+    for (const success of [false, true]) {
+      const state = { ...base, history: [{ year: 1978, title: card.title, choice: choice.text,
+        headline: '', historianNote: '', success }] };
+      const expected = !success ? HISTORICAL_OUTCOME_ART.districtDelayed
+        : index === 0 ? HISTORICAL_OUTCOME_ART.districtRepairs : null;
+      assert.deepEqual(historicalResultArt(state, 'hospital'), expected);
+      assert.deepEqual(historicalResultArt(JSON.parse(JSON.stringify(state)), 'hospital'), expected);
+      for (const country of LEGACY_COUNTRIES) assert.equal(historicalResultArt({ ...state, country }, 'hospital'), null);
+    }
+  }
+});
+
+test('bridge photos wait for the completed delayed order and retain the chosen strategy on reload', async () => {
+  const base = await fresh();
+  const dossier = MANAGEMENT_DOSSIERS.find(dossier => dossier.id === 'bridges')!;
+  const event = await classicApi.event(base);
+  const current = startEvent(base, event);
+  const report = resolveTurn(current, event.choices[0].id,
+    await classicApi.consequence(current, event.choices[0].id)).lastTurn;
+  assert.ok(report);
+  const expected = [HISTORICAL_OUTCOME_ART.bridgeTemporary, HISTORICAL_OUTCOME_ART.bridgeRestored,
+    HISTORICAL_OUTCOME_ART.bridgeToll];
+  for (const [index, option] of dossier.options.entries()) {
+    const pending = { id: `bridge-${index}`, due: 4, source: option.text, event: dossier.title, ...option.later };
+    const state: GameState = { ...base, lastTurn: { ...report, matured: [], scheduled: [pending] }, pending: [pending] };
+    assert.equal(historicalResultArt(state, 'bridge'), HISTORICAL_SCENE_ART.bridge);
+    const completed: GameState = { ...state, lastTurn: { ...report, matured: [pending], scheduled: [] }, pending: [] };
+    assert.deepEqual(historicalResultArt(completed, 'bridge'), expected[index]);
+    assert.deepEqual(historicalResultArt(JSON.parse(JSON.stringify(completed)), 'bridge'), expected[index]);
+    const unrelated: GameState = { ...completed, lastTurn: { ...report, matured: [{ ...pending, event: 'Другое дело' }] } };
+    assert.equal(historicalResultArt(unrelated, 'bridge'), HISTORICAL_SCENE_ART.bridge);
+  }
+});
+
+test('both ambassador and editor genders have art without assigning a predecessor portrait to a successor', async () => {
+  const base = await fresh();
+  for (const [id, name] of [['amb_eu', 'Антон Ладин'], ['journalist', 'Нина Ладин']]) {
+    const figure = base.keyFigures.find(person => person.id === id)!;
+    const state = { ...base, keyFigures: [{ ...figure, name }] };
+    const art = HISTORICAL_ADDITIONAL_FIGURE_ART[id as keyof typeof HISTORICAL_ADDITIONAL_FIGURE_ART];
+    assert.equal(historicalPortraitArt(state, name, { [id]: name }), art.src);
+    assert.equal(historicalPortraitArt(JSON.parse(JSON.stringify(state)), name, { [id]: name }), art.src);
+    assert.equal(historicalPortraitArt(state, name, { [id]: 'Предшественник' }), null);
+  }
 });
 
 test('historical cards and exact bills resolve their own scenes while the animated opening stays intact', async () => {
