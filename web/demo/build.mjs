@@ -49,12 +49,20 @@ for (const folder of ["scenes", "figures", "gemini-next"]) {
   }
 }
 
-const html = `<meta name="viewport" content="width=device-width, initial-scale=1">
+const html = `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Суверен</title>
-<link rel="stylesheet" href="${fonts}">
+<link rel="stylesheet" href="${fonts}" media="print" onload="this.media='all'">
 <style>${css}\n${componentCss}</style>
+</head>
+<body>
 <div id="root"></div>
 <script>window.__SOVEREIGN_ART__=${JSON.stringify(art)};${js}</script>
+</body>
+</html>
 `;
 
 await mkdir(path.join(here, "dist"), { recursive: true });

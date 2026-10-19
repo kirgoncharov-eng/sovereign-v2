@@ -65,9 +65,10 @@ export function PresidentialCouncil({ gs, children }) {
   return <section className={styles.council} aria-label="Разговор в кабинете">
     <p className={styles.eyebrow}>Закрытое совещание · без стенографиста</p>
     <h3>Что именно мы подпишем?</h3>
-    <div className={styles.tabs} aria-label="Обсудить вариант">
-      {choices.map((choice, position) => <button key={choice.id} type="button" aria-pressed={index === position}
-        onClick={() => setSelected(position)}>{position + 1}. {choice.text}</button>)}
+    <div className={styles.tabs} role="group" aria-label="Обсудить вариант">
+      {choices.map((choice, position) => <button key={choice.id} type="button"
+        aria-pressed={index === position} aria-label={`Обсудить вариант ${position + 1}: ${choice.text}`}
+        onClick={() => setSelected(position)}>Вариант {position + 1}</button>)}
     </div>
     <SpokenExchange key={index} lines={presidentialConversation(gs, index)} staged={hasAuthoredDebate(gs, index)}/>
     {children(choices[index], index)}

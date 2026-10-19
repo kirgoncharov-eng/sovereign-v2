@@ -26,12 +26,13 @@ const shot = name => join(OUT, `${name}.png`);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 async function openGame(page) {
-  if (URL_ARG) return page.goto(URL_ARG);
-  // Демо — фрагмент страницы без обёртки; оборачиваем, чтобы мобильный viewport работал как в Telegram.
+  if (URL_ARG) return page.goto(URL_ARG, { waitUntil: "domcontentloaded" });
+  // Проверяем настоящий документ демо: обёртка скрыла бы ошибки doctype и кодировки.
   const demo = readFileSync(resolve("demo/dist/sovereign.html"), "utf8");
   const file = join(OUT, "game.html");
-  writeFileSync(file, `<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"></head><body>${demo}</body></html>`);
-  return page.goto(`file://${file}`);
+  writeFileSync(file, demo);
+  // Доступность игры проверяют её кнопки, а не завершение необязательных загрузок шрифтов.
+  return page.goto(`file://${file}`, { waitUntil: "domcontentloaded" });
 }
 
 // Какое дело на столе: от этого зависит, как его пройти.
@@ -76,11 +77,13 @@ async function decide(page, kind) {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 400, height: 860 }, hasTouch: true, isMobile: true });
 const errors = [];
+const layoutProblems = new Set();
 page.on("pageerror", e => errors.push(e.message));
 page.on("console", m => { if (m.type() === "error" && !/ERR_CERT|net::|Failed to load resource/.test(m.text())) errors.push(m.text()); });
 
 const started = Date.now();
 await openGame(page);
+const documentMode = await page.evaluate(() => ({ mode: document.compatMode, charset: document.characterSet }));
 await wait(900);
 await page.screenshot({ path: shot("0-title") });
 await page.getByRole("button", { name: /начать игру/i }).first().tap();
@@ -99,6 +102,17 @@ for (let t = 1; t <= TURNS; t++) {
   const kind = await kindOf(page);
   timeline.push(`${t} · ${kind} · ${(await titleOf(page)).slice(0, 50)}`);
   if (t === 1) deskOnTurn1 = await deskVisible(page);
+  const councilOverlaps = await page.evaluate(() => {
+    const topics = document.querySelector('[aria-label="Обсудить вариант"]');
+    if (!topics) return false;
+    const bounds = topics.getBoundingClientRect();
+    return [...topics.querySelectorAll("button")].some(button => {
+      const rect = button.getBoundingClientRect();
+      return rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1
+        || rect.left < bounds.left - 1 || rect.right > bounds.right + 1;
+    });
+  });
+  if (councilOverlaps) layoutProblems.add("переключатели совета выходят за границы блока и перекрывают реплики");
   if (SHOT_TURNS.includes(t)) await page.screenshot({ path: shot(`turn-${t}`), fullPage: true });
   await decide(page, kind);
   if (firstDecisionMs === null) firstDecisionMs = Date.now() - started;
@@ -121,12 +135,15 @@ await page.screenshot({ path: shot("end"), fullPage: true });
 await browser.close();
 
 const problems = [
+  ...(documentMode.mode !== "CSS1Compat" ? ["страница открылась в устаревшем режиме вёрстки"] : []),
+  ...(documentMode.charset.toUpperCase() !== "UTF-8" ? ["кодировка страницы отличается от UTF-8"] : []),
   ...errors.map(e => `ошибка в консоли: ${e}`),
+  ...layoutProblems,
   ...(stuck ? ["партия застряла"] : []),
   ...(deskOnTurn1 ? ["на первом ходу виден стол — первая сессия перегружена"] : []),
   ...(firstDecisionMs !== null && firstDecisionMs > FIRST_DECISION_LIMIT_MS ? [`первое решение через ${Math.round(firstDecisionMs / 1000)} с`] : []),
 ];
-const summary = { turns: timeline.length, ended, firstDecisionMs, deskOnTurn1, problems, timeline };
+const summary = { turns: timeline.length, ended, firstDecisionMs, deskOnTurn1, documentMode, problems, timeline };
 writeFileSync(join(OUT, "summary.json"), JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));
 process.exit(problems.length ? 1 : 0);

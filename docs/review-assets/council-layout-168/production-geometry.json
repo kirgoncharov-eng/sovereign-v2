@@ -1,0 +1,86 @@
+[
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "inside": true
+      },
+      {
+        "height": 44,
+        "inside": true
+      },
+      {
+        "height": 44,
+        "inside": true
+      }
+    ],
+    "charset": "UTF-8",
+    "conversationClear": true,
+    "mode": "CSS1Compat",
+    "overflow": false,
+    "width": 320
+  },
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "inside": true
+      },
+      {
+        "height": 44,
+        "inside": true
+      },
+      {
+        "height": 44,
+        "inside": true
+      }
+    ],
+    "charset": "UTF-8",
+    "conversationClear": true,
+    "mode": "CSS1Compat",
+    "overflow": false,
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "inside": true
+      },
+      {
+        "height": 44,
+        "inside": true
+      },
+      {
+        "height": 44,
+        "inside": true
+      }
+    ],
+    "charset": "UTF-8",
+    "conversationClear": true,
+    "mode": "CSS1Compat",
+    "overflow": false,
+    "width": 400
+  },
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "inside": true
+      },
+      {
+        "height": 44,
+        "inside": true
+      },
+      {
+        "height": 44,
+        "inside": true
+      }
+    ],
+    "charset": "UTF-8",
+    "conversationClear": true,
+    "mode": "CSS1Compat",
+    "overflow": false,
+    "width": 1280
+  }
+]
