@@ -189,7 +189,7 @@ export function presidentialConversation(state: GameState, index: number) {
     ];
     return lines.flatMap(([role, text]) => {
         const person = state.advisors.find(advisor => advisor.id === role);
-        return person ? [{ name: person.name, role: person.role, text }] : [];
+        return person ? [{ id: person.id, name: person.name, role: person.role, text }] : [];
     });
 }
 

@@ -48,6 +48,7 @@ test('conversation uses current advisors and refers to the selected proposal acr
             assert.equal(hasAuthoredDebate(cardState, index), true);
             assert.equal(lines.length, 3, `${card.id} choice ${index} should have 3 lines`);
             assert.ok(lines.every(line => state.advisors.some(advisor => advisor.name === line.name)));
+            assert.ok(lines.every(line => ['economist', 'strategist', 'security', 'diplomat'].includes(line.id)));
             assert.notEqual(lines[0].name, lines[1].name, `${card.id} choice ${index} objection must come from another advisor`);
         }
     }
