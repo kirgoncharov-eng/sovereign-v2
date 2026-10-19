@@ -595,6 +595,17 @@ button:focus-visible {
 .sv-letter-head span { font-size:13px; letter-spacing:.08em; color:var(--tx3, #6b604c); }
 .sv-letter-head strong { font-size:16px; color:var(--txt); }
 .sv-letter p { margin:0; font-family:var(--font-serif), "PT Serif", Georgia, serif; font-size:16px; line-height:1.55; color:var(--txt); }
+.sv-letter-waiting { font-style:normal; color:var(--gold, #8a6d2f); }
+/* Резолюция на полях (#156): две пометки под письмом, цена видна до выбора. */
+.sv-letter-replies { display:grid; gap:8px; margin-top:12px; padding-top:10px; border-top:1px dashed var(--bdr2, #b9ab8c); }
+.sv-letter-replies button {
+  display:grid; gap:6px; justify-items:start; min-height:44px; padding:10px 12px; text-align:left;
+  background:transparent; border:1px solid var(--bdr2, #b9ab8c); color:var(--txt); cursor:pointer;
+}
+.sv-letter-replies button strong { font-size:16px; font-weight:600; }
+.sv-letter-replies small { font-size:14px; color:var(--tx3, #6b604c); }
+.sv-letter-free, .sv-letter-relation { font-size:14px; color:var(--tx2, #4f4636); }
+.sv-letter-answer { margin-top:10px !important; font-style:italic; color:var(--tx2, #4f4636) !important; }
 @media (prefers-reduced-motion: reduce) { .sv-letter, .sv-letter:nth-child(even) { transform:none; } }
 
 /* Советник: имя нажимается, под ним — карточка */

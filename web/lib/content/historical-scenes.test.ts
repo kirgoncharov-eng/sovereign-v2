@@ -19,8 +19,8 @@ const sources = [
   ...PRESS_QUESTIONS.flatMap(question => [question.text, ...question.answers.map(answer => answer.text)]),
   ...ARCS.flatMap(arc => arc.beats.flatMap(beat => beat.variants.flatMap(variant => [variant.title, variant.description,
     ...variant.choices.flatMap(choice => [choice.ok, choice.fail ?? ''])]))),
-  ...new Set(STORIES.flatMap(story => story.steps.flatMap(step => [true, false].map(crisis =>
-    step.text({ crisis, mood: 'neutral', res: {} } as unknown as StoryContext) ?? '')))),
+  ...new Set(STORIES.flatMap(story => story.steps.flatMap(step => [true, false].flatMap(crisis =>
+    (['warm', 'cold', 'neutral'] as const).map(mood => step.text({ crisis, mood, res: {} } as unknown as StoryContext) ?? ''))))),
 ];
 const slots = (text: string) => [...text.matchAll(/\{[^{}]+\}/g)].map(match => match[0]).sort();
 async function fresh(country = ALTERNATE_COUNTRY) {
@@ -29,7 +29,7 @@ async function fresh(country = ALTERNATE_COUNTRY) {
 }
 
 test('scene keys match canonical content and preserve slots and surrounding chapters', () => {
-  assert.equal(HISTORICAL_SCENES.length, 20);
+  assert.equal(HISTORICAL_SCENES.length, 25);
   assert.equal(new Set(HISTORICAL_SCENES.map(scene => scene.source)).size, HISTORICAL_SCENES.length);
   for (const scene of HISTORICAL_SCENES) {
     assert.equal(sources.filter(source => source.includes(scene.source)).length, 1, scene.id);

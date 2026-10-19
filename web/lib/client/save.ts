@@ -81,7 +81,10 @@ const report = (v: unknown) => isObj(v) && fields(v, ["headline", "narrative", "
   && (v.election === null || election(v.election))
   && (!v.document || isObj(v.document) && typeof v.document.title === "string" && strings(v.document.lines))
   && (!v.press || rows(v.press, p => fields(p, ["outlet", "headline"])))
-  && (!v.letters || rows(v.letters, l => fields(l, ["kind", "from", "text", "story"])))
+  && (!v.letters || rows(v.letters, l => fields(l, ["kind", "from", "text", "story"])
+    && (l.hero === undefined || typeof l.hero === "string")
+    && (l.replies === undefined || rows(l.replies, r => fields(r, ["id", "text"]) && isObj(r.cost)
+      && (r.relation === undefined || integer(r.relation, -100, 100))))))
   && (v.succession === undefined || rows(v.succession, entry => fields(entry, ["figure", "name"])))
   && (!v.forecasts || strings(v.forecasts))
   && (!v.leaks || strings(v.leaks))
@@ -119,6 +122,8 @@ function validState(s: Obj): boolean {
   if (s.staffing !== undefined && !(isObj(s.staffing) && (s.staffing.lastTurn === null || integer(s.staffing.lastTurn))
     && strings(s.staffing.taken) && (s.staffing.receipt === undefined || typeof s.staffing.receipt === "string"))) return false;
   if (s.world !== undefined && !validLivingWorld(s.world)) return false;
+  if (s.storyReplies !== undefined && !(isObj(s.storyReplies) && Object.values(s.storyReplies).every(answer => isObj(answer)
+    && typeof answer.reply === "string" && integer(answer.turn) && (answer.hero === undefined || typeof answer.hero === "string")))) return false;
   if (s.dailyMoves !== undefined && (!validDailyMoves(s.dailyMoves) || s.dailyMoves.length !== s.turn)) return false;
   return !s.verdict || fields(s.verdict, ["verdict", "title", "epitaph", "rating"]);
 }
