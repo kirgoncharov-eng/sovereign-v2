@@ -18,7 +18,8 @@ export const ADVISOR_REVIEW_ART: Record<string, string> = {
 
 export async function createAdvisorArtScene(country = "Украина"): Promise<AdvisorArtScene> {
   if (!COUNTRIES[country]) throw new Error("Неизвестная страна");
-  const seed = 1;
+  // Фиксированная сцена приёмки: после исправления лояльности прежний маршрут 1978 не даёт нужную пару.
+  const seed = country === ALTERNATE_COUNTRY ? 5 : 1;
   const intro = await classicApi.setup(country, "coalition", "pragmatist", seed);
   let state = createInitialState(country, "coalition", "pragmatist", intro, seededRandom(seed));
 

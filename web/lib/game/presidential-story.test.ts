@@ -7,6 +7,9 @@ import { HISTORICAL_DEBATES, hasAuthoredDebate, hasPresidentialCouncil, presiden
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { parseSave } from '../client/save.ts';
 import { SAVE_VERSION } from './data.ts';
+import { advisorNews, debate, forecastReview } from './forecasts.ts';
+import { loyaltyOf } from './engine.ts';
+import type { GameState } from './types.ts';
 
 async function firstCase(seed = 21) {
     const intro = await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', seed);
@@ -82,7 +85,17 @@ test('all historical conversations retain exact resolutions and their outcomes a
                 const directReport = await classicApi.consequence(state, choice.id);
                 const councilReport = await classicApi.consequence(loaded, choice.id);
                 assert.deepEqual(councilReport, directReport);
+                const index = state.currentEvent!.choices.findIndex(candidate => candidate.id === choice.id);
+                assertAuthoredFeedback(state, index);
                 const direct = resolveTurn(state, choice.id, directReport);
+                assert.deepEqual(directReport.forecasts ?? [], []);
+                const lines = presidentialConversation(state, index);
+                for (const advisor of direct.advisors) {
+                    const before = state.advisors.find(previous => previous.id === advisor.id)!;
+                    const expected = advisor.name === lines[0].name ? 3 : advisor.name === lines[1].name ? -5 : 0;
+                    assert.equal(loyaltyOf(advisor) - loyaltyOf(before), expected);
+                    assert.deepEqual(advisor.record, before.record);
+                }
                 const discussed = resolveTurn(loaded, choice.id, councilReport);
                 assert.deepEqual(discussed.resources, direct.resources);
                 assert.deepEqual(discussed.factions, direct.factions);
@@ -103,4 +116,45 @@ test('legacy councils are untouched and scripted special cases cannot be replace
     assert.equal(hasPresidentialCouncil(conveneCouncil(state, oldCouncil)), false);
     assert.equal(eraText('Командир ОМОНа'), 'Командир резерва полиции');
     assert.equal(eraText('Вторая инаугурация проходит тише первой'), 'Новая инаугурация проходит тише первой');
+});
+
+function assertAuthoredFeedback(state: GameState, index: number) {
+    const lines = presidentialConversation(state, index);
+    const choice = state.currentEvent!.choices[index];
+    for (const failed of [false, true]) {
+        const updates = advisorNews(state, choice.id, failed);
+        assert.deepEqual(forecastReview(state, choice.id, failed), []);
+        assert.equal(updates.length, 2);
+        for (const update of updates) {
+            const advisor = state.advisors.find(person => person.id === update.id)!;
+            assert.equal(update.loyalty, advisor.name === lines[0].name ? 3 : -5);
+            assert.equal(update.reason, advisor.name === lines[0].name ? 'followed' : 'overruled');
+            assert.equal(update.right + update.wrong, 0);
+        }
+    }
+}
+
+test('first factory proposal rewards its actual economist and respects loyalty bounds and absent advisors', async () => {
+    for (const seed of [1, 21, 42]) {
+        const state = await firstCase(seed);
+        for (let index = 0; index < state.currentEvent!.choices.length; index++) assertAuthoredFeedback(state, index);
+        const choice = state.currentEvent!.choices[0];
+        const bounded = { ...state, advisors: state.advisors.map(advisor => ({
+            ...advisor, loyalty: advisor.id === 'economist' ? 99 : advisor.id === 'strategist' ? 2 : 60,
+        })) };
+        const updates = advisorNews(bounded, choice.id, false);
+        assert.equal(updates.find(update => update.id === 'economist')!.loyalty, 1);
+        assert.equal(updates.find(update => update.id === 'strategist')!.loyalty, -2);
+        const absent = { ...state, advisors: state.advisors.filter(advisor => advisor.id !== 'economist') };
+        assert.deepEqual(advisorNews(absent, choice.id, false).map(update => update.id), ['strategist']);
+        assert.deepEqual(advisorNews(state, 'unknown-choice', false), []);
+        const fallback = { ...state, currentEvent: { ...state.currentEvent!, card: 'generic-resolution' } };
+        assert.deepEqual(advisorNews(fallback, choice.id, false), [], 'neutral fallback has no endorsed policy');
+        assert.deepEqual(forecastReview(fallback, choice.id, false), []);
+        const daily = { ...state, daily: '2026-10-19' };
+        assert.ok(debate(daily), 'daily retains its generic debate');
+        for (const country of ['Беларусь', 'Украина', 'Грузия', 'Армения', 'Казахстан', 'Молдова']) {
+            assert.ok(debate({ ...state, country }), country);
+        }
+    }
 });

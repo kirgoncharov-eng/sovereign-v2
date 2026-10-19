@@ -170,12 +170,18 @@ export function hasAuthoredDebate(state: GameState, index: number): boolean {
         && (!!HISTORICAL_DEBATES[state.currentEvent.card ?? '']?.[index] || hasInvestigationDebate(state));
 }
 
+// Один источник реплик для разговора и его последствий: предложение, возражение, ответ.
+export function authoredDebate(state: GameState, index: number): DebateExchange | undefined {
+    const choice = state.currentEvent?.choices[index];
+    if (!choice) return undefined;
+    return hasInvestigationDebate(state) ? INVESTIGATION_DEBATES[choice.text]
+        : state.country === ALTERNATE_COUNTRY ? HISTORICAL_DEBATES[state.currentEvent?.card ?? '']?.[index] : undefined;
+}
+
 export function presidentialConversation(state: GameState, index: number) {
     const choice = state.currentEvent?.choices[index];
     if (!choice) return [];
-    const cardId = state.currentEvent?.card;
-    const authored = hasInvestigationDebate(state) ? INVESTIGATION_DEBATES[choice.text]
-        : state.country === ALTERNATE_COUNTRY && cardId ? HISTORICAL_DEBATES[cardId]?.[index] : undefined;
+    const authored = authoredDebate(state, index);
     const expert = ADVISOR_ROLES.find(role => role.domain.some(tag => choice.tags.includes(tag)))?.id ?? 'strategist';
     const lines: ReadonlyArray<readonly [string, string]> = authored ?? [
         [expert, `Перед нами конкретная резолюция: «${choice.text}». ${choice.hint || 'Сначала разберём её цену.'}`],
