@@ -75,7 +75,10 @@ const HistoricalArtContext = createContext(null);
 function HistoricalArtProvider({ state, children }) {
   const runKey = state?.country === ALTERNATE_COUNTRY ? `sovereign.art-roster.${state.seed}` : null;
   const [bound, setBound] = useState(null);
-  const rosterText = JSON.stringify((state?.keyFigures ?? []).map(figure => [figure.id, figure.name]));
+  const rosterText = JSON.stringify([
+    ...(state?.keyFigures ?? []).map(figure => [figure.id, figure.name]),
+    ...(state?.advisors ?? []).map(advisor => [`advisor:${advisor.id}`, advisor.name]),
+  ]);
   useEffect(() => {
     if (!runKey) return;
     let roster;
