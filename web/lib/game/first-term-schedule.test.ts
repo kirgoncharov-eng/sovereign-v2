@@ -30,7 +30,7 @@ test('30 сроков: авторские дела без общих карто�
       assert.ok(!cardId?.startsWith('law:') || /alt_export_guarantee|alt_open_orders/.test(cardId), `${seed}/${turn}: общий закон`);
       assert.ok(event.beat || event.special || event.budget || cardId?.startsWith('law:')
         || ALTERNATE_EVENTS.some(card => card.id === cardId), `${seed}/${turn}: чужое дело ${cardId}`);
-      if (turn === 5) assert.equal(cardId, 'alt_fuel');
+      if (turn === 5) assert.ok(['alt_fuel', ...versionsOf('alt_fuel')].includes(cardId!), `${seed}: ${cardId}`);
       // Ход 13 — указ о больницах или его версия по положению дел (#214); проект больниц открывается в любом случае.
       if (turn === 13) assert.ok(['alt_district', ...versionsOf('alt_district')].includes(cardId!), `${seed}: ${cardId}`);
       if (turn === 20) assert.equal(cardId, 'alt_archive');

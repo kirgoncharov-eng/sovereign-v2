@@ -200,6 +200,7 @@ export function cardAvailable(card: EventCard, state: GameState): boolean {
   if (w.pact && !hasPact(state, w.pact)) return false;
   if (w.rival && mostHostile(state.factions)?.bloc !== w.rival) return false;
   if (w.ally && mostLoyal(state.factions)?.bloc !== w.ally) return false;
+  if (w.after && !state.history.some(entry => w.after!.includes(entry.choice))) return false;
   return true;
 }
 
@@ -701,8 +702,12 @@ export function callEvent(state: GameState): SpecialEvent | null {
   const facOf = (f: Figure) => state.factions.find(x => x.id === f.faction);
   const pool = state.keyFigures.filter(f => f.name !== state.arc?.target && !called.has(f.id) && facOf(f));
   if (!pool.length) return null;
+  // Второй звонок первого срока 1978 года — от лагеря, который сейчас против президента сильнее всех (#214).
+  const rival = state.country === ALTERNATE_COUNTRY && !state.daily && state.turn === 16 && slot === 17
+    ? [...state.factions].sort((a, b) => a.relation - b.relation).find(group => pool.some(f => f.faction === group.id)) : undefined;
   const fig = k === 0
     ? [...pool].sort((a, b) => a.relation - b.relation)[0]
+    : rival ? pool.find(f => f.faction === rival.id)!
     : [...pool].sort((a, b) => hashSeed(state.seed, "call", a.id) - hashSeed(state.seed, "call", b.id))[0];
   const fac = facOf(fig)!;
   const slots = { name: fig.name, role: lower(fig.role), camp: fac.name };
@@ -907,7 +912,11 @@ function buildFirstTermEvent(state: GameState): GameEvent & { cardId?: string } 
   const unused = available.filter(card => !state.usedEvents.includes(card.id) && !replaced.includes(card.id));
   const ready = unused.filter(card => (card.id !== 'alt_fuel' || turn >= 5)
     && (card.id !== 'alt_district' || turn >= 13) && (card.id !== 'alt_archive' || turn >= 20));
-  const base = ready.find(card => card.id === preferred)
+  // Ход 4 (#214): если сезон допускает оба дела, первым приходит то, чья опора просела сильнее —
+  // письмо о пустом магазине при упавшей легитимности, закупочная цена при пустой казне.
+  const sooner = turn === 4 && ready.some(card => card.id === 'alt_radio') && ready.some(card => card.id === preferred)
+    && state.resources.internalLegitimacy < state.resources.economy ? 'alt_radio' : preferred;
+  const base = ready.find(card => card.id === sooner)
     ?? ready.find(card => card.id === 'alt_radio') ?? ready.find(card => !card.when?.versionOf)
     ?? available.find(card => card.id === preferred) ?? available.find(card => !card.when?.versionOf);
   // Положение дел в стране выбирает версию дела (#214): первая подходящая версия, иначе само дело.

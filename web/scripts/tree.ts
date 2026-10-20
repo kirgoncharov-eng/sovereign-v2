@@ -22,16 +22,21 @@ const STYLES: Record<string, ActionTag[]> = {
   delay: ["delay"],
   austerity: ["austerity", "investment"],
   patriot: ["patriotism", "pro_russia", "security"],
+  random: [],
 };
 
 // Стиль задаёт предпочтение, но вариант, который роняет опору ниже кризиса, бот не берёт, если есть другой.
+// Случайный стиль (без тегов) выбирает наугад среди таких же безопасных вариантов — как игрок без системы.
 function choose(state: GameState, choices: Choice[], style: ActionTag[]): Choice {
-  const score = (choice: Choice) => {
+  const breaks = (choice: Choice) => {
     const delta = choiceEffects(state, choice).resources as Record<string, number>;
-    const breaks = RESOURCE_KEYS.filter(key => state.resources[key] + (delta[key] ?? 0) < CRISIS).length;
-    const liked = choice.tags.filter(tag => style.includes(tag)).length;
-    return liked * 3 - breaks * 5;
+    return RESOURCE_KEYS.filter(key => state.resources[key] + (delta[key] ?? 0) < CRISIS).length;
   };
+  if (!style.length) {
+    const safe = choices.filter(choice => breaks(choice) === Math.min(...choices.map(breaks)));
+    return safe[Math.floor(seededRandom(state.seed + state.turn * 7919)() * safe.length)];
+  }
+  const score = (choice: Choice) => choice.tags.filter(tag => style.includes(tag)).length * 3 - breaks(choice) * 5;
   return choices.reduce((best, choice) => (score(choice) > score(best) ? choice : best));
 }
 
@@ -41,6 +46,7 @@ type Run = { seed: number; style: string; steps: Step[]; turn: number };
 function eventKey(event: GameState["currentEvent"] & { cardId?: string }): string {
   if (!event) return "—";
   if (event.beat) return `эпизод: ${event.title}`;
+  if (event.call && !event.call.negotiation) return `звонок: ${event.call.figure}`;
   if (event.special?.kind) return `${event.special.kind}: ${event.title}`;
   return event.title;
 }

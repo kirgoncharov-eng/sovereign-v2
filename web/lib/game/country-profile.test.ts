@@ -39,3 +39,14 @@ test('версия дела приходит только в первом сро
   assert.equal(cardAvailable(card, { ...base, daily: '2026-10-26' }), false, '«Дело дня»');
   assert.equal(cardAvailable(card, withRelation(base, 'business', 95)), false, 'палата не против');
 });
+
+test('версия может прийти после решения: прежний выбор приводит следующее дело', async () => {
+  const card: EventCard = {
+    id: 'alt_probe', countries: [ALTERNATE_COUNTRY], source: 'Проверка', title: 'Проверка', description: '',
+    when: { versionOf: 'alt_standards', after: ['Отдать заводам заказ на ремонт путей'] }, choices: [],
+  };
+  const base = { ...(await fresh()), turn: 14 };
+  assert.equal(cardAvailable(card, base), false);
+  const signed = { ...base, history: [{ year: 1978, title: 'Палата держит вагоны', choice: 'Отдать заводам заказ на ремонт путей', headline: '', historianNote: '' }] };
+  assert.equal(cardAvailable(card, signed), true);
+});
