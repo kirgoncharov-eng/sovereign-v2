@@ -3,6 +3,13 @@ import { ALTERNATE_COUNTRY } from './alternate-world.ts';
 import { traitOf } from './people.ts';
 import type { Choice, GameEvent, GameState, ResourceDelta } from './types.ts';
 
+const JOURNALIST_HEADLINES: Record<string, string> = {
+  a: 'Президент приказал освободить задержанного корреспондента',
+  b: 'Президент поручил проверить задержание корреспондента с участием редакции',
+  c: 'Президент поручил ведомству проверить задержание корреспондента',
+  d: 'Президент отказался вмешиваться в задержание корреспондента',
+};
+
 export const JOURNALIST_CALL_TITLE = 'Корреспондент не вернулся в редакцию';
 
 export function journalistContext(state: GameState) {
@@ -55,7 +62,8 @@ export function journalistCall(state: GameState, slot: number, called: Set<strin
     scene: string, label: string, report: string, laterRes: ResourceDelta,
   ): Choice => ({
     id, text, hint, tags: ['dialogue'], politicalTags: id === 'd' ? ['security'] : ['dialogue'],
-    resolvesCrisis: null, scene, sceneFail: scene, headline: text, headlineFail: text,
+    resolvesCrisis: null, scene, sceneFail: scene,
+    headline: JOURNALIST_HEADLINES[id], headlineFail: JOURNALIST_HEADLINES[id],
     deal: {
       pure: true, figure: caller.id, figureRel: editor, factionRel: relations(editor, police), res,
       later: { turns: 1, label, res: laterRes, story: report },

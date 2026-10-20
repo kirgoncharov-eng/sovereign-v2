@@ -2,6 +2,7 @@ import { historicalSceneText } from "../content/historical-scenes.ts";
 import { ALTERNATE_COUNTRY, ALTERNATE_PARTIES, ALTERNATE_SPEECHES, ALTERNATE_SHARED_CARDS, ALTERNATE_SHARED_LAWS, campaignCopy } from "./alternate-world.ts";
 import { historicalEcho } from '../content/historical-echoes.ts';
 import { JOURNALIST_CALL_TITLE, journalistCall } from './journalist-call.ts';
+import { HISTORICAL_CALL_TOPICS, historicalCallTopic } from '../content/historical-calls.ts';
 import { pensionCall } from './pension-call.ts';
 import { withEvidenceChoice } from './private-evidence.ts';
 import { mandatePublicEvent } from './minister-public.ts';
@@ -698,6 +699,8 @@ export function callEvent(state: GameState): SpecialEvent | null {
     : [...pool].sort((a, b) => hashSeed(state.seed, "call", a.id) - hashSeed(state.seed, "call", b.id))[0];
   const fac = facOf(fig)!;
   const slots = { name: fig.name, role: lower(fig.role), camp: fac.name };
+  const historicalTopic = state.country === ALTERNATE_COUNTRY && !state.daily && state.turn === 16 && slot === 17
+    ? HISTORICAL_CALL_TOPICS[fac.bloc] : undefined;
   const selectedDemand = cycle(CALL_DEMANDS[fac.bloc], state.seed, `demand${fig.id}`, k);
   const demand = typeof selectedDemand === 'string' ? selectedDemand : state.laws?.some(l => l.id === selectedDemand.law) ? selectedDemand.text : selectedDemand.otherwise;
   const hang: Choice = {
@@ -717,7 +720,7 @@ export function callEvent(state: GameState): SpecialEvent | null {
     choices: [{ ...hang, id: "a" }, hang],
     council: null,
     special: { kind: "call", figure: fig.id, faction: fac.id },
-    call: { figure: fig.id, trait: traitOf(state.seed, fig, fac.bloc), demand: fill(demand, state) },
+    call: { figure: fig.id, trait: traitOf(state.seed, fig, fac.bloc), demand: historicalTopic?.demand ?? fill(demand, state) },
     randomEvent: null,
   };
 }
@@ -752,15 +755,34 @@ export function callChoice(state: GameState, approach: Approach, ending: (typeof
     `Вы ${APPROACH_SAY[approach]}. ${reply}.`,
     fill(nth(T.outcome[`${ending}_${ok ? "ok" : "no"}`], calendarEpisode(state, CALL_TURNS)), state, slots),
   ].join(" ");
-  const head = fill(T.heads[ending], state, slots);
+  const topic = state.country === ALTERNATE_COUNTRY && !state.daily && state.turn === 16
+    ? historicalCallTopic(fac.bloc, call.demand) : null;
+  const subjectOutcome = topic && (ending === 'deal'
+    ? `${topic.agreement} ${ok
+      ? 'Собеседник принимает поручение без новых условий.'
+      : 'Собеседник не принимает ваших доводов. Чтобы получить согласие, вы тратите больше политического влияния и ресурсов.'}`
+    : ending === 'refuse'
+      ? `${topic.refusal} ${ok ? 'Собеседник принимает отказ без новых требований.' : 'Разговор заканчивается ссорой.'}`
+      : `Вы берёте время подумать, согласовывать ли ${topic.subject}. Никакой уступки пока нет. Собеседник ждёт решения, а не нового разговора.`);
+  const historicalScene = topic ? [
+    `${fig.name} начинает без приветствия: ${call.demand}`,
+    `Вы ${APPROACH_SAY[approach]}. ${reply}.`, subjectOutcome,
+  ].join(' ') : null;
+  const head = topic
+    ? ending === 'deal' ? `${fig.name} и президент согласовали ${topic.subject}`
+      : ending === 'refuse' ? `${fig.name} и президент не согласовали ${topic.subject}`
+      : `${fig.name} ждёт решения: согласовать ли ${topic.subject}`
+    : fill(T.heads[ending], state, slots);
   return {
     id: "p", text: "Разговор по защищённой линии", hint: "", resolvesCrisis: null,
     tags: [ending === "deal" ? "elite_deal" : ending === "refuse" ? "security" : "delay"],
     deal: {
       pure: true, figure: fig.id, figureRel: figRel, factionRel: table.fac ? { [fac.id]: table.fac } : undefined, res,
-      ...(ending === "later" ? { later: { turns: 2, label: T.later.label, res: { politicalCapital: -2 }, story: fill(T.later.story, state, slots) } } : {}),
+      ...(ending === "later" ? { later: { turns: 2, label: T.later.label, res: { politicalCapital: -2 }, story: topic
+        ? `${fig.name} напоминает: вы обещали подумать, согласовывать ли ${topic.subject}. Поручения до сих пор нет.`
+        : fill(T.later.story, state, slots) } } : {}),
     },
-    scene, sceneFail: scene, headline: head, headlineFail: head,
+    scene: historicalScene ?? scene, sceneFail: historicalScene ?? scene, headline: head, headlineFail: head,
   };
 }
 const APPROACH_SAY: Record<Approach, string> = {
