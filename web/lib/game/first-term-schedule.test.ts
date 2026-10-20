@@ -69,3 +69,10 @@ test('программа требует подписи; закон помнит 
   assert.equal(firstTermLaw({...advance, history: [{...advance.history[0], success: false}]}), 'alt_open_orders');
   assert.equal(scheduledFirstTerm({...initial, daily:'2026-10-15'}), false);
 });
+
+// #219: версии дел 10-го хода приходят в апреле–июне — нового урожая ещё нет.
+test('версии весенних дел не ссылаются на новый урожай', () => {
+    for (const card of versionsOf('alt_rail').map(id => ALTERNATE_EVENTS.find(event => event.id === id)!)) {
+        assert.doesNotMatch(card.description, /нового урожая/, card.id);
+    }
+});
