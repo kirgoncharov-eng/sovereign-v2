@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { REPUBLIC_PLACES, presidentialConversation, hasAuthoredDebate } from "@/lib/game/presidential-story.ts";
-import { artSource, HISTORICAL_ADVISOR_ART, historicalPortraitArt } from "@/lib/client/historical-art.ts";
+import { artSource, historicalPortraitArt } from "@/lib/client/historical-art.ts";
 import styles from "./presidential.module.css";
 import { pageFx } from '@/lib/client/fx.ts';
 
@@ -45,7 +45,7 @@ function SpokenExchange({ gs, lines, staged }) {
   return <>
     <div className={styles.conversation} aria-live="polite" aria-relevant="additions">
       {lines.slice(0, visible).map((line, position) => {
-        const portraitSrc = (line.id && HISTORICAL_ADVISOR_ART[line.id]?.src) || (gs ? historicalPortraitArt(gs, line.name) : null);
+        const portraitSrc = gs ? historicalPortraitArt(gs, line.name) : null;
         return (
           <div className={`${styles.line} ${styles.spoken}`} key={position}>
             <div className={styles.speaker}>
