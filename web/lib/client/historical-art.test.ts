@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 import { existsSync, statSync } from 'node:fs';
 import { HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, historicalEventArt, historicalResultArt,
   historicalPortraitArt, HISTORICAL_OUTCOME_ART, HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART,
-  historicalEndingArt } from './historical-art.ts';
+  HISTORICAL_LEADER_ART, LEADER_PORTRAIT_IDS, historicalEndingArt } from './historical-art.ts';
 import { MANAGEMENT_DOSSIERS } from '../content/management.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { sceneOf } from '../content/scene-map.ts';
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES } from '../game/alternate-world.ts';
-import { classicApi } from '../game/classic.ts';
-import { createInitialState, resolveTurn, seededRandom, startEvent } from '../game/engine.ts';
+import { classicApi, customizeLeader, freshLeaderName } from '../game/classic.ts';
+import { createInitialState, isFemaleName, resolveTurn, seededRandom, startEvent } from '../game/engine.ts';
+import { parseSave } from './save.ts';
+import { SAVE_VERSION, START_RES, BIO_RES } from '../game/data.ts';
 import type { GameState } from '../game/types.ts';
 
 async function fresh() {
@@ -17,18 +19,18 @@ async function fresh() {
     await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', 21), seededRandom(21));
 }
 
-test('all 42 mapped WebP files exist within the image budgets', () => {
+test('all 47 mapped WebP files exist within the image budgets', () => {
   const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
-    HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 45);
-  assert.equal(new Set(paths).size, 44); // wages and wagesGate share wages-gate.webp
+    HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART].flatMap(group => Object.values(group).map(art => art.src));
+  assert.equal(paths.length, 50);
+  assert.equal(new Set(paths).size, 49); // wages and wagesGate share wages-gate.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
     assert.ok(existsSync(file), src);
     bytes += statSync(file).size;
     if (src.includes('/gemini-next/')) {
-      const isPortrait = src.includes('male.webp') || src.includes('adv-');
+      const isPortrait = src.includes('male.webp') || src.includes('adv-') || src.includes('leader-');
       assert.ok(statSync(file).size <= (isPortrait ? 10_000 : 100_000), src);
     }
   }
@@ -193,3 +195,41 @@ test('ending dossier resolves dramatic pixel-art scene by outcome', async () => 
     assert.equal(historicalEndingArt({ ...base, country, endType: 'reelected' }), null);
   }
 });
+
+test('leader persona customization resolves portraits from bio, updates starting resources and survives save reload', async () => {
+  const base = await fresh();
+  assert.equal(historicalPortraitArt(base, base.leader.name), null);
+
+  const bioMap: Record<string, (typeof LEADER_PORTRAIT_IDS)[number]> = {
+    military: 'officer',
+    economist: 'economist',
+    lawyer: 'lawyer',
+    diplomat: 'diplomat',
+    mayor: 'mayor',
+  };
+  for (const [bioId, portraitId] of Object.entries(bioMap)) {
+    const meta = HISTORICAL_LEADER_ART[portraitId];
+    const customized = customizeLeader(base, { bio: bioId, ideo: 'liberal' });
+    assert.equal(customized.leader.portrait, portraitId);
+    assert.equal(isFemaleName(customized.leader.name), meta.female, `portrait ${portraitId} gender must match name ${customized.leader.name}`);
+    assert.equal(historicalPortraitArt(customized, customized.leader.name), meta.src);
+    const saved = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'intro', state: customized }));
+    assert.ok(saved, `save with portrait ${portraitId} must parse cleanly`);
+    assert.equal(historicalPortraitArt(saved.state, saved.state.leader.name), meta.src);
+  }
+
+  const altName = freshLeaderName(base, true, 1);
+  assert.equal(isFemaleName(altName), true);
+  assert.ok(!base.keyFigures.some(f => f.name === altName));
+  assert.ok(!base.advisors.some(a => a.name === altName));
+
+  const lawyerFemale = customizeLeader(base, { bio: 'lawyer', ideo: 'leftist', name: altName });
+  assert.equal(lawyerFemale.resources.internalLegitimacy, START_RES.debut.internalLegitimacy + BIO_RES);
+  assert.match(lawyerFemale.leader.bio, /выигравшая/);
+
+  const endedFemale = { ...lawyerFemale, ended: true, endType: 'reelected' as const, turn: 20, year: 1983 };
+  const verdict = await classicApi.ending(endedFemale);
+  assert.match(verdict.verdict, /правила страной/);
+  assert.match(verdict.verdict, /приняла/);
+});
+

@@ -93,6 +93,7 @@ const report = (v: unknown) => isObj(v) && fields(v, ["headline", "narrative", "
 function validState(s: Obj): boolean {
   if (!finiteJson(s) || !validCountry(s.country) || !validDiff(s.diff) || !validIdeo(s.ideo)) return false;
   if (!fields(s.leader, ["name", "party", "bio"]) || !(s.leader as Obj).name || !resources(s.resources)) return false;
+  if ((s.leader as Obj).portrait !== undefined && !["economist", "officer", "mayor", "lawyer", "diplomat"].includes(String((s.leader as Obj).portrait))) return false;
   if (!integer(s.turn) || !integer(s.year) || !integer(s.seed, 0, 4294967295) || s.mode !== "classic") return false;
   if (!fields(s, ["speech", "situation"]) || typeof s.ended !== "boolean" || !integer(s.councilCharges)) return false;
   if (s.endType !== null && (typeof s.endType !== "string" || !Object.hasOwn(END_TYPES, s.endType))) return false;

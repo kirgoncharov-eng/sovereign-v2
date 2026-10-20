@@ -152,10 +152,33 @@ export const HISTORICAL_ADVISOR_ART: Record<string, { src: string; female: boole
   diplomat: { src: '/art/gemini-next/adv-diplomat.webp', female: true },
 };
 
+export const LEADER_PORTRAIT_IDS = ['economist', 'officer', 'mayor', 'lawyer', 'diplomat'] as const;
+
+export const BIO_TO_PORTRAIT: Record<string, (typeof LEADER_PORTRAIT_IDS)[number]> = {
+  officer: 'officer',
+  military: 'officer',
+  economist: 'economist',
+  lawyer: 'lawyer',
+  diplomat: 'diplomat',
+  mayor: 'mayor',
+};
+
+export const HISTORICAL_LEADER_ART: Record<string, { src: string; female: boolean; label: string }> = {
+  economist: { src: '/art/gemini-next/leader-economist.webp', female: false, label: 'Госплан · Экономист' },
+  officer: { src: '/art/gemini-next/leader-officer.webp', female: false, label: 'Армия · Офицер в отставке' },
+  mayor: { src: '/art/gemini-next/leader-mayor.webp', female: false, label: 'Обком · Бывший мэр' },
+  lawyer: { src: '/art/gemini-next/leader-lawyer.webp', female: false, label: 'Юстиция · Правозащитник' },
+  diplomat: { src: '/art/gemini-next/leader-diplomat.webp', female: false, label: 'МИД · Дипломат' },
+};
+
 export function historicalPortraitArt(
   state: GameState | null, name: string, roster?: Record<string, string> | null,
 ): string | null {
-  if (!state || state.country !== ALTERNATE_COUNTRY || state.leader.name === name) return null;
+  if (!state || state.country !== ALTERNATE_COUNTRY) return null;
+  if (state.leader.name === name) {
+    const p = state.leader.portrait && HISTORICAL_LEADER_ART[state.leader.portrait];
+    return p && p.female === isFemaleName(name) ? p.src : null;
+  }
   const figure = state.keyFigures.find(person => person.name === name);
   if (figure) {
     if (roster && roster[figure.id] !== name) return null;
