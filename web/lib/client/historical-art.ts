@@ -25,6 +25,7 @@ export const HISTORICAL_SCENE_ART = {
   electionNight: { src: '/art/gemini-next/election-night.webp', caption: 'Кабинет президента в ночь подсчёта голосов' },
   electionDefeat: { src: '/art/gemini-next/election-defeat.webp', caption: 'Штаб кампании в полночь после поражения' },
   parliamentHall: { src: '/art/gemini-next/parliament-hall.webp', caption: 'Правительственная ложа в зале парламента' },
+  residenceMorning: { src: '/art/gemini-next/residence-morning.webp', caption: 'Вид из кабинета президента на площадь Независимости' },
 } as const;
 export type HistoricalArt = { src: string; caption: string };
 export const HISTORICAL_OUTCOME_ART = {
