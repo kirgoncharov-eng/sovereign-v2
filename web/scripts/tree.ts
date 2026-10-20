@@ -60,7 +60,7 @@ function choose(state: GameState, choices: Choice[], style: ActionTag[], lane?: 
 }
 
 type Step = { turn: number; event: string; authored: boolean };
-type Run = { seed: number; style: string; steps: Step[]; turn: number; ally: string[]; rival: string[]; end: string | null };
+type Run = { seed: number; style: string; steps: Step[]; turn: number; ally: string[]; rival: string[]; end: string | null; country: Record<number, number[]> };
 
 function eventKey(event: GameState["currentEvent"] & { cardId?: string }): string {
   if (!event) return "—";
@@ -76,6 +76,7 @@ async function play(seed: number, style: string): Promise<Run> {
   const steps: Step[] = [];
   const ally: string[] = [];
   const rival: string[] = [];
+  const country: Record<number, number[]> = {};
   while (!state.ended && state.turn < TURNS) {
     const event = await classicApi.event(state) as GameState["currentEvent"] & { cardId?: string };
     state = startEvent(state, event!);
@@ -94,8 +95,10 @@ async function play(seed: number, style: string): Promise<Run> {
     state = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
     ally.push(mostLoyal(state.factions)?.bloc ?? "—");
     rival.push(rivalOf(state)?.bloc ?? "—");
+    // Положение страны после 10-го и 20-го хода: шесть ресурсов и отношения лагерей.
+    if (state.turn === 10 || state.turn === 20) country[state.turn] = [...RESOURCE_KEYS.map(key => state.resources[key]), ...state.factions.map(group => group.relation)];
   }
-  return { seed, style, steps, turn: state.turn, ally, rival, end: state.turn <= 20 ? state.endType : null };
+  return { seed, style, steps, turn: state.turn, ally, rival, end: state.turn <= 20 ? state.endType : null, country };
 }
 
 const runs: Run[] = [];
@@ -172,4 +175,24 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   }
 }
 laneOverlap.sort((a, b) => a - b);
+
+// Второй замер (#213): совпадение названий дел не меряет разницу выборов. Насколько расходится сама страна —
+// средняя разница по ресурсам и по отношениям лагерей между двумя стилями на одном зерне, в пунктах шкалы.
+const apart = (turn: number, styles: string[]) => {
+  const resources: number[] = [];
+  const camps: number[] = [];
+  for (let seed = 1; seed <= SEEDS; seed++) {
+    const group = bySeed(seed).filter(run => styles.includes(run.style) && run.country[turn]);
+    for (let i = 0; i < group.length; i++) for (let j = i + 1; j < group.length; j++) {
+      const diff = group[i].country[turn].map((value, k) => Math.abs(value - group[j].country[turn][k]));
+      resources.push(diff.slice(0, RESOURCE_KEYS.length).reduce((sum, d) => sum + d, 0) / RESOURCE_KEYS.length);
+      camps.push(diff.slice(RESOURCE_KEYS.length).reduce((sum, d) => sum + d, 0) / (diff.length - RESOURCE_KEYS.length));
+    }
+  }
+  const median = (values: number[]) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
+  return `ресурсы ${median(resources).toFixed(1)}, лагеря ${median(camps).toFixed(1)}`;
+};
+const allStyles = [...Object.keys(STYLES), ...laneNames];
+console.log(`Расхождение страны между стилями (медиана, пункты): после 10-го хода ${apart(10, allStyles)}; после 20-го ${apart(20, allStyles)}`);
+console.log(`  между дорогами: после 10-го ${apart(10, laneNames)}; после 20-го ${apart(20, laneNames)}`);
 console.log(`Сходство партий разных дорог на одном зерне: медиана ${Math.round(laneOverlap[Math.floor(laneOverlap.length / 2)] * 100)}% ходов`);
