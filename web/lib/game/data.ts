@@ -3,7 +3,7 @@ import { ALTERNATE_CONTEXT, ALTERNATE_COUNTRY } from "./alternate-world.ts";
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "8.25";
+export const APP_VERSION = "8.26";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 // Срок — двадцать ходов (пять лет). Правление не ограничено сроком: партия идёт, пока лидер у власти.
 export const TERM = 20;
@@ -81,19 +81,23 @@ export const RES_CONFIG: { key: ResourceKey; label: string; prompt: string }[] =
 export const RESOURCE_KEYS: ResourceKey[] = RES_CONFIG.map(r => r.key);
 
 // Биография лидера: свои решения исполняются надёжнее, и одна опора на старте крепче.
-export interface Biography { id: string; label: string; text: string; tags: ActionTag[]; res: ResourceKey; note: string }
+export interface Biography { id: string; label: string; text: string; textFemale?: string; tags: ActionTag[]; res: ResourceKey; note: string }
 export const BIOGRAPHIES: Biography[] = [
-  { id:"officer",   label:"Офицер",         text:"Бывший офицер, ставший депутатом на волне протестов.", tags:["security", "repress", "patriotism"], res:"military",
+  { id:"officer",   label:"Офицер",         text:"Бывший офицер, ставший депутатом на волне протестов.", textFemale:"Бывший офицер службы связи, ставшая депутатом на волне протестов.", tags:["security", "repress", "patriotism"], res:"military",
     note:"силовые и патриотические решения исполняются на 8% надёжнее · силовики +8 на старте" },
-  { id:"economist", label:"Экономист",      text:"Экономист, прославившийся резкими выступлениями против коррупции.", tags:["investment", "austerity", "anticorruption"], res:"economy",
+  { id:"economist", label:"Экономист",      text:"Экономист, прославившийся резкими выступлениями против коррупции.", textFemale:"Экономист Госплана, прославившаяся резкими выступлениями против коррупции.", tags:["investment", "austerity", "anticorruption"], res:"economy",
     note:"экономика и антикоррупция исполняются на 8% надёжнее · экономика +8 на старте" },
-  { id:"lawyer",    label:"Правозащитник",  text:"Юрист по правам человека, неожиданно для всех выигравший праймериз.", tags:["dialogue", "reform", "social"], res:"internalLegitimacy",
+  { id:"lawyer",    label:"Правозащитник",  text:"Юрист по правам человека, неожиданно для всех выигравший праймериз.", textFemale:"Юрист по правам человека, неожиданно для всех выигравшая партийный съезд.", tags:["dialogue", "reform", "social"], res:"internalLegitimacy",
     note:"диалог, реформы и соцполитика исполняются на 8% надёжнее · легитимность +8 на старте" },
-  { id:"diplomat",  label:"Дипломат",       text:"Бывший дипломат, вернувшийся в политику после десяти лет за границей.", tags:["pro_west", "pro_russia", "dialogue"], res:"externalReputation",
+  { id:"diplomat",  label:"Дипломат",       text:"Бывший дипломат, вернувшийся в политику после десяти лет за границей.", textFemale:"Бывший дипломат торгпредства, вернувшаяся в политику после десяти лет за границей.", tags:["pro_west", "pro_russia", "dialogue"], res:"externalReputation",
     note:"внешняя политика и диалог исполняются на 8% надёжнее · репутация +8 на старте" },
-  { id:"mayor",     label:"Мэр",            text:"Мэр промышленного города, которого называют «человеком из народа».", tags:["social", "elite_deal", "propaganda"], res:"politicalCapital",
+  { id:"mayor",     label:"Мэр",            text:"Мэр промышленного города, которого называют «человеком из народа».", textFemale:"Председатель горисполкома промышленного центра, которую называют «человеком из народа».", tags:["social", "elite_deal", "propaganda"], res:"politicalCapital",
     note:"сделки, соцполитика и агитация исполняются на 8% надёжнее · политкапитал +8 на старте" },
 ];
+export function bioText(bioId: string | undefined, female = false): string {
+  const b = BIOGRAPHIES.find(x => x.id === bioId) ?? BIOGRAPHIES[0];
+  return (female && b.textFemale) ? b.textFemale : b.text;
+}
 export const BIO_CHANCE = 0.08, BIO_RES = 8;
 
 export const START_RES: Record<DifficultyId, Resources> = {

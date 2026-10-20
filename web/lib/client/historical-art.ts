@@ -149,10 +149,24 @@ export const HISTORICAL_ADVISOR_ART: Record<string, { src: string; female: boole
   diplomat: { src: '/art/gemini-next/adv-diplomat.webp', female: true },
 };
 
+export const LEADER_PORTRAIT_IDS = ['economist', 'officer', 'mayor', 'lawyer', 'diplomat'] as const;
+
+export const HISTORICAL_LEADER_ART: Record<string, { src: string; female: boolean; label: string }> = {
+  economist: { src: '/art/gemini-next/leader-economist.webp', female: false, label: 'Госплан · Технократ' },
+  officer: { src: '/art/gemini-next/leader-officer.webp', female: false, label: 'Кабинет · Силовик' },
+  mayor: { src: '/art/gemini-next/leader-mayor.webp', female: false, label: 'Обком · Хозяйственник' },
+  lawyer: { src: '/art/gemini-next/leader-lawyer.webp', female: true, label: 'Юстиция · Реформатор' },
+  diplomat: { src: '/art/gemini-next/leader-diplomat.webp', female: true, label: 'МИД · Дипломат' },
+};
+
 export function historicalPortraitArt(
   state: GameState | null, name: string, roster?: Record<string, string> | null,
 ): string | null {
-  if (!state || state.country !== ALTERNATE_COUNTRY || state.leader.name === name) return null;
+  if (!state || state.country !== ALTERNATE_COUNTRY) return null;
+  if (state.leader.name === name) {
+    const p = state.leader.portrait && HISTORICAL_LEADER_ART[state.leader.portrait];
+    return p && p.female === isFemaleName(name) ? p.src : null;
+  }
   const figure = state.keyFigures.find(person => person.name === name);
   if (figure) {
     if (roster && roster[figure.id] !== name) return null;

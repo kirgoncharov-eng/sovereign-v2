@@ -56,14 +56,40 @@
 }
 
 .credentials {
-  display:flex;
-  align-items:center;
-  gap:16px;
-  margin:0 0 20px;
+  margin:0 0 22px;
   padding:14px 16px;
   background:#ded2b3;
-  border:1.5px solid #c2b491;
-  box-shadow:inset 0 1px 2px rgba(0,0,0,.08)
+  border:1.5px solid #bda982;
+  border-top:3px solid #8b2b22;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.1)
+}
+
+.credentialsHeader {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  font:11px var(--font-ptmono), monospace;
+  letter-spacing:.06em;
+  color:#5c503a;
+  padding-bottom:10px;
+  margin-bottom:12px;
+  border-bottom:1px dashed #b9aa88
+}
+
+.credentialsMain {
+  display:flex;
+  align-items:flex-start;
+  gap:16px
+}
+
+.portraitColumn {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  flex-shrink:0
 }
 
 .portraitWrapper {
@@ -72,21 +98,21 @@
 }
 
 .leaderPortrait {
-  width:72px;
-  height:96px;
+  width:80px;
+  height:107px;
   object-fit:cover;
   border:2px solid #2a241d;
   background:#efede6;
-  box-shadow:2px 2px 0 rgba(0,0,0,.35);
+  box-shadow:3px 3px 0 rgba(0,0,0,.35);
   display:block;
   image-rendering:pixelated;
-  transform:rotate(-1.5deg)
+  transform:rotate(-1deg)
 }
 
 .portraitStamp {
   position:absolute;
-  bottom:-6px;
-  right:-8px;
+  bottom:-5px;
+  right:-7px;
   font-family:var(--font-pixel, monospace);
   font-size:10px;
   background:#8b2b22;
@@ -98,18 +124,69 @@
   pointer-events:none
 }
 
+.portraitControls {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:4px;
+  width:100%
+}
+
+.portraitArrow {
+  background:#d2c39e;
+  border:1px solid #9f8f6b;
+  color:#24221b;
+  font:11px var(--font-pixel, monospace);
+  padding:2px 5px;
+  cursor:pointer;
+  line-height:1.2
+}
+
+.portraitArrow:hover {
+  background:#c4b289
+}
+
+.portraitCount {
+  font:10px var(--font-ptmono), monospace;
+  color:#554933;
+  white-space:nowrap
+}
+
 .credentialsText {
-  min-width:0
+  min-width:0;
+  flex:1
+}
+
+.nameRow {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:3px
 }
 
 .credentialsName {
   font:700 24px/1.15 var(--font-narrow), serif;
-  color:#24221b;
-  margin-bottom:2px
+  color:#24221b
+}
+
+.rollNameBtn {
+  background:#d2c39e;
+  border:1px solid #9f8f6b;
+  color:#2b251a;
+  font:12px/1.2 var(--font-narrow), sans-serif;
+  padding:3px 8px;
+  cursor:pointer;
+  letter-spacing:.02em
+}
+
+.rollNameBtn:hover {
+  background:#c4b289
 }
 
 .credentialsRole {
-  font:13px var(--font-ptmono), monospace;
+  font:12px var(--font-ptmono), monospace;
   color:#685d47;
   text-transform:uppercase;
   letter-spacing:.04em;
@@ -118,7 +195,89 @@
 
 .credentialsBio {
   font:italic 14px/1.45 var(--font-serif), Georgia, serif;
-  color:#4a4537
+  color:#3e392d;
+  margin-bottom:6px
+}
+
+.credentialsBonus {
+  font:13px/1.35 var(--font-narrow), sans-serif;
+  color:#295823;
+  background:rgba(48, 102, 40, 0.08);
+  border-left:2px solid #295823;
+  padding:3px 8px
+}
+
+.personaSelectors {
+  margin-top:14px;
+  padding-top:12px;
+  border-top:1px dashed #b9aa88;
+  display:grid;
+  gap:12px
+}
+
+.selectorGroup {
+  display:grid;
+  gap:6px
+}
+
+.selectorLabel {
+  font:11px var(--font-ptmono), monospace;
+  letter-spacing:.05em;
+  color:#554933
+}
+
+.pillRow {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px
+}
+
+.personaPill {
+  flex:1 1 calc(33.33% - 6px);
+  min-width:105px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:1px;
+  padding:6px 9px;
+  background:#e6dcc2;
+  border:1px solid #b5a582;
+  color:#2b251a;
+  text-align:left;
+  cursor:pointer;
+  transition:background .15s, border-color .15s
+}
+
+.personaPill:hover {
+  background:#dcd0b2;
+  border-color:#8e7d58
+}
+
+.personaPillActive {
+  background:#30463b;
+  border-color:#1c2c24;
+  color:#f0e4c8;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.25)
+}
+
+.personaPillActive:hover {
+  background:#263b31;
+  border-color:#1c2c24
+}
+
+.pillTitle {
+  font:700 14px/1.2 var(--font-narrow), sans-serif
+}
+
+.pillSub {
+  font:11px/1.2 var(--font-ptmono), monospace;
+  opacity:.78
+}
+
+.selectorNote {
+  font:11px/1.4 var(--font-ptmono), monospace;
+  color:#5c503a;
+  margin-top:2px
 }
 
 .promisesBlock {
