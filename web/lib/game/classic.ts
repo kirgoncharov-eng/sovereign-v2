@@ -1410,7 +1410,14 @@ function personName(country: string, r: Rand, male = false, used?: Set<string>):
 // Тексты интриг написаны о мужчине-антагонисте: роли, из которых он выбирается, всегда достаются мужчинам.
 const MALE_ROLES = new Set(["governor", "patriarch", "catholicos", "mufti", "general", "kgb", "knb", "interior", "sbu", "security", "shadow", "clan", "prosecutor", "oligarch", "opp_leader", "activist", "nat_leader", "revanchist"]);
 
-const FEMALE_PORTRAITS = new Set<LeaderPortraitId>(["lawyer", "diplomat"]);
+const BIO_PORTRAIT: Record<string, LeaderPortraitId> = {
+  officer: "officer",
+  military: "officer",
+  economist: "economist",
+  lawyer: "lawyer",
+  diplomat: "diplomat",
+  mayor: "mayor",
+};
 
 // Новое имя для президента (мужское или женское) из пула страны, не совпадающее с фигурами и советниками.
 export function freshLeaderName(state: GameState, female: boolean, step = 0): string {
@@ -1435,11 +1442,8 @@ export function customizeLeader(
 ): GameState {
   const nextIdeo = opts.ideo ?? state.ideo;
   const nextBio = opts.bio ?? state.bio ?? "economist";
-  const nextPortrait = opts.portrait ?? state.leader.portrait;
-  const wantFemale = nextPortrait ? FEMALE_PORTRAITS.has(nextPortrait) : isFemaleName(state.leader.name);
-  const nextName = opts.name ?? (isFemaleName(state.leader.name) === wantFemale
-    ? state.leader.name
-    : freshLeaderName(state, wantFemale, 0));
+  const nextPortrait = opts.portrait ?? (opts.bio ? BIO_PORTRAIT[opts.bio] : state.leader.portrait) ?? BIO_PORTRAIT[nextBio];
+  const nextName = opts.name ?? state.leader.name;
   const female = isFemaleName(nextName);
   const biography = BIOGRAPHIES.find(b => b.id === nextBio);
   const resources = biography

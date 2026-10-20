@@ -2,7 +2,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import {
   ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION, TERM_RULES, TERM, localTurn, termIndex, termOrdinal,
-  reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects,
+  reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES,
   RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY
 } from "@/lib/game/data.ts";
 import { commitmentTags, choiceEffects, saboteurOf, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
@@ -1953,7 +1953,7 @@ function Setup({ onStart, saved, onResume }) {
       const intro = { ...raw, leader: { ...raw.leader, bio: B.text } };
       const baseState = createInitialState(c, chosenDiff, chosenIdeo, intro, seed !== undefined ? seededRandom(seed) : Math.random, "classic", B.id);
       const st = (!daily && c === ALTERNATE_COUNTRY)
-        ? customizeLeader(baseState, { portrait: B.id, bio: B.id, ideo: chosenIdeo })
+        ? customizeLeader(baseState, { bio: B.id, ideo: chosenIdeo })
         : baseState;
       onStart(daily ? { ...st, daily: daily.date, dailyMoves: [] } : st, quick || !!daily);
     } catch (e) {
@@ -1968,23 +1968,20 @@ function Setup({ onStart, saved, onResume }) {
     go(country, activeDiff, pickOne(IDEOLOGIES).id, null, null, true);
   };
 
-  const scene = useMemo(() => ({
-    country: NEW_GAME_COUNTRY, seed: 7, turn: 2, legitimacy: 48, rating: 44,
-    military: 55, security: -10, crises: 0, election: false,
-  }), []);
-
   return (
-    <div style={{ minHeight:"100vh" }}>
-      <div className="sv-window"><SquareView scene={scene} height={44}/></div>
-      <div style={{ display:"flex", justifyContent:"center", padding:"14px 14px 36px" }}>
-      <div style={{ maxWidth:600, width:"100%" }}>
+    <div style={{ minHeight:"100dvh", background:"#1a211f", color:"#ddcfaf", padding:"20px 14px 36px" }}>
+      <div style={{ maxWidth:620, margin:"0 auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", gap:12, fontFamily:mono, fontSize:11, letterSpacing:".06em", paddingBottom:12, flexWrap:"wrap", color:"#b9ac92" }}>
+          <span>НЕМАНСКАЯ РЕСПУБЛИКА · ЦЕНТРАЛЬНАЯ ИЗБИРАТЕЛЬНАЯ КОМИССИЯ</span>
+          <span>МИНСК · 1978</span>
+        </div>
 
         {saved && (
-          <Card style={{ marginBottom:14, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap", borderLeft:`4px solid ${G.gold}` }}>
+          <Card style={{ marginBottom:14, padding:"12px 16px", background:"#eee4ce", border:"1px solid #b9ac92", borderLeft:"4px solid #30463b", display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
             <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
               <Portrait name={saved.state.leader.name} size={44}/>
               <div style={{ minWidth:0 }}>
-                <div style={{ fontFamily:pixel, fontSize:11, color:G.tx3, marginBottom:2 }}>СОХРАНЁННАЯ ПАРТИЯ</div>
+                <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".05em", color:G.tx3, marginBottom:2 }}>СОХРАНЁННАЯ ПАРТИЯ</div>
                 <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, color:G.txt }}>
                   <Flag country={saved.state.country}/> {saved.state.leader.name}
                 </div>
@@ -1997,95 +1994,95 @@ function Setup({ onStart, saved, onResume }) {
           </Card>
         )}
 
-        <Card style={{ padding:0, marginBottom:18, overflow:"hidden", border:`2px solid ${G.txt}` }}>
-          <figure style={{ margin:0, position:"relative", background:"#141a18", borderBottom:`2px solid ${G.txt}` }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={artSource(HISTORICAL_SCENE_ART.residenceMorning.src)}
-              alt=""
-              className="sv-px"
-              style={{ width:"100%", aspectRatio:"16 / 9", maxHeight:200, objectFit:"cover", display:"block", filter:"contrast(1.04)" }}
-            />
-            <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, rgba(12,15,14,.68) 0%, rgba(12,15,14,.12) 38%, rgba(12,15,14,.9) 100%)", display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"10px 14px 12px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
-                <span style={{ fontFamily:mono, fontSize:10, letterSpacing:".06em", color:"#e6dcc2", background:"rgba(16,20,18,.8)", padding:"2px 7px", border:"1px solid rgba(230,220,194,.3)" }}>
-                  МИНСК · 1978 · ДРУГАЯ ИСТОРИЯ
-                </span>
-                <span className="sv-stamp is-red" style={{ fontSize:10, padding:"1px 6px", transform:"rotate(2deg)", background:"rgba(139,43,34,.92)", color:"#fff", flexShrink:0 }}>
-                  СЕКРЕТНО · ЦИК
-                </span>
-              </div>
-              <div>
-                <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(44px, 13vw, 68px)", lineHeight:0.95, letterSpacing:".08em", color:"#f3dfb2", textShadow:"3px 3px 0 #000", margin:0 }}>
-                  СУВЕРЕН
-                </h1>
-                <div style={{ fontFamily:narrow, fontSize:15, color:"#e6dcc2", letterSpacing:".02em", marginTop:3, textShadow:"0 1px 2px #000" }}>
-                  Неманская республика · Выборы позади, впереди — борьба за власть
-                </div>
-              </div>
+        <figure style={{ margin:"0 0 14px", border:"2px solid #000", boxShadow:"0 12px 30px rgba(0,0,0,.5)", position:"relative", overflow:"hidden", background:"#111a17" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={artSource(HISTORICAL_SCENE_ART.ballot.src)}
+            alt=""
+            className="sv-px"
+            style={{ width:"100%", aspectRatio:"16 / 9", maxHeight:190, objectFit:"cover", display:"block" }}
+          />
+          <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(14, 12, 10, 0.94))", padding:"16px 14px 6px", display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:8 }}>
+            <span style={{ fontFamily:narrow, fontSize:13, color:"#f1e9d2" }}>Ночь подсчёта голосов · Протокол об избрании президента</span>
+            <span style={{ fontFamily:pixel, fontSize:11, color:"#c6b58b", letterSpacing:".04em", flexShrink:0 }}>ЯНВАРЬ 1978</span>
+          </div>
+        </figure>
+
+        <article style={{ background:"#eee4ce", color:"#24221b", border:"1px solid #b9ac92", borderTop:"4px solid #30463b", padding:"20px 20px 22px", boxShadow:"0 14px 36px rgba(0,0,0,.38)", marginBottom:16 }}>
+          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", color:"#5e5645", marginBottom:6 }}>
+            Политическая драма · Альтернативная история Беларуси
+          </div>
+          <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(38px, 10vw, 52px)", lineHeight:0.96, letterSpacing:".02em", color:"#24221b", margin:"0 0 12px" }}>
+            СУВЕРЕН
+          </h1>
+          <p style={{ fontFamily:serif, fontSize:16, lineHeight:1.55, color:"#2f2a20", margin:"0 0 14px" }}>
+            После 1918 года на землях Беларуси сохранилась независимая Неманская республика. Вы выиграли выборы — но всё, что вы знаете о своей стране, вам кто-то сказал, и у каждого свой интерес.
+          </p>
+
+          <div style={{ borderTop:"1px dashed #b9aa88", paddingTop:12, marginBottom:16 }}>
+            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".05em", textTransform:"uppercase", color:"#554933", marginBottom:8 }}>
+              Исход выборов и стартовое положение:
             </div>
-          </figure>
-
-          <div style={{ padding:"14px 18px 18px" }}>
-            <blockquote style={{ margin:"0 0 8px", padding:"1px 0 1px 10px", borderLeft:`3px solid ${G.gold}`, fontFamily:serif, fontStyle:"italic", fontSize:15, lineHeight:1.4, color:G.txt }}>
-              «Всё, что вы знаете о своей стране, вам кто-то сказал. И у каждого свой интерес.»
-            </blockquote>
-            <p style={{ fontFamily:serif, fontSize:14, color:G.tx2, lineHeight:1.48, margin:"0 0 12px" }}>
-              На землях Беларуси после 1918 года сохранилась независимая республика. Заводы требуют денег, союзники торгуются за портфели, а в аппарате уже зреет заговор. Сколько лет вы продержитесь у власти?
-            </p>
-
-            <div style={{ marginBottom:14 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:8, marginBottom:6, flexWrap:"wrap" }}>
-                <span style={{ fontFamily:pixel, fontSize:11, color:G.tx3, letterSpacing:".04em" }}>СЛОЖНОСТЬ КАМПАНИИ</span>
-                <span style={{ fontFamily:mono, fontSize:11, color:G.tx3 }}>Конституция: {TERM_RULES[termRule(country)].title.toLowerCase()}</span>
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
-                {Object.entries(DIFFICULTIES).map(([id, d]) => {
-                  const active = activeDiff === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setDiff(id)}
-                      style={{
-                        display:"flex",
-                        flexDirection:"column",
-                        alignItems:"flex-start",
-                        gap:1,
-                        padding:"6px 9px",
-                        textAlign:"left",
-                        border:active ? `2px solid ${G.txt}` : `1px solid ${G.bdr2}`,
-                        background:active ? G.bg3 : "transparent",
-                        color:G.txt,
-                        cursor:"pointer",
-                      }}
-                    >
-                      <span style={{ fontFamily:narrow, fontSize:14, fontWeight:700, lineHeight:1.15 }}>
-                        {d.emoji} {d.label}
-                      </span>
-                      <span style={{ fontFamily:narrow, fontSize:12, color:G.tx2, lineHeight:1.2 }}>
-                        {d.desc}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={{ fontFamily:mono, fontSize:11, color:G.tx3, marginTop:5, lineHeight:1.35 }}>
-                {difficultyEffects(activeDiff)}
-              </div>
-            </div>
-
-            <div style={{ textAlign:"center" }}>
-              <PrimaryBtn onClick={quick} disabled={loading} style={{ width:"100%", padding:"13px 18px", fontSize:19 }}>
-                {loading ? "ОТКРЫВАЕМ КАБИНЕТ…" : saved ? "НОВАЯ ПАРТИЯ" : "НАЧАТЬ ИГРУ"}
-              </PrimaryBtn>
-              <div style={{ fontFamily:narrow, fontSize:13, color:G.tx3, marginTop:6 }}>
-                В резиденции вы сможете выбрать портрет, прошлое ремесло и политический курс президента
-              </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+              {Object.entries(DIFFICULTIES).map(([id, d]) => {
+                const active = activeDiff === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setDiff(id)}
+                    style={{
+                      display:"flex",
+                      flexDirection:"column",
+                      alignItems:"flex-start",
+                      gap:2,
+                      padding:"7px 10px",
+                      textAlign:"left",
+                      border:active ? "1px solid #1c2c24" : "1px solid #b5a582",
+                      background:active ? "#30463b" : "#e6dcc2",
+                      color:active ? "#f0e4c8" : "#2b251a",
+                      cursor:"pointer",
+                    }}
+                  >
+                    <span style={{ fontFamily:narrow, fontSize:15, fontWeight:700, lineHeight:1.15 }}>
+                      {d.label}
+                    </span>
+                    <span style={{ fontFamily:serif, fontSize:12, lineHeight:1.25, opacity:active ? 0.9 : 0.78 }}>
+                      {d.desc}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </Card>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={quick}
+            style={{
+              width:"100%",
+              minHeight:48,
+              border:0,
+              background:"#30463b",
+              color:"#f0e4c8",
+              fontFamily:narrow,
+              fontWeight:700,
+              fontSize:18,
+              letterSpacing:".02em",
+              padding:"12px 18px",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"space-between",
+              cursor:loading ? "default" : "pointer",
+              opacity:loading ? 0.6 : 1,
+            }}
+          >
+            <span>{loading ? "Открываем кабинет…" : saved ? "Начать новую игру" : "Начать игру"}</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </article>
 
         {err && <div role="alert" style={{ color:G.red, marginBottom:12 }}>{err} <button onClick={quick}>Попробовать снова</button></div>}
 
@@ -2101,7 +2098,6 @@ function Setup({ onStart, saved, onResume }) {
           </PrimaryBtn>
         </Card>}
         <VersionLabel/>
-      </div>
       </div>
     </div>
   );

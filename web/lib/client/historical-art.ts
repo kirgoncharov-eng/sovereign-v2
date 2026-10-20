@@ -151,12 +151,21 @@ export const HISTORICAL_ADVISOR_ART: Record<string, { src: string; female: boole
 
 export const LEADER_PORTRAIT_IDS = ['economist', 'officer', 'mayor', 'lawyer', 'diplomat'] as const;
 
+export const BIO_TO_PORTRAIT: Record<string, (typeof LEADER_PORTRAIT_IDS)[number]> = {
+  officer: 'officer',
+  military: 'officer',
+  economist: 'economist',
+  lawyer: 'lawyer',
+  diplomat: 'diplomat',
+  mayor: 'mayor',
+};
+
 export const HISTORICAL_LEADER_ART: Record<string, { src: string; female: boolean; label: string }> = {
-  economist: { src: '/art/gemini-next/leader-economist.webp', female: false, label: 'Госплан · Технократ' },
-  officer: { src: '/art/gemini-next/leader-officer.webp', female: false, label: 'Кабинет · Силовик' },
-  mayor: { src: '/art/gemini-next/leader-mayor.webp', female: false, label: 'Обком · Хозяйственник' },
-  lawyer: { src: '/art/gemini-next/leader-lawyer.webp', female: true, label: 'Юстиция · Реформатор' },
-  diplomat: { src: '/art/gemini-next/leader-diplomat.webp', female: true, label: 'МИД · Дипломат' },
+  economist: { src: '/art/gemini-next/leader-economist.webp', female: false, label: 'Госплан · Экономист' },
+  officer: { src: '/art/gemini-next/leader-officer.webp', female: false, label: 'Армия · Офицер в отставке' },
+  mayor: { src: '/art/gemini-next/leader-mayor.webp', female: false, label: 'Обком · Бывший мэр' },
+  lawyer: { src: '/art/gemini-next/leader-lawyer.webp', female: false, label: 'Юстиция · Правозащитник' },
+  diplomat: { src: '/art/gemini-next/leader-diplomat.webp', female: false, label: 'МИД · Дипломат' },
 };
 
 export function historicalPortraitArt(

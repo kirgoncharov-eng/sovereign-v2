@@ -4,12 +4,12 @@ import { REPUBLIC_PLACES, presidentialConversation, hasAuthoredDebate } from "@/
 import {
   HISTORICAL_SCENE_ART,
   HISTORICAL_LEADER_ART,
-  LEADER_PORTRAIT_IDS,
+  BIO_TO_PORTRAIT,
   artSource,
   historicalPortraitArt,
 } from "@/lib/client/historical-art.ts";
 import { offeredPromises, promiseDef } from "@/lib/game/promises.ts";
-import { BIOGRAPHIES, IDEOLOGIES, ideologyEffects } from "@/lib/game/data.ts";
+import { BIOGRAPHIES, IDEOLOGIES } from "@/lib/game/data.ts";
 import { freshLeaderName } from "@/lib/game/classic.ts";
 import { portraitCanvas, PORTRAIT_W, PORTRAIT_H } from "@/lib/client/portrait.ts";
 import { isFemaleName } from "@/lib/game/engine.ts";
@@ -17,8 +17,9 @@ import styles from "./presidential.module.css";
 import { pageFx } from '@/lib/client/fx.ts';
 
 const BIO_SHORT_BONUS = {
-  economist: "экономика +8",
   officer: "силовики +8",
+  military: "силовики +8",
+  economist: "экономика +8",
   lawyer: "легитимность +8",
   diplomat: "репутация +8",
   mayor: "политкапитал +8",
@@ -47,33 +48,21 @@ function LeaderPortrait({ name, src }) {
 }
 
 export default function PresidentialOpening({ gs, onCustomize, onGo, onDossier }) {
-  const [customPhoto, setCustomPhoto] = useState(false);
   const [nameStep, setNameStep] = useState(1);
 
-  const activePortraitId = gs?.leader?.portrait || gs?.bio || "economist";
-  const portraitIdx = Math.max(0, LEADER_PORTRAIT_IDS.indexOf(activePortraitId));
+  const activeBioId = gs?.bio || "economist";
+  const activePortraitId = gs?.leader?.portrait || BIO_TO_PORTRAIT[activeBioId] || "economist";
   const portraitMeta = HISTORICAL_LEADER_ART[activePortraitId] || HISTORICAL_LEADER_ART.economist;
   const portraitSrc = (gs ? historicalPortraitArt(gs, gs.leader.name) : null) || portraitMeta.src;
 
-  const activeBio = BIOGRAPHIES.find(b => b.id === gs.bio) || BIOGRAPHIES[1];
+  const activeBio = BIOGRAPHIES.find(b => b.id === activeBioId) || BIOGRAPHIES[1];
   const ideoInfo = IDEOLOGIES.find(i => i.id === gs.ideo);
   const { suggested } = offeredPromises(gs.seed, gs.ideo);
   const initialPromises = (suggested || []).map(id => promiseDef(id, gs.country)).filter(Boolean);
 
-  const selectPortrait = id => {
-    pageFx();
-    setCustomPhoto(true);
-    onCustomize?.({ portrait: id });
-  };
-
-  const cyclePortrait = delta => {
-    const nextIdx = (portraitIdx + delta + LEADER_PORTRAIT_IDS.length) % LEADER_PORTRAIT_IDS.length;
-    selectPortrait(LEADER_PORTRAIT_IDS[nextIdx]);
-  };
-
   const rollName = () => {
     pageFx();
-    const nextName = freshLeaderName(gs, Boolean(portraitMeta.female), nameStep);
+    const nextName = freshLeaderName(gs, false, nameStep);
     setNameStep(s => s + 1);
     onCustomize?.({ name: nextName });
   };
@@ -82,7 +71,7 @@ export default function PresidentialOpening({ gs, onCustomize, onGo, onDossier }
     pageFx();
     onCustomize?.({
       bio: bioId,
-      ...(customPhoto ? {} : { portrait: bioId }),
+      portrait: BIO_TO_PORTRAIT[bioId] || "economist",
     });
   };
 
@@ -112,9 +101,14 @@ export default function PresidentialOpening({ gs, onCustomize, onGo, onDossier }
       <article className={styles.document}>
         <p className={styles.eyebrow}>Лично президенту · Первое утро в резиденции</p>
 
+        <h1>Кресло ваше.<br/>Долги — тоже.</h1>
+        <p>Вы входите в кабинет на четвёртом этаже. За окном — морозный Минск. На вашем столе лежит первая папка: ведомость тракторного завода, два месяца без зарплаты.</p>
+        <blockquote>«Директор просит денег. Банк ждёт возврата ссуды. Рабочие ждут вас. Что им передать?»</blockquote>
+        <p className={styles.attribution}>Секретарь не садится. Ответ нужен сегодня.</p>
+
         <div className={styles.credentials}>
           <div className={styles.credentialsHeader}>
-            <span>УДОСТОВЕРЕНИЕ ЦИК № 001 · ЛИЧНЫЙ ЛИСТОК</span>
+            <span>КТО ЗАНИМАЕТ КРЕСЛО · УДОСТОВЕРЕНИЕ ЦИК</span>
             <span>{portraitMeta.label.toUpperCase()}</span>
           </div>
 
@@ -124,13 +118,6 @@ export default function PresidentialOpening({ gs, onCustomize, onGo, onDossier }
                 <LeaderPortrait name={gs.leader.name} src={portraitSrc} />
                 <span className={styles.portraitStamp}>ЦИК · 1978</span>
               </div>
-              {onCustomize && (
-                <div className={styles.portraitControls}>
-                  <button type="button" className={styles.portraitArrow} onClick={() => cyclePortrait(-1)} aria-label="Предыдущий портрет">◀</button>
-                  <span className={styles.portraitCount}>Фото {portraitIdx + 1}/5</span>
-                  <button type="button" className={styles.portraitArrow} onClick={() => cyclePortrait(1)} aria-label="Следующий портрет">▶</button>
-                </div>
-              )}
             </div>
 
             <div className={styles.credentialsText}>
@@ -148,7 +135,7 @@ export default function PresidentialOpening({ gs, onCustomize, onGo, onDossier }
               {gs.leader.bio && <div className={styles.credentialsBio}>{gs.leader.bio}</div>}
               {activeBio && (
                 <div className={styles.credentialsBonus}>
-                  ✦ {activeBio.note}
+                  {activeBio.note}
                 </div>
               )}
             </div>
@@ -157,10 +144,10 @@ export default function PresidentialOpening({ gs, onCustomize, onGo, onDossier }
           {onCustomize && (
             <div className={styles.personaSelectors}>
               <div className={styles.selectorGroup}>
-                <div className={styles.selectorLabel}>ПРОШЛОЕ РЕМЕСЛО (ПЕРСОНАЛИЯ И СТАРТОВАЯ ОПОРА):</div>
+                <div className={styles.selectorLabel}>ПРОШЛОЕ РЕМЕСЛО (МЕНЯЕТ ОБРАЗ И СТАРТОВУЮ ОПОРУ):</div>
                 <div className={styles.pillRow}>
                   {BIOGRAPHIES.map(b => {
-                    const active = gs.bio === b.id;
+                    const active = activeBioId === b.id;
                     return (
                       <button
                         key={b.id}
@@ -178,8 +165,8 @@ export default function PresidentialOpening({ gs, onCustomize, onGo, onDossier }
               </div>
 
               <div className={styles.selectorGroup}>
-                <div className={styles.selectorLabel}>ПОЛИТИЧЕСКИЙ КУРС (ПАРТИЯ И ОБЕЩАНИЯ ИЗБИРАТЕЛЯМ):</div>
-                <div className={styles.pillRow}>
+                <div className={styles.selectorLabel}>ПОЛИТИЧЕСКИЙ КУРС (МЕНЯЕТ ПАРТИЮ И ОБЕЩАНИЯ):</div>
+                <div className={styles.pillRowFour}>
                   {IDEOLOGIES.map(i => {
                     const active = gs.ideo === i.id;
                     return (
@@ -190,22 +177,16 @@ export default function PresidentialOpening({ gs, onCustomize, onGo, onDossier }
                         className={`${styles.personaPill} ${active ? styles.personaPillActive : ""}`}
                         onClick={() => selectIdeo(i.id)}
                       >
-                        <span className={styles.pillTitle}>{i.emoji} {i.label}</span>
+                        <span className={styles.pillTitle}>{i.label}</span>
                         <span className={styles.pillSub}>{i.desc.split("·")[0].trim()}</span>
                       </button>
                     );
                   })}
                 </div>
-                <div className={styles.selectorNote}>{ideologyEffects(gs.ideo, gs.country)}</div>
               </div>
             </div>
           )}
         </div>
-
-        <h1>Кресло ваше.<br/>Долги — тоже.</h1>
-        <p>Вы входите в кабинет на четвёртом этаже. За окном — морозный Минск. На вашем столе лежит первая папка: ведомость тракторного завода, два месяца без зарплаты.</p>
-        <blockquote>«Директор просит денег. Банк ждёт возврата ссуды. Рабочие ждут вас. Что им передать?»</blockquote>
-        <p className={styles.attribution}>Секретарь не садится. Ответ нужен сегодня.</p>
 
         {initialPromises.length > 0 && (
           <div className={styles.promisesBlock}>

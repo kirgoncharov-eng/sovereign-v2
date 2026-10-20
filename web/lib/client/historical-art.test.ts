@@ -196,30 +196,38 @@ test('ending dossier resolves dramatic pixel-art scene by outcome', async () => 
   }
 });
 
-test('leader persona customization resolves portraits, matches gender, updates starting resources and survives save reload', async () => {
+test('leader persona customization resolves portraits from bio, updates starting resources and survives save reload', async () => {
   const base = await fresh();
   assert.equal(historicalPortraitArt(base, base.leader.name), null);
 
-  for (const id of LEADER_PORTRAIT_IDS) {
-    const meta = HISTORICAL_LEADER_ART[id];
-    const customized = customizeLeader(base, { portrait: id, bio: id, ideo: 'liberal' });
-    assert.equal(customized.leader.portrait, id);
-    assert.equal(isFemaleName(customized.leader.name), meta.female, `portrait ${id} gender must match name ${customized.leader.name}`);
+  const bioMap: Record<string, (typeof LEADER_PORTRAIT_IDS)[number]> = {
+    military: 'officer',
+    economist: 'economist',
+    lawyer: 'lawyer',
+    diplomat: 'diplomat',
+    mayor: 'mayor',
+  };
+  for (const [bioId, portraitId] of Object.entries(bioMap)) {
+    const meta = HISTORICAL_LEADER_ART[portraitId];
+    const customized = customizeLeader(base, { bio: bioId, ideo: 'liberal' });
+    assert.equal(customized.leader.portrait, portraitId);
+    assert.equal(isFemaleName(customized.leader.name), meta.female, `portrait ${portraitId} gender must match name ${customized.leader.name}`);
     assert.equal(historicalPortraitArt(customized, customized.leader.name), meta.src);
     const saved = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'intro', state: customized }));
-    assert.ok(saved, `save with portrait ${id} must parse cleanly`);
+    assert.ok(saved, `save with portrait ${portraitId} must parse cleanly`);
     assert.equal(historicalPortraitArt(saved.state, saved.state.leader.name), meta.src);
   }
 
-  const lawyer = customizeLeader(base, { portrait: 'lawyer', bio: 'lawyer', ideo: 'leftist' });
-  assert.equal(lawyer.resources.internalLegitimacy, START_RES.debut.internalLegitimacy + BIO_RES);
-  assert.match(lawyer.leader.bio, /выигравшая/);
-  const altName = freshLeaderName(lawyer, true, 1);
+  const altName = freshLeaderName(base, true, 1);
   assert.equal(isFemaleName(altName), true);
-  assert.ok(!lawyer.keyFigures.some(f => f.name === altName));
-  assert.ok(!lawyer.advisors.some(a => a.name === altName));
+  assert.ok(!base.keyFigures.some(f => f.name === altName));
+  assert.ok(!base.advisors.some(a => a.name === altName));
 
-  const endedFemale = { ...lawyer, ended: true, endType: 'reelected' as const, turn: 20, year: 1983 };
+  const lawyerFemale = customizeLeader(base, { bio: 'lawyer', ideo: 'leftist', name: altName });
+  assert.equal(lawyerFemale.resources.internalLegitimacy, START_RES.debut.internalLegitimacy + BIO_RES);
+  assert.match(lawyerFemale.leader.bio, /выигравшая/);
+
+  const endedFemale = { ...lawyerFemale, ended: true, endType: 'reelected' as const, turn: 20, year: 1983 };
   const verdict = await classicApi.ending(endedFemale);
   assert.match(verdict.verdict, /правила страной/);
   assert.match(verdict.verdict, /приняла/);
