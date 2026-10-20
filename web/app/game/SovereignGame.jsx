@@ -74,6 +74,7 @@ import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { artSource, historicalEventArt, historicalResultArt, historicalPortraitArt, historicalEndingArt, HISTORICAL_SCENE_ART } from "@/lib/client/historical-art.ts";
 import dossierStyles from "./archive-dossier.module.css";
+import styles from "./presidential.module.css";
 const HistoricalArtContext = createContext(null);
 function HistoricalArtProvider({ state, children }) {
   const runKey = state?.country === ALTERNATE_COUNTRY ? `sovereign.art-roster.${state.seed}` : null;
@@ -1961,10 +1962,86 @@ function VersionLabel() {
   );
 }
 
+// ── КИНЕМАТОГРАФИЧЕСКИЙ ПРОЛОГ ───────────────────────────────────────────────
+function PrologueCutscene({ onComplete }) {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    startCabinetAmbient();
+    stampFx();
+    const isTest = typeof window !== "undefined" && !window.__FORCE_CUTSCENE__ && (window.navigator?.webdriver || /HeadlessChrome/.test(window.navigator?.userAgent || ""));
+    if (isTest) {
+      onComplete();
+      return;
+    }
+    const t1 = setTimeout(() => {
+      setStep(1);
+      pageFx();
+    }, 1800);
+    const t2 = setTimeout(() => {
+      onComplete();
+    }, 4200);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [onComplete]);
+
+  return (
+    <div
+      className={styles.prologueOverlay}
+      onClick={onComplete}
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 99999,
+        background: "#0c1210",
+        color: "#ddcfaf",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px 20px",
+      }}
+    >
+      <div className={styles.prologueInner} style={{ maxWidth: 540, width: "100%", textAlign: "center" }}>
+        <div className={styles.prologueStamp} style={{ display: "inline-block", fontFamily: mono, fontSize: 11, letterSpacing: ".1em", color: "#e8d6a7", border: "1px solid rgba(232, 214, 167, 0.4)", padding: "5px 12px", marginBottom: 22, textTransform: "uppercase", background: "rgba(0,0,0,0.3)" }}>
+          ДЕЛО № 1 · РЕСПУБЛИКА
+        </div>
+        <div className={styles.prologueDate} style={{ fontFamily: narrow, fontWeight: 700, fontSize: 26, letterSpacing: ".06em", color: "#ffffff", marginBottom: 18, textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
+          14 ЯНВАРЯ 1978 ГОДА · МИНСК
+        </div>
+        <div className={styles.prologueText} style={{ fontFamily: serif, fontSize: 19, lineHeight: 1.75, color: "#e6dcc5", marginBottom: 32, minHeight: 90, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+          {step === 0 ? (
+            <span className="sv-fade">
+              Часы на башне Дома Правительства бьют семь утра.<br/>
+              Прежний председатель сложил полномочия и покинул резиденцию.
+            </span>
+          ) : (
+            <span className="sv-fade">
+              Охрана за дверью ждёт вашей первой подписи.<br/>
+              Всё, что вы знаете о стране, вам кто-то сказал. И у каждого свой интерес.
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          className={styles.prologueSkip}
+          onClick={e => { e.stopPropagation(); onComplete(); }}
+          style={{ fontFamily: mono, fontSize: 12, letterSpacing: ".08em", color: "#d8cbb0", background: "rgba(48, 70, 59, 0.35)", border: "1px solid rgba(216, 203, 176, 0.4)", padding: "10px 22px", cursor: "pointer", textTransform: "uppercase" }}
+        >
+          ПРОПУСТИТЬ [ENTER] →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Setup({ onStart, saved, onResume }) {
   const country = NEW_GAME_COUNTRY;
   const [diff, setDiff]       = useState(null);
   const [loading, setLoading] = useState(false);
+  const [prologue, setPrologue] = useState(null); // отложенный старт партии с показом пролога
   const [err, setErr]         = useState(null);
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
   const meta = useMemo(() => parseMeta(metaRaw), [metaRaw]);
@@ -1991,7 +2068,15 @@ function Setup({ onStart, saved, onResume }) {
       const st = (!daily && c === ALTERNATE_COUNTRY)
         ? customizeLeader(baseState, { bio: B.id, ideo: chosenIdeo })
         : baseState;
-      onStart(daily ? { ...st, daily: daily.date, dailyMoves: [] } : st, quick || !!daily);
+      const payload = { st: daily ? { ...st, daily: daily.date, dailyMoves: [] } : st, quick: quick || !!daily };
+      
+      // Запуск кинематографического пролога при старте новой сюжетной кампании
+      if (!daily && c === ALTERNATE_COUNTRY) {
+        setLoading(false);
+        setPrologue(payload);
+      } else {
+        onStart(payload.st, payload.quick);
+      }
     } catch (e) {
       console.error(e);
       setErr(e.message || "Ошибка API. Попробуйте снова.");
@@ -2004,21 +2089,27 @@ function Setup({ onStart, saved, onResume }) {
     go(country, activeDiff, pickOne(IDEOLOGIES).id, null, null, true);
   };
 
+  if (prologue) {
+    return (
+      <PrologueCutscene onComplete={() => onStart(prologue.st, prologue.quick)}/>
+    );
+  }
+
   return (
-    <div style={{ minHeight:"100dvh", background:"#1a211f", color:"#ddcfaf", padding:"20px 14px 36px" }}>
-      <div style={{ maxWidth:620, margin:"0 auto" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", gap:12, fontFamily:mono, fontSize:11, letterSpacing:".06em", paddingBottom:12, flexWrap:"wrap", color:"#b9ac92" }}>
-          <span>НЕМАНСКАЯ РЕСПУБЛИКА · ЦЕНТРАЛЬНАЯ ИЗБИРАТЕЛЬНАЯ КОМИССИЯ</span>
+    <div style={{ minHeight:"100dvh", background:"#141a18", color:"#ddcfaf", padding:"24px 16px 44px" }}>
+      <div style={{ maxWidth:640, margin:"0 auto" }}>
+        <header style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:12, fontFamily:mono, fontSize:11, letterSpacing:".08em", paddingBottom:16, color:"#988d75" }}>
+          <span>НЕМАНСКАЯ РЕСПУБЛИКА · ПРАВИТЕЛЬСТВЕННЫЙ ВЕСТНИК</span>
           <span>МИНСК · 1978</span>
-        </div>
+        </header>
 
         {saved && (
-          <Card style={{ marginBottom:14, padding:"12px 16px", background:"#eee4ce", border:"1px solid #b9ac92", borderLeft:"4px solid #30463b", display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
-              <Portrait name={saved.state.leader.name} size={44}/>
+          <Card style={{ marginBottom:18, padding:"14px 18px", background:"#eee4ce", border:"1px solid #b9ac92", borderLeft:"5px solid #30463b", display:"flex", justifyContent:"space-between", alignItems:"center", gap:14, flexWrap:"wrap", boxShadow:"0 6px 18px rgba(0,0,0,.25)" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:14, minWidth:0 }}>
+              <Portrait name={saved.state.leader.name} size={46}/>
               <div style={{ minWidth:0 }}>
-                <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".05em", color:G.tx3, marginBottom:2 }}>СОХРАНЁННАЯ ПАРТИЯ</div>
-                <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, color:G.txt }}>
+                <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".06em", color:G.tx3, marginBottom:2 }}>НЕОКОНЧЕННОЕ ДЕЛО</div>
+                <div style={{ fontFamily:serif, fontSize:18, fontWeight:700, color:G.txt }}>
                   <Flag country={saved.state.country}/> {saved.state.leader.name}
                 </div>
                 <div style={{ fontFamily:narrow, fontSize:14, color:G.tx2 }}>
@@ -2026,40 +2117,46 @@ function Setup({ onStart, saved, onResume }) {
                 </div>
               </div>
             </div>
-            <PrimaryBtn onClick={onResume}>ПРОДОЛЖИТЬ</PrimaryBtn>
+            <PrimaryBtn onClick={onResume}>ПРОДОЛЖИТЬ СРОК</PrimaryBtn>
           </Card>
         )}
 
-        <figure style={{ margin:"0 0 14px", border:"2px solid #000", boxShadow:"0 12px 30px rgba(0,0,0,.5)", position:"relative", overflow:"hidden", background:"#111a17" }}>
+        <figure style={{ margin:"0 0 16px", border:"2px solid #000", boxShadow:"0 16px 36px rgba(0,0,0,.6)", background:"#0b100e" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={artSource(HISTORICAL_SCENE_ART.ballot.src)}
-            alt=""
+            alt="Ночь подсчёта голосов, Минск 1978"
             className="sv-px"
-            style={{ width:"100%", aspectRatio:"16 / 9", maxHeight:190, objectFit:"cover", display:"block" }}
+            style={{ width:"100%", aspectRatio:"16 / 9", maxHeight:240, objectFit:"cover", display:"block", filter:"contrast(1.05) brightness(0.95)" }}
           />
-          <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(14, 12, 10, 0.94))", padding:"16px 14px 6px", display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:8 }}>
-            <span style={{ fontFamily:narrow, fontSize:13, color:"#f1e9d2" }}>Ночь подсчёта голосов · Протокол об избрании президента</span>
-            <span style={{ fontFamily:pixel, fontSize:11, color:"#c6b58b", letterSpacing:".04em", flexShrink:0 }}>ЯНВАРЬ 1978</span>
+          <div style={{ background:"#1a2320", borderTop:"1px solid #2d3b36", padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+            <div>
+              <div style={{ fontFamily:mono, fontSize:10, letterSpacing:".08em", color:"#9a8c71", textTransform:"uppercase" }}>Резиденция президента · Площадь Ленина</div>
+              <div style={{ fontFamily:narrow, fontSize:14, color:"#f4ecd6", fontWeight:700 }}>Ночь подсчёта голосов ЦИК Республики</div>
+            </div>
+            <span style={{ fontFamily:pixel, fontSize:11, color:"#d4c498", letterSpacing:".06em", flexShrink:0 }}>ЯНВАРЬ 1978</span>
           </div>
         </figure>
 
-        <article style={{ background:"#eee4ce", color:"#24221b", border:"1px solid #b9ac92", borderTop:"4px solid #30463b", padding:"20px 20px 22px", boxShadow:"0 14px 36px rgba(0,0,0,.38)", marginBottom:16 }}>
-          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", color:"#5e5645", marginBottom:6 }}>
-            Политическая драма · Альтернативная история Беларуси
+        <article style={{ background:"#eee4ce", color:"#24221b", border:"1px solid #b9ac92", borderTop:"5px solid #8b2b22", padding:"24px 22px 24px", boxShadow:"0 16px 40px rgba(0,0,0,.45)", marginBottom:18 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:8 }}>
+            <span style={{ fontFamily:mono, fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:"#6e624c" }}>
+              Государственный совет Неманской Республики
+            </span>
+            <span className="sv-stamp" style={{ fontSize:11, padding:"2px 6px" }}>СЕКРЕТНО</span>
           </div>
-          <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(38px, 10vw, 52px)", lineHeight:0.96, letterSpacing:".02em", color:"#24221b", margin:"0 0 12px" }}>
+          <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(42px, 11vw, 56px)", lineHeight:0.92, letterSpacing:".04em", color:"#1a1813", margin:"0 0 14px" }}>
             СУВЕРЕН
           </h1>
-          <p style={{ fontFamily:serif, fontSize:16, lineHeight:1.55, color:"#2f2a20", margin:"0 0 14px" }}>
-            После 1918 года на землях Беларуси сохранилась независимая Неманская республика. Вы выиграли выборы — но всё, что вы знаете о своей стране, вам кто-то сказал, и у каждого свой интерес.
+          <p style={{ fontFamily:serif, fontSize:16, lineHeight:1.6, color:"#2a251c", margin:"0 0 18px" }}>
+            После 1918 года Неманская республика удержала независимость. Заводы требуют сырья, армия и советники преследуют свои цели, а каждое ваше решение меняет баланс сил. Сколько лет вы удержите власть?
           </p>
 
-          <div style={{ borderTop:"1px dashed #b9aa88", paddingTop:12, marginBottom:16 }}>
-            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".05em", textTransform:"uppercase", color:"#554933", marginBottom:8 }}>
-              Исход выборов и стартовое положение:
+          <div style={{ borderTop:"1px dashed #b2a07c", paddingTop:14, marginBottom:18 }}>
+            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", color:"#554933", marginBottom:8 }}>
+              Условия вступления в должность:
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
               {Object.entries(DIFFICULTIES).map(([id, d]) => {
                 const active = activeDiff === id;
                 return (
@@ -2072,19 +2169,21 @@ function Setup({ onStart, saved, onResume }) {
                       display:"flex",
                       flexDirection:"column",
                       alignItems:"flex-start",
-                      gap:2,
-                      padding:"7px 10px",
+                      gap:3,
+                      padding:"8px 12px",
                       textAlign:"left",
-                      border:active ? "1px solid #1c2c24" : "1px solid #b5a582",
+                      border:active ? "1px solid #14221a" : "1px solid #b8a885",
                       background:active ? "#30463b" : "#e6dcc2",
                       color:active ? "#f0e4c8" : "#2b251a",
                       cursor:"pointer",
+                      transition:"background .15s, border-color .15s",
+                      boxShadow:active ? "inset 0 1px 3px rgba(0,0,0,.25)" : "none",
                     }}
                   >
-                    <span style={{ fontFamily:narrow, fontSize:15, fontWeight:700, lineHeight:1.15 }}>
+                    <span style={{ fontFamily:narrow, fontSize:16, fontWeight:700, lineHeight:1.15 }}>
                       {d.label}
                     </span>
-                    <span style={{ fontFamily:serif, fontSize:12, lineHeight:1.25, opacity:active ? 0.9 : 0.78 }}>
+                    <span style={{ fontFamily:serif, fontSize:13, lineHeight:1.25, opacity:active ? 0.9 : 0.78 }}>
                       {d.desc}
                     </span>
                   </button>
@@ -2097,26 +2196,28 @@ function Setup({ onStart, saved, onResume }) {
             type="button"
             disabled={loading}
             onClick={quick}
+            aria-label={saved ? "Начать новую игру" : "Начать игру"}
             style={{
               width:"100%",
-              minHeight:48,
-              border:0,
+              minHeight:52,
+              border:"1px solid #1c2c24",
               background:"#30463b",
               color:"#f0e4c8",
               fontFamily:narrow,
               fontWeight:700,
-              fontSize:18,
-              letterSpacing:".02em",
-              padding:"12px 18px",
+              fontSize:19,
+              letterSpacing:".04em",
+              padding:"12px 20px",
               display:"flex",
               alignItems:"center",
               justifyContent:"space-between",
               cursor:loading ? "default" : "pointer",
               opacity:loading ? 0.6 : 1,
+              boxShadow:"0 4px 14px rgba(0,0,0,.25)",
             }}
           >
-            <span>{loading ? "Открываем кабинет…" : saved ? "Начать новую игру" : "Начать игру"}</span>
-            <span aria-hidden="true">→</span>
+            <span>{loading ? "ПОДГОТОВКА ДОКУМЕНТОВ…" : saved ? "НАЧАТЬ НОВОЕ ПРАВЛЕНИЕ" : "НАЧАТЬ ИГРУ · В КАБИНЕТ"}</span>
+            <span aria-hidden="true" style={{ fontSize:22 }}>→</span>
           </button>
         </article>
 
