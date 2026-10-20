@@ -29,7 +29,7 @@ async function fresh(country = ALTERNATE_COUNTRY) {
 }
 
 test('scene keys match canonical content and preserve slots and surrounding chapters', () => {
-  assert.equal(HISTORICAL_SCENES.length, 25);
+  assert.equal(HISTORICAL_SCENES.length, 27);
   assert.equal(new Set(HISTORICAL_SCENES.map(scene => scene.source)).size, HISTORICAL_SCENES.length);
   for (const scene of HISTORICAL_SCENES) {
     assert.equal(sources.filter(source => source.includes(scene.source)).length, 1, scene.id);

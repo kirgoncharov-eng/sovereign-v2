@@ -30,6 +30,7 @@ import { sceneAfter } from "../content/scene-map.ts";
 import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OPPOSITION_SPECIAL, OUTLETS } from "../content/newspaper.ts";
 import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
 import { termFinale } from "./term-finale.ts";
+import { PARTY_GENITIVE } from "../content/term-finale.ts";
 import { effectiveLaw, lawDef } from "./laws.ts";
 import { DEEDS, ELECTION_NIGHT, INTERCUTS, roleGroup } from "../content/roles.ts";
 import { TERMS_TURN, electionKind, fellTrying, isTermEnd, reignOf, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
@@ -1066,17 +1067,23 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // Доклад по обещанию не должен исчезнуть за лимитом общих эхо.
   const reports = [...plan.matured].sort((left, right) =>
     Number(right.event === JOURNALIST_CALL_TITLE) - Number(left.event === JOURNALIST_CALL_TITLE));
+  let lastEcho: string | undefined;
   for (const m of reports.slice(0, MAX_ECHOES)) {
     const story = m.story || historicalEcho(state.country, m)
       || maturedStory(m.label, (echoed[m.label] = (echoed[m.label] ?? 0) + 1) - 1);
-    after.push(`${echoLead(state, m)}${story}`);
+    // Кампания 1978: два эха одного дела подряд — одно «Аукается…», второе продолжает его.
+    const sameCase = state.country === ALTERNATE_COUNTRY && !!m.event && m.event === lastEcho;
+    after.push(`${sameCase ? "" : echoLead(state, m)}${story}`);
+    lastEcho = m.event;
   }
   if (plan.election) {
     const e = plan.election;
+    // Кампания 1978: «у «Гражданского движения»», а не «у «Гражданское движение»» (#143). Архив — как был.
+    const rival = state.country === ALTERNATE_COUNTRY ? PARTY_GENITIVE[e.top.name] ?? e.top.name : e.top.name;
     electionLine = (e.outcome === "won"
       ? e.kind === "president"
-        ? `${ELECTION_LABEL[e.kind]}. Последний регион досчитывают к трём часам ночи: ${e.leader}% против ${e.top.share}% у «${e.top.name}». ${upper(termOrdinal(reignOf(state).term + 1))} срок. Вы долго стоите у окна резиденции и смотрите на площадь, где уже начинают праздновать.`
-        : `${ELECTION_LABEL[e.kind]}. В штабе открывают шампанское в 23:40, когда приходят данные из последнего региона: ${e.leader}% против ${e.top.share}% у «${e.top.name}». Вы выходите к сторонникам и впервые за месяц улыбаетесь не для камер.`
+        ? `${ELECTION_LABEL[e.kind]}. Последний регион досчитывают к трём часам ночи: ${e.leader}% против ${e.top.share}% у «${rival}». ${upper(termOrdinal(reignOf(state).term + 1))} срок. Вы долго стоите у окна резиденции и смотрите на площадь, где уже начинают праздновать.`
+        : `${ELECTION_LABEL[e.kind]}. В штабе открывают шампанское в 23:40, когда приходят данные из последнего региона: ${e.leader}% против ${e.top.share}% у «${rival}». Вы выходите к сторонникам и впервые за месяц улыбаетесь не для камер.`
       : `${ELECTION_LABEL[e.kind]}. К полуночи всё ясно: «${e.top.name}» — ${e.top.share}%, у вас ${e.leader}%. В штабе молча выключают телевизоры. Кто-то уже собирает вещи.`);
   }
   const news = plan.pactNews;
@@ -1273,6 +1280,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const baseHeadline = finale ? finale.head : plan.election ? electionHeadline(plan.election)
     : (plan.success ? plan.choice.headline : plan.choice.headlineFail)
       ?? fill(cycle(HEADLINES[tone], state.seed, `hl${tone}`, state.turn), state);
+  const authoredHeadline = state.country === ALTERNATE_COUNTRY && !!(plan.success ? plan.choice.headline : plan.choice.headlineFail);
   const headline = newspaperHeadline({
     base: baseHeadline,
     event: state.currentEvent?.title ?? "Решение президента",
@@ -1280,7 +1288,8 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     success: plan.success,
     seed: state.seed,
     turn: state.turn + 1,
-    ordinary: isOrdinaryNewspaperEvent(state.currentEvent?.card)
+    // В кампании 1978 года у дел авторские газетные заголовки: шаблон «Исполнено: «…»» их не подменяет.
+    ordinary: isOrdinaryNewspaperEvent(state.currentEvent?.card) && !authoredHeadline
       && !finale && !plan.election && !act && !arc && !plan.choice.law,
   });
   return {
