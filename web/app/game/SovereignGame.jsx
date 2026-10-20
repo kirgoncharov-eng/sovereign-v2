@@ -433,8 +433,8 @@ function DangerLines({ gs, c, fx }) {
   if (!hit.length && !saboteur) return null;
   return (
     <div style={{ fontFamily:narrow, fontSize:15, color:G.red, marginTop:6, lineHeight:1.45 }}>
-      {hit.map(r => <div key={r.key}>⚠ Опора «{SHORT[r.key]}» ниже {CRISIS_THRESHOLD} — это решение ударит и по ней</div>)}
-      {saboteur && <div>⚠ {DOSSIER_TEXT.sabotage.replace("{name}", saboteur.name)}</div>}
+      {hit.map(r => <div key={r.key}><span style={{ fontWeight:700 }}>! </span>Опора «{SHORT[r.key]}» ниже {CRISIS_THRESHOLD} — это решение ударит и по ней</div>)}
+      {saboteur && <div><span style={{ fontWeight:700 }}>! </span>{DOSSIER_TEXT.sabotage.replace("{name}", saboteur.name)}</div>}
     </div>
   );
 }
@@ -502,9 +502,9 @@ function LawLines({ gs, c, effects = true }) {
     <div style={{ fontFamily:narrow, fontSize:15, marginTop:6, lineHeight:1.45, color:G.tx2 }}>
       {c.law.act === "enact"
         ? effects
-          ? <><div>⚖ Если парламент примет — закон «{def.title}» будет действовать каждый ход:</div><LawEffects def={def}/></>
-          : <div>⚖ Если парламент примет — закон «{def.title}» будет действовать каждый ход</div>
-        : <div>⚖ Отменит закон «{def.title}»{inForce ? " — его действие прекратится" : ""}</div>}
+          ? <><div>§ Если парламент примет — закон «{def.title}» будет действовать каждый ход:</div><LawEffects def={def}/></>
+          : <div>§ Если парламент примет — закон «{def.title}» будет действовать каждый ход</div>
+        : <div>§ Отменит закон «{def.title}»{inForce ? " — его действие прекратится" : ""}</div>}
     </div>
   );
 }
@@ -1827,8 +1827,23 @@ function HowToPlay({ gs, onClose }) {
   ];
   return (
     <div className="sv-modal" role="dialog" aria-modal="true" aria-labelledby="howto-title" onClick={close}>
-      <div onClick={e => e.stopPropagation()} className="sv-fade sv-paper" style={{ maxWidth:560, width:"100%", maxHeight:"90vh", overflowY:"auto", borderRadius:0, padding:"24px 24px 20px" }}>
-        <div id="howto-title" style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, marginBottom:16 }}>Как править</div>
+      <div onClick={e => e.stopPropagation()} className="sv-fade sv-paper" style={{ maxWidth:560, width:"100%", maxHeight:"90vh", overflowY:"auto", borderRadius:0, padding:"22px 24px 20px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10, paddingBottom:12, marginBottom:16, borderBottom:`2px solid ${G.bdr2}` }}>
+          <div>
+            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:G.tx3, lineHeight:1.4 }}>
+              СОВЕТ МИНИСТРОВ НЕМАНСКОЙ РЕСПУБЛИКИ
+            </div>
+            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>
+              СЛУЖЕБНАЯ ПАМЯТКА · КАНЦЕЛЯРИЯ
+            </div>
+          </div>
+          <span className="sv-stamp is-red" style={{ fontSize:12, padding:"3px 8px", flexShrink:0 }}>
+            ДСП · ЭКЗ. № 1
+          </span>
+        </div>
+        <div id="howto-title" style={{ fontFamily:serif, fontSize:24, fontWeight:700, color:G.txt, marginBottom:16 }}>
+          {historical ? "Основы государственного управления" : "Как править"}
+        </div>
         {items.map(([h, t]) => (
           <div key={h} style={{ marginBottom:14 }}>
             <div style={{ fontFamily:narrow, fontSize:15, fontWeight:700, letterSpacing:".05em", color:G.gld2, marginBottom:3 }}>{h.toUpperCase()}</div>
@@ -1846,9 +1861,9 @@ function HowToPlay({ gs, onClose }) {
           </div>
           <div style={{ fontFamily:serif, fontSize:14, color:G.tx2, marginTop:6, lineHeight:1.5 }}>Значок заполняется по уровню опоры. Точка над ним при выборе — опора изменится: крупная точка — сильно. Нажмите на значок — увидите, что повлияет на опору в ближайшие ходы.</div>
         </div>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginTop:8, flexWrap:"wrap" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginTop:12, flexWrap:"wrap" }}>
           <SoundToggle/>
-          <PrimaryBtn onClick={close}>ПОНЯТНО</PrimaryBtn>
+          <PrimaryBtn onClick={close}>ПРИНЯТО К СВЕДЕНИЮ</PrimaryBtn>
         </div>
       </div>
     </div>
@@ -2434,7 +2449,7 @@ function PeopleSheet({ gs, onDossier, onHire, onInbox }) {
     {factions.map(f => {
       const foreign = NON_VOTING_BLOCS.includes(f.bloc);
       const share = foreign ? "внешняя сила" : `${Math.round(f.approval / total * 100)}% избирателей`;
-      return <RelBar key={f.id} label={`${f.name} · ${share}${f.relation <= HOSTILE_RELATION ? " · вредит ⚠" : ""}`}
+      return <RelBar key={f.id} label={`${f.name} · ${share}${f.relation <= HOSTILE_RELATION ? " · вредит [!]" : ""}`}
         val={f.relation} prevVal={prevFactions?.find(p => p.id === f.id)?.relation}/>;
     })}
     <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, margin:"2px 0 14px", lineHeight:1.5 }}>
@@ -2741,22 +2756,22 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                           ))}
                         </div>
                       ) : (
-                        <span className="sv-sheet-emblem" aria-hidden="true">👥</span>
+                        <span className="sv-sheet-emblem" aria-hidden="true" style={{ fontFamily: mono, fontSize: 13, fontWeight: 700 }}>§</span>
                       )
                     ) : (
-                      <span className="sv-sheet-emblem" aria-hidden="true">
+                      <span className="sv-sheet-emblem" aria-hidden="true" style={{ fontFamily: pixel, fontSize: 12 }}>
                         {COUNTRIES[gs.country]?.flag || "≋"}
                       </span>
                     )}
                     <strong className="sv-sheet-title">{sheet.label}</strong>
                     {isPeople && waitingReplies > 0 ? (
-                      <span className="sv-sheet-badge is-inbox" title="Обращения ждут ответа">
-                        ✉ {waitingReplies}
+                      <span className="sv-sheet-badge is-inbox" title="Обращения ждут ответа" style={{ letterSpacing: ".02em" }}>
+                        ВХ. {waitingReplies}
                       </span>
                     ) : alertCount > 0 ? (
                       <span className="sv-sheet-badge is-alert sv-sheet-alert" title={sheet.alert}>
                         <span className="sv-sheet-pulse-dot" aria-hidden="true" />
-                        <span>{alertCount} ⚠</span>
+                        <span>{alertCount} !</span>
                       </span>
                     ) : null}
                   </div>
@@ -3134,7 +3149,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   : lastTurn.law.act === "amend" ? ["Переходная льгота введена", G.amb] : lastTurn.law.passed ? ["Закон отменён", G.amb] : ["Отменить закон не удалось", G.red];
                 return def && (
                   <div className="sv-paper" style={{ marginBottom:8, padding:"10px 16px", borderRadius:0, borderLeft:`3px solid ${color}` }}>
-                    <span style={{ fontFamily:narrow, fontSize:15, fontWeight:700, color, letterSpacing:".04em" }}>⚖ {label.toUpperCase()}</span>
+                    <span style={{ fontFamily:narrow, fontSize:15, fontWeight:700, color, letterSpacing:".04em" }}>§ {label.toUpperCase()}</span>
                     <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}> · «{def.title}»{lastTurn.law.act === "enact" && lastTurn.law.passed ? " — в своде законов, действует со следующего хода" : ""}</span>
                   </div>
                 );
@@ -3375,7 +3390,7 @@ function ShareCard({ gs, style }) {
   const shareBtnLabel = state === "copied"
     ? "✓ ССЫЛКА СКОПИРОВАНА"
     : isHistorical
-      ? (isTg ? "✉ ОТПРАВИТЬ ДРУГУ В TELEGRAM" : "✉ ОТПРАВИТЬ ДРУГУ")
+      ? (isTg ? "ОТПРАВИТЬ В TELEGRAM" : "ОТПРАВИТЬ ДРУГУ")
       : "ОТПРАВИТЬ ДРУГУ";
   return (
     <Card style={{ marginBottom:12, ...style }}>
@@ -3586,10 +3601,12 @@ function Ending({ gs, setGs, onRestart }) {
   return (
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"32px 16px" }}>
       <div style={{ maxWidth:660, width:"100%", display:"flex", flexDirection:"column" }}>
-        <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:12 }}><Flag country={gs.country}/> {countryName(gs.country).toUpperCase()} · {gs.endType ? END_TYPES[gs.endType].toUpperCase() : "КОНЕЦ ПРАВЛЕНИЯ"}</div>
-          <Divider/>
-        </div>
+        {!isHistorical && (
+          <div style={{ textAlign:"center", marginBottom:20 }}>
+            <div style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3, marginBottom:12 }}><Flag country={gs.country}/> {countryName(gs.country).toUpperCase()} · {gs.endType ? END_TYPES[gs.endType].toUpperCase() : "КОНЕЦ ПРАВЛЕНИЯ"}</div>
+            <Divider/>
+          </div>
+        )}
 
         {!isHistorical && (
           <Card style={{ marginBottom:12, textAlign:"center" }}>
