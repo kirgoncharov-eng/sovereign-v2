@@ -2295,15 +2295,51 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
         <div className="sv-sidebar" data-open={dossier || undefined}>
           <nav className="sv-sheet-switch" aria-label="Страна и люди" inert={dossier || undefined}>
-            {SHEETS.map(sheet => (
-              <button key={sheet.id} onClick={() => openSheet(sheet.id)} aria-pressed={sideTab === sheet.id} aria-expanded={dossier && sideTab === sheet.id}>
-                <strong>{sheet.label}</strong>
-                {alerts[sheet.id] > 0 && <span className="sv-sheet-alert" title={sheet.alert}>{alerts[sheet.id]} ⚠</span>}
-                <span className="sv-sheet-hint">
-                  {sheet.id === "people" && peopleHint ? peopleHint : sheet.hint}
-                </span>
-              </button>
-            ))}
+            {SHEETS.map(sheet => {
+              const isPeople = sheet.id === "people";
+              const alertCount = alerts[sheet.id] || 0;
+              return (
+                <button
+                  key={sheet.id}
+                  onClick={() => openSheet(sheet.id)}
+                  aria-pressed={sideTab === sheet.id}
+                  aria-expanded={dossier && sideTab === sheet.id}
+                  className={`sv-sheet-tab sv-sheet-tab-${sheet.id}`}
+                >
+                  <div className="sv-sheet-tab-head">
+                    {isPeople ? (
+                      (gs.advisors ?? []).length > 0 ? (
+                        <div className="sv-sheet-avatars" aria-hidden="true">
+                          {gs.advisors.slice(0, 4).map(adv => (
+                            <Portrait key={adv.id} name={adv.name} size={18} style={{ borderWidth: 1 }} />
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="sv-sheet-emblem" aria-hidden="true">👥</span>
+                      )
+                    ) : (
+                      <span className="sv-sheet-emblem" aria-hidden="true">
+                        {COUNTRIES[gs.country]?.flag || "≋"}
+                      </span>
+                    )}
+                    <strong className="sv-sheet-title">{sheet.label}</strong>
+                    {isPeople && waitingReplies > 0 ? (
+                      <span className="sv-sheet-badge is-inbox" title="Обращения ждут ответа">
+                        ✉ {waitingReplies}
+                      </span>
+                    ) : alertCount > 0 ? (
+                      <span className="sv-sheet-badge is-alert sv-sheet-alert" title={sheet.alert}>
+                        <span className="sv-sheet-pulse-dot" aria-hidden="true" />
+                        <span>{alertCount} ⚠</span>
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="sv-sheet-hint">
+                    {isPeople && peopleHint ? peopleHint : sheet.hint}
+                  </span>
+                </button>
+              );
+            })}
           </nav>
           <div ref={sheetBody} className="sv-side-body" role={dossier ? "dialog" : "region"}
             aria-modal={dossier || undefined} aria-label={SHEETS.find(sheet => sheet.id === sideTab)?.label}>
