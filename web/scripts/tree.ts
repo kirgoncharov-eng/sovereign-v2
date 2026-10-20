@@ -7,7 +7,7 @@ import { classicApi, budgetChoice, callChoice, pressChoice } from "../lib/game/c
 import { choiceEffects, createInitialState, resolveTurn, seededRandom, startEvent } from "../lib/game/engine.ts";
 import { ALTERNATE_COUNTRY } from "../lib/game/alternate-world.ts";
 import { RESOURCE_KEYS } from "../lib/game/data.ts";
-import { mostHostile, mostLoyal } from "../lib/game/country-profile.ts";
+import { mostLoyal, rivalOf } from "../lib/game/country-profile.ts";
 import type { ActionTag, Choice, DifficultyId, GameState } from "../lib/game/types.ts";
 
 const SEEDS = Number(process.env.SEEDS ?? 30);
@@ -34,14 +34,14 @@ const LANES: Record<string, string[]> = {
   deal: ["business", "regional"],
 };
 
-// Стиль задаёт предпочтение, но вариант, который роняет опору ниже кризиса, бот не берёт, если есть другой.
-// Случайный стиль (без тегов) выбирает наугад среди таких же безопасных вариантов — как игрок без системы.
+// Стиль задаёт предпочтение, но игрок видит цену: риск варианта растёт с тем, насколько глубоко опора уйдёт ниже кризиса,
+// а у края обвала (ниже DANGER) — втрое быстрее. Иначе на «Кризисе», где почти всё ниже 30, бот не отличал бы 24 от 6.
+// Случайный стиль (без тегов) выбирает наугад среди почти самых безопасных вариантов — как игрок без системы.
 function choose(state: GameState, choices: Choice[], style: ActionTag[], lane?: string[]): Choice {
   const breaks = (choice: Choice) => {
     const delta = choiceEffects(state, choice).resources as Record<string, number>;
-    // Опора у края обвала (ниже DANGER) весит втрое: игрок видит, что следующий удар закончит партию.
     const after = (key: string) => state.resources[key as keyof GameState["resources"]] + (delta[key] ?? 0);
-    return RESOURCE_KEYS.filter(key => after(key) < CRISIS).length + RESOURCE_KEYS.filter(key => after(key) < DANGER).length * 2;
+    return RESOURCE_KEYS.reduce((risk, key) => risk + Math.max(0, CRISIS - after(key)) / 5 + Math.max(0, DANGER - after(key)) * 0.4, 0);
   };
   if (lane) {
     const camps = (choice: Choice) => {
@@ -52,7 +52,7 @@ function choose(state: GameState, choices: Choice[], style: ActionTag[], lane?: 
     return choices.reduce((best, choice) => (score(choice) > score(best) ? choice : best));
   }
   if (!style.length) {
-    const safe = choices.filter(choice => breaks(choice) === Math.min(...choices.map(breaks)));
+    const safe = choices.filter(choice => breaks(choice) <= Math.min(...choices.map(breaks)) + 1);
     return safe[Math.floor(seededRandom(state.seed + state.turn * 7919)() * safe.length)];
   }
   const score = (choice: Choice) => choice.tags.filter(tag => style.includes(tag)).length * 3 - breaks(choice) * 5;
@@ -93,7 +93,7 @@ async function play(seed: number, style: string): Promise<Run> {
     steps.push({ turn: state.turn + 1, event: eventKey(event), authored });
     state = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
     ally.push(mostLoyal(state.factions)?.bloc ?? "—");
-    rival.push(mostHostile(state.factions)?.bloc ?? "—");
+    rival.push(rivalOf(state)?.bloc ?? "—");
   }
   return { seed, style, steps, turn: state.turn, ally, rival, end: state.turn <= 20 ? state.endType : null };
 }

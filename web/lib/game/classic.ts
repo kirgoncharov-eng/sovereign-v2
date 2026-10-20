@@ -56,7 +56,7 @@ import { LEAKS } from "../content/advisors.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import { isOrdinaryNewspaperEvent, newspaperHeadline } from "./newspaper-editions.ts";
 import { FIRST_TERM_CASES, firstTermLaw, replacedCases, scheduledFirstTerm, versionsOf } from "./first-term-schedule.ts";
-import { hasPact, mostHostile, mostLoyal, trustLevel } from "./country-profile.ts";
+import { hasPact, mostLoyal, rivalOf, trustLevel } from "./country-profile.ts";
 import { presidentialCouncil } from "./presidential-story.ts";
 import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, LeaderPortraitId, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
 
@@ -198,7 +198,7 @@ export function cardAvailable(card: EventCard, state: GameState): boolean {
   if (w.versionOf && !scheduledFirstTerm(state)) return false;
   if (w.trust && trustLevel(state) !== w.trust) return false;
   if (w.pact && !hasPact(state, w.pact)) return false;
-  if (w.rival && mostHostile(state.factions)?.bloc !== w.rival) return false;
+  if (w.rival && rivalOf(state)?.bloc !== w.rival) return false;
   if (w.ally && mostLoyal(state.factions)?.bloc !== w.ally) return false;
   if (w.after && !state.history.some(entry => w.after!.includes(entry.choice))) return false;
   return true;

@@ -146,6 +146,13 @@ export const isSurvival = (e: EndType | null) => !!e && SURVIVAL_ENDS.includes(e
 export const diesInOffice = (seed: number, turn: number) =>
   turn >= DEATH_FROM && seededRandom(hashSeed(seed, "death", turn))() < (turn - DEATH_FROM + 4) * DEATH_STEP;
 
+// Кого решение заметно задело (#221): повод для лагеря стать противником. Пишется только в кампании 1978 года.
+const HURT = -3;
+function hurtBy(relations: Record<string, number>): { hurt?: string[] } {
+  const hurt = Object.keys(relations).filter(id => relations[id] <= HURT);
+  return hurt.length ? { hurt } : {};
+}
+
 // Поражение важнее завершения мандата: рухнуть на последнем ходу — всё равно рухнуть.
 export function detectEnd(resources: Resources, factions: Faction[], turn: number): EndType | null {
   if (leaderRating(factions, resources) <= LIMITS.endRating || resources.internalLegitimacy <= LIMITS.endResource) return "revolution";
@@ -758,6 +765,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       ...(plan.lawNews ? { law: plan.lawNews } : {}),
       ...(narration.heard?.length ? { heard: narration.heard } : {}),
       ...(narration.cast?.length ? { cast: narration.cast } : {}),
+      ...(state.country === ALTERNATE_COUNTRY ? hurtBy(plan.effects.factionRel) : {}),
     }],
     currentEvent: null,
     lastTurn: {

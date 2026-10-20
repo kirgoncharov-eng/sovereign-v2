@@ -311,6 +311,7 @@ export interface HistoryEntry {
   success?: boolean;
   heard?: string[];       // уже прозвучавшие реплики и заголовки
   cast?: string[];        // кто появлялся в главе
+  hurt?: string[];        // лагеря, которых решение заметно задело (#221)
 }
 
 export interface GameStats {

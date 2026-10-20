@@ -7,7 +7,7 @@ import type { Bloc, Faction, GameState, Pact } from './types.ts';
 export const TRUST = { low: 35, high: 55 } as const;
 export type TrustLevel = 'low' | 'middle' | 'high';
 
-type ProfileState = Pick<GameState, 'country' | 'factions' | 'resources'> & { pacts?: Pact[] };
+type ProfileState = Pick<GameState, 'country' | 'factions' | 'resources'> & { pacts?: Pact[]; history?: GameState['history'] };
 
 export function trustLevel(state: ProfileState): TrustLevel {
   const rating = computePolls(state.country, state.factions, state.resources).leader;
@@ -28,4 +28,14 @@ export function mostHostile(factions: Faction[]): Faction | null {
 
 export function mostLoyal(factions: Faction[]): Faction | null {
   return factions.reduce<Faction | null>((best, group) => (!best || group.relation > best.relation ? group : best), null);
+}
+
+// Противник (#221): худший по отношению лагерь ещё не враг. Нужны открытый конфликт — отношение не выше RIVAL.relation —
+// и повод: решение последних RIVAL.memory ходов его задело. Пороги — кандидаты для замера (`npm run tree`).
+export const RIVAL = { relation: -10, memory: 4 } as const;
+
+export function rivalOf(state: ProfileState): Faction | null {
+  const recent = (state.history ?? []).slice(-RIVAL.memory).flatMap(entry => (Array.isArray(entry.hurt) ? entry.hurt : []));
+  const hurt = new Set(recent);
+  return mostHostile(state.factions.filter(group => group.relation <= RIVAL.relation && hurt.has(group.id)));
 }
