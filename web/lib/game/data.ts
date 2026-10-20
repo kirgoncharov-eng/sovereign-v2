@@ -3,7 +3,7 @@ import { ALTERNATE_CONTEXT, ALTERNATE_COUNTRY } from "./alternate-world.ts";
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "8.22";
+export const APP_VERSION = "8.23";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 // Срок — двадцать ходов (пять лет). Правление не ограничено сроком: партия идёт, пока лидер у власти.
 export const TERM = 20;

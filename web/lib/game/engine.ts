@@ -1,5 +1,6 @@
 // Игровой движок: чистые функции без сети и без React.
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
+import { historicalDelayedLabel } from "../content/historical-echoes.ts";
 import {
   ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, MAX_PENDING, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, COSTS, CRISIS_DRAIN, pressureAt,
   ELECTION_LOSS_PENALTY, ELECTION_WIN_BONUS, HOSTILE_DRAIN, HOSTILE_RELATION, IMPEACH_RATING, NON_VOTING_BLOCS, PARTIES, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
@@ -321,9 +322,12 @@ export function applyAdvisorNews(advisors: Advisor[], news: AdvisorNews[] | unde
 // Отложенные последствия по тегам — у обычных решений. У закона последствия свои — каждый ход, пока он действует;
 // у эпизода интриги — сюжетные, у сделки и союза — прописанные в самой сделке.
 // Общие «розданные деньги разогнали инфляцию» к ним не относятся.
-export function delayedEffects(choice: Choice): DelayedInfo[] {
+// Авторские названия (#194) — только в обычной партии кампании 1978 года; «Дело дня» и архив держат общие.
+export function delayedEffects(choice: Choice, state?: Pick<GameState, "country" | "daily">): DelayedInfo[] {
   if (choice.deal || choice.stance || choice.arc) return [];
-  const list = choice.tags.map(t => DELAYED[t]).filter((d): d is DelayedInfo => !!d);
+  const authored = state?.country === ALTERNATE_COUNTRY && !state.daily;
+  const list = choice.tags.map(t => DELAYED[t]).filter((d): d is DelayedInfo => !!d)
+    .map(d => (authored ? { ...d, label: historicalDelayedLabel(choice.text, d.label) } : d));
   if (choice.advisor?.skill === 1) list.push(WEAK_ADVISOR_DELAYED);
   return list;
 }
@@ -561,7 +565,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   const net = (d: { res: ResourceDelta }) => Object.values(d.res).reduce((x, y) => x + (y ?? 0), 0);
   const later = success && choice.deal?.later ? [{ ...choice.deal.later, story: choice.deal.later.story ?? "" }] : [];
   // Сюжет храним только у сделок: эхо из таблицы DELAYED рассказчик берёт сам, с вариантами.
-  const tagged = delayedEffects(choice).filter(d => success || net(d) < 0).map(d => ({ ...d, story: "" }));
+  const tagged = delayedEffects(choice, state).filter(d => success || net(d) < 0).map(d => ({ ...d, story: "" }));
   const scheduled: Pending[] = [...tagged, ...later].map((d, i) => ({
     id: `p${nextTurn}_${i}`, due: nextTurn + d.turns, from: state.turn, label: d.label, res: d.res, source: choice.text,
     ...(state.currentEvent?.title ? { event: state.currentEvent.title } : {}),
