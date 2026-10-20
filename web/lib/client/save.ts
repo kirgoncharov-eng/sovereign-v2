@@ -122,6 +122,8 @@ function validState(s: Obj): boolean {
   if (s.staffing !== undefined && !(isObj(s.staffing) && (s.staffing.lastTurn === null || integer(s.staffing.lastTurn))
     && strings(s.staffing.taken) && (s.staffing.receipt === undefined || typeof s.staffing.receipt === "string"))) return false;
   if (s.world !== undefined && !validLivingWorld(s.world)) return false;
+  if (s.storyHeroes !== undefined && !(isObj(s.storyHeroes) && Object.values(s.storyHeroes).every(pin => isObj(pin)
+    && typeof pin.hero === "string" && typeof pin.heroName === "string"))) return false;
   if (s.storyReplies !== undefined && !(isObj(s.storyReplies) && Object.values(s.storyReplies).every(answer => isObj(answer)
     && typeof answer.reply === "string" && integer(answer.turn) && (answer.hero === undefined || typeof answer.hero === "string")
     && (answer.heroName === undefined || typeof answer.heroName === "string")))) return false;

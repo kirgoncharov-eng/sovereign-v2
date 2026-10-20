@@ -33,6 +33,9 @@ function heroOf(state: GameState, story: Story): Figure | null {
   return candidates(state, story).find(f => f.name !== state.arc?.target) ?? null;
 }
 
+// Герой личной истории закрепляется в обычной партии 1978 года; архив и «Дело дня» считаются как раньше.
+export const pinsHero = (state: GameState) => state.country === ALTERNATE_COUNTRY && !state.daily;
+
 // Ответы на письма есть только в обычной партии кампании 1978 года.
 function repliesFor(state: GameState, story: Story): StoryReplies | undefined {
   return state.country === ALTERNATE_COUNTRY && !state.daily ? STORY_REPLIES[story.id] : undefined;
@@ -41,15 +44,16 @@ function repliesFor(state: GameState, story: Story): StoryReplies | undefined {
 // Герой отвеченной истории закреплён ответом — по должности и по имени (#182).
 // undefined — ответа нет, герой выбирается как обычно; null — человек ушёл с поста (преемник, сделка),
 // и его личная история на этом кончается: продолжение не переходит к тому, кто занял место.
+// Герой закрепляется первым письмом истории (`storyHeroes`) или ответом на письмо (#184, #182).
 function pinnedHero(state: GameState, story: Story): Figure | null | undefined {
-  const answer = state.storyReplies?.[story.id];
-  if (!answer?.hero) return undefined;
-  const figure = state.keyFigures.find(item => item.id === answer.hero);
+  const pin = state.storyReplies?.[story.id] ?? state.storyHeroes?.[story.id];
+  if (!pin?.hero) return undefined;
+  const figure = state.keyFigures.find(item => item.id === pin.hero);
   if (!figure) return null;
-  return answer.heroName === undefined || figure.name === answer.heroName ? figure : null;
+  return pin.heroName === undefined || figure.name === pin.heroName ? figure : null;
 }
 
-// Герою ответа не мешает и смена антагониста интриги в новом сроке.
+// Герою не мешает и смена антагониста интриги в новом сроке: он может сам стать антагонистом, история продолжается.
 function storyHero(state: GameState, story: Story): Figure | null {
   const pinned = pinnedHero(state, story);
   return pinned === undefined ? heroOf(state, story) : pinned;
@@ -105,8 +109,8 @@ export function storyLetters(state: GameState, turn = state.turn + 1): StoryLett
       from: hero?.name ?? story.sender ?? "",
       ...(hero ? { role: hero.role } : {}),
       ...(hero && step.departs?.(context) ? { departs: hero.id } : {}),
+      ...(hero && pinsHero(state) ? { hero: hero.id } : {}),
       ...(offer.length ? {
-        ...(hero ? { hero: hero.id } : {}),
         replies: offer.map(({ id, text, cost, relation }) => ({ id, text, cost, ...(relation ? { relation } : {}) })),
       } : {}),
     });

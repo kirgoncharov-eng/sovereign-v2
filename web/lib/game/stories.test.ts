@@ -69,3 +69,37 @@ test("истории: род героя — по имени, сообщения 
   }
   assert.equal(storyLetters({ ...s, turn: 0 }).length, 0);
 });
+
+// #184: герой истории закрепляется первым письмом; во втором сроке его не отнимает смена антагониста интриги.
+test("истории 1978: письма одной истории приходят от одного человека весь срок и дальше", async () => {
+  const country = "Беларусь · 1978";
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    let state = createInitialState(country, "debut", "pragmatist", await classicApi.setup(country, "debut", "pragmatist", seed), seededRandom(seed));
+    const authors = new Map<string, Set<string>>();
+    while (!state.ended && state.turn < 40) {
+      const started = startEvent(state, await classicApi.event(state));
+      const choices = started.currentEvent!.choices;
+      const id = choices[(started.turn + seed) % choices.length].id;
+      state = resolveTurn(started, id, await classicApi.consequence(started, id));
+      for (const letter of state.lastTurn?.letters ?? []) {
+        if (!letter.role) continue; // истории о людях из окружения (секретарь, охрана) без должности — вне проверки
+        authors.set(letter.story, (authors.get(letter.story) ?? new Set()).add(letter.from));
+      }
+    }
+    for (const [story, names] of authors) assert.equal(names.size, 1, `${seed}/${story}: ${[...names].join(", ")}`);
+  }
+});
+
+test("истории 1978: закреплённый герой остаётся героем, даже став антагонистом; без закрепления — как раньше", async () => {
+  const country = "Беларусь · 1978";
+  const state = await fresh(country, 1);
+  const k = storyOrder(state).findIndex(story => story.id === "retire");
+  const final = STORY_FIRST_TURN + k * STORY_GAP + 2 * STORY_STEP - 1;
+  const first = storyLetters({ ...state, turn: STORY_FIRST_TURN + k * STORY_GAP - 1 }).find(letter => letter.story === "retire")!;
+  const hero = state.keyFigures.find(figure => figure.id === first.hero)!;
+  const arc = { id: "alt_contracts", target: hero.name, targetRole: "", flags: [], done: [], epilogue: null };
+  const pinned = { ...state, turn: final, arc, storyHeroes: { retire: { hero: hero.id, heroName: hero.name } } };
+  assert.equal(storyLetters(pinned).find(letter => letter.story === "retire")?.from, hero.name);
+  const loose = storyLetters({ ...state, turn: final, arc }).find(letter => letter.story === "retire");
+  assert.notEqual(loose?.from, hero.name, "сохранения без закрепления читаются по-старому");
+});
