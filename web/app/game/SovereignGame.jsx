@@ -352,6 +352,27 @@ function PollWidget({ gs, bare = false }) {
   );
 }
 
+// Тактильный штемпель резолюции 1978 года: удар печати при принятии решения
+function StampHit({ text = "К ИСПОЛНЕНИЮ", sub = "РЕЗОЛЮЦИЯ · 1978", kind, style }) {
+  const isRed = kind === "red" || text === "ОТКЛОНЕНО";
+  const isGreen = kind === "green" || text === "УТВЕРЖДЕНО" || text === "СОГЛАСОВАНО" || text === "РЕШЕНО";
+  return (
+    <span className={`sv-stamp sv-stamp-hit ${isRed ? "is-red" : isGreen ? "is-green" : ""}`} style={style}>
+      <span className="sv-stamp-text">{text}</span>
+      {sub && <span className="sv-stamp-sub">{sub}</span>}
+    </span>
+  );
+}
+
+function choiceStampLabel(c) {
+  if (!c) return { text: "К ИСПОЛНЕНИЮ", sub: "РЕЗОЛЮЦИЯ · 1978" };
+  if (c.law) return { text: "УТВЕРЖДЕНО", sub: `ВХ. № ${c.law.id ?? "ЗАКОН"} · 1978`, kind: "green" };
+  if (c.tags?.includes("delay") || c.tags?.includes("refuse")) return { text: "ОТКЛОНЕНО", sub: "БЕЗ ДВИЖЕНИЯ", kind: "red" };
+  if (c.deal) return { text: "СОГЛАСОВАНО", sub: "ПРОТОКОЛ · 1978", kind: "green" };
+  if (c.advisor) return { text: "ПО СОВЕТУ", sub: `${c.advisor.role.toUpperCase()} · 1978`, kind: "default" };
+  return { text: "К ИСПОЛНЕНИЮ", sub: "РЕЗОЛЮЦИЯ · 1978", kind: "default" };
+}
+
 // Точный расклад знает только совет: его вариант показан в цифрах. Об остальных спорят советники над вариантами,
 // а без спора под вариантом — причины цены словами. Точный итог — в ведомости после хода.
 function ChoicePreview({ gs, c, debated = false }) {
@@ -708,7 +729,7 @@ function BudgetPanel({ gs, onFinish, onSkip, stamping }) {
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap", marginTop:12, position:"relative" }}>
           <button onClick={onSkip} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>Жить по прошлогоднему бюджету</button>
           <PrimaryBtn id="opt-1" onClick={() => onFinish(alloc, debt)} disabled={left !== 0}>УТВЕРДИТЬ БЮДЖЕТ</PrimaryBtn>
-          {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Утверждено</span>}
+          {stamping === "p" && <StampHit text="Утверждено" sub="ГОСБЮДЖЕТ · 1978" kind="green"/>}
         </div>
       </div>
     </Card>
@@ -757,7 +778,7 @@ function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
                 {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{e.text}</span>
               </button>
             ))}
-            {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Решено</span>}
+            {stamping === "p" && <StampHit text="Решено" sub="ПРЯМОЙ ПРОВОД · 1978" kind="green"/>}
           </div>
         )}
       </Card>
@@ -837,7 +858,7 @@ function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
               {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{e.text}</span>
             </button>
           ))}
-          {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Решено</span>}
+          {stamping === "p" && <StampHit text="Решено" sub="ПРЯМОЙ ПРОВОД · 1978" kind="green"/>}
         </div>
       )}
     </Card>
@@ -911,7 +932,7 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
             <div style={{ textAlign:"right", marginTop:12 }}>
               <PrimaryBtn id="opt-1" onClick={() => onFinish(picks)}>ЗАКОНЧИТЬ И ВЫЙТИ К МАШИНЕ</PrimaryBtn>
             </div>
-            {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Сказано</span>}
+            {stamping === "p" && <StampHit text="Сказано" sub="ПРЕСС-СЛУЖБА · 1978" kind="default"/>}
           </div>
         )}
       </Card>
@@ -993,7 +1014,7 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
           <div style={{ textAlign:"right", marginTop:12 }}>
             <PrimaryBtn id="opt-1" onClick={() => onFinish(picks)}>ЗАКОНЧИТЬ И ВЫЙТИ К МАШИНЕ</PrimaryBtn>
           </div>
-          {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Сказано</span>}
+          {stamping === "p" && <StampHit text="Сказано" sub="ПРЕСС-СЛУЖБА · 1978" kind="default"/>}
         </div>
       )}
     </Card>
@@ -1330,9 +1351,9 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
   if (hasInvestigationDebate(gs)) {
     return <PresidentialCouncil key={gs.turn} gs={gs}>
       {(choice, index) => <button {...optProps(choice, index)}
-        style={{ display:"block", width:"100%", textAlign:"left", padding:16, background:G.bg3, border:`1px solid ${G.bdr2}`, color:G.txt }}>
+        style={{ display:"block", width:"100%", textAlign:"left", padding:16, background:G.bg3, border:`1px solid ${G.bdr2}`, color:G.txt, position:"relative" }}>
         <ChoicePreview gs={gs} c={choice}/>
-        {stamping === choice.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
+        {stamping === choice.id && <StampHit {...choiceStampLabel(choice)} style={{ right: 20 }}/>}
       </button>}
     </PresidentialCouncil>;
   }
@@ -1370,15 +1391,15 @@ function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
       )}
       {hasPresidentialCouncil(gs) ? <PresidentialCouncil key={gs.turn} gs={gs}>
         {(choice, index) => <button {...optProps(choice, index)}
-          style={{ display:"block", width:"100%", textAlign:"left", padding:16, background:G.bg3, border:`1px solid ${G.bdr2}`, color:G.txt }}>
+          style={{ display:"block", width:"100%", textAlign:"left", padding:16, background:G.bg3, border:`1px solid ${G.bdr2}`, color:G.txt, position:"relative" }}>
           <ChoicePreview gs={gs} c={choice}/>
-          {stamping === choice.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
+          {stamping === choice.id && <StampHit {...choiceStampLabel(choice)} style={{ right: 20 }}/>}
         </button>}
       </PresidentialCouncil> : proposals?.length ? proposals.map((c, i) => (
         <button key={c.id} {...optProps(c, i)}
           style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 16px", marginBottom:6, borderRadius:0, background:"transparent", border:`1px dashed ${G.bdr2}`, color:G.txt, position:"relative" }}>
           <ChoicePreview gs={gs} c={c}/>
-          {stamping === c.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
+          {stamping === c.id && <StampHit {...choiceStampLabel(c)} style={{ right: 20 }}/>}
         </button>
       )) : (
         <>
@@ -1404,9 +1425,9 @@ function Prose({ text, paragraphs, start = 0 }) {
   return (
     <div>
       {paras.map((p, i) => DATELINE.test(p)
-        ? <div key={i} style={{ fontFamily:mono, fontSize:12.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}><PeopleText>{p}</PeopleText></div>
-        : <p key={i} style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i + start === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch",
-            whiteSpace:"pre-line" }}><PeopleText>{p}</PeopleText></p>)}
+        ? <div key={i} className="sv-dateline" style={{ fontFamily:mono, fontSize:12.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}><PeopleText>{p}</PeopleText></div>
+        : <p key={i} className="sv-prose-line" style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i + start === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch",
+            whiteSpace:"pre-line", animationDelay:`${Math.min(i * 0.05, 0.25)}s` }}><PeopleText>{p}</PeopleText></p>)}
     </div>
   );
 }
@@ -2626,7 +2647,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   };
   const optProps = (c, n) => ({
     id: `opt-${n}`,
-    className: "sv-opt",
+    className: `sv-opt sv-choice-row${armed === c.id ? " is-armed" : ""}${stamping === c.id ? " is-stamped" : ""}`,
     "data-armed": armed === c.id || undefined,
     onClick: () => pick(c),
     // Наведение — только для мыши: на касании браузер шлёт «уход курсора» сразу после выбора.
@@ -2945,7 +2966,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
                     <span style={{ position:"absolute", left:22, top:13, fontFamily:serif, fontWeight:700, fontSize:18, color:G.tx3 }}>{i + 1}.</span>
                     <ChoicePreview gs={gs} c={c} debated={!!takes}/>
-                    {stamping === c.id && <span className="sv-stamp sv-stamp-hit">Исполнить</span>}
+                    {stamping === c.id && <StampHit {...choiceStampLabel(c)}/>}
                   </button>
                 ))}
                 <div style={{ padding:"0 24px 12px" }}>
