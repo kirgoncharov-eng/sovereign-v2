@@ -180,6 +180,11 @@ test('ending dossier resolves dramatic pixel-art scene by outcome', async () => 
   assert.equal(historicalEndingArt({ ...base, endType: 'mandate' }), HISTORICAL_SCENE_ART.electionDefeat);
   assert.equal(historicalEndingArt({ ...base, endType: 'coup' }), HISTORICAL_SCENE_ART.electionDefeat);
   assert.equal(historicalEndingArt({ ...base, endType: 'collapse' }), HISTORICAL_SCENE_ART.electionDefeat);
+  assert.equal(historicalEndingArt({ ...base, endType: 'died' }), null);
+  assert.deepEqual(historicalEndingArt({ ...base, endType: 'dictator' }), {
+    src: HISTORICAL_SCENE_ART.electionNight.src,
+    caption: 'Огни столицы за окном кабинета правителя',
+  });
   assert.deepEqual(historicalEndingArt({ ...base, endType: 'revolution' }), {
     src: HISTORICAL_SCENE_ART.protest.src,
     caption: 'Народные волнения на улицах столицы',

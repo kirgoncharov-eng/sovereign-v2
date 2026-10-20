@@ -121,6 +121,12 @@ export function historicalEndingArt(state: GameState): HistoricalArt | null {
   if (state.endType === 'reelected' || state.endType === 'zeroed' || state.endType === 'premier') {
     return HISTORICAL_SCENE_ART.electionNight;
   }
+  if (state.endType === 'died') {
+    return null;
+  }
+  if (state.endType === 'emergency_rule' || state.endType === 'dictator') {
+    return { src: HISTORICAL_SCENE_ART.electionNight.src, caption: 'Огни столицы за окном кабинета правителя' };
+  }
   if (isSurvival(state.endType)) {
     return HISTORICAL_SCENE_ART.electionNight;
   }
