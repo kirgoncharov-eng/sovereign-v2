@@ -2,11 +2,11 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import {
   ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION, TERM_RULES, TERM, localTurn, termIndex, termOrdinal,
-  reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES, difficultyEffects,
-  ideologyEffects, RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY
+  reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES,
+  RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY
 } from "@/lib/game/data.ts";
 import { commitmentTags, choiceEffects, saboteurOf, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
-import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, pressChoice } from "@/lib/game/classic.ts";
+import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, customizeLeader, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
 import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
 import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
@@ -1949,29 +1949,33 @@ function VersionLabel() {
 function Setup({ onStart, saved, onResume }) {
   const country = NEW_GAME_COUNTRY;
   const [diff, setDiff]       = useState(null);
-  const [ideo, setIdeo]       = useState(null);
-  const [bio, setBio]         = useState(null);
-  const [custom, setCustom] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState(null);
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
   const meta = useMemo(() => parseMeta(metaRaw), [metaRaw]);
-  const ready = country && diff && ideo;
+  const activeDiff = diff ?? (meta.runs.length ? "coalition" : "debut");
   const playtest = useSyncExternalStore(subscribeMeta, () => ["sponsor", "cabinet", "minister"].includes(new URLSearchParams(window.location.search).get("playtest")), () => false);
 
-  const go = async (c = country, d = diff, i = ideo, daily = null, b = bio, quick = false) => {
+  const go = async (c = country, d = activeDiff, i = null, daily = null, b = null, quick = false) => {
     c = countryForNewRun(daily);
-    if (!(c && d && i) || loading) return;
+    const chosenDiff = d || (meta.runs.length ? "coalition" : "debut");
+    const chosenIdeo = i || IDEOLOGIES[Math.floor(Math.random() * IDEOLOGIES.length)].id;
+    if (!(c && chosenDiff && chosenIdeo) || loading) return;
     setLoading(true); setErr(null);
     try {
-      // Биография: выбранная в анкете, у дела дня — общая для всех, иначе случайная.
+      // Биография: у дела дня — общая для всех, иначе начальная (можно сменить в удостоверении ЦИК на первом утре).
       const trial = !daily && playtest;
       const seed = daily?.seed ?? (trial ? 11 : undefined);
       if (trial) { try { localStorage.setItem("sovereign.tester", "1"); } catch {} }
-      const B = daily ? BIOGRAPHIES[daily.seed % BIOGRAPHIES.length] : BIOGRAPHIES.find(x => x.id === b) ?? BIOGRAPHIES[Math.floor(Math.random() * BIOGRAPHIES.length)];
-      const raw = await game.setup(c, d, i, seed);
+      const B = daily
+        ? BIOGRAPHIES[daily.seed % BIOGRAPHIES.length]
+        : BIOGRAPHIES.find(x => x.id === b) ?? BIOGRAPHIES[Math.floor(Math.random() * BIOGRAPHIES.length)];
+      const raw = await game.setup(c, chosenDiff, chosenIdeo, seed);
       const intro = { ...raw, leader: { ...raw.leader, bio: B.text } };
-      const st = createInitialState(c, d, i, intro, seed !== undefined ? seededRandom(seed) : Math.random, "classic", B.id);
+      const baseState = createInitialState(c, chosenDiff, chosenIdeo, intro, seed !== undefined ? seededRandom(seed) : Math.random, "classic", B.id);
+      const st = (!daily && c === ALTERNATE_COUNTRY)
+        ? customizeLeader(baseState, { bio: B.id, ideo: chosenIdeo })
+        : baseState;
       onStart(daily ? { ...st, daily: daily.date, dailyMoves: [] } : st, quick || !!daily);
     } catch (e) {
       console.error(e);
@@ -1982,78 +1986,131 @@ function Setup({ onStart, saved, onResume }) {
 
   const quick = () => {
     const pickOne = list => list[Math.floor(Math.random() * list.length)];
-    go(country, meta.runs.length ? "coalition" : "debut", pickOne(IDEOLOGIES).id, null, null, true);
+    go(country, activeDiff, pickOne(IDEOLOGIES).id, null, null, true);
   };
 
-  // Строка анкеты: клетка для отметки, как в казённом бланке.
-  const row = (active, locked = false) => ({
-    display:"flex", alignItems:"center", gap:10, width:"100%", textAlign:"left", padding:"9px 6px", borderRadius:0,
-    background:active ? G.bg3 : "transparent", border:"none", borderTop:`1px dashed ${G.bdr2}`, color:G.txt, opacity:locked ? .45 : 1,
-  });
-  const box = active => (
-    <span aria-hidden="true" style={{ width:16, height:16, border:`2px solid ${G.txt}`, flexShrink:0, display:"inline-flex", alignItems:"center", justifyContent:"center", fontFamily:pixel, fontSize:13, lineHeight:1, color:G.red }}>{active ? "X" : ""}</span>
-  );
-  const scene = useMemo(() => ({
-    country: NEW_GAME_COUNTRY, seed: 7, turn: 2, legitimacy: 48, rating: 44,
-    military: 55, security: -10, crises: 0, election: false,
-  }), []);
-  const explain = text => <div style={{ fontFamily:serif, fontSize:14, fontStyle:"italic", color:G.tx2, lineHeight:1.45, margin:"0 0 8px" }}>{text}</div>;
-  // Графа анкеты: название, суть и мелким шрифтом — что именно это меняет в игре.
-  const option = (label, desc, effects) => (
-    <span style={{ display:"flex", flexDirection:"column", gap:3, minWidth:0, flex:1, textAlign:"left" }}>
-      <span style={{ display:"flex", flexWrap:"wrap", columnGap:10, alignItems:"baseline" }}>
-        <span style={{ fontFamily:narrow, fontSize:18, fontWeight:700, lineHeight:1.15 }}>{label}</span>
-        <span style={{ fontFamily:narrow, fontSize:15, lineHeight:1.25, color:G.tx2 }}>{desc}</span>
-      </span>
-      <span style={{ fontFamily:mono, fontSize:12, lineHeight:1.45, color:G.tx3 }}>{effects}</span>
-    </span>
-  );
-  const section = (n, title) => <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, margin:"18px 0 6px" }}>{n}. {title}</div>;
-
   return (
-    <div style={{ minHeight:"100vh" }}>
-      <div className="sv-window"><SquareView scene={scene} height={56}/></div>
-      <div style={{ display:"flex", justifyContent:"center", padding:"26px 16px 40px" }}>
-      <div style={{ maxWidth:580, width:"100%" }}>
-        <div style={{ textAlign:"center", marginBottom:26 }}>
-          <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(56px, 17vw, 88px)", lineHeight:1, letterSpacing:".1em", color:G.gold, textShadow:"4px 4px 0 rgba(0,0,0,.45)" }}>СУВЕРЕН</h1>
-          <div style={{ fontFamily:narrow, fontSize:19, color:G.tx2, marginTop:12 }}>
-            Неманская республика, 1978. Другая история. Сколько лет вы продержитесь?
-          </div>
+    <div style={{ minHeight:"100dvh", background:"#1a211f", color:"#ddcfaf", padding:"20px 14px 36px" }}>
+      <div style={{ maxWidth:620, margin:"0 auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", gap:12, fontFamily:mono, fontSize:11, letterSpacing:".06em", paddingBottom:12, flexWrap:"wrap", color:"#b9ac92" }}>
+          <span>НЕМАНСКАЯ РЕСПУБЛИКА · ЦЕНТРАЛЬНАЯ ИЗБИРАТЕЛЬНАЯ КОМИССИЯ</span>
+          <span>МИНСК · 1978</span>
         </div>
 
         {saved && (
-          <Card style={{ marginBottom:18, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-            <div>
-              <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>СОХРАНЁННАЯ ПАРТИЯ</div>
-              <div style={{ fontFamily:serif, fontSize:17, color:G.txt }}>
-                <Flag country={saved.state.country}/> {saved.state.leader.name}
-              </div>
-              <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, marginTop:2 }}>
-                {saved.state.ended ? "правление завершено" : `${reignLength(saved.state.turn)} у власти · ${saved.state.year}`}
+          <Card style={{ marginBottom:14, padding:"12px 16px", background:"#eee4ce", border:"1px solid #b9ac92", borderLeft:"4px solid #30463b", display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
+              <Portrait name={saved.state.leader.name} size={44}/>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".05em", color:G.tx3, marginBottom:2 }}>СОХРАНЁННАЯ ПАРТИЯ</div>
+                <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, color:G.txt }}>
+                  <Flag country={saved.state.country}/> {saved.state.leader.name}
+                </div>
+                <div style={{ fontFamily:narrow, fontSize:14, color:G.tx2 }}>
+                  {saved.state.ended ? "правление завершено" : `${reignLength(saved.state.turn)} у власти · ${saved.state.year}`}
+                </div>
               </div>
             </div>
             <PrimaryBtn onClick={onResume}>ПРОДОЛЖИТЬ</PrimaryBtn>
           </Card>
         )}
 
-
-        <div style={{ textAlign:"center", marginBottom:22 }}>
-          <div style={{ fontFamily:serif, fontSize:18, color:G.txt, lineHeight:1.5, marginBottom:14 }}>Минск, 1978 год. Неманская республика — земли Беларуси в другой истории. Теперь заводы требуют денег, союзники торгуются, противники готовят заговор. Удержите власть — и разберитесь, кому можно верить.</div>
-          <PrimaryBtn onClick={quick} disabled={loading}>{loading ? "ОТКРЫВАЕМ КАБИНЕТ…" : saved ? "НОВАЯ ПАРТИЯ" : "НАЧАТЬ ИГРУ"}</PrimaryBtn>
-          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:8 }}>
-            {meta.runs.length ? "Неманская республика, 1978 · случайный курс · сложность «Коалиция»"
-              : "Неманская республика, 1978 · сразу в кабинет · мягкая сложность «Дебют»"}
+        <figure style={{ margin:"0 0 14px", border:"2px solid #000", boxShadow:"0 12px 30px rgba(0,0,0,.5)", position:"relative", overflow:"hidden", background:"#111a17" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={artSource(HISTORICAL_SCENE_ART.ballot.src)}
+            alt=""
+            className="sv-px"
+            style={{ width:"100%", aspectRatio:"16 / 9", maxHeight:190, objectFit:"cover", display:"block" }}
+          />
+          <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(14, 12, 10, 0.94))", padding:"16px 14px 6px", display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:8 }}>
+            <span style={{ fontFamily:narrow, fontSize:13, color:"#f1e9d2" }}>Ночь подсчёта голосов · Протокол об избрании президента</span>
+            <span style={{ fontFamily:pixel, fontSize:11, color:"#c6b58b", letterSpacing:".04em", flexShrink:0 }}>ЯНВАРЬ 1978</span>
           </div>
-        </div>
+        </figure>
+
+        <article style={{ background:"#eee4ce", color:"#24221b", border:"1px solid #b9ac92", borderTop:"4px solid #30463b", padding:"20px 20px 22px", boxShadow:"0 14px 36px rgba(0,0,0,.38)", marginBottom:16 }}>
+          <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", color:"#5e5645", marginBottom:6 }}>
+            Политическая драма · Альтернативная история Беларуси
+          </div>
+          <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(38px, 10vw, 52px)", lineHeight:0.96, letterSpacing:".02em", color:"#24221b", margin:"0 0 12px" }}>
+            СУВЕРЕН
+          </h1>
+          <p style={{ fontFamily:serif, fontSize:16, lineHeight:1.55, color:"#2f2a20", margin:"0 0 14px" }}>
+            После 1918 года на землях Беларуси сохранилась независимая Неманская республика. Вы выиграли выборы — но всё, что вы знаете о своей стране, вам кто-то сказал, и у каждого свой интерес.
+          </p>
+
+          <div style={{ borderTop:"1px dashed #b9aa88", paddingTop:12, marginBottom:16 }}>
+            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".05em", textTransform:"uppercase", color:"#554933", marginBottom:8 }}>
+              Исход выборов и стартовое положение:
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+              {Object.entries(DIFFICULTIES).map(([id, d]) => {
+                const active = activeDiff === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setDiff(id)}
+                    style={{
+                      display:"flex",
+                      flexDirection:"column",
+                      alignItems:"flex-start",
+                      gap:2,
+                      padding:"7px 10px",
+                      textAlign:"left",
+                      border:active ? "1px solid #1c2c24" : "1px solid #b5a582",
+                      background:active ? "#30463b" : "#e6dcc2",
+                      color:active ? "#f0e4c8" : "#2b251a",
+                      cursor:"pointer",
+                    }}
+                  >
+                    <span style={{ fontFamily:narrow, fontSize:15, fontWeight:700, lineHeight:1.15 }}>
+                      {d.label}
+                    </span>
+                    <span style={{ fontFamily:serif, fontSize:12, lineHeight:1.25, opacity:active ? 0.9 : 0.78 }}>
+                      {d.desc}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={quick}
+            style={{
+              width:"100%",
+              minHeight:48,
+              border:0,
+              background:"#30463b",
+              color:"#f0e4c8",
+              fontFamily:narrow,
+              fontWeight:700,
+              fontSize:18,
+              letterSpacing:".02em",
+              padding:"12px 18px",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"space-between",
+              cursor:loading ? "default" : "pointer",
+              opacity:loading ? 0.6 : 1,
+            }}
+          >
+            <span>{loading ? "Открываем кабинет…" : saved ? "Начать новую игру" : "Начать игру"}</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </article>
+
+        {err && <div role="alert" style={{ color:G.red, marginBottom:12 }}>{err} <button onClick={quick}>Попробовать снова</button></div>}
 
         <DailyCard meta={meta} disabled={loading} onPlay={d => go(d.country, d.diff, d.ideo, d)}/>
 
         {meta.runs.length > 0 && <Archive meta={meta}/>}
 
-        <button onClick={() => setCustom(v => !v)} aria-expanded={custom} aria-controls="sv-custom-setup" style={{ width:"100%", background:"transparent", border:`1px solid ${G.bdr}`, padding:"12px 16px", color:G.tx2, fontFamily:narrow, fontSize:18, marginBottom:12 }}>
-          {custom ? "Свернуть анкету ▴" : "Выбрать курс и сложность ▾"}
-        </button>
         {playtest && <Card style={{ marginBottom:18 }}>
           <Label>ПРОВЕРКА МИРА · ЛЮДИ И ПРАВИТЕЛЬСТВО</Label>
           <p style={{ fontFamily:serif, fontSize:14, lineHeight:1.5, marginBottom:12 }}>Обычное правление с известной начальной ситуацией. Спонсор кампании, энергосеть и больницы существуют одновременно. Можно самим выйти на контакт; партия продолжается после этого столкновения.</p>
@@ -2061,57 +2118,7 @@ function Setup({ onStart, saved, onResume }) {
             НАЧАТЬ ПРОБНУЮ ПАРТИЮ
           </PrimaryBtn>
         </Card>}
-        {err && <div role="alert" style={{ color:G.red, marginBottom:12 }}>{err} <button onClick={quick}>Попробовать снова</button></div>}
-        {custom && <Card id="sv-custom-setup" style={{ padding:"18px 20px 22px" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10 }}>
-            <div>
-              <div style={{ fontFamily:mono, fontSize:12, color:G.tx3 }}>Форма № 1-П · ЦИК</div>
-              <div style={{ fontFamily:narrow, fontWeight:700, fontSize:26, lineHeight:1.1, marginTop:4 }}>Анкета кандидата</div>
-            </div>
-            <span className="sv-stamp" style={{ fontSize:12, transform:"rotate(4deg)" }}>своя партия</span>
-          </div>
-
-          <div style={{ marginTop:18 }}><Flag country={country} size={21}/> {countryName(country)}</div>
-          <div style={{ fontFamily:mono, fontSize:13, color:G.tx2, lineHeight:1.6, padding:"10px 6px 2px" }}>
-            {COUNTRIES[country].context}
-            <div style={{ marginTop:4 }}>Конституция: {TERM_RULES[termRule(country)].title.toLowerCase()}.</div>
-          </div>
-
-          {section(1, "СЛОЖНОСТЬ")}
-          {explain("С чего вы начинаете: сколько ресурсов у государства, как к вам относятся группы и сколько страна теряет каждый ход без вашего участия.")}
-          {Object.entries(DIFFICULTIES).map(([id, d]) => (
-            <button key={id} onClick={() => setDiff(id)} aria-pressed={diff === id} style={row(diff === id)}>
-              {box(diff === id)}
-              {option(d.label, d.desc, difficultyEffects(id))}
-            </button>
-          ))}
-
-          {section(2, "ПОЛИТИЧЕСКИЙ КУРС")}
-          {explain("Кто поддерживает вас с первого дня и какие решения укрепляют вас лично. Решение в духе курса добавляет личный ресурс и легитимность, решение против курса их отнимает.")}
-          {IDEOLOGIES.map(i => (
-            <button key={i.id} onClick={() => setIdeo(i.id)} aria-pressed={ideo === i.id} style={row(ideo === i.id)}>
-              {box(ideo === i.id)}
-              {option(i.label, i.desc, ideologyEffects(i.id, country))}
-            </button>
-          ))}
-
-          {section(3, "БИОГРАФИЯ — НЕОБЯЗАТЕЛЬНО")}
-          {explain("Ваше прошлое ремесло: решения по нему исполняются надёжнее, а одна из опор крепче с самого начала. Не выберете — достанется случайная.")}
-          {BIOGRAPHIES.map(b => (
-            <button key={b.id} onClick={() => setBio(x => x === b.id ? null : b.id)} aria-pressed={bio === b.id} style={row(bio === b.id)}>
-              {box(bio === b.id)}
-              {option(b.label, b.text, b.note)}
-            </button>
-          ))}
-
-          {err && <div style={{ fontFamily:mono, color:G.red, fontSize:12, margin:"12px 0 0" }}>{err}</div>}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap", marginTop:18, paddingTop:14, borderTop:`2px solid ${G.txt}` }}>
-            <span style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{saved ? "Новая партия заменит сохранённую" : ready ? "Документы в порядке" : "Отметьте по одной графе в каждом разделе"}</span>
-            <PrimaryBtn onClick={() => go()} disabled={!ready || loading}>{loading ? "ОФОРМЛЯЕМ…" : "ПОДАТЬ ДОКУМЕНТЫ"}</PrimaryBtn>
-          </div>
-        </Card>}
         <VersionLabel/>
-      </div>
       </div>
     </div>
   );
@@ -2191,10 +2198,17 @@ function PromisesCard({ gs, final = false, style, bare = false }) {
   );
 }
 
-function HistoricalIntro({ gs, onGo }) {
+function HistoricalIntro({ gs, setGs, onGo }) {
   const [dossier, setDossier] = useState(false);
   if (dossier) return <Intro gs={gs} onGo={onGo}/>;
-  return <PresidentialOpening gs={gs} onGo={() => onGo(offeredPromises(gs.seed, gs.ideo).suggested)} onDossier={() => setDossier(true)}/>;
+  return (
+    <PresidentialOpening
+      gs={gs}
+      onCustomize={opts => setGs(g => customizeLeader(g, opts))}
+      onGo={() => onGo(offeredPromises(gs.seed, gs.ideo).suggested)}
+      onDossier={() => setDossier(true)}
+    />
+  );
 }
 
 function Intro({ gs, onGo }) {
@@ -3846,7 +3860,7 @@ export default function App() {
         if (quick && (d.daily || d.country !== ALTERNATE_COUNTRY)) { setGs(openDeskWhenDue({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) })); setScreen("game"); }
         else { setGs(d); setScreen("intro"); track("intro"); }
       }}/>}
-      {screen==="intro" && (gs.country === ALTERNATE_COUNTRY ? <HistoricalIntro gs={gs}
+      {screen==="intro" && (gs.country === ALTERNATE_COUNTRY ? <HistoricalIntro gs={gs} setGs={setGs}
         onGo={picks=>{ setGs(g => openDeskWhenDue({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>
         : <Intro gs={gs} onGo={picks=>{ setGs(g => openDeskWhenDue({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>) }
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}

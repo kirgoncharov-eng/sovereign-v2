@@ -8,7 +8,7 @@ import { ARCS } from "../content/arcs.ts";
 import { loyaltyLabel } from "./engine.ts";
 import type {
   ActionTag, Advisor, ArcChoice, Bloc, ArcState, Choice, Deal, Pact, Pending, Election, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
-  HistoryEntry, IdeologyId, NewCrisis, PathId, PowerPath, RandomEvent, ResourceDelta, Resources, Severity,
+  HistoryEntry, IdeologyId, LeaderPortraitId, NewCrisis, PathId, PowerPath, RandomEvent, ResourceDelta, Resources, Severity,
 } from "./types.ts";
 
 type Obj = Record<string, unknown>;
@@ -372,6 +372,9 @@ export function sanitizeState(raw: unknown): GameState | null {
   const leader = isObj(raw.leader) ? raw.leader : {};
   const name = str(leader.name, TEXT.name);
   if (!name) return null;
+  const portrait = typeof leader.portrait === "string"
+    && ["economist", "officer", "mayor", "lawyer", "diplomat"].includes(leader.portrait)
+    ? (leader.portrait as LeaderPortraitId) : undefined;
 
   const factions = sanitizeFactions(raw.factions, country);
   const factionIds = factions.map(f => f.id);
@@ -384,7 +387,12 @@ export function sanitizeState(raw: unknown): GameState | null {
   return {
     version: SAVE_VERSION,
     country, diff, ideo,
-    leader: { name, party: str(leader.party, TEXT.name), bio: str(leader.bio, TEXT.medium) },
+    leader: {
+      name,
+      party: str(leader.party, TEXT.name),
+      bio: str(leader.bio, TEXT.medium),
+      ...(portrait ? { portrait } : {}),
+    },
     speech: str(raw.speech, TEXT.long),
     situation: str(raw.situation, TEXT.long),
     resources: sanitizeResources(raw.resources, START_RES[diff]),

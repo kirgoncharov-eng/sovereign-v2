@@ -1,13 +1,29 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { REPUBLIC_PLACES, presidentialConversation, hasAuthoredDebate } from "@/lib/game/presidential-story.ts";
-import { HISTORICAL_SCENE_ART, artSource, historicalPortraitArt } from "@/lib/client/historical-art.ts";
+import {
+  HISTORICAL_SCENE_ART,
+  HISTORICAL_LEADER_ART,
+  BIO_TO_PORTRAIT,
+  artSource,
+  historicalPortraitArt,
+} from "@/lib/client/historical-art.ts";
 import { offeredPromises, promiseDef } from "@/lib/game/promises.ts";
-import { IDEOLOGIES } from "@/lib/game/data.ts";
+import { BIOGRAPHIES, IDEOLOGIES } from "@/lib/game/data.ts";
+import { freshLeaderName } from "@/lib/game/classic.ts";
 import { portraitCanvas, PORTRAIT_W, PORTRAIT_H } from "@/lib/client/portrait.ts";
 import { isFemaleName } from "@/lib/game/engine.ts";
 import styles from "./presidential.module.css";
 import { pageFx } from '@/lib/client/fx.ts';
+
+const BIO_SHORT_BONUS = {
+  officer: "силовики +8",
+  military: "силовики +8",
+  economist: "экономика +8",
+  lawyer: "легитимность +8",
+  diplomat: "репутация +8",
+  mayor: "политкапитал +8",
+};
 
 function LeaderPortrait({ name, src }) {
   const ref = useRef(null);
@@ -31,11 +47,38 @@ function LeaderPortrait({ name, src }) {
   return <canvas ref={ref} width={PORTRAIT_W} height={PORTRAIT_H} className={styles.leaderPortrait} aria-hidden="true" />;
 }
 
-export default function PresidentialOpening({ gs, onGo, onDossier }) {
-  const portraitSrc = gs ? historicalPortraitArt(gs, gs.leader.name) : null;
+export default function PresidentialOpening({ gs, onCustomize, onGo, onDossier }) {
+  const [nameStep, setNameStep] = useState(1);
+
+  const activeBioId = gs?.bio || "economist";
+  const activePortraitId = gs?.leader?.portrait || BIO_TO_PORTRAIT[activeBioId] || "economist";
+  const portraitMeta = HISTORICAL_LEADER_ART[activePortraitId] || HISTORICAL_LEADER_ART.economist;
+  const portraitSrc = (gs ? historicalPortraitArt(gs, gs.leader.name) : null) || portraitMeta.src;
+
+  const activeBio = BIOGRAPHIES.find(b => b.id === activeBioId) || BIOGRAPHIES[1];
   const ideoInfo = IDEOLOGIES.find(i => i.id === gs.ideo);
   const { suggested } = offeredPromises(gs.seed, gs.ideo);
   const initialPromises = (suggested || []).map(id => promiseDef(id, gs.country)).filter(Boolean);
+
+  const rollName = () => {
+    pageFx();
+    const nextName = freshLeaderName(gs, false, nameStep);
+    setNameStep(s => s + 1);
+    onCustomize?.({ name: nextName });
+  };
+
+  const selectBio = bioId => {
+    pageFx();
+    onCustomize?.({
+      bio: bioId,
+      portrait: BIO_TO_PORTRAIT[bioId] || "economist",
+    });
+  };
+
+  const selectIdeo = ideoId => {
+    pageFx();
+    onCustomize?.({ ideo: ideoId });
+  };
 
   return <main className={styles.arrival}>
     <div className={styles.desk}>
@@ -58,24 +101,92 @@ export default function PresidentialOpening({ gs, onGo, onDossier }) {
       <article className={styles.document}>
         <p className={styles.eyebrow}>Лично президенту · Первое утро в резиденции</p>
 
-        <div className={styles.credentials}>
-          <div className={styles.portraitWrapper}>
-            <LeaderPortrait name={gs.leader.name} src={portraitSrc} />
-            <span className={styles.portraitStamp}>ЦИК · 1978</span>
-          </div>
-          <div className={styles.credentialsText}>
-            <div className={styles.credentialsName}>{gs.leader.name}</div>
-            <div className={styles.credentialsRole}>
-              Президент республики · Партия «{gs.leader.party}»{ideoInfo ? ` · ${ideoInfo.label.toLowerCase()}` : ""}
-            </div>
-            {gs.leader.bio && <div className={styles.credentialsBio}>{gs.leader.bio}</div>}
-          </div>
-        </div>
-
         <h1>Кресло ваше.<br/>Долги — тоже.</h1>
         <p>Вы входите в кабинет на четвёртом этаже. За окном — морозный Минск. На вашем столе лежит первая папка: ведомость тракторного завода, два месяца без зарплаты.</p>
         <blockquote>«Директор просит денег. Банк ждёт возврата ссуды. Рабочие ждут вас. Что им передать?»</blockquote>
         <p className={styles.attribution}>Секретарь не садится. Ответ нужен сегодня.</p>
+
+        <div className={styles.credentials}>
+          <div className={styles.credentialsHeader}>
+            <span>КТО ЗАНИМАЕТ КРЕСЛО · УДОСТОВЕРЕНИЕ ЦИК</span>
+            <span>{portraitMeta.label.toUpperCase()}</span>
+          </div>
+
+          <div className={styles.credentialsMain}>
+            <div className={styles.portraitColumn}>
+              <div className={styles.portraitWrapper}>
+                <LeaderPortrait name={gs.leader.name} src={portraitSrc} />
+                <span className={styles.portraitStamp}>ЦИК · 1978</span>
+              </div>
+            </div>
+
+            <div className={styles.credentialsText}>
+              <div className={styles.nameRow}>
+                <div className={styles.credentialsName}>{gs.leader.name}</div>
+                {onCustomize && (
+                  <button type="button" className={styles.rollNameBtn} onClick={rollName} title="Сменить имя и фамилию">
+                    ↻ Имя
+                  </button>
+                )}
+              </div>
+              <div className={styles.credentialsRole}>
+                Президент республики · Партия «{gs.leader.party}»{ideoInfo ? ` · ${ideoInfo.label.toLowerCase()}` : ""}
+              </div>
+              {gs.leader.bio && <div className={styles.credentialsBio}>{gs.leader.bio}</div>}
+              {activeBio && (
+                <div className={styles.credentialsBonus}>
+                  {activeBio.note}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {onCustomize && (
+            <div className={styles.personaSelectors}>
+              <div className={styles.selectorGroup}>
+                <div className={styles.selectorLabel}>ПРОШЛОЕ РЕМЕСЛО (МЕНЯЕТ ОБРАЗ И СТАРТОВУЮ ОПОРУ):</div>
+                <div className={styles.pillRow}>
+                  {BIOGRAPHIES.map(b => {
+                    const active = activeBioId === b.id;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        aria-pressed={active}
+                        className={`${styles.personaPill} ${active ? styles.personaPillActive : ""}`}
+                        onClick={() => selectBio(b.id)}
+                      >
+                        <span className={styles.pillTitle}>{b.label}</span>
+                        <span className={styles.pillSub}>{BIO_SHORT_BONUS[b.id]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className={styles.selectorGroup}>
+                <div className={styles.selectorLabel}>ПОЛИТИЧЕСКИЙ КУРС (МЕНЯЕТ ПАРТИЮ И ОБЕЩАНИЯ):</div>
+                <div className={styles.pillRowFour}>
+                  {IDEOLOGIES.map(i => {
+                    const active = gs.ideo === i.id;
+                    return (
+                      <button
+                        key={i.id}
+                        type="button"
+                        aria-pressed={active}
+                        className={`${styles.personaPill} ${active ? styles.personaPillActive : ""}`}
+                        onClick={() => selectIdeo(i.id)}
+                      >
+                        <span className={styles.pillTitle}>{i.label}</span>
+                        <span className={styles.pillSub}>{i.desc.split("·")[0].trim()}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {initialPromises.length > 0 && (
           <div className={styles.promisesBlock}>
@@ -84,7 +195,7 @@ export default function PresidentialOpening({ gs, onGo, onDossier }) {
               {initialPromises.map((p, i) => (
                 <div key={p.id} className={styles.promiseItem}>
                   <span className={styles.promiseBadge}>ОБЯЗАТЕЛЬСТВО {i + 1}</span>
-                  <span className={styles.promiseText}><b>{p.title}.</b> {p.text}</span>
+                  <span className={styles.promiseText}><b>{p.title}.</b> «{p.pitch}»</span>
                 </div>
               ))}
             </div>
@@ -104,7 +215,7 @@ export default function PresidentialOpening({ gs, onGo, onDossier }) {
           <p>К 1978 году заводы зависят от российских заказов, западные рынки требуют уступок, а областные руководители привыкли торговаться со столицей. Ваш предшественник оставил вам работающий аппарат — и чужие договорённости.</p>
           <p>Каждый ход — сезон правления. Первый срок — только первый рубеж: удержав власть, можно продолжить. Советники знают больше вас, но каждый смотрит на страну со своей стороны.</p>
         </details>
-        <button type="button" className={styles.quiet} onClick={onDossier}>Настроить досье и обещания избирателям →</button>
+        <button type="button" className={styles.quiet} onClick={onDossier}>Изучить досье фигур и выбрать обещания вручную →</button>
       </article>
       <p className={styles.footer}>Всё, что вы знаете о стране, вам кто-то сказал.</p>
     </div>

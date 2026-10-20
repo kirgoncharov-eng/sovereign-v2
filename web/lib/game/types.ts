@@ -318,10 +318,13 @@ export interface GameStats {
   failures: number;
 }
 
+export type LeaderPortraitId = "economist" | "officer" | "mayor" | "lawyer" | "diplomat";
+
 export interface Leader {
   name: string;
   party: string;
   bio: string;
+  portrait?: LeaderPortraitId;
 }
 
 export interface Intro {

@@ -45,10 +45,10 @@ import {
   COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
   FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, type LossEnd, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
-import { ACTIONS, ADVISOR_ROLES, CAPITAL_CASES, COUNTRIES, FACTIONS_DATA, DELAYED, WEAK_ADVISOR_DELAYED, ELECTION_LABEL, FIGURE_ROLES, RATINGS, RES_CONFIG, TERM, localTurn, reignLength, termIndex, termOrdinal, termOrdinalGen } from "./data.ts";
+import { ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_RES, CAPITAL_CASES, COUNTRIES, FACTIONS_DATA, DELAYED, WEAK_ADVISOR_DELAYED, ELECTION_LABEL, FIGURE_ROLES, IDEOLOGY_REL, RATINGS, RES_CONFIG, START_RES, TERM, bioText, localTurn, reignLength, termIndex, termOrdinal, termOrdinalGen } from "./data.ts";
 import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PACT, PACT_BROKEN_LINE, PACT_GIVES, PACT_KEPT_LINE, PACT_OK_VARIANTS, type SpecialChoice } from "../content/people.ts";
 import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } from "./people.ts";
-import { computePolls, dueBeat, hashSeed, isFemaleName, isSurvival, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
+import { applyDeltas, clampRel, computePolls, dueBeat, hashSeed, initFactions, isFemaleName, isSurvival, loyaltyLabel, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { storyLetters } from "./stories.ts";
 import { ARCHIVE_CARD, archiveDescription } from "./archive-memory.ts";
 import { advisorNews, forecastReview } from "./forecasts.ts";
@@ -57,7 +57,7 @@ import { sanitizeProposals } from "./sanitize.ts";
 import { isOrdinaryNewspaperEvent, newspaperHeadline } from "./newspaper-editions.ts";
 import { FIRST_TERM_CASES, firstTermLaw, scheduledFirstTerm } from "./first-term-schedule.ts";
 import { presidentialCouncil } from "./presidential-story.ts";
-import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
+import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, LeaderPortraitId, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
 
 type Rand = () => number;
 const pick = <T,>(r: Rand, list: T[]): T => list[Math.floor(r() * list.length)];
@@ -1410,6 +1410,70 @@ function personName(country: string, r: Rand, male = false, used?: Set<string>):
 // Тексты интриг написаны о мужчине-антагонисте: роли, из которых он выбирается, всегда достаются мужчинам.
 const MALE_ROLES = new Set(["governor", "patriarch", "catholicos", "mufti", "general", "kgb", "knb", "interior", "sbu", "security", "shadow", "clan", "prosecutor", "oligarch", "opp_leader", "activist", "nat_leader", "revanchist"]);
 
+const BIO_PORTRAIT: Record<string, LeaderPortraitId> = {
+  officer: "officer",
+  military: "officer",
+  economist: "economist",
+  lawyer: "lawyer",
+  diplomat: "diplomat",
+  mayor: "mayor",
+};
+
+// Новое имя для президента (мужское или женское) из пула страны, не совпадающее с фигурами и советниками.
+export function freshLeaderName(state: GameState, female: boolean, step = 0): string {
+  const n = NAMES[state.country] ?? NAMES["Беларусь"];
+  const used = usedNames(state);
+  const r = seededRandom(hashSeed(state.seed, "leader-name", female ? "f" : "m", step));
+  const indices = [...Array(n.first.length).keys()].filter(k => (female ? k >= 8 : k < 8));
+  const freeFirst = indices.filter(k => !used.has(`first:${n.first[k]}`));
+  const firstPool = freeFirst.length ? freeFirst : indices;
+  const i = firstPool[Math.floor(r() * firstPool.length)];
+  const freeLast = n.last.filter(l => !used.has(l));
+  const lastPool = freeLast.length ? freeLast : n.last;
+  let last = lastPool[Math.floor(r() * lastPool.length)];
+  if (female) last = last.replace(/(ов|ев|ин)$/, "$1а").replace(/(ск|цк)ий$/, "$1ая");
+  return `${n.first[i]} ${last}`;
+}
+
+// Настройка образа, имени, биографии и курса президента перед первым ходом.
+export function customizeLeader(
+  state: GameState,
+  opts: { portrait?: LeaderPortraitId; name?: string; bio?: string; ideo?: IdeologyId },
+): GameState {
+  const nextIdeo = opts.ideo ?? state.ideo;
+  const nextBio = opts.bio ?? state.bio ?? "economist";
+  const nextPortrait = opts.portrait ?? (opts.bio ? BIO_PORTRAIT[opts.bio] : state.leader.portrait) ?? BIO_PORTRAIT[nextBio];
+  const nextName = opts.name ?? state.leader.name;
+  const female = isFemaleName(nextName);
+  const biography = BIOGRAPHIES.find(b => b.id === nextBio);
+  const resources = biography
+    ? applyDeltas(START_RES[state.diff], { [biography.res]: BIO_RES })
+    : { ...START_RES[state.diff] };
+  const factions = nextIdeo === state.ideo ? state.factions : initFactions(state.country, nextIdeo, state.diff);
+  const keyFigures = nextIdeo === state.ideo ? state.keyFigures : state.keyFigures.map(fig => {
+    const shift = (IDEOLOGY_REL[nextIdeo]?.[fig.faction] || 0) - (IDEOLOGY_REL[state.ideo]?.[fig.faction] || 0);
+    const relation = clampRel(fig.relation + shift);
+    return { ...fig, relation, loyalty: loyaltyLabel(relation) };
+  });
+  const party = state.country === ALTERNATE_COUNTRY ? ALTERNATE_PARTIES[nextIdeo] : state.leader.party;
+  const speech = state.country === ALTERNATE_COUNTRY ? ALTERNATE_SPEECHES[nextIdeo] : state.speech;
+  return {
+    ...state,
+    ideo: nextIdeo,
+    bio: nextBio,
+    speech,
+    resources,
+    factions,
+    keyFigures,
+    leader: {
+      name: nextName,
+      party,
+      bio: bioText(nextBio, female),
+      ...(nextPortrait ? { portrait: nextPortrait } : {}),
+    },
+  };
+}
+
 function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?: number): Intro {
   const r = seed === undefined ? Math.random : seededRandom(hashSeed(seed, "intro"));
   const surnames = new Set<string>();
@@ -1455,10 +1519,11 @@ function buildVerdict(state: GameState): Verdict {
   const startYear = COUNTRIES[state.country].startYear;
   const elections = (state.elections ?? []).map(e =>
     `${ELECTION_LABEL[e.kind].toLowerCase()} ${e.outcome === "won" ? "выиграны" : "проиграны"} (${e.leader}% против ${e.top.share}%)`).join(", ");
+  const fem = isFemaleName(state.leader.name);
 
   const verdict = [
-    `${state.leader.name} правил страной ${reignLength(state.turn)} — с ${startYear} по ${state.year} год — и принял ${plural(state.history.length, "ключевое решение", "ключевых решения", "ключевых решений")}.`,
-    state.reign?.past.length ? `Как он оставался у власти: ${state.reign.past.map(p => `после ${termOrdinalGen(p.term)} срока ${TERM_HOW[p.outcome] ?? ""}`).join(", ")}.` : "",
+    `${state.leader.name} ${fem ? "правила" : "правил"} страной ${reignLength(state.turn)} — с ${startYear} по ${state.year} год — и ${fem ? "приняла" : "принял"} ${plural(state.history.length, "ключевое решение", "ключевых решения", "ключевых решений")}.`,
+    state.reign?.past.length ? `Как ${fem ? "она оставалась" : "он оставался"} у власти: ${state.reign.past.map(p => `после ${termOrdinalGen(p.term)} срока ${TERM_HOW[p.outcome] ?? ""}`).join(", ")}.` : "",
     topCount ? `Главный инструмент правления — «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему лидер прибегал ${plural(topCount, "раз", "раза", "раз")}.` : "",
     elections ? `Выборы: ${elections}.` : "",
     pathVerdict(state.path, end),
