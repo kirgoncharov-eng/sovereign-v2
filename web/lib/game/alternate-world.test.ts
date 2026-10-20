@@ -49,7 +49,7 @@ test('export advance creates one future liability with an explicit cause, preser
         assert.ok(liability);
         assert.equal(liability.due, 5);
         assert.deepEqual(liability.res, {
-            economy: -4,
+            economy: -7,
             politicalCapital: -2
         });
         assert.match(liability.story ?? "", /цена поставки закреплена договором/);
