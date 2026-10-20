@@ -2233,7 +2233,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const orderLesson = firstOrderLesson(gs);
   const agendaFinished = gs.world && projectFinished(gs.world.project) && (!gs.world.health || projectFinished(gs.world.health) && !healthHasContinuation(gs.world.health));
   const { resources, prevResources, factions, turn, activeCrises, currentEvent: event, lastTurn } = gs;
-  // Видна ли резолюция на экране — тогда нижней кнопке «К резолюции» показываться незачем.
+  // Видна ли резолюция на экране — для запуска таймера срочных дел.
   // Проверяем при прокрутке: резолюция уже на экране или проскроллена выше.
   useEffect(() => {
     let raf = 0;
@@ -2751,13 +2751,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       </div>
       <ActionBar
         mode={recap ? "recap" : busy || countryOpen || contactOpen || resourceOpen || help || dossier ? null
-          : event ? (armedChoice ? "sign" : resolutionInView ? null : "jump")
+          : event ? (armedChoice ? "sign" : null)
           : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
         choice={armedChoice}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}
-        onJump={() => (document.getElementById("opt-1") ?? document.querySelector("#sv-choice-list .sv-opt"))
-          ?.scrollIntoView({ behavior:"smooth", block:"center" })}
         onSkip={() => window.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter" }))}
         onGuide={() => countryPanel.current?.startHospital("assign")}
         onGuideReport={() => countryPanel.current?.startHospital("report")}
@@ -2776,7 +2774,7 @@ function useTelegramButtons() {
 
 // Нижняя панель на телефоне: главное действие хода всегда под большим пальцем.
 // Кнопки не забирают фокус — иначе выбранная резолюция успела бы сброситься.
-function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onEnd, onRecap, onCount, onGuide, onGuideReport }) {
+function ActionBar({ mode, choice, onSign, onCancel, onSkip, onNext, onEnd, onRecap, onCount, onGuide, onGuideReport }) {
   // В Telegram то же действие уходит на его родную кнопку внизу экрана, отмена — на «Назад».
   const tg = useTelegramButtons();
   useEffect(() => {
@@ -2784,7 +2782,6 @@ function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onE
     const short = t => (t.length > 34 ? t.slice(0, 33).trimEnd() + "…" : t);
     const specs = {
       sign: { text: `Подписать: ${short(choice?.text ?? "")}`, onClick: onSign },
-      jump: { text: "К резолюции ↓", onClick: onJump },
       skip: { text: "Показать текст сразу", onClick: onSkip },
       transition: { text: "К итогам решения →", onClick: onSkip },
       next: { text: "Следующий ход →", onClick: onNext },
@@ -2811,7 +2808,6 @@ function ActionBar({ mode, choice, onSign, onCancel, onJump, onSkip, onNext, onE
           <span style={{ fontFamily:narrow, fontSize:14, textTransform:"none", opacity:.8, maxWidth:"100%", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{choice?.text}</span>
         </button>
       </>}
-      {mode === "jump" && <button {...keep} onClick={onJump} style={main}>К резолюции ↓</button>}
       {(mode === "guide" || mode === "guideReport") && <>
         <button {...keep} onClick={mode==='guide'?onGuide:onGuideReport} style={main}>{mode==='guide'?'Выбрать руководителя':'Первый доклад'}</button>
         <button {...keep} onClick={onNext} aria-label={mode==='guide'?'Отложить назначение':'Продолжить текущий план'} style={{...main,flex:'0 0 auto',background:'transparent',color:G.tx2,fontFamily:narrow,fontSize:16}}>Позже</button>
