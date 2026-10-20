@@ -221,8 +221,8 @@ export interface Letter {
 }
 // Резолюция на письме: что подписывает президент и чего это стоит (#156).
 export interface LetterReply { id: string; text: string; cost: ResourceDelta; relation?: number }
-// Данный ответ: какой, на каком ходу и кому — чтобы история не сменила адресата в новом сроке.
-export interface StoryReply { reply: string; turn: number; hero?: string }
+// Данный ответ: какой, на каком ходу и кому — должность и имя, чтобы история не перешла к другому человеку.
+export interface StoryReply { reply: string; turn: number; hero?: string; heroName?: string }
 
 export interface Narration {
   headline: string;

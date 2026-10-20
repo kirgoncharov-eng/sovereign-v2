@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { classicApi } from "./classic.ts";
 import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
 import { SAVE_VERSION } from "./data.ts";
-import { createInitialState, resolveTurn, seededRandom, startEvent } from "./engine.ts";
+import { createInitialState, loyaltyLabel, resolveTurn, seededRandom, startEvent } from "./engine.ts";
 import { STORY_FIRST_TURN, STORY_GAP, STORY_STEP, replyToLetter, storyLetters, storyOrder } from "./stories.ts";
 import { STORY_REPLIES } from "../content/story-replies.ts";
 import { parseSave } from "../client/save.ts";
@@ -67,7 +67,9 @@ test("ответы на письма: оба ответа каждой встр�
           assert.equal(answered.keyFigures.find(figure => figure.id === letter.hero)!.relation,
             Math.max(-100, Math.min(100, before + option.relation)));
         }
-        assert.deepEqual(answered.storyReplies?.[letter.story], { reply: option.id, turn: state.turn, ...(letter.hero ? { hero: letter.hero } : {}) });
+        const heroName: string | undefined = state.keyFigures.find(figure => figure.id === letter.hero)?.name;
+        assert.deepEqual(answered.storyReplies?.[letter.story],
+          { reply: option.id, turn: state.turn, ...(letter.hero ? { hero: letter.hero, heroName } : {}) });
         assert.throws(() => replyToLetter(answered, letter.story, option.id), /уже отправлен/);
         const texts = await followUp(answered, letter.story, seed);
         for (const text of texts) assert.doesNotMatch(text, /\{|undefined|видео|в сети/, `${seed}/${letter.story}/${option.id}: ${text}`);
@@ -135,4 +137,46 @@ test("ответы на письма: в «Деле дня» и в архивн�
     const played = await untilReply(state, 3, 24);
     assert.equal(played, null, `${country}: письма без резолюций`);
   }
+});
+
+// #182: ответ — личное дело героя. Преемник на той же должности его историю не продолжает.
+test("ответы на письма: история с ответом не переходит к преемнику на той же должности", async () => {
+  const state = await fresh(ALTERNATE_COUNTRY, 1);
+  const k = storyOrder(state).findIndex(story => story.id === "retire");
+  const start = STORY_FIRST_TURN + k * STORY_GAP;
+  const at = (target: GameState, step: number) => storyLetters({ ...target, turn: start + step * STORY_STEP - 1 })
+    .find(letter => letter.story === "retire");
+  const first = at(state, 0)!;
+  const offered = { ...state, turn: start, lastTurn: { letters: [first] } } as unknown as GameState;
+  const answered = replyToLetter(offered, "retire", "tea");
+  const hero = state.keyFigures.find(figure => figure.id === first.hero)!;
+  assert.equal(answered.storyReplies?.retire.heroName, hero.name);
+  assert.equal(at(answered, 2)?.from, hero.name, "пока герой на месте, история его");
+  // Преемник по письму или сделке: та же должность, другое имя — так их меняет resolveTurn.
+  const successor = { ...answered, keyFigures: answered.keyFigures.map(figure => figure.id === hero.id
+    ? { ...figure, name: "Олег Новицкий", relation: 0 } : figure) };
+  for (const step of [1, 2, 3]) assert.equal(at(successor, step), undefined, `шаг ${step}: преемник не получает чужую историю`);
+  // Сохранение до этой правки (без имени героя) читается и ведёт себя как раньше.
+  const legacy = { ...answered, storyReplies: { retire: { reply: "tea", turn: start, hero: hero.id } } };
+  assert.equal(at(legacy, 2)?.from, hero.name);
+  const saved = { ...state, storyReplies: answered.storyReplies };
+  const restored = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: "game", state: saved }));
+  assert.deepEqual(restored?.state.storyReplies, answered.storyReplies, "имя героя читается из сохранения");
+});
+
+test("ответы на письма: подпись отношения меняется вместе с числом", async () => {
+  const state = await fresh(ALTERNATE_COUNTRY, 2);
+  const oligarch = state.keyFigures.find(figure => figure.id === "oligarch")!;
+  const replies = STORY_REPLIES.son.options.map(({ id, text, cost, relation }) => ({ id, text, cost, relation }));
+  const offer = (relation: number) => ({
+    ...state, turn: 9,
+    keyFigures: state.keyFigures.map(figure => figure.id === oligarch.id ? { ...figure, relation, loyalty: loyaltyLabel(relation) } : figure),
+    lastTurn: { letters: [{ kind: "call", from: oligarch.name, text: "…", story: "son", hero: oligarch.id, replies }] },
+  }) as unknown as GameState;
+  const after = (relation: number, reply: string) => replyToLetter(offer(relation), "son", reply).keyFigures.find(f => f.id === oligarch.id)!;
+  assert.deepEqual([after(25, "hush").relation, after(25, "hush").loyalty], [40, "союзник"], "нейтрал +15 → союзник");
+  assert.deepEqual([after(35, "court").relation, after(35, "court").loyalty], [20, "нейтрал"], "союзник −15 → нейтрал");
+  assert.deepEqual([after(-20, "court").relation, after(-20, "court").loyalty], [-35, "враг"], "нейтрал −15 → враг");
+  assert.deepEqual([after(95, "hush").relation, after(95, "hush").loyalty], [100, "союзник"], "предел +100");
+  assert.deepEqual([after(-95, "court").relation, after(-95, "court").loyalty], [-100, "враг"], "предел −100");
 });

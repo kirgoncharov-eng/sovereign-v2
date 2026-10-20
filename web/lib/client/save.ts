@@ -123,7 +123,8 @@ function validState(s: Obj): boolean {
     && strings(s.staffing.taken) && (s.staffing.receipt === undefined || typeof s.staffing.receipt === "string"))) return false;
   if (s.world !== undefined && !validLivingWorld(s.world)) return false;
   if (s.storyReplies !== undefined && !(isObj(s.storyReplies) && Object.values(s.storyReplies).every(answer => isObj(answer)
-    && typeof answer.reply === "string" && integer(answer.turn) && (answer.hero === undefined || typeof answer.hero === "string")))) return false;
+    && typeof answer.reply === "string" && integer(answer.turn) && (answer.hero === undefined || typeof answer.hero === "string")
+    && (answer.heroName === undefined || typeof answer.heroName === "string")))) return false;
   if (s.dailyMoves !== undefined && (!validDailyMoves(s.dailyMoves) || s.dailyMoves.length !== s.turn)) return false;
   return !s.verdict || fields(s.verdict, ["verdict", "title", "epitaph", "rating"]);
 }
