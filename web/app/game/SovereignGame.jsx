@@ -72,7 +72,8 @@ import QuarterTransition from "./QuarterTransition.jsx";
 import { CASE_LEAD, NEWS_LEAD, ledgerRows, splitLead, withoutHeadline } from "@/lib/client/brief.ts";
 import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
-import { artSource, historicalEventArt, historicalResultArt, historicalPortraitArt, HISTORICAL_SCENE_ART } from "@/lib/client/historical-art.ts";
+import { artSource, historicalEventArt, historicalResultArt, historicalPortraitArt, historicalEndingArt, HISTORICAL_SCENE_ART } from "@/lib/client/historical-art.ts";
+import dossierStyles from "./archive-dossier.module.css";
 const HistoricalArtContext = createContext(null);
 function HistoricalArtProvider({ state, children }) {
   const runKey = state?.country === ALTERNATE_COUNTRY ? `sovereign.art-roster.${state.seed}` : null;
@@ -3348,18 +3349,25 @@ function ShareCard({ gs, style }) {
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   };
   const preview = server ? cardUrl : local;
+  const isTg = inTelegram();
+  const isHistorical = gs?.country === ALTERNATE_COUNTRY;
+  const shareBtnLabel = state === "copied"
+    ? "✓ ССЫЛКА СКОПИРОВАНА"
+    : isHistorical
+      ? (isTg ? "✉ ОТПРАВИТЬ ДРУГУ В TELEGRAM" : "✉ ОТПРАВИТЬ ДРУГУ")
+      : "ОТПРАВИТЬ ДРУГУ";
   return (
     <Card style={{ marginBottom:12, ...style }}>
       <Label>{"ВАШ ИТОГ — ДЛЯ ДРУЗЕЙ"}</Label>
       {preview && (
         // eslint-disable-next-line @next/next/no-img-element -- карточку рисует сервер или canvas
-        <img src={preview} alt={cap.title} onClick={send} style={{ display:"block", width:"100%", height:"auto", marginBottom:12, boxShadow:"4px 4px 0 #0006", cursor:"pointer" }}/>
+        <img src={preview} alt={cap.title} onClick={send} style={{ display:"block", width:"100%", height:"auto", marginBottom:12, border:"1px solid var(--bdr2)", boxShadow:"4px 4px 0 #0006", cursor:"pointer" }}/>
       )}
-      <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, lineHeight:1.55, marginBottom:12 }}>{cap.challenge} Друг увидит эту карточку и сможет сыграть в одно касание.</div>
+      <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, lineHeight:1.55, marginBottom:14 }}>{cap.challenge} Друг увидит эту карточку и сможет сыграть в одно касание.</div>
       <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center" }}>
-        <PrimaryBtn onClick={send}>{state === "copied" ? "✓ ССЫЛКА СКОПИРОВАНА" : "ОТПРАВИТЬ ДРУГУ"}</PrimaryBtn>
+        <PrimaryBtn onClick={send}>{shareBtnLabel}</PrimaryBtn>
         {server && canTelegramStory() && <button onClick={story} style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.txt, padding:"10px 18px", borderRadius:0, fontFamily:pixel, fontSize:14 }}>В ИСТОРИЮ</button>}
-        {!inTelegram() && window.self === window.top && <button onClick={save} style={{ background:"transparent", border:"none", color:G.tx2, fontSize:15, textDecoration:"underline", textUnderlineOffset:3 }}>Сохранить картинку</button>}
+        {!isTg && window.self === window.top && <button onClick={save} style={{ background:"transparent", border:"none", color:G.tx2, fontSize:15, textDecoration:"underline", textUnderlineOffset:3 }}>Сохранить картинку</button>}
       </div>
       {state === "manual" && (
         <textarea readOnly value={server ? `${text}\n${pageUrl}` : shareText(gs)} rows={4} onFocus={e => e.target.select()} aria-label="Итог правления"
@@ -3551,6 +3559,8 @@ function Ending({ gs, setGs, onRestart }) {
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
   const best = useMemo(() => bestReign(parseMeta(metaRaw)), [metaRaw]);
   const record = verdict && gs.turn >= best;
+  const endingArt = historicalEndingArt(gs);
+  const isHistorical = gs.country === ALTERNATE_COUNTRY;
 
   return (
     <div style={{ minHeight:"100vh", background:G.bg, display:"flex", justifyContent:"center", padding:"32px 16px" }}>
@@ -3560,17 +3570,118 @@ function Ending({ gs, setGs, onRestart }) {
           <Divider/>
         </div>
 
-        <Card style={{ marginBottom:12, textAlign:"center" }}>
-          <Portrait name={gs.leader.name} size={96} style={{ display:"block", margin:"0 auto 12px", transform:"rotate(-1.5deg)", filter:isLoss ? "grayscale(1) contrast(.9)" : "none" }}/>
-          <div style={{ fontFamily:narrow, fontSize:42, fontWeight:700, color:G.txt, marginBottom:6 }}>{gs.leader.name}</div>
-          {verdict?.title && <div style={{ margin:"10px 0 20px" }}><span className={`sv-stamp${isLoss ? " is-red" : ""}`} style={{ fontSize:17 }}>{verdict.title}</span></div>}
-          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, letterSpacing:".04em", textTransform:"uppercase" }}>у власти</div>
-          <div style={{ fontFamily:narrow, fontSize:34, fontWeight:700, color:G.txt, lineHeight:1.1, marginBottom:4 }}>{reignLength(gs.turn)}</div>
-          <div style={{ fontFamily:narrow, fontSize:15, color:record ? G.gold : G.tx3, fontWeight:record ? 700 : 400, marginBottom:10 }}>
-            {record ? "Ваш личный рекорд" : `Ваш рекорд — ${reignLength(best)}`}
+        {!isHistorical && (
+          <Card style={{ marginBottom:12, textAlign:"center" }}>
+            <Portrait name={gs.leader.name} size={96} style={{ display:"block", margin:"0 auto 12px", transform:"rotate(-1.5deg)", filter:isLoss ? "grayscale(1) contrast(.9)" : "none" }}/>
+            <div style={{ fontFamily:narrow, fontSize:42, fontWeight:700, color:G.txt, marginBottom:6 }}>{gs.leader.name}</div>
+            {verdict?.title && <div style={{ margin:"10px 0 20px" }}><span className={`sv-stamp${isLoss ? " is-red" : ""}`} style={{ fontSize:17 }}>{verdict.title}</span></div>}
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, letterSpacing:".04em", textTransform:"uppercase" }}>у власти</div>
+            <div style={{ fontFamily:narrow, fontSize:34, fontWeight:700, color:G.txt, lineHeight:1.1, marginBottom:4 }}>{reignLength(gs.turn)}</div>
+            <div style={{ fontFamily:narrow, fontSize:15, color:record ? G.gold : G.tx3, fontWeight:record ? 700 : 400, marginBottom:10 }}>
+              {record ? "Ваш личный рекорд" : `Ваш рекорд — ${reignLength(best)}`}
+            </div>
+            <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{startYear}–{gs.year} · {plural(gs.history.length, "решение", "решения", "решений")} · ресурсы {avgRes}/100 · рейтинг {pa}%</div>
+          </Card>
+        )}
+
+        {isHistorical && (
+          <div className={dossierStyles.dossierCard}>
+            {/* Архивный колонтитул */}
+            <div className={dossierStyles.dossierDocket}>
+              <div className={dossierStyles.dossierDocketLeft}>
+                <span><Flag country={gs.country}/> АРХИВ ЦИК РЕСПУБЛИКИ · ДЕЛО № П-{gs.seed}</span>
+              </div>
+              <div className={dossierStyles.dossierDocketRight}>
+                {isLoss ? "ЗАКРЫТО ДОСРОЧНО" : "ХРАНИТЬ ПОСТОЯННО"}
+              </div>
+            </div>
+
+            {/* 16:9 Пиксель-арт сцена развязки */}
+            {endingArt && (
+              <div className={dossierStyles.sceneContainer}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={artSource(endingArt.src)}
+                  alt={endingArt.caption}
+                  className={dossierStyles.sceneImage}
+                />
+                <div className={dossierStyles.sceneCaption}>
+                  <span>{endingArt.caption}</span>
+                  <span className={dossierStyles.sceneBadge}>
+                    {gs.endType === 'mandate' ? "ПЕРЕДАЧА ВЛАСТИ" : isLoss ? "ФИНАЛЬНЫЙ АКТ" : "РАЗВЯЗКА ПРАВЛЕНИЯ"}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Профиль президента с фотокарточкой и официальным штемпелем */}
+            <div className={dossierStyles.profileRow}>
+              <div className={dossierStyles.photoWrapper}>
+                <div className={dossierStyles.photoCorners}>
+                  <Portrait
+                    name={gs.leader.name}
+                    size={80}
+                    style={{
+                      display: "block",
+                      filter: isLoss ? "grayscale(1) contrast(.9)" : "none",
+                    }}
+                  />
+                </div>
+              </div>
+              <div className={dossierStyles.profileInfo}>
+                <div className={dossierStyles.profileLabel}>ЛИЧНОЕ ДЕЛО ПРАВИТЕЛЯ</div>
+                <div className={dossierStyles.leaderName}>{gs.leader.name}</div>
+                <div className={dossierStyles.leaderDates}>
+                  {startYear}–{gs.year} · {gs.endType ? END_TYPES[gs.endType] : "Конец правления"}
+                </div>
+                {verdict?.title && (
+                  <div className={dossierStyles.stampBadge}>
+                    <span className={`sv-stamp${isLoss ? " is-red" : " is-green"}`} style={{ fontSize: 16 }}>
+                      {verdict.title}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 4-ячеечный архивный табель (Scorecard) */}
+            <div className={dossierStyles.scorecardGrid}>
+              <div className={dossierStyles.scorecardCell}>
+                <div className={dossierStyles.scorecardLabel}>СРОК У ВЛАСТИ</div>
+                <div className={dossierStyles.scorecardValue}>{reignLength(gs.turn)}</div>
+                <div className={dossierStyles.scorecardHint}>
+                  {record ? (
+                    <span className={dossierStyles.recordBadge}>⭐ РЕКОРД</span>
+                  ) : (
+                    `Рекорд: ${reignLength(best)}`
+                  )}
+                </div>
+              </div>
+
+              <div className={dossierStyles.scorecardCell}>
+                <div className={dossierStyles.scorecardLabel}>РЕЙТИНГ</div>
+                <div className={dossierStyles.scorecardValue} style={{ color: pa >= 50 ? "var(--grn, #346e29)" : pa >= 30 ? "var(--txt, #24221b)" : "var(--red, #8b2b22)" }}>
+                  {pa}%
+                </div>
+                <div className={dossierStyles.scorecardHint}>доверие граждан</div>
+              </div>
+
+              <div className={dossierStyles.scorecardCell}>
+                <div className={dossierStyles.scorecardLabel}>БАЛАНС ОПОР</div>
+                <div className={dossierStyles.scorecardValue} style={{ color: avgRes >= 50 ? "var(--grn, #346e29)" : avgRes >= 30 ? "var(--txt, #24221b)" : "var(--red, #8b2b22)" }}>
+                  {avgRes}<span style={{ fontSize: 16, color: "var(--tx3, #685d47)" }}>/100</span>
+                </div>
+                <div className={dossierStyles.scorecardHint}>среднее из 6 сфер</div>
+              </div>
+
+              <div className={dossierStyles.scorecardCell}>
+                <div className={dossierStyles.scorecardLabel}>РЕШЕНИЙ</div>
+                <div className={dossierStyles.scorecardValue}>{gs.history.length}</div>
+                <div className={dossierStyles.scorecardHint}>делопроизводство</div>
+              </div>
+            </div>
           </div>
-          <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{startYear}–{gs.year} · {plural(gs.history.length, "решение", "решения", "решений")} · ресурсы {avgRes}/100 · рейтинг {pa}%</div>
-        </Card>
+        )}
 
         {loading && <Card style={{ padding:"50px 20px", textAlign:"center" }}><div style={{ fontFamily:mono, fontSize:13, color:G.tx3, letterSpacing:".05em" }}>{"Историки пишут хронику…"}</div></Card>}
         {!loading && error && <ErrorBanner message={error} onRetry={retry}/>}

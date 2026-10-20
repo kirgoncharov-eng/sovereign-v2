@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, statSync } from 'node:fs';
 import { HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, historicalEventArt, historicalResultArt,
-  historicalPortraitArt, HISTORICAL_OUTCOME_ART, HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART } from './historical-art.ts';
+  historicalPortraitArt, HISTORICAL_OUTCOME_ART, HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART,
+  historicalEndingArt } from './historical-art.ts';
 import { MANAGEMENT_DOSSIERS } from '../content/management.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { sceneOf } from '../content/scene-map.ts';
@@ -170,4 +171,25 @@ test('first crisis and election night resolve authorial outcome scenes', async (
     turn: 20, kind: 'president', leader: 14, top: { id: 'opp', name: 'Оппозиция', share: 62 }, outcome: 'lost',
   } } };
   assert.equal(historicalResultArt(lostState, 'ballot'), HISTORICAL_SCENE_ART.electionDefeat);
+});
+
+test('ending dossier resolves dramatic pixel-art scene by outcome', async () => {
+  const base = await fresh();
+  assert.equal(historicalEndingArt({ ...base, endType: 'reelected' }), HISTORICAL_SCENE_ART.electionNight);
+  assert.equal(historicalEndingArt({ ...base, endType: 'retired' }), HISTORICAL_SCENE_ART.electionNight);
+  assert.equal(historicalEndingArt({ ...base, endType: 'mandate' }), HISTORICAL_SCENE_ART.electionDefeat);
+  assert.equal(historicalEndingArt({ ...base, endType: 'coup' }), HISTORICAL_SCENE_ART.electionDefeat);
+  assert.equal(historicalEndingArt({ ...base, endType: 'collapse' }), HISTORICAL_SCENE_ART.electionDefeat);
+  assert.equal(historicalEndingArt({ ...base, endType: 'died' }), null);
+  assert.deepEqual(historicalEndingArt({ ...base, endType: 'dictator' }), {
+    src: HISTORICAL_SCENE_ART.electionNight.src,
+    caption: 'Огни столицы за окном кабинета правителя',
+  });
+  assert.deepEqual(historicalEndingArt({ ...base, endType: 'revolution' }), {
+    src: HISTORICAL_SCENE_ART.protest.src,
+    caption: 'Народные волнения на улицах столицы',
+  });
+  for (const country of LEGACY_COUNTRIES) {
+    assert.equal(historicalEndingArt({ ...base, country, endType: 'reelected' }), null);
+  }
 });
