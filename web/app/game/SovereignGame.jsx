@@ -900,69 +900,157 @@ const quoteName = n => (String(n).includes("«") ? n : `«${n}»`);
 function ElectionNight({ e, party, onDone }) {
   const { state } = useContext(HistoricalArtContext) ?? {};
   const isAlternate = state?.country === ALTERNATE_COUNTRY;
-  const [p, setP] = useState(() => (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? 100 : 0));
+  const isReducedMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+
+  const [p, setP] = useState(() => (isReducedMotion ? 100 : 0));
+  const pRef = useRef(isReducedMotion ? 100 : 0);
+  const intervalRef = useRef(null);
+  const timeoutRef = useRef(null);
   const doneRef = useRef(onDone);
   useEffect(() => { doneRef.current = onDone; }, [onDone]);
 
+  const finish = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    doneRef.current();
+  }, []);
+
+  const skipToOver = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    pRef.current = 100;
+    setP(100);
+
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      doneRef.current();
+    }, isAlternate ? 15000 : 1800);
+  }, [isAlternate]);
+
   useEffect(() => {
-    if (p >= 100) return;
-    let x = 0, t2 = 0;
-    const t = setInterval(() => {
-      x = Math.min(100, x + 2 + Math.random() * 3);
-      setP(x);
-      if (x >= 100) {
-        clearInterval(t);
-        t2 = setTimeout(() => doneRef.current(), 15000);
-      }
-    }, 110);
+    pRef.current = p;
+  }, [p]);
+
+  useEffect(() => {
+    if (isReducedMotion) {
+      timeoutRef.current = setTimeout(() => {
+        doneRef.current();
+      }, isAlternate ? 15000 : 1800);
+    } else {
+      let x = 0;
+      intervalRef.current = setInterval(() => {
+        x = Math.min(100, x + 2 + Math.random() * 3);
+        pRef.current = x;
+        setP(x);
+        if (x >= 100) {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          timeoutRef.current = setTimeout(() => {
+            doneRef.current();
+          }, isAlternate ? 15000 : 1800);
+        }
+      }, 110);
+    }
+
     const onKey = ev => {
       if (ev.key === "Enter" || ev.key === " ") {
         ev.preventDefault();
-        setP(cur => {
-          if (cur < 100) return 100;
-          doneRef.current();
-          return cur;
-        });
+        if (pRef.current < 100) {
+          skipToOver();
+        } else {
+          finish();
+        }
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => { clearInterval(t); clearTimeout(t2); window.removeEventListener("keydown", onKey); };
-  }, []);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [isReducedMotion, isAlternate, skipToOver, finish]);
 
   const k = p / 100, swing = (1 - k) * (1 - k) * 9; // ранние участки — в пользу соперника
   const me = Math.max(0, Math.round(e.leader - swing)), them = Math.round(e.top.share + swing * .8);
   const won = e.outcome === "won", over = p >= 100;
-
-  const activeArt = isAlternate
-    ? (!over
-        ? HISTORICAL_SCENE_ART.ballot
-        : won
-        ? HISTORICAL_SCENE_ART.electionNight
-        : HISTORICAL_SCENE_ART.electionDefeat)
-    : { src: "/art/scenes/ballot.webp", caption: "Подсчёт избирательных бюллетеней" };
-
-  const mandateText = won
-    ? (e.kind === "president"
-        ? "Последний участок досчитывают к трём часам ночи. Вы стоите у окна резиденции: за снегом видны огни площади. Мандат на второй срок подтверждён гражданами."
-        : "Подсчёт завершён. Партия власти сохраняет большинство в парламенте. Правительственная коалиция устояла.")
-    : (e.outcome === "impeached"
-        ? "Парламентское большинство перешло к оппозиции. Начата процедура немедленного отрешения от должности."
-        : "К полуночи всё ясно. В штабе молча выключают телевизоры, кто-то собирает вещи. Власть переходит к оппозиции.");
 
   const bar = (label, v, color, bold) => (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontFamily: narrow, fontSize: 18, fontWeight: bold ? 700 : 400, marginBottom: 4 }}>
         <span>{label}</span><span style={{ fontFamily: pixel, fontSize: 20 }}>{v}%</span>
       </div>
-      <div style={{ height: 14, background: "rgba(0,0,0,.45)", border: "2px solid #000" }}>
+      <div style={{ height: 14, background: isAlternate ? "rgba(0,0,0,.45)" : "rgba(0,0,0,.35)", border: "2px solid #000" }}>
         <div style={{ height: "100%", width: `${Math.min(100, v * 1.4)}%`, background: color, transition: "width .1s linear" }} />
       </div>
     </div>
   );
 
+  // Архивные страны: сохраняем исходный вид и поведение без новых сцен, мандатного абзаца и кнопок
+  if (!isAlternate) {
+    return (
+      <div
+        onClick={finish}
+        style={{
+          background: "var(--bg-deep)",
+          border: "2px solid #000",
+          boxShadow: "var(--hard)",
+          padding: "18px 20px 20px",
+          marginBottom: 12,
+          cursor: "pointer",
+          position: "relative",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
+          <span style={{ fontFamily: pixel, fontSize: 13, color: G.red }}>● ПРЯМОЙ ЭФИР · ЦИК</span>
+          <span style={{ fontFamily: pixel, fontSize: 13, color: G.tx3 }}>ОБРАБОТАНО {Math.floor(p)}%</span>
+        </div>
+        <div style={{ fontFamily: narrow, fontWeight: 700, fontSize: 32, lineHeight: 1.12, color: G.txt, marginBottom: 16 }}>
+          {e.kind === "president" ? "Президентские выборы" : "Парламентские выборы"}
+        </div>
+        {bar(quoteName(party), me, "var(--grn)", true)}
+        {bar(quoteName(e.top.name), them, "var(--red)", false)}
+        <div style={{ fontFamily: narrow, fontSize: 15, color: G.tx3 }}>
+          {k < .35 ? "Первыми приходят протоколы крупных городов…" : k < .8 ? "Подтягиваются регионы. В штабе никто не садится." : over ? "Подсчёт окончен." : "Последние участки. Тишина в эфире."}
+        </div>
+        {over && (
+          <span className={`sv-stamp sv-in ${won ? "is-green" : "is-red"}`} style={{ position: "absolute", right: 20, bottom: 16, fontSize: 22, animationDelay: "0s", mixBlendMode: "normal" }}>
+            {won ? "Победа" : e.outcome === "impeached" ? "Разгром" : "Поражение"}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // Кампания 1978 года (Неманская республика): кинематографичная ночь выборов
+  const activeArt = !over
+    ? HISTORICAL_SCENE_ART.ballot
+    : won
+    ? HISTORICAL_SCENE_ART.electionNight
+    : HISTORICAL_SCENE_ART.electionDefeat;
+
+  const termLabel = e.turn === 20 ? "на второй срок" : "на новый срок";
+  const mandateText = won
+    ? (e.kind === "president"
+        ? `Последний участок досчитывают к трём часам ночи. Вы стоите у окна резиденции: за снегом видны огни площади. Мандат ${termLabel} подтверждён гражданами.`
+        : "Подсчёт завершён. Партия власти сохраняет большинство в парламенте. Правительственная коалиция устояла.")
+    : (e.outcome === "impeached"
+        ? "Парламентское большинство перешло к оппозиции. Начата процедура немедленного отрешения от должности."
+        : "К полуночи всё ясно. В штабе молча выключают телевизоры, кто-то собирает вещи. Власть переходит к оппозиции.");
+
   return (
     <div
-      onClick={() => { if (!over) setP(100); else onDone(); }}
+      onClick={() => { if (!over) skipToOver(); else finish(); }}
       style={{
         background: G.bg2,
         border: "2px solid #000",
@@ -1029,7 +1117,7 @@ function ElectionNight({ e, party, onDone }) {
             {activeArt.caption}
           </span>
           <span style={{ fontFamily: pixel, fontSize: 11, color: "var(--gold)", letterSpacing: ".04em", flexShrink: 0 }}>
-            {e.turn === 20 ? "ФИНАЛ СРОКА" : `ХОД ${e.turn}`}
+            {e.turn === 20 ? "ФИНАЛ 1-ГО СРОКА" : (e.turn % 20 === 0 ? "ФИНАЛ СРОКА" : `ХОД ${e.turn}`)}
           </span>
         </div>
         {over && (
@@ -1077,7 +1165,7 @@ function ElectionNight({ e, party, onDone }) {
             {mandateText}
           </div>
           <div style={{ textAlign: "right", marginTop: 14 }}>
-            <PrimaryBtn id="btn-election-done" onClick={() => onDone()} danger={!won}>
+            <PrimaryBtn id="btn-election-done" onClick={(ev) => { ev.stopPropagation(); finish(); }} danger={!won}>
               {won ? "ПРИНЯТЬ ИТОГИ ГОЛОСОВАНИЯ ⏎" : "К РАЗВЯЗКЕ ВЫБОРОВ ⏎"}
             </PrimaryBtn>
           </div>
