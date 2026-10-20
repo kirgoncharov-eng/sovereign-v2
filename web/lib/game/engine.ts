@@ -324,7 +324,7 @@ export function applyAdvisorNews(advisors: Advisor[], news: AdvisorNews[] | unde
 // Общие «розданные деньги разогнали инфляцию» к ним не относятся.
 // Авторские названия (#194) — только в обычной партии кампании 1978 года; «Дело дня» и архив держат общие.
 export function delayedEffects(choice: Choice, state?: Pick<GameState, "country" | "daily">): DelayedInfo[] {
-  if (choice.deal || choice.stance || choice.arc) return [];
+  if (choice.deal || (choice.stance && !choice.tagDelayed) || choice.arc) return [];
   const authored = state?.country === ALTERNATE_COUNTRY && !state.daily;
   const list = choice.tags.map(t => DELAYED[t]).filter((d): d is DelayedInfo => !!d)
     .map(d => (authored ? { ...d, label: historicalDelayedLabel(choice.text, d.label) } : d));

@@ -95,6 +95,7 @@ export interface Choice {
   deal?: Deal;            // личная сделка или пакт (особые дела)
   law?: { id: string; act: "enact" | "repeal" }; // законопроект: принять или отменить, если исполнят
   stance?: Partial<Record<Bloc, number>>; // кто за и кто против по сути решения — вместо отношений по тегам
+  tagDelayed?: boolean; // позиция лагерей из `camps`: отложенные последствия по тегам остаются (#221)
   path?: PathId;          // ответ на «вопрос о сроках»
   successor?: string;     // имя преемника, если путь — преемник
 }

@@ -951,6 +951,7 @@ function buildCardEvent(state: GameState, selected: EventCard, r: Rand): GameEve
       ...(c.politicalTags ? { politicalTags: c.politicalTags } : {}),
       ...(c.policyEffect ? { policyEffect: c.policyEffect } : {}),
       ...(c.stance ? { stance: c.stance } : {}),
+      ...(c.camps ? { stance: c.camps, tagDelayed: true } : {}),
       ...(c.costReasons ? { costReasons: Object.fromEntries(Object.entries(c.costReasons).map(([k, v]) => [k, fill(v!, state)])) } : {}),
       resolvesCrisis: c.resolves ? crisisId : null,
       ...(escalated

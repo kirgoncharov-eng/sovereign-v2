@@ -53,9 +53,9 @@ test('сохранённое дело с прежними тегами разр�
   assert.equal(event.cardId, 'alt_district');
   const current = event.choices.find(choice => choice.text === POLICE_CHECKS.alt_district)!;
   assert.deepEqual(current.tags, ['anticorruption', 'security']);
-  // Партия, сохранённая до #196 посреди дела, хранит вариант со старыми тегами и без авторской цены.
-  const { policyEffect, costReasons, ...legacyChoice } = current;
-  void policyEffect; void costReasons;
+  // Партия, сохранённая до #196 посреди дела, хранит вариант со старыми тегами, без авторской цены и реакций лагерей (#221).
+  const { policyEffect, costReasons, stance, tagDelayed, ...legacyChoice } = current;
+  void policyEffect; void costReasons; void stance; void tagDelayed;
   const legacy = { ...legacyChoice, tags: ['anticorruption'] } as Choice;
   const saved = startEvent(state, { ...event, choices: event.choices.map(choice => (choice.id === current.id ? legacy : choice)) });
   const loaded = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'game', state: saved }))!.state;

@@ -29,6 +29,7 @@ export interface CardCondition {
 export interface CardChoice {
   policyEffect?: ResourceDelta;
   stance?: Partial<Record<Bloc, number>>;
+  camps?: Partial<Record<Bloc, number>>; // как лагеря встречают решение по сути; в отличие от stance, отложенные последствия по тегам остаются
   deal?: Deal;
   politicalTags?: ActionTag[];
   text: string;
