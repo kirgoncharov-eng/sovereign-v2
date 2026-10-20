@@ -15,7 +15,16 @@ export const FIRST_TERM_CASES: Readonly<Record<number, string>> = {
 
 // Версии дел по положению дел в стране (#214): ход → дела, проверяемые по порядку раньше прежнего.
 // Условия каждой версии — в её `when` (доверие людей, союз, отношение лагеря) вместе с `slot`.
-export const FIRST_TERM_VERSIONS: Readonly<Record<number, readonly string[]>> = {};
+export const FIRST_TERM_VERSIONS: Readonly<Record<number, readonly string[]>> = {
+  10: ['alt_rail_blockade', 'alt_rail_chamber'],
+};
+
+// Прежние дела ходов, где уже пришла версия: они заменены и в другие ходы срока не переходят.
+export function replacedCases(state: Pick<GameState, 'usedEvents'>): string[] {
+  return Object.entries(FIRST_TERM_VERSIONS)
+    .filter(([, versions]) => versions.some(id => state.usedEvents.includes(id)))
+    .map(([turn]) => FIRST_TERM_CASES[Number(turn)]);
+}
 
 export function scheduledFirstTerm(state: GameState): boolean {
   return state.country === ALTERNATE_COUNTRY && !state.daily && state.turn < 20;

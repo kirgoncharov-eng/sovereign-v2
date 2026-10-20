@@ -55,7 +55,7 @@ import { advisorNews, forecastReview } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import { isOrdinaryNewspaperEvent, newspaperHeadline } from "./newspaper-editions.ts";
-import { FIRST_TERM_CASES, FIRST_TERM_VERSIONS, firstTermLaw, scheduledFirstTerm } from "./first-term-schedule.ts";
+import { FIRST_TERM_CASES, FIRST_TERM_VERSIONS, firstTermLaw, replacedCases, scheduledFirstTerm } from "./first-term-schedule.ts";
 import { hasPact, mostHostile, mostLoyal, trustLevel } from "./country-profile.ts";
 import { presidentialCouncil } from "./presidential-story.ts";
 import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
@@ -903,7 +903,8 @@ function buildFirstTermEvent(state: GameState): GameEvent & { cardId?: string } 
     }
   }
   const available = EVENT_CARDS.filter(card => card.id.startsWith('alt_') && cardAvailable(card, state));
-  const unused = available.filter(card => !state.usedEvents.includes(card.id));
+  const replaced = replacedCases(state);
+  const unused = available.filter(card => !state.usedEvents.includes(card.id) && !replaced.includes(card.id));
   const ready = unused.filter(card => (card.id !== 'alt_fuel' || turn >= 5)
     && (card.id !== 'alt_district' || turn >= 13) && (card.id !== 'alt_archive' || turn >= 20));
   // Положение дел в стране выбирает версию дела (#214): первая подходящая, иначе прежнее дело хода.

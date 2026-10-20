@@ -9,7 +9,7 @@ export type SceneKey =
 
 const BY_CARD: Record<string, SceneKey> = {
   alt_wages: "factory", alt_fuel: "energy", alt_standards: "factory", alt_district: "hospital",
-  alt_rail: "border", alt_radio: "tv", alt_harvest: "field", alt_archive: "archive",
+  alt_rail: "border", alt_rail_blockade: "border", alt_rail_chamber: "border", alt_radio: "tv", alt_harvest: "field", alt_archive: "archive",
   law_alt_export_guarantee: "money", law_alt_open_orders: "hospital",
   // позднее правление
   late_son: "money", late_health: "hospital", late_portraits: "stamp", late_old_friend: "stamp", late_generation: "protest",

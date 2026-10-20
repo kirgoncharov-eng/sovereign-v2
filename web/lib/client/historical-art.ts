@@ -50,6 +50,7 @@ const CARD_ART: Record<string, HistoricalArt> = {
   alt_wages: HISTORICAL_SCENE_ART.wages,
   alt_fuel: HISTORICAL_SCENE_ART.fuel, alt_standards: HISTORICAL_SCENE_ART.standards,
   alt_district: HISTORICAL_SCENE_ART.district, alt_rail: HISTORICAL_SCENE_ART.rail,
+  alt_rail_blockade: HISTORICAL_SCENE_ART.rail, alt_rail_chamber: HISTORICAL_SCENE_ART.rail,
   alt_radio: HISTORICAL_SCENE_ART.radio, alt_harvest: HISTORICAL_SCENE_ART.harvest,
   alt_archive: HISTORICAL_SCENE_ART.archive,
   law_alt_export_guarantee: HISTORICAL_SCENE_ART.parliamentHall,
