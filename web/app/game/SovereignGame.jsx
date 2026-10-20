@@ -701,20 +701,62 @@ function BudgetPanel({ gs, onFinish, onSkip, stamping }) {
 }
 
 // Звонок по защищённой линии: сначала подход, потом развязка. Как ответят — решает характер собеседника.
-function CallPanel({ call, seed, onFinish, onHang, stamping }) {
+function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
   const [approach, setApproach] = useState(null);
   const [secs, setSecs] = useState(0);
   useEffect(() => { const t = setInterval(() => setSecs(x => x + 1), 1000); return () => clearInterval(t); }, []);
   const ok = approach && approachWorks(call.trait, approach);
+  const fig = gs?.keyFigures?.find(f => f.id === call.figure);
+  const fac = gs?.factions?.find(f => f.id === fig?.faction);
   const row = { display:"block", width:"100%", textAlign:"left", padding:"12px 22px 12px 48px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" };
   const num = i => <span style={{ position:"absolute", left:20, top:12, fontFamily:serif, fontWeight:700, fontSize:17, color:G.tx3 }}>{i}.</span>;
+
   return (
     <Card style={{ padding:"18px 0 14px" }}>
-      <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", gap:10 }}>
-        <Label><span style={{ color:G.red }}>●</span> Защищённая линия</Label>
-        <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}</span>
+      <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:12 }}>
+        <Label style={{ marginBottom:0, display:"inline-flex", alignItems:"center", gap:6 }}>
+          <span className="sv-sheet-pulse-dot" aria-hidden="true" /> ЗАЩИЩЁННАЯ ЛИНИЯ · ВЧ-СВЯЗЬ
+        </Label>
+        <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>
+          {String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}
+        </span>
       </div>
-      <div style={{ fontFamily:serif, fontSize:18, lineHeight:1.5, padding:"0 22px 12px" }}>{call.demand}</div>
+
+      <figure className="sv-scene" style={{ margin:"0 22px 14px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)", position:"relative", overflow:"hidden" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={artSource(HISTORICAL_SCENE_ART.phone.src)}
+          alt=""
+          className="sv-px"
+          style={{ width:"100%", aspectRatio:"16 / 9", objectFit:"cover", display:"block" }}
+        />
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(14, 12, 10, 0.92))", padding:"12px 10px 4px", display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
+          <span style={{ fontFamily:narrow, fontSize:13, color:"#f1e9d2" }}>{HISTORICAL_SCENE_ART.phone.caption}</span>
+          <span style={{ fontFamily:pixel, fontSize:11, color:"var(--gold)" }}>АППАРАТ СПЕЦСВЯЗИ</span>
+        </div>
+      </figure>
+
+      {fig && (
+        <div style={{ display:"flex", gap:12, alignItems:"center", padding:"0 22px 12px", borderBottom:`1px dashed ${G.bdr2}`, marginBottom:12 }}>
+          <Portrait name={fig.name} size={48} />
+          <div style={{ minWidth:0, flex:1 }}>
+            <div style={{ display:"flex", alignItems:"baseline", gap:8, flexWrap:"wrap" }}>
+              <strong style={{ fontFamily:serif, fontSize:18, color:G.txt }}><PeopleText>{fig.name}</PeopleText></strong>
+              <span style={{ fontFamily:narrow, fontSize:14, color:fig.relation >= 0 ? G.grn : G.red }}>
+                отношение {fig.relation > 0 ? "+" : ""}{fig.relation}
+              </span>
+            </div>
+            <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3 }}>
+              {fig.role}{fac ? ` · «${fac.name}»` : ""}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ margin:"0 22px 14px", padding:"10px 14px", background:"var(--bg3)", borderLeft:`3px solid ${G.gold}`, fontFamily:serif, fontSize:16, lineHeight:1.5, color:G.txt, fontStyle:"italic" }}>
+        {call.demand}
+      </div>
+
       {!approach && <>
         <div style={{ padding:"0 22px 8px", fontFamily:narrow, fontSize:15, color:G.tx2 }}>Как говорить? Подсказка — в характере собеседника.</div>
         {APPROACHES.map((a, i) => (
@@ -757,10 +799,30 @@ function PressPanel({ press, onFinish, onSkip, stamping }) {
   const answer = i => setPicks(p => (p.length === step ? [...p, i] : p));
   return (
     <Card style={{ padding:"18px 0 14px" }}>
-      <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", gap:10 }}>
-        <Label>{done ? "Пресс-конференция окончена" : live ? `Вопрос ${step + 1} из ${press.questions.length}` : "Пресс-конференция"}</Label>
-        {!done && <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{PRESS_SECONDS} СЕК НА ОТВЕТ</span>}
+      <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:12 }}>
+        <Label style={{ marginBottom:0, display:"inline-flex", alignItems:"center", gap:6 }}>
+          {live && !done && <span className="sv-sheet-pulse-dot" aria-hidden="true" />}
+          {done ? "Пресс-конференция окончена" : live ? `Вопрос ${step + 1} из ${press.questions.length}` : "Пресс-конференция"}
+        </Label>
+        {!done && <span style={{ fontFamily:pixel, fontSize:13, color:live ? G.red : G.tx3 }}>{PRESS_SECONDS} СЕК НА ОТВЕТ</span>}
       </div>
+
+      <figure className="sv-scene" style={{ margin:"0 22px 14px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)", position:"relative", overflow:"hidden" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={artSource(HISTORICAL_SCENE_ART.press.src)}
+          alt=""
+          className="sv-px"
+          style={{ width:"100%", aspectRatio:"16 / 9", objectFit:"cover", display:"block" }}
+        />
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(14, 12, 10, 0.92))", padding:"12px 10px 4px", display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
+          <span style={{ fontFamily:narrow, fontSize:13, color:"#f1e9d2" }}>{HISTORICAL_SCENE_ART.press.caption}</span>
+          <span style={{ fontFamily:pixel, fontSize:11, color:live ? G.red : "var(--gold)" }}>
+            {live ? "ПРЯМОЙ ЭФИР" : "ПРЕСС-ЦЕНТР"}
+          </span>
+        </div>
+      </figure>
+
       {!live && (
         <div style={{ padding:"0 22px" }}>
           <div style={{ fontFamily:narrow, fontSize:16, color:G.tx2, lineHeight:1.4, marginBottom:12 }}>
@@ -780,7 +842,7 @@ function PressPanel({ press, onFinish, onSkip, stamping }) {
             <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${PRESS_SECONDS}s` }} onAnimationEnd={() => answer(-1)}/>
           </div>
           <div style={{ display:"flex", gap:12, padding:"0 22px 12px" }}>
-            <Portrait name={q.who} size={44}/>
+            <Portrait name={q.who} size={48}/>
             <div>
               <div style={{ fontFamily:narrow, fontWeight:700, fontSize:16, color:G.tx2 }}>{q.who}</div>
               <div style={{ fontFamily:serif, fontSize:18, lineHeight:1.45, color:G.txt }}>«{q.text}»</div>
@@ -2625,11 +2687,14 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   }}/>
               ) : event.call?.negotiation === "journalist" ? (
                 <JournalistCall gs={gs} stamping={stamping} onFinish={choose}
-                  renderPromises={choice => <PromiseLines gs={gs} c={choice}/>}/>
+                  renderPromises={choice => <PromiseLines gs={gs} c={choice}/>}
+                  Portrait={Portrait}/>
               ) : event.call?.negotiation ? (
-                <NegotiationCall gs={gs} stamping={stamping} onFinish={choose} renderPromises={c=><PromiseLines gs={gs} c={c}/>}/>
+                <NegotiationCall gs={gs} stamping={stamping} onFinish={choose}
+                  renderPromises={c=><PromiseLines gs={gs} c={c}/>}
+                  Portrait={Portrait}/>
               ) : event.call ? (
-                <CallPanel key={`call${turn}`} call={event.call} seed={gs.seed} stamping={stamping}
+                <CallPanel key={`call${turn}`} gs={gs} call={event.call} seed={gs.seed} stamping={stamping}
                   onHang={() => choose(event.choices[1])}
                   onFinish={(approach, ending) => {
                     const final = callChoice(gsRef.current, approach, ending);
