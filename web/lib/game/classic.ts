@@ -763,15 +763,15 @@ export function callChoice(state: GameState, approach: Approach, ending: (typeof
       : 'Собеседник не принимает ваших доводов. Чтобы получить согласие, вы тратите больше политического влияния и ресурсов.'}`
     : ending === 'refuse'
       ? `${topic.refusal} ${ok ? 'Собеседник принимает отказ без новых требований.' : 'Разговор заканчивается ссорой.'}`
-      : `Вы откладываете ответ: ${topic.subject}. Никакой уступки пока нет. Собеседник ждёт решения, а не нового разговора.`);
+      : `Вы берёте время подумать, согласовывать ли ${topic.subject}. Никакой уступки пока нет. Собеседник ждёт решения, а не нового разговора.`);
   const historicalScene = topic ? [
     `${fig.name} начинает без приветствия: ${call.demand}`,
     `Вы ${APPROACH_SAY[approach]}. ${reply}.`, subjectOutcome,
   ].join(' ') : null;
   const head = topic
     ? ending === 'deal' ? `${fig.name} и президент согласовали ${topic.subject}`
-      : ending === 'refuse' ? `${fig.name} не получает согласия президента: ${topic.subject}`
-      : `${fig.name} ждёт ответа: ${topic.subject}`
+      : ending === 'refuse' ? `${fig.name} и президент не согласовали ${topic.subject}`
+      : `${fig.name} ждёт решения: согласовать ли ${topic.subject}`
     : fill(T.heads[ending], state, slots);
   return {
     id: "p", text: "Разговор по защищённой линии", hint: "", resolvesCrisis: null,
@@ -779,7 +779,7 @@ export function callChoice(state: GameState, approach: Approach, ending: (typeof
     deal: {
       pure: true, figure: fig.id, figureRel: figRel, factionRel: table.fac ? { [fac.id]: table.fac } : undefined, res,
       ...(ending === "later" ? { later: { turns: 2, label: T.later.label, res: { politicalCapital: -2 }, story: topic
-        ? `${fig.name} напоминает: вы обещали решить вопрос — ${topic.subject}. Поручения до сих пор нет.`
+        ? `${fig.name} напоминает: вы обещали подумать, согласовывать ли ${topic.subject}. Поручения до сих пор нет.`
         : fill(T.later.story, state, slots) } } : {}),
     },
     scene: historicalScene ?? scene, sceneFail: historicalScene ?? scene, headline: head, headlineFail: head,
