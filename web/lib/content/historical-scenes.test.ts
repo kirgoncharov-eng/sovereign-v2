@@ -110,3 +110,25 @@ test('кампания 1978: шаги личных историй не связ�
     }
   }
 });
+
+// #194: у каждого отложенного последствия авторского дела своё название, и эхо находится и по нему, и по общему (старые сохранения).
+test('delayed consequences of 1978 cases carry authored names and still find their echoes', async () => {
+  const { ALTERNATE_EVENTS } = await import('./alternate-history.ts');
+  const { DELAYED } = await import('../game/data.ts');
+  const { delayedEffects } = await import('../game/engine.ts');
+  const { HISTORICAL_ECHOES, historicalEcho } = await import('./historical-echoes.ts');
+  for (const card of ALTERNATE_EVENTS) for (const choice of card.choices) {
+    if ('deal' in choice || 'stance' in choice) continue; // по тегам последствий не ставят
+    const generic = choice.tags.flatMap(tag => DELAYED[tag as keyof typeof DELAYED]?.label ?? []);
+    const authored = Object.keys(HISTORICAL_ECHOES[card.id]?.[choice.text] ?? {});
+    assert.deepEqual([...authored].sort(), [...generic].sort(), `${card.id}/${choice.text}: эхо по общим названиям`);
+    const shown = delayedEffects({ ...choice, id: 'a' } as never).map(effect => effect.label);
+    assert.equal(shown.length, generic.length);
+    shown.forEach((label, index) => {
+      assert.notEqual(label, generic[index], `${choice.text}: названию ${generic[index]} нужно своё`);
+      for (const name of [label, generic[index]]) {
+        assert.ok(historicalEcho(ALTERNATE_COUNTRY, { event: card.title, source: choice.text, label: name } as never), `${choice.text}: ${name}`);
+      }
+    });
+  }
+});
