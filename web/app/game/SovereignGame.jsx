@@ -356,7 +356,7 @@ function ChoicePreview({ gs, c, debated = false }) {
   const exact = !!c.advisor;
   const fx = choiceEffects(gs, c);
   const crisis = c.resolvesCrisis && gs.activeCrises.find(x => x.id === c.resolvesCrisis);
-  const later = delayedEffects(c);
+  const later = delayedEffects(c, gs);
   return (
     <>
       {c.advisor && (
