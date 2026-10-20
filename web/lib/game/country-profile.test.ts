@@ -28,14 +28,13 @@ test('положение дел: самый враждебный и самый �
   assert.equal(hasPact({ ...state, pacts: [pact] }, 'business'), true);
 });
 
-test('версия дела приходит только в свой ход обычной партии и по положению дел', async () => {
+test('версия дела приходит только в первом сроке обычной партии и по положению дел', async () => {
   const card: EventCard = {
     id: 'alt_probe', countries: [ALTERNATE_COUNTRY], source: 'Проверка', title: 'Проверка', description: '',
-    when: { slot: 10, rival: 'business' }, choices: [],
+    when: { versionOf: 'alt_rail', rival: 'business' }, choices: [],
   };
   const base = withRelation({ ...(await fresh()), turn: 9 }, 'business', -95);
   assert.equal(cardAvailable(card, base), true);
-  assert.equal(cardAvailable(card, { ...base, turn: 8 }), false, 'чужой ход');
   assert.equal(cardAvailable(card, { ...base, turn: 29 }), false, 'второй срок');
   assert.equal(cardAvailable(card, { ...base, daily: '2026-10-26' }), false, '«Дело дня»');
   assert.equal(cardAvailable(card, withRelation(base, 'business', 95)), false, 'палата не против');

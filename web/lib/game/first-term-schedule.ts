@@ -13,21 +13,24 @@ export const FIRST_TERM_CASES: Readonly<Record<number, string>> = {
   20: 'alt_archive',
 };
 
-// Версии дел по положению дел в стране (#214): ход → дела, проверяемые по порядку раньше прежнего.
-// Условия каждой версии — в её `when` (доверие людей, союз, отношение лагеря) вместе с `slot`.
-export const FIRST_TERM_VERSIONS: Readonly<Record<number, readonly string[]>> = {
-  10: ['alt_rail_blockade', 'alt_rail_chamber'],
-};
+// Версии дел по положению дел в стране (#214): дело → его версии в порядке проверки (поле `versionOf` в условиях).
+// Версия приходит вместо дела там, где пришло бы оно само, — и в свой ход, и когда сезон переставил дело.
+export function versionsOf(cardId: string): string[] {
+  return ALTERNATE_EVENTS.filter(card => card.when?.versionOf === cardId).map(card => card.id);
+}
 
-// Прежние дела ходов, где уже пришла версия: они заменены и в другие ходы срока не переходят.
+// Дела, вместо которых уже пришла версия: они заменены и в другие ходы срока не переходят.
 export function replacedCases(state: Pick<GameState, 'usedEvents'>): string[] {
-  return Object.entries(FIRST_TERM_VERSIONS)
-    .filter(([, versions]) => versions.some(id => state.usedEvents.includes(id)))
-    .map(([turn]) => FIRST_TERM_CASES[Number(turn)]);
+  return ALTERNATE_EVENTS.filter(card => card.when?.versionOf && state.usedEvents.includes(card.id)).map(card => card.when!.versionOf!);
 }
 
 export function scheduledFirstTerm(state: GameState): boolean {
   return state.country === ALTERNATE_COUNTRY && !state.daily && state.turn < 20;
+}
+
+// Дело подписано — оно само или его версия по положению дел (#214).
+export function signedCaseOrVersion(state: GameState, cardId: string): boolean {
+  return [cardId, ...versionsOf(cardId)].some(id => signedHistoricalCase(state, id));
 }
 
 export function signedHistoricalCase(state: GameState, cardId: string): boolean {

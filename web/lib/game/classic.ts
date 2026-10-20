@@ -55,7 +55,7 @@ import { advisorNews, forecastReview } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { sanitizeProposals } from "./sanitize.ts";
 import { isOrdinaryNewspaperEvent, newspaperHeadline } from "./newspaper-editions.ts";
-import { FIRST_TERM_CASES, FIRST_TERM_VERSIONS, firstTermLaw, replacedCases, scheduledFirstTerm } from "./first-term-schedule.ts";
+import { FIRST_TERM_CASES, firstTermLaw, replacedCases, scheduledFirstTerm, versionsOf } from "./first-term-schedule.ts";
 import { hasPact, mostHostile, mostLoyal, trustLevel } from "./country-profile.ts";
 import { presidentialCouncil } from "./presidential-story.ts";
 import type { ActionTag, Bloc, Choice, Deal, DifficultyId, EndType, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Narration, PathId, ResourceDelta, Verdict } from "./types.ts";
@@ -194,8 +194,8 @@ export function cardAvailable(card: EventCard, state: GameState): boolean {
   if (w.ideo && !w.ideo.includes(state.ideo)) return false;
   if (w.law === 'pension_reform' && state.laws?.some(l => l.id === w.law && l.transition)) return false;
   if (w.law && !state.laws?.some(l => l.id === w.law && turn - l.since >= 2)) return false;
-  // Версии дел первого срока (#214): только в свой ход обычной партии, не в «Деле дня» и не во втором сроке.
-  if (w.slot && (!scheduledFirstTerm(state) || turn !== w.slot)) return false;
+  // Версии дел первого срока (#214): только в обычной партии первого срока, не в «Деле дня» и не во втором сроке.
+  if (w.versionOf && !scheduledFirstTerm(state)) return false;
   if (w.trust && trustLevel(state) !== w.trust) return false;
   if (w.pact && !hasPact(state, w.pact)) return false;
   if (w.rival && mostHostile(state.factions)?.bloc !== w.rival) return false;
@@ -907,11 +907,12 @@ function buildFirstTermEvent(state: GameState): GameEvent & { cardId?: string } 
   const unused = available.filter(card => !state.usedEvents.includes(card.id) && !replaced.includes(card.id));
   const ready = unused.filter(card => (card.id !== 'alt_fuel' || turn >= 5)
     && (card.id !== 'alt_district' || turn >= 13) && (card.id !== 'alt_archive' || turn >= 20));
-  // Положение дел в стране выбирает версию дела (#214): первая подходящая, иначе прежнее дело хода.
-  const version = (FIRST_TERM_VERSIONS[turn] ?? []).map(id => ready.find(card => card.id === id)).find(card => !!card);
-  const card = version ?? ready.find(card => card.id === preferred)
-    ?? ready.find(card => card.id === 'alt_radio') ?? ready.find(card => !card.when?.slot)
-    ?? available.find(card => card.id === preferred) ?? available[0];
+  const base = ready.find(card => card.id === preferred)
+    ?? ready.find(card => card.id === 'alt_radio') ?? ready.find(card => !card.when?.versionOf)
+    ?? available.find(card => card.id === preferred) ?? available.find(card => !card.when?.versionOf);
+  // Положение дел в стране выбирает версию дела (#214): первая подходящая версия, иначе само дело.
+  const version = base && versionsOf(base.id).map(id => ready.find(card => card.id === id)).find(card => !!card);
+  const card = version || base;
   if (!card) throw new Error('No historical case available for the first term');
   return buildCardEvent(state, card, seededRandom(hashSeed(state.seed, "event", state.turn)));
 }
