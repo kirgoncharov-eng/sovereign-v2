@@ -116,3 +116,17 @@ test('доклад не теряется за двумя другими созр
   raw.state.currentEvent.call.negotiation = 'unknown';
   assert.equal(parseSave(JSON.stringify(raw)), null);
 });
+
+
+test('газета сообщает о решении по корреспонденту, а не повторяет кнопку поручения', async () => {
+  for (const controlled of [false, true]) {
+    const state = await fixture(controlled);
+    const event = callEvent(state)!;
+    for (const choice of event.choices) {
+      assert.notEqual(choice.headline, choice.text);
+      assert.match(choice.headline!, /корреспондента/);
+      const result = await answer(state, choice.id);
+      assert.equal(result.lastTurn!.headline, choice.headline);
+    }
+  }
+});

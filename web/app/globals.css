@@ -568,25 +568,36 @@ button:focus-visible {
 .sv-brief-history summary {min-height:44px;padding:12px 0;color:var(--tx3);font:17px var(--font-narrow);cursor:pointer;}
 
 .sv-negotiation-call {padding:18px 20px;}
-.sv-negotiation-call small {color:var(--gold);font:12px var(--font-pixel, monospace);letter-spacing:.04em;}
-.sv-negotiation-call p {font:16px/1.55 var(--font-serif), "PT Serif", Georgia, serif;}
+.sv-negotiation-call small {color:var(--amb);font:13px var(--font-narrow);}
+.sv-negotiation-call p {font:17px/1.5 Georgia,serif;}
 .sv-negotiation-call .sv-negotiation-context,.sv-negotiation-confirm p {font:15px/1.4 var(--font-narrow);color:var(--tx2);}
 .sv-negotiation-options {display:grid;gap:8px;margin-top:16px;}
-.sv-negotiation-options button {
-  min-height:48px;text-align:left;background:transparent;border:1.5px solid var(--bdr2);color:var(--txt);padding:12px 14px;
-  font:16px/1.4 var(--font-serif), "PT Serif", Georgia, serif;cursor:pointer;transition:border-color .15s ease, background-color .15s ease;
+.sv-negotiation-options button {min-height:48px;text-align:left;background:transparent;border:1px solid var(--bdr);color:var(--txt);padding:12px;font:16px/1.4 Georgia,serif;}
+.sv-negotiation-options button[aria-pressed=true] {border-color:var(--amb);background:var(--bg3);}
+.sv-negotiation-options span {display:block;margin-top:8px;font:15px/1.45 var(--font-narrow);color:var(--tx2);}
+.sv-negotiation-confirm {margin-top:14px;padding:12px;border:1px solid var(--amb);}
+.sv-negotiation-confirm button {min-height:44px;padding:10px 12px;margin:4px 8px 0 0;background:var(--amb);color:var(--bg);border:0;font:17px var(--font-narrow);}
+.sv-negotiation-confirm button:last-child {background:transparent;color:var(--tx2);}
+.sv-negotiation-call button:focus-visible {outline:2px solid var(--amb);outline-offset:3px;}
+
+.sv-negotiation-historical small {color:var(--gold);font:12px var(--font-pixel, monospace);letter-spacing:.04em;}
+.sv-negotiation-historical p {font:16px/1.55 var(--font-serif), "PT Serif", Georgia, serif;}
+.sv-negotiation-historical .sv-negotiation-options button {
+  border:1.5px solid var(--bdr2);padding:12px 14px;font:16px/1.4 var(--font-serif), "PT Serif", Georgia, serif;cursor:pointer;transition:border-color .15s ease, background-color .15s ease;
 }
-.sv-negotiation-options button:hover {border-color:var(--tx3);background:rgba(0,0,0,.03);}
-.sv-negotiation-options button[aria-pressed=true] {border-color:var(--gold);background:var(--bg3);box-shadow:inset 0 1px 2px rgba(0,0,0,.15);}
-.sv-negotiation-options span {display:block;margin-top:6px;font:15px/1.45 var(--font-narrow);color:var(--tx2);}
-.sv-negotiation-confirm {margin-top:14px;padding:14px 16px;border:2px solid var(--gold);background:var(--bg3);}
-.sv-negotiation-confirm button {
+.sv-negotiation-historical .sv-negotiation-options button:hover {border-color:var(--tx3);background:rgba(0,0,0,.03);}
+.sv-negotiation-historical .sv-negotiation-options button[aria-pressed=true] {border-color:var(--gold);background:var(--bg3);box-shadow:inset 0 1px 2px rgba(0,0,0,.15);}
+.sv-negotiation-historical .sv-negotiation-options span {margin-top:6px;}
+.sv-negotiation-historical .sv-negotiation-confirm {padding:14px 16px;border:2px solid var(--gold);background:var(--bg3);}
+.sv-negotiation-historical .sv-negotiation-confirm button {
   min-height:44px;padding:10px 18px;margin:8px 8px 0 0;background:var(--gold);color:var(--on-gold);
   border:2px solid rgba(0,0,0,.55);font:14px var(--font-pixel, monospace);letter-spacing:.04em;text-transform:uppercase;
   box-shadow:var(--hard);cursor:pointer;
 }
-.sv-negotiation-confirm button:last-child {background:transparent;color:var(--tx2);border:1.5px solid var(--bdr2);box-shadow:none;font:15px var(--font-narrow);text-transform:none;letter-spacing:normal;}
-.sv-negotiation-call button:focus-visible {outline:2px solid var(--gold);outline-offset:3px;}
+.sv-negotiation-historical .sv-negotiation-confirm button:last-child {
+  background:transparent;color:var(--tx2);border:1.5px solid var(--bdr2);box-shadow:none;font:15px var(--font-narrow);text-transform:none;letter-spacing:normal;
+}
+.sv-negotiation-historical button:focus-visible {outline:2px solid var(--gold);outline-offset:3px;}
 
 /* Личные сообщения: истории людей в итоге хода */
 .sv-letters { display:grid; gap:10px; margin:0 0 12px; }

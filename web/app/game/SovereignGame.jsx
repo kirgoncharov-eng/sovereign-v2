@@ -720,10 +720,51 @@ function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
   const [secs, setSecs] = useState(0);
   useEffect(() => { const t = setInterval(() => setSecs(x => x + 1), 1000); return () => clearInterval(t); }, []);
   const ok = approach && approachWorks(call.trait, approach);
-  const fig = gs?.keyFigures?.find(f => f.id === call.figure);
-  const fac = gs?.factions?.find(f => f.id === fig?.faction);
+  const isHistorical = gs?.country === ALTERNATE_COUNTRY;
   const row = { display:"block", width:"100%", textAlign:"left", padding:"12px 22px 12px 48px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" };
   const num = i => <span style={{ position:"absolute", left:20, top:12, fontFamily:serif, fontWeight:700, fontSize:17, color:G.tx3 }}>{i}.</span>;
+
+  if (!isHistorical) {
+    return (
+      <Card style={{ padding:"18px 0 14px" }}>
+        <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", gap:10 }}>
+          <Label><span style={{ color:G.red }}>●</span> Защищённая линия</Label>
+          <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}</span>
+        </div>
+        <div style={{ fontFamily:serif, fontSize:18, lineHeight:1.5, padding:"0 22px 12px" }}>{call.demand}</div>
+        {!approach && <>
+          <div style={{ padding:"0 22px 8px", fontFamily:narrow, fontSize:15, color:G.tx2 }}>Как говорить? Подсказка — в характере собеседника.</div>
+          {APPROACHES.map((a, i) => (
+            <button key={a.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => setApproach(a.id)}>
+              {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{a.text}</span>
+            </button>
+          ))}
+          <div style={{ padding:"10px 22px 0" }}>
+            <button onClick={onHang} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+              Не брать трубку
+            </button>
+          </div>
+        </>}
+        {approach && (
+          <div className="sv-fade">
+            <div style={{ padding:"8px 22px 12px", borderTop:`1px dashed ${G.bdr2}` }}>
+              <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>Вы: {APPROACHES.find(a => a.id === approach).text.toLowerCase()}</div>
+              <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.5, fontStyle:"italic", color:ok ? G.grn : G.red, marginTop:4 }}>{callReply(seed, call, approach, ok)}.</div>
+            </div>
+            {CALL_ENDINGS.map((e, i) => (
+              <button key={e.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => onFinish(approach, e.id)}>
+                {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{e.text}</span>
+              </button>
+            ))}
+            {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Решено</span>}
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  const fig = gs?.keyFigures?.find(f => f.id === call.figure);
+  const fac = gs?.factions?.find(f => f.id === fig?.faction);
 
   return (
     <Card style={{ padding:"18px 0 14px" }}>
@@ -742,7 +783,7 @@ function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
           src={artSource(HISTORICAL_SCENE_ART.phone.src)}
           alt=""
           className="sv-px"
-          style={{ width:"100%", aspectRatio:"16 / 9", objectFit:"cover", display:"block" }}
+          style={{ width:"100%", aspectRatio:"16 / 9", maxHeight:135, objectFit:"cover", display:"block" }}
         />
         <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(14, 12, 10, 0.92))", padding:"12px 10px 4px", display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
           <span style={{ fontFamily:narrow, fontSize:13, color:"#f1e9d2" }}>{HISTORICAL_SCENE_ART.phone.caption}</span>
@@ -805,12 +846,77 @@ function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
 // Пресс-конференция: три вопроса подряд, на каждый — 15 секунд. Не успели — пауза станет заголовком.
 const TONE_LABEL = { honest:"честно", hard:"жёстко", evasive:"уклончиво" };
 const PRESS_SECONDS = 15;
-function PressPanel({ press, onFinish, onSkip, stamping }) {
+function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
   const [picks, setPicks] = useState([]);
   const [live, setLive] = useState(false); // время идёт только после выхода к журналистам
   const step = picks.length, q = press.questions[step];
   const done = step >= press.questions.length;
   const answer = i => setPicks(p => (p.length === step ? [...p, i] : p));
+  const isHistorical = gs?.country === ALTERNATE_COUNTRY;
+
+  if (!isHistorical) {
+    return (
+      <Card style={{ padding:"18px 0 14px" }}>
+        <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", gap:10 }}>
+          <Label>{done ? "Пресс-конференция окончена" : live ? `Вопрос ${step + 1} из ${press.questions.length}` : "Пресс-конференция"}</Label>
+          {!done && <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{PRESS_SECONDS} СЕК НА ОТВЕТ</span>}
+        </div>
+        {!live && (
+          <div style={{ padding:"0 22px" }}>
+            <div style={{ fontFamily:narrow, fontSize:16, color:G.tx2, lineHeight:1.4, marginBottom:12 }}>
+              Три вопроса подряд. На каждый — {PRESS_SECONDS} секунд: отвечайте честно, жёстко или уклончиво. Промолчите — пауза станет новостью.
+            </div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+              <button onClick={onSkip} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+                Отменить — зал решит, что вы испугались
+              </button>
+              <PrimaryBtn id="opt-1" onClick={() => { setLive(true); requestAnimationFrame(() => document.getElementById("sv-resolution")?.scrollIntoView({ block:"start", behavior:"smooth" })); }}>ВЫЙТИ К ЖУРНАЛИСТАМ</PrimaryBtn>
+            </div>
+          </div>
+        )}
+        {live && !done && (
+          <div key={step} className="sv-fade">
+            <div style={{ height:6, margin:"0 22px 14px", background:G.bdr }}>
+              <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${PRESS_SECONDS}s` }} onAnimationEnd={() => answer(-1)}/>
+            </div>
+            <div style={{ display:"flex", gap:12, padding:"0 22px 12px" }}>
+              <Portrait name={q.who} size={44}/>
+              <div>
+                <div style={{ fontFamily:narrow, fontWeight:700, fontSize:16, color:G.tx2 }}>{q.who}</div>
+                <div style={{ fontFamily:serif, fontSize:18, lineHeight:1.45, color:G.txt }}>«{q.text}»</div>
+              </div>
+            </div>
+            {q.answers.map((a, i) => (
+              <button key={i} id={`opt-${i + 1}`} className="sv-opt" onClick={() => answer(i)}
+                style={{ display:"block", width:"100%", textAlign:"left", padding:"12px 22px 12px 48px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
+                <span style={{ position:"absolute", left:20, top:12, fontFamily:serif, fontWeight:700, fontSize:17, color:G.tx3 }}>{i + 1}.</span>
+                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.4, marginBottom:4 }}>{a.text}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                  <span style={{ fontFamily:pixel, fontSize:12, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
+                  <ResourceChips delta={a.res} exact={false}/>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+        {done && (
+          <div className="sv-fade" style={{ padding:"0 22px", position:"relative" }}>
+            {press.questions.map((qq, i) => (
+              <div key={qq.id} style={{ fontFamily:narrow, fontSize:16, lineHeight:1.4, padding:"6px 0", borderTop:`1px dashed ${G.bdr2}` }}>
+                <span style={{ color:G.tx3 }}>{qq.who}: </span>
+                {picks[i] >= 0 ? <span>{qq.answers[picks[i]].text}</span> : <span style={{ color:G.red }}>молчание</span>}
+              </div>
+            ))}
+            <div style={{ textAlign:"right", marginTop:12 }}>
+              <PrimaryBtn id="opt-1" onClick={() => onFinish(picks)}>ЗАКОНЧИТЬ И ВЫЙТИ К МАШИНЕ</PrimaryBtn>
+            </div>
+            {stamping === "p" && <span className="sv-stamp sv-stamp-hit">Сказано</span>}
+          </div>
+        )}
+      </Card>
+    );
+  }
+
   return (
     <Card style={{ padding:"18px 0 14px" }}>
       <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:12 }}>
@@ -827,7 +933,7 @@ function PressPanel({ press, onFinish, onSkip, stamping }) {
           src={artSource(HISTORICAL_SCENE_ART.press.src)}
           alt=""
           className="sv-px"
-          style={{ width:"100%", aspectRatio:"16 / 9", objectFit:"cover", display:"block" }}
+          style={{ width:"100%", aspectRatio:"16 / 9", maxHeight:135, objectFit:"cover", display:"block" }}
         />
         <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(14, 12, 10, 0.92))", padding:"12px 10px 4px", display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
           <span style={{ fontFamily:narrow, fontSize:13, color:"#f1e9d2" }}>{HISTORICAL_SCENE_ART.press.caption}</span>
@@ -2805,7 +2911,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     choose(final, { call: { approach, ending } });
                   }}/>
               ) : event.press ? (
-                <PressPanel key={`press${turn}`} press={event.press} stamping={stamping}
+                <PressPanel key={`press${turn}`} gs={gs} press={event.press} stamping={stamping}
                   onSkip={() => choose(event.choices[1])}
                   onFinish={picks => {
                     const final = pressChoice(gsRef.current, picks);

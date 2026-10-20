@@ -15,7 +15,7 @@ export default function JournalistCall({ gs, onFinish, stamping, renderPromises,
   const chosen = event.choices.find(choice => choice.id === selected);
 
   return (
-    <section className="sv-paper sv-negotiation-call" data-negotiation-call data-journalist-call>
+    <section className="sv-paper sv-negotiation-call sv-negotiation-historical" data-negotiation-call data-journalist-call>
       <div id="sv-resolution">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <small style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--gold)", fontFamily: "var(--font-pixel, monospace)", fontSize: 12, textTransform: "uppercase" }}>
@@ -33,7 +33,7 @@ export default function JournalistCall({ gs, onFinish, stamping, renderPromises,
             src={artSource(HISTORICAL_SCENE_ART.phone.src)}
             alt=""
             className="sv-px"
-            style={{ width: "100%", aspectRatio: "16 / 9", objectFit: "cover", display: "block" }}
+            style={{ width: "100%", aspectRatio: "16 / 9", maxHeight: 135, objectFit: "cover", display: "block" }}
           />
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(14, 12, 10, 0.92))", padding: "12px 10px 4px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <span style={{ fontFamily: "var(--font-narrow)", fontSize: 13, color: "#f1e9d2" }}>
