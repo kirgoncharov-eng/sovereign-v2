@@ -50,7 +50,7 @@ import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/da
 import { installErrorReporting } from "@/lib/client/errors.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { runScore } from "@/lib/game/daily.ts";
-import { outcomeFx, pageFx, setSound, soundOn, stampFx } from "@/lib/client/fx.ts";
+import { outcomeFx, pageFx, setSound, soundOn, stampFx, startCabinetAmbient, stopCabinetAmbient } from "@/lib/client/fx.ts";
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
@@ -2503,6 +2503,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const [dossier, setDossier] = useState(false);   // телефон: «Страна» или «Люди» открыты поверх игры
   const [resolutionInView, setResolutionInView] = useState(false);
   useEffect(() => { gsRef.current = gs; }, [gs]);
+  useEffect(() => {
+    startCabinetAmbient();
+    return () => { stopCabinetAmbient(); };
+  }, []);
 
   const [attempt, setAttempt] = useState(0);
   const [typedTurn, setTypedTurn] = useState(null);
@@ -2557,6 +2561,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     inFlight.current = true;
     const dailyMove = { id: choice.id, ...details, ...(gsRef.current.currentEvent?.council?.length ? { council:true } : {}) };
     setStamping(choice.id);
+    startCabinetAmbient();
     stampFx();
     if (!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) await new Promise(r => setTimeout(r, 480));
     setStamping(null); setCountryOpen(false); setContactOpen(false);
@@ -3558,6 +3563,7 @@ function Ending({ gs, setGs, onRestart }) {
   useEffect(() => { gsRef.current = gs; }, [gs]);
 
   const [attempt, setAttempt] = useState(0);
+  useEffect(() => { stopCabinetAmbient(); }, []);
   const needsVerdict = !verdict;
   useEffect(() => { track("end", { type: gs.endType ?? "", turns: gs.turn, kept: (gs.promises ?? []).filter(p => p.status === "kept").length, ...(gs.path ? { path: gs.path.id } : {}) }); }, [gs.endType, gs.turn, gs.path, gs.promises]);
   useEffect(() => {

@@ -10,6 +10,11 @@ export function soundOn(): boolean {
 }
 export function setSound(on: boolean) {
   try { localStorage.setItem(KEY, on ? "1" : "0"); } catch { /* недоступно */ }
+  if (!on) {
+    stopCabinetAmbient();
+  } else {
+    startCabinetAmbient();
+  }
 }
 
 function audio(): AudioContext | null {
@@ -28,6 +33,121 @@ function noise(a: AudioContext, seconds: number): AudioBufferSourceNode {
   const src = a.createBufferSource();
   src.buffer = buf;
   return src;
+}
+
+// Фоновый акустический воздух кабинета 1978 года (0 байт, процедурный синтез WebAudio):
+// 1. Мягкий низкий гул сетевого трансформатора и лампы (~52 Гц с узким режекторным фильтром).
+// 2. Еле уловимый шорох/потрескивание ленты (розовый шум с фильтром высоких частот).
+// Громкость очень деликатная (фоновые 0.015), не мешает чтению и включается плавно после первого действия.
+interface AmbientNodes {
+  ctx: AudioContext;
+  masterGain: GainNode;
+  humOsc: OscillatorNode;
+  humSub: OscillatorNode;
+  tapeSrc: AudioBufferSourceNode;
+}
+let ambientNodes: AmbientNodes | null = null;
+
+function createTapeLoopBuffer(a: AudioContext): AudioBuffer {
+  const seconds = 4.0;
+  const length = Math.ceil(a.sampleRate * seconds);
+  const buf = a.createBuffer(1, length, a.sampleRate);
+  const data = buf.getChannelData(0);
+  let b0 = 0, b1 = 0, b2 = 0;
+  for (let i = 0; i < length; i++) {
+    const white = Math.random() * 2 - 1;
+    // Мягкий 3-полюсный розовый шум (pink noise)
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    const pink = b0 + b1 + b2 + white * 0.5362;
+    // Редкие микро-всплески (треск магнитной ленты)
+    const crackle = Math.random() < 0.0008 ? (Math.random() - 0.5) * 1.8 : 0;
+    data[i] = (pink * 0.05 + crackle);
+  }
+  return buf;
+}
+
+export function startCabinetAmbient() {
+  if (ambientNodes || !soundOn() || typeof window === "undefined") return;
+  const a = audio();
+  if (!a) return;
+
+  try {
+    const masterGain = a.createGain();
+    const t = a.currentTime;
+    // Плавный fade-in за 1.8 секунды, чтобы не пугать при клике
+    masterGain.gain.setValueAtTime(0.0001, t);
+    masterGain.gain.exponentialRampToValueAtTime(0.018, t + 1.8);
+    masterGain.connect(a.destination);
+
+    // 1. Сетевой гул кабинета: 52 Гц + 104 Гц гармоника
+    const humOsc = a.createOscillator();
+    humOsc.type = "sine";
+    humOsc.frequency.setValueAtTime(52, t);
+
+    const humSub = a.createOscillator();
+    humSub.type = "sine";
+    humSub.frequency.setValueAtTime(104, t);
+
+    const humFilter = a.createBiquadFilter();
+    humFilter.type = "lowpass";
+    humFilter.frequency.setValueAtTime(140, t);
+
+    const humGain = a.createGain();
+    humGain.gain.setValueAtTime(0.7, t);
+
+    humOsc.connect(humFilter);
+    humSub.connect(humFilter);
+    humFilter.connect(humGain).connect(masterGain);
+
+    humOsc.start(t);
+    humSub.start(t);
+
+    // 2. Воздух магнитной ленты / эфира
+    const tapeBuf = createTapeLoopBuffer(a);
+    const tapeSrc = a.createBufferSource();
+    tapeSrc.buffer = tapeBuf;
+    tapeSrc.loop = true;
+
+    const tapeFilter = a.createBiquadFilter();
+    tapeFilter.type = "bandpass";
+    tapeFilter.frequency.setValueAtTime(1100, t);
+    tapeFilter.Q.setValueAtTime(0.8, t);
+
+    const tapeGain = a.createGain();
+    tapeGain.gain.setValueAtTime(0.4, t);
+
+    tapeSrc.connect(tapeFilter).connect(tapeGain).connect(masterGain);
+    tapeSrc.start(t);
+
+    ambientNodes = { ctx: a, masterGain, humOsc, humSub, tapeSrc };
+  } catch {
+    /* WebAudio не разрешён или отключен */
+  }
+}
+
+export function stopCabinetAmbient() {
+  if (!ambientNodes) return;
+  try {
+    const { ctx: a, masterGain, humOsc, humSub, tapeSrc } = ambientNodes;
+    ambientNodes = null;
+    const t = a.currentTime;
+    masterGain.gain.setValueAtTime(masterGain.gain.value, t);
+    masterGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    setTimeout(() => {
+      try {
+        humOsc.stop();
+        humSub.stop();
+        tapeSrc.stop();
+        masterGain.disconnect();
+      } catch {
+        /* уже остановлен */
+      }
+    }, 700);
+  } catch {
+    ambientNodes = null;
+  }
 }
 
 // Удар печати: глухой низкий толчок и короткий шорох бумаги.
