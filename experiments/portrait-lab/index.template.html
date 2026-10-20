@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src SCRIPT_HASH; style-src 'unsafe-inline'; img-src data: blob:; worker-src blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Суверен · Фотография для удостоверения</title>
+<style>/*STYLE*/</style>
+</head>
+<body>
+<main>
+<header>
+<span class="eyebrow">СУВЕРЕН / МАСТЕРСКАЯ ПОРТРЕТА</span>
+<span class="local">● Обработка на устройстве</span>
+</header>
+<section class="intro">
+<div>
+<p class="eyebrow">НЕМАНСКАЯ РЕСПУБЛИКА · ОПЫТНЫЙ ОБРАЗЕЦ</p>
+<h1>Ваше лицо.<br>Ваше правление.</h1>
+<p class="lede">Примерьте фотографию для президентского удостоверения. Два способа обработки, одна палитра — выберите, какой похож на вас и на мир игры.</p>
+</div>
+<aside class="credential">
+<div class="credential-top">НЕМАНСКАЯ РЕСПУБЛИКА <span>1978</span>
+</div>
+<h2>УДОСТОВЕРЕНИЕ</h2>
+<div class="credential-body">
+<canvas id="id-face" width="64" height="85" aria-label="Портрет в удостоверении">
+</canvas>
+<div>
+<p class="mini">ПРЕЗИДЕНТ РЕСПУБЛИКИ</p>
+<strong id="credential-name">Ваше имя</strong>
+<p class="signature">Личная подпись</p>
+<span class="stamp">ЦИК<br>1978</span>
+</div>
+</div>
+<p class="credential-foot">Личный экземпляр · эскиз оформления</p>
+</aside>
+</section>
+<section class="controls" aria-label="Фотография и кадрирование">
+<div class="upload">
+<label class="upload-button" for="file">Открыть свою фотографию ↗</label>
+<input id="file" type="file" accept="image/jpeg,image/png,image/webp">
+<p>Фото остаётся в этой вкладке. Без регистрации и отправки на сервер.</p>
+<div class="samples">
+<span>Или образец:</span>
+<button id="collins">Коллинз</button>
+<button id="armstrong">Армстронг</button>
+</div>
+<p id="sample-label">
+</p>
+</div>
+<div class="sliders">
+<label>Приближение<input id="zoom" type="range" min="1" max="3.5" value="1.65" step="0.05">
+</label>
+<label>Лицо левее / правее<input id="x" type="range" min="0" max="100" value="34">
+</label>
+<label>Лицо выше / ниже<input id="y" type="range" min="0" max="100" value="12">
+</label>
+</div>
+<div class="sliders">
+<label>Палитра<select id="palette">
+<option value="cabinet">Кабинет · 8 тонов</option>
+<option value="color">Цветная · 24 тона</option>
+</select>
+</label>
+<label>Размер рисунка<select id="resolution">
+<option value="48">48 пикселей · крупная сетка</option>
+<option value="64">64 пикселя · баланс</option>
+<option value="96" selected>96 пикселей · больше деталей</option>
+</select>
+</label>
+<label>Упрощение деталей в варианте Б<input id="strength" type="range" min="0" max="1" value="0.2" step="0.1">
+</label>
+<label>Имя в удостоверении<input id="name" type="text" maxlength="40" placeholder="Ваше имя" autocomplete="off">
+</label>
+</div>
+</section>
+<p id="notice" role="status" aria-live="polite">Открываем образец…</p>
+<section class="comparison" aria-label="Сравнение портретов">
+<article>
+<p class="eyebrow">ИСХОДНИК</p>
+<canvas id="original" width="192" height="256" aria-label="Одинаковый кадр для двух алгоритмов">
+</canvas>
+<h3>Ваша фотография</h3>
+<p>Один и тот же кадр для обоих вариантов.</p>
+</article>
+<article>
+<p class="eyebrow">ВАРИАНТ А / PIXEL IT</p>
+<canvas id="a" width="64" height="85" aria-label="Портрет Pixel It">
+</canvas>
+<h3>Пиксельная фотография</h3>
+<p>Уменьшение деталей и перевод в общую палитру.</p>
+<small id="a-stats">
+</small>
+<button id="choose-a" aria-pressed="true">Примерить А</button>
+</article>
+<article>
+<p class="eyebrow">ВАРИАНТ Б / PIXEL-ART CONVERTER</p>
+<canvas id="b" width="64" height="85" aria-label="Портрет Pixel-Art Converter">
+</canvas>
+<h3>Рисунок с контурами</h3>
+<p>Упрощение фактуры, ступенчатые тени и контуры.</p>
+<small id="b-stats">
+</small>
+<button id="choose-b" aria-pressed="false">Примерить Б</button>
+</article>
+</section>
+<section class="reference">
+<div>
+<p class="eyebrow">РЯДОМ С МИРОМ ИГРЫ</p>
+<h2>Один кабинет — один стиль.</h2>
+<p>Это настоящие портреты персонажей «Суверена». Сравните форму лица, детализацию и цвет. Палитра эксперимента предварительная; художественную приёмку ещё предстоит сделать.</p>
+<div id="swatches" aria-label="Пробная палитра из 24 цветов">
+</div>
+<button id="download" disabled>Сохранить выбранный портрет PNG ↓</button> <button id="download-sheet" disabled>Сохранить сравнение PNG ↓</button>
+</div>
+<div class="reference-images">
+<figure>
+<img id="ref1" alt="Портрет российского посла из игры">
+<figcaption>Посол</figcaption>
+</figure>
+<figure>
+<img id="ref2" alt="Портрет посла Торгового союза из игры">
+<figcaption>Посол Торгового союза</figcaption>
+</figure>
+<figure>
+<img id="ref3" alt="Портрет редактора из игры">
+<figcaption>Редактор</figcaption>
+</figure>
+</div>
+</section>
+<footer>
+<p>Эксперимент #207 · Не меняет игру. Оформление удостоверения — эскиз, не утверждённый арт Gemini.</p>
+<details>
+<summary>Как это работает и откуда образцы</summary>
+<p>Алгоритмы Pixel It (José Moreira) и Pixel-Art Converter (AleksTomatoOnion), код под MIT. Лицензии и закреплённые версии — в THIRD_PARTY.md рядом с исходниками. Фото NASA: Эйлин Коллинз и Нил Армстронг; только технические образцы, не персонажи игры. Портреты персонажей — из текущего репозитория «Суверена».</p>
+<p>Нет моделей, аналитики, сетевых запросов при обработке или сохранения исходной фотографии. Время рядом с рисунком — однократный замер вычислений в этом браузере; загрузка фото и интерфейс в него не входят. Этот опыт не меняет позу, одежду или освещение фотографии.</p>
+</details>
+</footer>
+</main>
+<script>/*SCRIPT*/</script>
+</body>
+</html>
