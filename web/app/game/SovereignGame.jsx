@@ -44,6 +44,7 @@ const expressApi = {
 const game = expressApi;
 import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons, requestWriteAccess, tgInitData, telegramStory, canTelegramStory } from "@/lib/client/telegram.ts";
 import { newAnalyticsRun, setRunContext } from "@/lib/client/run-context.ts";
+import { campCosts } from "@/lib/client/camp-costs.ts";
 import { track, feedbackEnabled, sendFeedback, isTester, subscribeTester, toggleTester, syncSubscription } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { installErrorReporting } from "@/lib/client/errors.ts";
@@ -371,6 +372,7 @@ function ChoicePreview({ gs, c, debated = false }) {
       </div>
       {exact && <ResourceChips delta={fx.resources}/>}
       {(exact || !debated) && <CostReasons gs={gs} c={c} fx={fx}/>}
+      <CampCosts gs={gs} c={c}/>
       {!exact && <DangerLines gs={gs} c={c} fx={fx}/>}
       {later.length > 0 && !exact && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6 }}>⧗ Аукнется позже — подробности у совета</div>}
       {later.length > 0 && exact && (
@@ -387,6 +389,18 @@ function ChoicePreview({ gs, c, debated = false }) {
       <DealLines gs={gs} c={c} exact={exact}/>
       <PromiseLines gs={gs} c={c}/>
     </>
+  );
+}
+
+// Лагеря, которых вариант заметно злит или радует (#196): иначе цена для силовиков видна только в предупреждении.
+function CampCosts({ gs, c }) {
+  const camps = campCosts(gs, c);
+  if (!camps.length) return null;
+  return (
+    <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.4, marginTop:4 }}>
+      Лагеря: {camps.map((camp, index) => <span key={camp.id} style={{ color:camp.delta < 0 ? G.red : G.grn }}>
+        {index ? " · " : ""}{camp.name} {camp.delta > 0 ? "+" : "−"}{Math.abs(camp.delta)}</span>)}
+    </div>
   );
 }
 
