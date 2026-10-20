@@ -526,24 +526,89 @@
 
 @media(max-width:480px) {
   .arrival {
-  padding:16px 10px 28px
-}
-.document {
-  padding:22px
-}
-.document h1 {
-  font-size:39px
-}
-.window {
-  height:83px
-}
-.runningHead {
-  font-size:10px;
-  gap:8px
-}
-.line:nth-child(2) {
-  margin-left:12px
+    padding:16px 10px 28px
+  }
+  .document {
+    padding:22px
+  }
+  .document h1 {
+    font-size:39px
+  }
+  .window {
+    height:83px
+  }
+  .runningHead {
+    font-size:10px;
+    gap:8px
+  }
+  .line:nth-child(2) {
+    margin-left:12px
+  }
 }
 
+/* Кинематографический пролог перед входом в кабинет */
+.prologueOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #0d1210;
+  color: #ddcfaf;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: prologueFadeIn 0.6s ease-out forwards;
+}
+
+.prologueInner {
+  max-width: 540px;
+  width: 100%;
+  text-align: center;
+}
+
+.prologueStamp {
+  display: inline-block;
+  font: 11px var(--font-ptmono), monospace;
+  letter-spacing: .08em;
+  color: var(--gold, #c6b58b);
+  border: 1px solid rgba(198, 181, 139, 0.4);
+  padding: 4px 10px;
+  margin-bottom: 22px;
+  text-transform: uppercase;
+}
+
+.prologueDate {
+  font: 700 24px var(--font-narrow), sans-serif;
+  letter-spacing: .04em;
+  color: #f1e9d2;
+  margin-bottom: 16px;
+}
+
+.prologueText {
+  font: 17px/1.7 var(--font-serif), Georgia, serif;
+  color: #c9bea3;
+  margin-bottom: 28px;
+  min-height: 80px;
+}
+
+.prologueSkip {
+  font: 13px var(--font-ptmono), monospace;
+  letter-spacing: .06em;
+  color: #8c8167;
+  background: transparent;
+  border: 1px solid rgba(140, 129, 103, 0.3);
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.prologueSkip:hover {
+  color: #ddcfaf;
+  border-color: #c6b58b;
+}
+
+@keyframes prologueFadeIn {
+  from { opacity: 0; transform: scale(1.02); }
+  to { opacity: 1; transform: scale(1); }
 }
 
