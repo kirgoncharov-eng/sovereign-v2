@@ -6,7 +6,7 @@ import { STORIES, type LetterKind, type Story, type StoryContext } from "../cont
 import { STORY_REPLIES, type ReplyOption, type StoryReplies } from "../content/story-replies.ts";
 import { roleGroup } from "../content/roles.ts";
 import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
-import { applyDeltas, clampRel, hashSeed, isFemaleName } from "./engine.ts";
+import { applyDeltas, clampRel, hashSeed, isFemaleName, loyaltyLabel } from "./engine.ts";
 import type { Figure, GameState, LetterReply } from "./types.ts";
 
 // Первые два хода — только дело и газета; истории начинаются с третьего.
@@ -38,10 +38,21 @@ function repliesFor(state: GameState, story: Story): StoryReplies | undefined {
   return state.country === ALTERNATE_COUNTRY && !state.daily ? STORY_REPLIES[story.id] : undefined;
 }
 
-// Герой отвеченной истории закреплён ответом: письмо не перейдёт к другому человеку, если сменится антагонист.
+// Герой отвеченной истории закреплён ответом — по должности и по имени (#182).
+// undefined — ответа нет, герой выбирается как обычно; null — человек ушёл с поста (преемник, сделка),
+// и его личная история на этом кончается: продолжение не переходит к тому, кто занял место.
+function pinnedHero(state: GameState, story: Story): Figure | null | undefined {
+  const answer = state.storyReplies?.[story.id];
+  if (!answer?.hero) return undefined;
+  const figure = state.keyFigures.find(item => item.id === answer.hero);
+  if (!figure) return null;
+  return answer.heroName === undefined || figure.name === answer.heroName ? figure : null;
+}
+
+// Герою ответа не мешает и смена антагониста интриги в новом сроке.
 function storyHero(state: GameState, story: Story): Figure | null {
-  const pinned = state.storyReplies?.[story.id]?.hero;
-  return (pinned && state.keyFigures.find(figure => figure.id === pinned)) || heroOf(state, story);
+  const pinned = pinnedHero(state, story);
+  return pinned === undefined ? heroOf(state, story) : pinned;
 }
 
 // Какой ответ дан на эту историю и действует ли он для шага `index`.
@@ -112,12 +123,16 @@ export function replyToLetter(state: GameState, storyId: string, replyId: string
     throw new Error("На это письмо сейчас нельзя ответить");
   }
   if (state.storyReplies?.[storyId]) throw new Error("Ответ на это письмо уже отправлен");
-  const hero = letter.hero;
+  const hero = letter.hero ? state.keyFigures.find(figure => figure.id === letter.hero) : undefined;
+  // Подпись отношения меняется вместе с числом: «нейтрал» +15 → «союзник», как после решения хода.
+  const relation = hero && option.relation ? clampRel(hero.relation + option.relation) : undefined;
   return {
     ...state,
     resources: applyDeltas(state.resources, option.cost),
-    keyFigures: !option.relation || !hero ? state.keyFigures : state.keyFigures.map(figure => figure.id !== hero ? figure
-      : { ...figure, relation: clampRel(figure.relation + option.relation!) }),
-    storyReplies: { ...state.storyReplies, [storyId]: { reply: option.id, turn: state.turn, ...(hero ? { hero } : {}) } },
+    keyFigures: relation === undefined ? state.keyFigures : state.keyFigures.map(figure => figure.id !== hero!.id ? figure
+      : { ...figure, relation, loyalty: loyaltyLabel(relation) }),
+    storyReplies: { ...state.storyReplies, [storyId]: {
+      reply: option.id, turn: state.turn, ...(hero ? { hero: hero.id, heroName: hero.name } : {}),
+    } },
   };
 }
