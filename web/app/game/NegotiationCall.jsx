@@ -106,7 +106,15 @@ export default function NegotiationCall({ gs, onFinish, stamping, renderPromises
             <p key={p.faction}>Нарушит союз с «{gs.factions.find(f => f.id === p.faction)?.name}»: его поддержка и квартальная помощь прекратятся.</p>
           ))}
           <p>Это главное решение квартала. Личные поручения учитываются отдельно; разговор не расходует дополнительное поручение.</p>
-          <button disabled={!!stamping} onClick={() => onFinish(chosen)}>Подтвердить решение</button>
+          <button disabled={!!stamping} onClick={() => onFinish(chosen)} style={{ position: "relative" }}>
+            Подтвердить решение
+            {stamping === chosen.id && (
+              <span className="sv-stamp sv-stamp-hit is-green">
+                <span className="sv-stamp-text">СОГЛАСОВАНО</span>
+                <span className="sv-stamp-sub">СПЕЦСВЯЗЬ · 1978</span>
+              </span>
+            )}
+          </button>
           <button disabled={!!stamping} onClick={() => setSelected(null)}>Вернуться к вариантам</button>
         </div>
       )}

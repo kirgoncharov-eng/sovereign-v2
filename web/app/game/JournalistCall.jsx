@@ -101,7 +101,15 @@ export default function JournalistCall({ gs, onFinish, stamping, renderPromises,
             <p key={pact.faction}>Нарушит союз с «{gs.factions.find(group => group.id === pact.faction)?.name}».</p>
           ))}
           <p>Ответ станет решением квартала. Документ об исполнении придёт с итогами следующего хода.</p>
-          <button disabled={!!stamping} onClick={() => onFinish(chosen)}>Подтвердить решение</button>
+          <button disabled={!!stamping} onClick={() => onFinish(chosen)} style={{ position: "relative" }}>
+            Подтвердить решение
+            {stamping === chosen.id && (
+              <span className="sv-stamp sv-stamp-hit is-green">
+                <span className="sv-stamp-text">РЕШЕНО</span>
+                <span className="sv-stamp-sub">ПРЯМОЙ ПРОВОД · 1978</span>
+              </span>
+            )}
+          </button>
           <button disabled={!!stamping} onClick={() => setSelected(null)}>Вернуться к вариантам</button>
         </div>
       )}
