@@ -3,7 +3,7 @@ import type { SceneKey } from '../content/scene-map.ts';
 import { ALTERNATE_EVENTS, ALTERNATE_LAWS } from '../content/alternate-history.ts';
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { FIGURE_ROLES } from '../game/data.ts';
-import { isFemaleName } from '../game/engine.ts';
+import { isFemaleName, isSurvival } from '../game/engine.ts';
 import { MANAGEMENT_DOSSIERS } from '../content/management.ts';
 
 export const HISTORICAL_SCENE_ART = {
@@ -108,6 +108,23 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
   if (title && TITLE_ART[title]) return TITLE_ART[title];
   // The stored scene belongs to the completed event; don't consult the next event or current arc.
   return MODE_ART[scene] ?? (scene === 'archive' ? HISTORICAL_SCENE_ART.archive : null);
+}
+
+export function historicalEndingArt(state: GameState): HistoricalArt | null {
+  if (state.country !== ALTERNATE_COUNTRY) return null;
+  if (state.endType === 'revolution') {
+    return { src: HISTORICAL_SCENE_ART.protest.src, caption: 'Народные волнения на улицах столицы' };
+  }
+  if (state.endType === 'mandate' || state.endType === 'impeachment') {
+    return HISTORICAL_SCENE_ART.electionDefeat;
+  }
+  if (state.endType === 'reelected' || state.endType === 'zeroed' || state.endType === 'premier') {
+    return HISTORICAL_SCENE_ART.electionNight;
+  }
+  if (isSurvival(state.endType)) {
+    return HISTORICAL_SCENE_ART.electionNight;
+  }
+  return HISTORICAL_SCENE_ART.electionDefeat;
 }
 
 export const HISTORICAL_FIGURE_ART: Record<string, { src: string; female: boolean }> = Object.fromEntries(
