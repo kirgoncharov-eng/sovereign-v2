@@ -1,38 +1,110 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { REPUBLIC_PLACES, presidentialConversation, hasAuthoredDebate } from "@/lib/game/presidential-story.ts";
-import { artSource, historicalPortraitArt } from "@/lib/client/historical-art.ts";
+import { HISTORICAL_SCENE_ART, artSource, historicalPortraitArt } from "@/lib/client/historical-art.ts";
+import { offeredPromises, promiseDef } from "@/lib/game/promises.ts";
+import { IDEOLOGIES } from "@/lib/game/data.ts";
+import { portraitCanvas, PORTRAIT_W, PORTRAIT_H } from "@/lib/client/portrait.ts";
+import { isFemaleName } from "@/lib/game/engine.ts";
 import styles from "./presidential.module.css";
 import { pageFx } from '@/lib/client/fx.ts';
 
+function LeaderPortrait({ name, src }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (src || !ref.current || !name) return;
+    const canvas = portraitCanvas(name, isFemaleName(name));
+    const ctx = ref.current.getContext("2d");
+    if (ctx) ctx.drawImage(canvas, 0, 0);
+  }, [name, src]);
+
+  if (src) {
+    return (
+      /* eslint-disable-next-line @next/next/no-img-element */
+      <img
+        src={artSource(src)}
+        alt={name}
+        className={styles.leaderPortrait}
+      />
+    );
+  }
+  return <canvas ref={ref} width={PORTRAIT_W} height={PORTRAIT_H} className={styles.leaderPortrait} aria-hidden="true" />;
+}
+
 export default function PresidentialOpening({ gs, onGo, onDossier }) {
+  const portraitSrc = gs ? historicalPortraitArt(gs, gs.leader.name) : null;
+  const ideoInfo = IDEOLOGIES.find(i => i.id === gs.ideo);
+  const { suggested } = offeredPromises(gs.seed, gs.ideo);
+  const initialPromises = (suggested || []).map(id => promiseDef(id, gs.country)).filter(Boolean);
+
   return <main className={styles.arrival}>
     <div className={styles.desk}>
-      <div className={styles.runningHead}><span>НЕМАНСКАЯ РЕСПУБЛИКА</span><span>МИНСК · 1978</span></div>
-      <div className={styles.window} aria-hidden="true">
-        <svg viewBox="0 0 480 126" preserveAspectRatio="xMidYMax slice">
-          <rect width="480" height="126" fill="#89958a"/>
-          <path d="M0 88H24V64H60V88H89V42H135V88H173V60H210V88H264V54H296V88H331V35H340V88H350V49H387V88H408V62H451V88H480V126H0Z" fill="#53635e"/>
-          <path d="M182 126V86H197V69H238V62H254V69H296V86H312V126Z" fill="#293b38"/>
-          <path d="M202 91H211V118H202ZM220 91H229V118H220ZM238 91H247V118H238ZM256 91H265V118H256ZM274 91H283V118H274Z" fill="#c6b58b"/>
-          <path d="M0 113H480V126H0Z" fill="#252d2b"/>
-          <path d="M18 118H140M329 118H462" stroke="#b29b69" strokeDasharray="5 10" strokeWidth="2"/>
-        </svg>
-      </div>
+      <div className={styles.runningHead}><span>НЕМАНСКАЯ РЕСПУБЛИКА · АППАРАТ ПРЕЗИДЕНТА</span><span>МИНСК · ЯНВАРЬ 1978</span></div>
+
+      <figure className={styles.windowScene}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={artSource(HISTORICAL_SCENE_ART.residenceMorning.src)}
+          alt=""
+          className="sv-px"
+          style={{ width: "100%", aspectRatio: "16 / 9", objectFit: "cover", display: "block" }}
+        />
+        <div className={styles.sceneCaption}>
+          <span>{HISTORICAL_SCENE_ART.residenceMorning.caption}</span>
+          <span className={styles.sceneBadge}>ЯНВАРЬ 1978</span>
+        </div>
+      </figure>
+
       <article className={styles.document}>
-        <p className={styles.eyebrow}>Лично президенту · первое утро</p>
+        <p className={styles.eyebrow}>Лично президенту · Первое утро в резиденции</p>
+
+        <div className={styles.credentials}>
+          <div className={styles.portraitWrapper}>
+            <LeaderPortrait name={gs.leader.name} src={portraitSrc} />
+            <span className={styles.portraitStamp}>ЦИК · 1978</span>
+          </div>
+          <div className={styles.credentialsText}>
+            <div className={styles.credentialsName}>{gs.leader.name}</div>
+            <div className={styles.credentialsRole}>
+              Президент республики · Партия «{gs.leader.party}»{ideoInfo ? ` · ${ideoInfo.label.toLowerCase()}` : ""}
+            </div>
+            {gs.leader.bio && <div className={styles.credentialsBio}>{gs.leader.bio}</div>}
+          </div>
+        </div>
+
         <h1>Кресло ваше.<br/>Долги — тоже.</h1>
-        <p>Вы — {gs.leader.name}, новый президент. За окном Минск. На вашем столе — ведомость тракторного завода: два месяца без зарплаты.</p>
+        <p>Вы входите в кабинет на четвёртом этаже. За окном — морозный Минск. На вашем столе лежит первая папка: ведомость тракторного завода, два месяца без зарплаты.</p>
         <blockquote>«Директор просит денег. Банк ждёт возврата ссуды. Рабочие ждут вас. Что им передать?»</blockquote>
         <p className={styles.attribution}>Секретарь не садится. Ответ нужен сегодня.</p>
-        <button type="button" className={styles.primary} onClick={onGo}>Открыть первое дело <span aria-hidden="true">→</span></button>
+
+        {initialPromises.length > 0 && (
+          <div className={styles.promisesBlock}>
+            <div className={styles.promisesTitle}>ПРЕДВЫБОРНЫЕ ОБЯЗАТЕЛЬСТВА ГРАЖДАНАМ:</div>
+            <div className={styles.promisesList}>
+              {initialPromises.map((p, i) => (
+                <div key={p.id} className={styles.promiseItem}>
+                  <span className={styles.promiseBadge}>ОБЯЗАТЕЛЬСТВО {i + 1}</span>
+                  <span className={styles.promiseText}><b>{p.title}.</b> {p.text}</span>
+                </div>
+              ))}
+            </div>
+            <div className={styles.promisesHint}>
+              Страна помнит каждое слово. Нарушение обещания обрушит доверие избирателей.
+            </div>
+          </div>
+        )}
+
+        <button type="button" className={styles.primary} onClick={onGo}>
+          Вступить в должность · Открыть первое дело <span aria-hidden="true">→</span>
+        </button>
+
         <details className={styles.history}>
           <summary>Как страна дошла до этого утра</summary>
           <p>Это земли Беларуси в другой истории: Минск, Гродно, Брест, Полесье. После 1918 года республика сохранила независимость и стала называться Неманской.</p>
           <p>К 1978 году заводы зависят от российских заказов, западные рынки требуют уступок, а областные руководители привыкли торговаться со столицей. Ваш предшественник оставил вам работающий аппарат — и чужие договорённости.</p>
           <p>Каждый ход — сезон правления. Первый срок — только первый рубеж: удержав власть, можно продолжить. Советники знают больше вас, но каждый смотрит на страну со своей стороны.</p>
         </details>
-        <button type="button" className={styles.quiet} onClick={onDossier}>Моё досье и предвыборные обещания →</button>
+        <button type="button" className={styles.quiet} onClick={onDossier}>Настроить досье и обещания избирателям →</button>
       </article>
       <p className={styles.footer}>Всё, что вы знаете о стране, вам кто-то сказал.</p>
     </div>

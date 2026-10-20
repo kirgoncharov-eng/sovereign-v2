@@ -19,8 +19,8 @@ async function fresh() {
 test('all 42 mapped WebP files exist within the image budgets', () => {
   const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
     HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 44);
-  assert.equal(new Set(paths).size, 43); // wages and wagesGate share wages-gate.webp
+  assert.equal(paths.length, 45);
+  assert.equal(new Set(paths).size, 44); // wages and wagesGate share wages-gate.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
