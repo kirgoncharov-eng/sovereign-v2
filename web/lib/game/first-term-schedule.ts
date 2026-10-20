@@ -13,6 +13,10 @@ export const FIRST_TERM_CASES: Readonly<Record<number, string>> = {
   20: 'alt_archive',
 };
 
+// Версии дел по положению дел в стране (#214): ход → дела, проверяемые по порядку раньше прежнего.
+// Условия каждой версии — в её `when` (доверие людей, союз, отношение лагеря) вместе с `slot`.
+export const FIRST_TERM_VERSIONS: Readonly<Record<number, readonly string[]>> = {};
+
 export function scheduledFirstTerm(state: GameState): boolean {
   return state.country === ALTERNATE_COUNTRY && !state.daily && state.turn < 20;
 }

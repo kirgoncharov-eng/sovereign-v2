@@ -14,7 +14,8 @@
     "build:demo": "node demo/build.mjs",
     "playtest:install": "playwright install chromium",
     "playtest": "npm run build:demo && node scripts/playtest.mjs",
-    "balance": "node scripts/balance.ts"
+    "balance": "node scripts/balance.ts",
+    "tree": "node scripts/tree.ts"
   },
   "dependencies": {
     "next": "16.2.6",

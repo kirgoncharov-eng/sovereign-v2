@@ -18,6 +18,11 @@ export interface CardCondition {
   preElection?: boolean;   // до выборов 1–2 хода
   ideo?: IdeologyId[];
   law?: string;            // действует закон (принят хотя бы два хода назад)
+  trust?: "low" | "high";  // доверие людей: рейтинг президента ниже или выше порога (country-profile.ts)
+  pact?: Bloc;             // действует союз с лагерем этого блока
+  rival?: Bloc;            // этот блок сейчас настроен к президенту хуже всех
+  ally?: Bloc;             // этот блок сейчас настроен к президенту лучше всех
+  slot?: number;           // версия дела первого срока: приходит только в этот ход обычной партии 1978 года
 }
 
 export interface CardChoice {
