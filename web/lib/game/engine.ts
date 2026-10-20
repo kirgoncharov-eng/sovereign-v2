@@ -782,6 +782,12 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     },
     pending: plan.pending,
     pacts: plan.pacts,
+    // Первое письмо истории закрепляет героя: в новом сроке его не отнимет смена антагониста интриги (#184).
+    ...(narration.letters?.some(letter => letter.hero && !state.storyHeroes?.[letter.story]) ? { storyHeroes: {
+      ...state.storyHeroes,
+      ...Object.fromEntries(narration.letters.filter(letter => letter.hero && !state.storyHeroes?.[letter.story])
+        .map(letter => [letter.story, { hero: letter.hero!, heroName: letter.from }])),
+    } } : {}),
     // Новый срок: прошлое решение о сроке закрыто, интрига — новая.
     ...(plan.termResult || state.reign ? { reign: plan.termResult ? {
       ...plan.reign,

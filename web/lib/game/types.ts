@@ -381,6 +381,7 @@ export interface GameState {
   echoes?: Record<string, number>; // сколько раз уже звучало эхо каждого отложенного последствия
   former?: string[];      // люди, ушедшие с постов: их имена не достаются преемникам
   staffing?: Staffing;
+  storyHeroes?: Record<string, { hero: string; heroName: string }>; // герой каждой начатой истории: id и имя (#184)
   storyReplies?: Record<string, StoryReply>; // ответы на личные письма: история → ответ (#156)
   currentEvent: GameEvent | null;
   lastTurn: TurnReport | null;

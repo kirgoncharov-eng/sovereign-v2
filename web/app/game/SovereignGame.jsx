@@ -44,6 +44,7 @@ const expressApi = {
 const game = expressApi;
 import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons, requestWriteAccess, tgInitData, telegramStory, canTelegramStory } from "@/lib/client/telegram.ts";
 import { newAnalyticsRun, setRunContext } from "@/lib/client/run-context.ts";
+import { campCosts } from "@/lib/client/camp-costs.ts";
 import { track, feedbackEnabled, sendFeedback, isTester, subscribeTester, toggleTester, syncSubscription } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { installErrorReporting } from "@/lib/client/errors.ts";
@@ -371,6 +372,7 @@ function ChoicePreview({ gs, c, debated = false }) {
       </div>
       {exact && <ResourceChips delta={fx.resources}/>}
       {(exact || !debated) && <CostReasons gs={gs} c={c} fx={fx}/>}
+      <CampCosts gs={gs} c={c}/>
       {!exact && <DangerLines gs={gs} c={c} fx={fx}/>}
       {later.length > 0 && !exact && <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:6 }}>⧗ Аукнется позже — подробности у совета</div>}
       {later.length > 0 && exact && (
@@ -387,6 +389,18 @@ function ChoicePreview({ gs, c, debated = false }) {
       <DealLines gs={gs} c={c} exact={exact}/>
       <PromiseLines gs={gs} c={c}/>
     </>
+  );
+}
+
+// Лагеря, которых вариант заметно злит или радует (#196): иначе цена для силовиков видна только в предупреждении.
+function CampCosts({ gs, c }) {
+  const camps = campCosts(gs, c);
+  if (!camps.length) return null;
+  return (
+    <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.4, marginTop:4 }}>
+      Лагеря: {camps.map((camp, index) => <span key={camp.id} style={{ color:camp.delta < 0 ? G.red : G.grn }}>
+        {index ? " · " : ""}{camp.name} {camp.delta > 0 ? "+" : "−"}{Math.abs(camp.delta)}</span>)}
+    </div>
   );
 }
 
@@ -823,55 +837,189 @@ const quoteName = n => (String(n).includes("«") ? n : `«${n}»`);
 // в сторону соперника; к концу ночи подтягиваются регионы, и проценты сходятся к итогу.
 function ElectionNight({ e, party, onDone }) {
   const { state } = useContext(HistoricalArtContext) ?? {};
-  const art = state?.country === ALTERNATE_COUNTRY ? artSource(HISTORICAL_SCENE_ART.ballot.src) : null;
-  const background = art ? `linear-gradient(rgba(24,23,19,.9),rgba(24,23,19,.9)),url(${art}) center/cover` : "var(--bg-deep)";
-  const [p, setP] = useState(0);
+  const isAlternate = state?.country === ALTERNATE_COUNTRY;
+  const [p, setP] = useState(() => (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? 100 : 0));
   const doneRef = useRef(onDone);
   useEffect(() => { doneRef.current = onDone; }, [onDone]);
+
   useEffect(() => {
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    let x = reduce ? 100 : 0, t2 = 0;
+    if (p >= 100) return;
+    let x = 0, t2 = 0;
     const t = setInterval(() => {
       x = Math.min(100, x + 2 + Math.random() * 3);
       setP(x);
-      if (x >= 100) { clearInterval(t); t2 = setTimeout(() => doneRef.current(), 1800); }
+      if (x >= 100) {
+        clearInterval(t);
+        t2 = setTimeout(() => doneRef.current(), 15000);
+      }
     }, 110);
-    const onKey = ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); doneRef.current(); } };
+    const onKey = ev => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        setP(cur => {
+          if (cur < 100) return 100;
+          doneRef.current();
+          return cur;
+        });
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => { clearInterval(t); clearTimeout(t2); window.removeEventListener("keydown", onKey); };
   }, []);
+
   const k = p / 100, swing = (1 - k) * (1 - k) * 9; // ранние участки — в пользу соперника
   const me = Math.max(0, Math.round(e.leader - swing)), them = Math.round(e.top.share + swing * .8);
   const won = e.outcome === "won", over = p >= 100;
+
+  const activeArt = isAlternate
+    ? (!over
+        ? HISTORICAL_SCENE_ART.ballot
+        : won
+        ? HISTORICAL_SCENE_ART.electionNight
+        : HISTORICAL_SCENE_ART.electionDefeat)
+    : { src: "/art/scenes/ballot.webp", caption: "Подсчёт избирательных бюллетеней" };
+
+  const mandateText = won
+    ? (e.kind === "president"
+        ? "Последний участок досчитывают к трём часам ночи. Вы стоите у окна резиденции: за снегом видны огни площади. Мандат на второй срок подтверждён гражданами."
+        : "Подсчёт завершён. Партия власти сохраняет большинство в парламенте. Правительственная коалиция устояла.")
+    : (e.outcome === "impeached"
+        ? "Парламентское большинство перешло к оппозиции. Начата процедура немедленного отрешения от должности."
+        : "К полуночи всё ясно. В штабе молча выключают телевизоры, кто-то собирает вещи. Власть переходит к оппозиции.");
+
   const bar = (label, v, color, bold) => (
-    <div style={{ marginBottom:12 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", fontFamily:narrow, fontSize:18, fontWeight:bold ? 700 : 400, marginBottom:4 }}>
-        <span>{label}</span><span style={{ fontFamily:pixel, fontSize:20 }}>{v}%</span>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: narrow, fontSize: 18, fontWeight: bold ? 700 : 400, marginBottom: 4 }}>
+        <span>{label}</span><span style={{ fontFamily: pixel, fontSize: 20 }}>{v}%</span>
       </div>
-      <div style={{ height:14, background:"rgba(0,0,0,.35)", border:"2px solid #000" }}>
-        <div style={{ height:"100%", width:`${Math.min(100, v * 1.4)}%`, background:color, transition:"width .1s linear" }}/>
+      <div style={{ height: 14, background: "rgba(0,0,0,.45)", border: "2px solid #000" }}>
+        <div style={{ height: "100%", width: `${Math.min(100, v * 1.4)}%`, background: color, transition: "width .1s linear" }} />
       </div>
     </div>
   );
+
   return (
-    <div onClick={() => onDone()} style={{ background,
-      border:"2px solid #000", boxShadow:"var(--hard)", padding:"18px 20px 20px", marginBottom:12, cursor:"pointer", position:"relative" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", gap:10, marginBottom:14 }}>
-        <span style={{ fontFamily:pixel, fontSize:13, color:G.red }}>● ПРЯМОЙ ЭФИР · ЦИК</span>
-        <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>ОБРАБОТАНО {Math.floor(p)}%</span>
+    <div
+      onClick={() => { if (!over) setP(100); else onDone(); }}
+      style={{
+        background: G.bg2,
+        border: "2px solid #000",
+        boxShadow: "var(--hard)",
+        padding: "18px 20px 20px",
+        marginBottom: 12,
+        cursor: "pointer",
+        position: "relative",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: pixel, fontSize: 13, color: G.red }}>
+          <span className="sv-sheet-pulse-dot" aria-hidden="true" />
+          ПРЯМОЙ ЭФИР · ЦЕНТРИЗБИРКОМ
+        </span>
+        <span style={{ fontFamily: pixel, fontSize: 13, color: G.tx3, letterSpacing: ".04em" }}>
+          ОБРАБОТАНО {Math.floor(p)}%
+        </span>
       </div>
-      <div style={{ fontFamily:narrow, fontWeight:700, fontSize:32, lineHeight:1.12, color:G.txt, marginBottom:16 }}>
+
+      <div style={{ fontFamily: narrow, fontWeight: 700, fontSize: "clamp(24px, 5.5vw, 32px)", lineHeight: 1.15, color: G.txt, marginBottom: 14 }}>
         {e.kind === "president" ? "Президентские выборы" : "Парламентские выборы"}
       </div>
+
+      <figure
+        className="sv-scene"
+        style={{
+          margin: "0 0 16px",
+          border: `2px solid ${G.txt}`,
+          boxShadow: "var(--hard)",
+          position: "relative",
+          overflow: "hidden",
+          background: "#181713",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={artSource(activeArt.src)}
+          alt=""
+          className="sv-px"
+          style={{
+            width: "100%",
+            aspectRatio: "16 / 9",
+            objectFit: "cover",
+            display: "block",
+            transition: "opacity 0.25s ease-in-out",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: "linear-gradient(transparent, rgba(14, 12, 10, 0.92))",
+            padding: "16px 12px 6px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            gap: 8,
+          }}
+        >
+          <span style={{ fontFamily: narrow, fontSize: 13, color: "#f1e9d2", textShadow: "0 1px 2px #000" }}>
+            {activeArt.caption}
+          </span>
+          <span style={{ fontFamily: pixel, fontSize: 11, color: "var(--gold)", letterSpacing: ".04em", flexShrink: 0 }}>
+            {e.turn === 20 ? "ФИНАЛ СРОКА" : `ХОД ${e.turn}`}
+          </span>
+        </div>
+        {over && (
+          <span
+            className={`sv-stamp sv-in ${won ? "is-green" : "is-red"}`}
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%) rotate(-6deg)",
+              fontSize: "clamp(24px, 6vw, 36px)",
+              padding: "6px 20px",
+              boxShadow: "0 4px 16px rgba(0,0,0,.7)",
+              animationDelay: "0s",
+              mixBlendMode: "normal",
+              pointerEvents: "none",
+            }}
+          >
+            {won ? "ПОБЕДА" : e.outcome === "impeached" ? "РАЗГРОМ" : "ПОРАЖЕНИЕ"}
+          </span>
+        )}
+      </figure>
+
       {bar(quoteName(party), me, "var(--grn)", true)}
       {bar(quoteName(e.top.name), them, "var(--red)", false)}
-      <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>
-        {k < .35 ? "Первыми приходят протоколы крупных городов…" : k < .8 ? "Подтягиваются регионы. В штабе никто не садится." : over ? "Подсчёт окончен." : "Последние участки. Тишина в эфире."}
-      </div>
-      {over && (
-        <span className={`sv-stamp sv-in ${won ? "is-green" : "is-red"}`} style={{ position:"absolute", right:20, bottom:16, fontSize:22, animationDelay:"0s", mixBlendMode:"normal" }}>
-          {won ? "Победа" : e.outcome === "impeached" ? "Разгром" : "Поражение"}
-        </span>
+
+      {!over ? (
+        <div style={{ fontFamily: narrow, fontSize: 15, color: G.tx3, marginTop: 4 }}>
+          {k < .35 ? "Первыми приходят протоколы крупных городов…" : k < .8 ? "Подтягиваются регионы. В штабе никто не садится." : "Последние участки. Тишина в эфире."}
+        </div>
+      ) : (
+        <>
+          <div
+            style={{
+              marginTop: 12,
+              padding: "12px 14px",
+              background: "var(--bg3)",
+              borderLeft: `3px solid ${won ? "var(--grn)" : "var(--red)"}`,
+              fontFamily: serif,
+              fontSize: 15,
+              lineHeight: 1.5,
+              color: G.txt,
+            }}
+          >
+            {mandateText}
+          </div>
+          <div style={{ textAlign: "right", marginTop: 14 }}>
+            <PrimaryBtn id="btn-election-done" onClick={() => onDone()} danger={!won}>
+              {won ? "ПРИНЯТЬ ИТОГИ ГОЛОСОВАНИЯ ⏎" : "К РАЗВЯЗКЕ ВЫБОРОВ ⏎"}
+            </PrimaryBtn>
+          </div>
+        </>
       )}
     </div>
   );
@@ -2295,15 +2443,51 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
         <div className="sv-sidebar" data-open={dossier || undefined}>
           <nav className="sv-sheet-switch" aria-label="Страна и люди" inert={dossier || undefined}>
-            {SHEETS.map(sheet => (
-              <button key={sheet.id} onClick={() => openSheet(sheet.id)} aria-pressed={sideTab === sheet.id} aria-expanded={dossier && sideTab === sheet.id}>
-                <strong>{sheet.label}</strong>
-                {alerts[sheet.id] > 0 && <span className="sv-sheet-alert" title={sheet.alert}>{alerts[sheet.id]} ⚠</span>}
-                <span className="sv-sheet-hint">
-                  {sheet.id === "people" && peopleHint ? peopleHint : sheet.hint}
-                </span>
-              </button>
-            ))}
+            {SHEETS.map(sheet => {
+              const isPeople = sheet.id === "people";
+              const alertCount = alerts[sheet.id] || 0;
+              return (
+                <button
+                  key={sheet.id}
+                  onClick={() => openSheet(sheet.id)}
+                  aria-pressed={sideTab === sheet.id}
+                  aria-expanded={dossier && sideTab === sheet.id}
+                  className={`sv-sheet-tab sv-sheet-tab-${sheet.id}`}
+                >
+                  <div className="sv-sheet-tab-head">
+                    {isPeople ? (
+                      (gs.advisors ?? []).length > 0 ? (
+                        <div className="sv-sheet-avatars" aria-hidden="true">
+                          {gs.advisors.slice(0, 4).map(adv => (
+                            <Portrait key={adv.id} name={adv.name} size={18} style={{ borderWidth: 1 }} />
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="sv-sheet-emblem" aria-hidden="true">👥</span>
+                      )
+                    ) : (
+                      <span className="sv-sheet-emblem" aria-hidden="true">
+                        {COUNTRIES[gs.country]?.flag || "≋"}
+                      </span>
+                    )}
+                    <strong className="sv-sheet-title">{sheet.label}</strong>
+                    {isPeople && waitingReplies > 0 ? (
+                      <span className="sv-sheet-badge is-inbox" title="Обращения ждут ответа">
+                        ✉ {waitingReplies}
+                      </span>
+                    ) : alertCount > 0 ? (
+                      <span className="sv-sheet-badge is-alert sv-sheet-alert" title={sheet.alert}>
+                        <span className="sv-sheet-pulse-dot" aria-hidden="true" />
+                        <span>{alertCount} ⚠</span>
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="sv-sheet-hint">
+                    {isPeople && peopleHint ? peopleHint : sheet.hint}
+                  </span>
+                </button>
+              );
+            })}
           </nav>
           <div ref={sheetBody} className="sv-side-body" role={dossier ? "dialog" : "region"}
             aria-modal={dossier || undefined} aria-label={SHEETS.find(sheet => sheet.id === sideTab)?.label}>
