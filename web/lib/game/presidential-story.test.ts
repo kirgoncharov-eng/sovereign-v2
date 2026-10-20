@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ALTERNATE_COUNTRY, countryName, eraText } from './alternate-world.ts';
 import { classicApi } from './classic.ts';
-import { conveneCouncil, createInitialState, resolveTurn, seededRandom, startEvent } from './engine.ts';
+import { choiceEffects, conveneCouncil, createInitialState, resolveTurn, seededRandom, startEvent } from './engine.ts';
 import { HISTORICAL_DEBATES, hasAuthoredDebate, hasPresidentialCouncil, presidentialConversation, presidentialCouncil } from './presidential-story.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { parseSave } from '../client/save.ts';
@@ -173,4 +173,15 @@ test('first factory proposal rewards its actual economist and respects loyalty b
             assert.ok(debate({ ...state, country }), country);
         }
     }
+});
+
+// #219: спор советников о мазуте говорит о цене так, как её считает игра — с тегами, а не только по policyEffect.
+test('спор о двух поставщиках мазута совпадает с настоящей ценой вариантов', async () => {
+    const state = await firstCase();
+    const card = ALTERNATE_EVENTS.find(event => event.id === 'alt_fuel_west')!;
+    const [western, russian, split] = card.choices.map((choice, index) => choiceEffects(state, { ...choice, id: String(index) } as never).resources);
+    const lines = HISTORICAL_DEBATES.alt_fuel_west[2].map(([, line]) => line).join(' ');
+    assert.match(lines, /не дороже/);
+    assert.ok((split.economy ?? 0) >= (western.economy ?? 0) && (split.economy ?? 0) >= (russian.economy ?? 0), 'деньгами раздел не дороже');
+    assert.ok((split.politicalCapital ?? 0) < 0 && (split.personalResource ?? 0) < 0, 'зато стоит влияния и личных сил');
 });

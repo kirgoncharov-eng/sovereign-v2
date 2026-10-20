@@ -18,11 +18,18 @@ export interface CardCondition {
   preElection?: boolean;   // до выборов 1–2 хода
   ideo?: IdeologyId[];
   law?: string;            // действует закон (принят хотя бы два хода назад)
+  trust?: "low" | "high";  // доверие людей: рейтинг президента ниже или выше порога (country-profile.ts)
+  pact?: Bloc;             // действует союз с лагерем этого блока
+  rival?: Bloc;            // этот блок сейчас настроен к президенту хуже всех
+  ally?: Bloc;             // этот блок сейчас настроен к президенту лучше всех
+  after?: string[];        // раньше подписан один из этих вариантов: решение приводит следующее дело (#214)
+  versionOf?: string;      // версия дела первого срока: приходит вместо этого дела, когда выполнены её условия
 }
 
 export interface CardChoice {
   policyEffect?: ResourceDelta;
   stance?: Partial<Record<Bloc, number>>;
+  camps?: Partial<Record<Bloc, number>>; // как лагеря встречают решение по сути; в отличие от stance, отложенные последствия по тегам остаются
   deal?: Deal;
   politicalTags?: ActionTag[];
   text: string;

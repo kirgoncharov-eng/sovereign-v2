@@ -12,7 +12,7 @@ import { traitOf } from './people.ts';
 import type { TraitId } from './people.ts';
 import type { GameState, ResourceDelta, Choice } from './types.ts';
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
-import { signedHistoricalCase } from './first-term-schedule.ts';
+import { signedCaseOrVersion } from './first-term-schedule.ts';
 export type WorldPersonId = 'minister' | 'governor' | 'engineer' | 'healthMinister' | 'doctor';
 export interface WorldPerson {
     id: WorldPersonId;
@@ -84,9 +84,9 @@ const append = (world: LivingWorld, d: Omit<WorldDispatch, 'id'>): LivingWorld =
 export function openLivingWorld(gs: GameState): GameState {
     if (gs.daily || gs.ended) return gs;
     const historical = gs.country === ALTERNATE_COUNTRY;
-    if (historical && !gs.world && !signedHistoricalCase(gs, 'alt_fuel')) return gs;
+    if (historical && !gs.world && !signedCaseOrVersion(gs, 'alt_fuel')) return gs;
     if (gs.world?.health) return ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor(gs))));
-    const openHealth = !historical || signedHistoricalCase(gs, 'alt_district');
+    const openHealth = !historical || signedCaseOrVersion(gs, 'alt_district');
     if (gs.world && !openHealth) return ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor(gs))));
     const previous = gs.world;
     const used = new Set([...(previous?.people.map(person => person.name) ?? []), gs.leader.name, ...gs.keyFigures.map(f => f.name), ...gs.advisors.map(entry => entry.name), ...(gs.former ?? [])]);

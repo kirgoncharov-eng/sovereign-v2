@@ -5,7 +5,7 @@ import { ALTERNATE_COUNTRY } from './alternate-world.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { createInitialState, resolveTurn, seededRandom, startEvent } from './engine.ts';
 import { openDeskWhenDue } from './desk-timing.ts';
-import { firstTermLaw, scheduledFirstTerm } from './first-term-schedule.ts';
+import { firstTermLaw, scheduledFirstTerm, versionsOf } from './first-term-schedule.ts';
 import { openLivingWorld, validLivingWorld } from './living-world.ts';
 import { parseSave } from '../client/save.ts';
 import { SAVE_VERSION } from './data.ts';
@@ -30,8 +30,9 @@ test('30 сроков: авторские дела без общих карто�
       assert.ok(!cardId?.startsWith('law:') || /alt_export_guarantee|alt_open_orders/.test(cardId), `${seed}/${turn}: общий закон`);
       assert.ok(event.beat || event.special || event.budget || cardId?.startsWith('law:')
         || ALTERNATE_EVENTS.some(card => card.id === cardId), `${seed}/${turn}: чужое дело ${cardId}`);
-      if (turn === 5) assert.equal(cardId, 'alt_fuel');
-      if (turn === 13) assert.equal(cardId, 'alt_district');
+      if (turn === 5) assert.ok(['alt_fuel', ...versionsOf('alt_fuel')].includes(cardId!), `${seed}: ${cardId}`);
+      // Ход 13 — указ о больницах или его версия по положению дел (#214); проект больниц открывается в любом случае.
+      if (turn === 13) assert.ok(['alt_district', ...versionsOf('alt_district')].includes(cardId!), `${seed}: ${cardId}`);
       if (turn === 20) assert.equal(cardId, 'alt_archive');
       state = startEvent(state, event);
       const choices = state.currentEvent!.choices;
@@ -67,4 +68,11 @@ test('программа требует подписи; закон помнит 
   assert.equal(firstTermLaw(advance), 'alt_export_guarantee');
   assert.equal(firstTermLaw({...advance, history: [{...advance.history[0], success: false}]}), 'alt_open_orders');
   assert.equal(scheduledFirstTerm({...initial, daily:'2026-10-15'}), false);
+});
+
+// #219: версии дел 10-го хода приходят в апреле–июне — нового урожая ещё нет.
+test('версии весенних дел не ссылаются на новый урожай', () => {
+    for (const card of versionsOf('alt_rail').map(id => ALTERNATE_EVENTS.find(event => event.id === id)!)) {
+        assert.doesNotMatch(card.description, /нового урожая/, card.id);
+    }
 });

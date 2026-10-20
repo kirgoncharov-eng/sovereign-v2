@@ -47,13 +47,15 @@ test('сохранённое дело с прежними тегами разр�
     const choice = state.currentEvent!.choices.find(entry => entry.path === 'run') ?? state.currentEvent!.choices[0];
     state = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
   }
+  // Прежнее дело хода 13 приходит, когда против президента сильнее всех не Служба порядка и не палата (#214).
+  state = { ...state, factions: state.factions.map(group => (['security', 'business'].includes(group.bloc) ? { ...group, relation: 90 } : group)) };
   const event = await classicApi.event(state);
   assert.equal(event.cardId, 'alt_district');
   const current = event.choices.find(choice => choice.text === POLICE_CHECKS.alt_district)!;
   assert.deepEqual(current.tags, ['anticorruption', 'security']);
-  // Партия, сохранённая до #196 посреди дела, хранит вариант со старыми тегами и без авторской цены.
-  const { policyEffect, costReasons, ...legacyChoice } = current;
-  void policyEffect; void costReasons;
+  // Партия, сохранённая до #196 посреди дела, хранит вариант со старыми тегами, без авторской цены и реакций лагерей (#221).
+  const { policyEffect, costReasons, stance, tagDelayed, ...legacyChoice } = current;
+  void policyEffect; void costReasons; void stance; void tagDelayed;
   const legacy = { ...legacyChoice, tags: ['anticorruption'] } as Choice;
   const saved = startEvent(state, { ...event, choices: event.choices.map(choice => (choice.id === current.id ? legacy : choice)) });
   const loaded = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'game', state: saved }))!.state;

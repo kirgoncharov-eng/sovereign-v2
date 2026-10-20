@@ -17,8 +17,9 @@ test('every delayed tag of the 24 historical choices reaches the narrator with i
   const base = createInitialState(ALTERNATE_COUNTRY, 'debut', 'pragmatist',
     await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', 21), seededRandom(21));
   const currentEvent = await classicApi.event(base);
-  assert.equal(ALTERNATE_EVENTS.length, 8);
-  for (const card of ALTERNATE_EVENTS) {
+  assert.equal(ALTERNATE_EVENTS.length, 15);
+  // У вариантов с позицией лагерей (`stance`) отложенных последствий по тегам нет (delayedEffects): эхо им не нужно.
+  for (const card of ALTERNATE_EVENTS.filter(event => HISTORICAL_ECHOES[event.id] || event.choices.some(choice => !choice.stance))) {
     assert.equal(Object.keys(HISTORICAL_ECHOES[card.id]).length, card.choices.length);
     for (const choice of card.choices) {
       const stories = HISTORICAL_ECHOES[card.id][choice.text];
