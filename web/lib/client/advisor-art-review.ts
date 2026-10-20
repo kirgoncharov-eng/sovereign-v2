@@ -19,14 +19,17 @@ export const ADVISOR_REVIEW_ART: Record<string, string> = {
 export async function createAdvisorArtScene(country = "Украина"): Promise<AdvisorArtScene> {
   if (!COUNTRIES[country]) throw new Error("Неизвестная страна");
   // Фиксированная сцена приёмки: после исправления лояльности прежний маршрут 1978 не даёт нужную пару.
+  // В 1978 году сцена — спор о гарантиях экспортных заказов: другие дела тоже дают пару советников (#196).
   const seed = country === ALTERNATE_COUNTRY ? 5 : 1;
+  const wanted = (event: GameState["currentEvent"]) => country !== ALTERNATE_COUNTRY
+    || !!event?.choices.some(choice => choice.law?.id === "alt_export_guarantee");
   const intro = await classicApi.setup(country, "coalition", "pragmatist", seed);
   let state = createInitialState(country, "coalition", "pragmatist", intro, seededRandom(seed));
 
   for (let index = 0; index < 20 && !state.ended; index++) {
     state = startEvent(state, await classicApi.event(state));
     const takes = debate(state);
-    if (takes?.length === 2 && takes[0].id === "economist" && takes[1].id === "security") {
+    if (takes?.length === 2 && takes[0].id === "economist" && takes[1].id === "security" && wanted(state.currentEvent)) {
       if (takes[0].favors !== takes[1].favors) return { state, takes };
     }
     const choice = state.currentEvent!.choices[country === ALTERNATE_COUNTRY && index === 0 ? 1 : 0];
