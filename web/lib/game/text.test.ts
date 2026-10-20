@@ -70,3 +70,21 @@ test("антагонист любой интриги в любой стране 
     }
   }
 });
+
+// Вычитка 20 октября 2026: кампания 1978 года — авторские заголовки дел, падеж партии, одно «Аукается» на дело,
+// без отсылок к сегодняшней политике.
+test("кампания 1978: газета говорит своими заголовками, без «Исполнено: «…»» и без повторного «Аукается» одного дела", async () => {
+  const country = "Беларусь · 1978";
+  for (const seed of [1, 7, 12, 19]) {
+    await play(country, seed, "pragmatist", (before, after) => {
+      const report = after.lastTurn!, choice = before.currentEvent!.choices.find(item => item.text === report.choiceText);
+      const authored = report.success ? choice?.headline : choice?.headlineFail;
+      if (authored && !report.election) assert.doesNotMatch(report.headline, /^Исполнено: «|^Подписано, но не исполнено: «|: решение (исполнено|сорвано)$/,
+        `${seed}, ход ${after.turn}: ${report.headline}`);
+      assert.doesNotMatch(report.narrative, /у «Гражданское движение»|у «Труд и порядок»|у «Союз республики»/, `${seed}, ход ${after.turn}`);
+      const leads = [...report.narrative.matchAll(/Аукается [а-яё]+ дело «([^»]+)»/g)].map(match => match[1]);
+      assert.equal(new Set(leads).size, leads.length, `${seed}, ход ${after.turn}: дважды «Аукается» одно дело`);
+      assert.doesNotMatch(report.narrative, /последним диктатором|В Европу\. Это выбор/, `${seed}, ход ${after.turn}`);
+    });
+  }
+});
