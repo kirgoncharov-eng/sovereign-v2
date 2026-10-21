@@ -31,7 +31,9 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
   const actions=livingActions(gs);
   const energyReports=world?.dispatches.filter(report=>report.project!=='health')??[];
   const latest=energyReports.at(-1);
-  const latestDispatch=world?.dispatches.at(-1);
+  const latestDispatch = place === 'health'
+    ? world?.dispatches.filter(report => report.project === 'health').at(-1)
+    : latest;
   const selected=place==='health'?world?.health:project;
   const continuation = place === 'health' ? world?.health?.aftermath : null;
   const waitingConcession = continuation?.phase==='settled' && continuation.bargain?.reviewDue!=null;
@@ -39,11 +41,21 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
   const projects=world?[['region','Энергосеть',world.project],...(world.health?[['health','Районные больницы',world.health]]:[])]:[];
   const activeProjects = projects.filter(([, , item]) => !projectFinished(item)||(item===world?.health&&healthHasContinuation(world.health))).length;
   const attention = healthNeedsAttention(world?.health);
-  const showActions=()=>{
-    if(!world?.health)onOpen();
-    setLessonMode(null);setExpanded(true);if(world?.health?.aftermath&&projectFinished(world.project))setPlace('health');else if(place==='capital')setPlace('region');setTab('actions');onViewChange(true);setPending(null);
-    requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));
+  const selectTab = nextTab => {
+    setTab(nextTab);
+    setPending(null);
+    setError(null);
   };
+  const openProject = (id, nextTab = 'dispatches') => {
+    if (!world?.health) onOpen();
+    setLessonMode(null);
+    setExpanded(true);
+    setPlace(id === 'health' ? 'health' : 'region');
+    selectTab(nextTab);
+    onViewChange(true);
+    requestAnimationFrame(() => tabs.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+  const showActions = () => openProject(place, 'actions');
   const startHospital=(mode)=>{
     if(!world?.health)onOpen();
     setExpanded(true);setPlace('health');setLessonMode(mode);setPending(null);onViewChange(true);
@@ -51,12 +63,22 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
   };
   useImperativeHandle(ref,()=>({
     close: () => {setExpanded(false);setLessonMode(null);setPending(null);onViewChange(false);},
-    showProject: id => {setExpanded(true);setPlace(id==='health'?'health':'region');setLessonMode(null);setTab('actions');setPending(null);onViewChange(true);requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));},startHospital,showReport:()=>{
+    showProject: id => openProject(id, 'actions'),
+    startHospital,
+    showReport: () => openProject(place),
+  }));
+  const returnToDesk = () => {
+    setExpanded(false);
     setLessonMode(null);
-    setExpanded(true);setPlace(gs.world?.dispatches.at(-1)?.project==='health'?'health':'region');setTab('dispatches');setPending(null);onViewChange(true);
-    requestAnimationFrame(()=>tabs.current?.scrollIntoView({behavior:'smooth',block:'start'}));
-  }}));
-  const returnToDesk=()=>{setExpanded(false);onViewChange(false);setPending(null);if(gs.lastTurn&&!gs.ended)onContinue();else requestAnimationFrame(onCurrentCase);};
+    setPending(null);
+    setError(null);
+    onViewChange(false);
+    requestAnimationFrame(onCurrentCase);
+  };
+  const continueFromProjects = () => {
+    returnToDesk();
+    onContinue();
+  };
   const toggle=()=>{
     const open=!expanded;
     if(open&&!world?.health)onOpen();
@@ -83,14 +105,41 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
   const terminal=project&&['completed','partial','failed'].includes(project.status);
   return <section data-world-panel className="sv-country">
     <button type="button" className="sv-country-toggle" aria-expanded={expanded} onClick={toggle}>
-      <span>ПОРУЧЕНИЯ И ДОКЛАДЫ <span className="sv-country-arrow">{expanded?'▴':'▾'}</span></span>
+      <span>ПРОЕКТЫ · ПОРУЧЕНИЯ И ДОКЛАДЫ <span className="sv-country-arrow">{expanded?'▴':'▾'}</span></span>
       <span>{!world?'Кабинет и исполнители':attention?'Больницы ждут ответа':world.health?.status==='unassigned'?'Больницы ждут назначения':world.health?.status==='running'?'Больницы: работа идёт':project.status==='unassigned'?'Энергосеть ждёт назначения':activeProjects?'Ожидаются доклады':'Итоги в досье'}</span>
     </button>
     {!expanded&&attention&&<button className="sv-agenda-attention" onClick={()=>{setLessonMode(null);setExpanded(true);setPlace('health');setTab('dispatches');setPending(null);onViewChange(true);}}>Больницы ждут ответа · {Math.max(0,(world.health.aftermath.bargain?.phase==='open'?world.health.aftermath.due:world.health.aftermath.deadline)-gs.turn)} кв. →</button>}
     {expanded&&latestDispatch&&<div className="sv-country-latest">{stamp(gs,Math.max(world.openedTurn,latestDispatch.turn-(['report','news'].includes(latestDispatch.kind)?1:0)))} · {latestDispatch.title}</div>}
-    {expanded&&!lessonMode&&world&&<div className="sv-agenda-projects" aria-label="Проекты и исполнители">{projects.map(([id,title,item])=><button key={id} data-agenda-project={id} aria-pressed={expanded&&place===id} onClick={()=>{setLessonMode(null);if(!world.health)onOpen();setExpanded(true);onViewChange(true);setPlace(id);setTab(item.status==='unassigned'?'actions':'dispatches');setPending(null);}}>
-      <strong>{title}</strong><span>{id==='health'&&healthHasContinuation(item)?healthNeedsAttention(item)?'Требуется ваше решение':item.aftermath.phase==='working'?'Поручение исполняется':'Ожидается новый доклад':item.status==='unassigned'?'Ждёт назначения':item.status==='running'?`${item.progress}% · работа идёт`:item.status==='completed'?'Завершён':item.status==='partial'?'Частичный результат':'Срок сорван'}</span><small>{id==='health'&&healthHasContinuation(item)?healthNeedsAttention(item)?`${Math.max(0,(item.aftermath.bargain?.phase==='open'?item.aftermath.due:item.aftermath.deadline)-gs.turn)} кв. для ответа`:`Доклад через ${Math.max(0,(item.aftermath.phase==='settled'?item.aftermath.bargain.reviewDue:item.aftermath.due)-gs.turn)} кв.`:projectFinished(item)?item.followupTurn?'Остались обязательства':'Итоги в досье':`${Math.max(0,item.deadline-gs.turn)} кв. до срока${item.executor?' · исполнитель назначен':''}`}</small>
-    </button>)}</div>}
+    {expanded && !lessonMode && world && <nav className="sv-agenda-projects" aria-label="Выбрать проект">
+      {projects.map(([id, title, item]) => {
+        const hasContinuation = id === 'health' && healthHasContinuation(item);
+        const needsAnswer = id === 'health' && healthNeedsAttention(item);
+        const finished = projectFinished(item) && !hasContinuation;
+        const remaining = Math.max(0, item.deadline - gs.turn);
+        const status = needsAnswer ? 'Требуется ваше решение'
+          : hasContinuation ? 'Программа завершена; обязательства остаются'
+          : item.status === 'unassigned' ? 'Нужен руководитель'
+          : item.status === 'running' ? `${item.progress}% · работа идёт`
+          : item.status === 'completed' ? 'Завершён'
+          : item.status === 'partial' ? 'Частичный результат' : 'Срок сорван';
+        return <article key={id} className="sv-project-card" data-selected={place === id || undefined}>
+          <button type="button" data-agenda-project={id} aria-pressed={place === id}
+            onClick={() => openProject(id, item.status === 'unassigned' ? 'actions' : 'dispatches')}>
+            <strong>{title}</strong>
+            <span>{status}</span>
+            <small>{hasContinuation ? 'Срок следующего доклада — в досье ниже'
+              : finished ? 'Результат — в докладах' : `${remaining} кв. до срока`}</small>
+          </button>
+          <div className="sv-project-shortcuts">
+            <button type="button" data-project-action={id} onClick={() => openProject(id, 'actions')}>
+              {item.status === 'unassigned' ? 'Назначить руководителя' : needsAnswer ? 'Ответить на доклад' : 'Поручения'} →
+            </button>
+            <button type="button" data-project-report={id} onClick={() => openProject(id)}>Доклады →</button>
+          </div>
+        </article>;
+      })}
+    </nav>}
+
 
     {expanded&&world&&lessonMode?<div ref={tour} className="sv-country-body">
       <OrderTour gs={gs} mode={lessonMode} receipt={receipt}
@@ -99,29 +148,37 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
         onDesk={returnToDesk} onBrowse={()=>{setLessonMode(null);setPlace('health');setTab('dispatches');}}/>
     </div>:expanded&&world&&<div className="sv-country-body">
       <div className="sv-country-guide">
-        <div className="sv-country-label">ПОРУЧЕНИЯ · {stamp(gs,gs.turn)}</div>
+        <div className="sv-country-label">{place === 'health' ? 'РАЙОННЫЕ БОЛЬНИЦЫ' : 'ЭНЕРГОСЕТЬ'} · {stamp(gs,gs.turn)}</div>
         <strong>{place==='health'&&healthNeedsAttention(world.health)&&!quota?'Последствия программы требуют решения':continuation?.phase==='working'?'Подписанное поручение исполняется':continuation?.phase==='scheduled'?'Программа закончена; история продолжается':waitingConcession?'Последствия кадровой уступки ещё впереди':selectedFinished?'Проект завершён':quota?'Поручение принято. Теперь — к делу в кабинете':selected?.status==='unassigned'?'Первый шаг — назначить руководителя':gs.lastTurn?'Доклад получен. Выберите, что изменить':'Можно скорректировать исполнение'}</strong>
         <p>{place==='health'&&healthNeedsAttention(world.health)&&!quota?'Прочитайте новый доклад и выберите ответ во вкладке «Поручения». Срок указан в досье; без ответа ситуация изменится сама.':continuation?.phase==='working'?'Исполнитель готовит итоговый доклад. Продолжайте решения в кабинете: время и согласования идут после них.':continuation?.phase==='scheduled'?'Результат программы уже известен. Следующий доклад покажет бюджетные или кадровые последствия выбранного вами пути.':waitingConcession?'График уже проверен. Следующий доклад покажет политическую цену переданных министру назначений. Она указана в досье и объяснении политкапитала; нового поручения сейчас не требуется.':selectedFinished?activeProjects?'Итоги остаются в досье. Другой проект продолжает работу.':'Итоги остаются в досье. Сведения об обязательствах — в докладе. Продолжите управление из кабинета.':quota?'Поручение уже подписано. Второй проект можно поручить после следующего решения в кабинете. Назначенные исполнители продолжат работу.':selected?.status==='unassigned'?'Выберите человека во вкладке «Поручения». Он получит финансирование на год.':'Прочитайте доклад и решите, нужны ли новое поручение, деньги или другой приоритет. Можно оставить текущий план в работе.'}</p>
-        <div>{!selectedFinished&&!quota&&(!continuation||healthNeedsAttention(world.health))&&<button onClick={showActions}>{selected?.status==='unassigned'?'Выбрать руководителя':'Выбрать поручение'} →</button>}<button onClick={returnToDesk}>{gs.lastTurn&&!gs.ended?'Открыть дело нового квартала':'К текущему делу в кабинете'} →</button></div>
+        <div>
+          {!selectedFinished && !quota && (!continuation || healthNeedsAttention(world.health)) &&
+            <button onClick={showActions}>{selected?.status === 'unassigned' ? 'Выбрать руководителя' : 'Выбрать поручение'} →</button>}
+          <button onClick={returnToDesk}>{gs.lastTurn ? 'Вернуться к результату хода' : 'Вернуться к делу'} →</button>
+        </div>
         <small>Карта и доклады доступны свободно. Одно личное поручение на оба проекта за квартал. Общий резерв экономики: {gs.resources.economy}. Время идёт после решения в кабинете.</small>
       </div>
       <div className="sv-country-map" aria-label="Резиденция и два проекта страны">
         <div className="sv-country-river" aria-hidden="true"/>
         <div className="sv-country-route" aria-hidden="true"/>
-        <button className="sv-country-place" aria-pressed={place==='capital'} onClick={()=>{setPlace('capital');setPending(null);}}>
+        <button className="sv-country-place" aria-pressed={place==='capital'} onClick={() => { setPlace('capital'); selectTab('dispatches'); }}>
           <span aria-hidden="true">▥</span><strong>{COUNTRIES[gs.country].capital}</strong><small>Резиденция</small>
         </button>
-        <button className="sv-country-place" aria-pressed={place==='region'} onClick={()=>{setPlace('region');setPending(null);}}>
+        <button className="sv-country-place" aria-pressed={place==='region'} onClick={() => openProject('region')}>
           <span aria-hidden="true">▤</span><strong>Промышленный регион</strong><small>{terminal?STATUS[project.status]:'Отключения электричества'}</small>
         </button>
-        {world.health&&<button className="sv-country-place" aria-pressed={place==='health'} onClick={()=>{setPlace('health');setPending(null);setTab('dispatches');}}><span aria-hidden="true">✚</span><strong>Районные больницы</strong><small>{world.health.progress}% · кадры</small></button>}
+        {world.health && <button className="sv-country-place" aria-pressed={place === 'health'} onClick={() => openProject('health')}>
+          <span aria-hidden="true">✚</span><strong>Районные больницы</strong><small>{world.health.progress}% · кадры</small>
+        </button>}
       </div>
-      {place==='health'&&world.health?<HealthPanel gs={gs} Scene={Scene} tab={tab} setTab={setTab} tabs={tabs} stamp={stamp} actionsProps={{gs,actions:actions.filter(action=>action.id.startsWith('health:')),quota,pending,setPending,confirm,error}}/>:place==='capital'?<div className="sv-country-room">
+      {place === 'health' && world.health ? <HealthPanel gs={gs} Scene={Scene} tab={tab} setTab={selectTab} tabs={tabs} stamp={stamp}
+        actionsProps={{ gs, actions: actions.filter(action => action.id.startsWith('health:')), quota, pending, setPending, confirm, error }}/>
+        : place === 'capital' ? <div className="sv-country-room">
         <div className="sv-country-label">КАБИНЕТ ПРЕЗИДЕНТА</div>
         <h3>На столе в резиденции</h3>
         <p>{gs.currentEvent?`Входящее дело: «${gs.currentEvent.title}».`:gs.lastTurn?'Газета с последствиями вашего последнего решения.':'Канцелярия готовит новое дело.'}</p>
         <p>Из промышленного региона поступают отдельные доклады. Поручения по энергосети и районным больницам продолжают исполняться, пока вы заняты другими вопросами.</p>
-      <button className="sv-country-back" onClick={returnToDesk}>{gs.lastTurn?'Открыть дело нового квартала':'Вернуться к делу на столе'} ↓</button>
+      <button className="sv-country-back" onClick={returnToDesk}>{gs.lastTurn ? 'Вернуться к результату хода' : 'Вернуться к делу на столе'} ↓</button>
       </div>:<div className="sv-country-room">
         <div className="sv-country-label">ПРОМЫШЛЕННЫЙ РЕГИОН · ЭНЕРГОСЕТЬ</div>
         <h3>Свет в окнах, работа на заводах</h3>
@@ -154,7 +211,10 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
         </div>
       </div>}
           {receipt?.turn===gs.turn&&<p className="sv-country-receipt" role="status">Подписано: {receipt.title}. {Object.entries(receipt.cost).map(([k,v])=>`${RESOURCE[k]??k} ${v}`).join(' · ')}. Поручение относится к текущему кварталу. Теперь откройте дело в кабинете; новый доклад придёт после его завершения.</p>}
-      <button className="sv-country-back" onClick={returnToDesk}>{gs.lastTurn&&!gs.ended?'Продолжить — открыть дело нового квартала':'Продолжить — к текущему делу в кабинете'} →</button>
+      <button className="sv-country-back" data-project-return onClick={returnToDesk}>
+        {gs.lastTurn ? 'Вернуться к результату хода' : 'Вернуться к текущему делу'} →
+      </button>
+      {gs.lastTurn && !gs.ended && <button className="sv-country-back" onClick={continueFromProjects}>Следующий ход →</button>}
     </div>}
   </section>;
 }
