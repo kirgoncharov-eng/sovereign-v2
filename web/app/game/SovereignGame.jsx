@@ -50,7 +50,7 @@ import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/da
 import { installErrorReporting } from "@/lib/client/errors.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { runScore } from "@/lib/game/daily.ts";
-import { outcomeFx, pageFx, setSound, soundOn, stampFx, startCabinetAmbient, stopCabinetAmbient } from "@/lib/client/fx.ts";
+import { clickFx, outcomeFx, pageFx, setSound, soundOn, stampFx, startCabinetAmbient, stopCabinetAmbient, thunderFx } from "@/lib/client/fx.ts";
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
@@ -2064,16 +2064,166 @@ function PrologueCutscene({ state, onComplete }) {
   );
 }
 
+function StormBackdrop({ onThunder }) {
+  const canvasRef = useRef(null);
+  const flashRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId = null;
+    let drops = [];
+    let isReduced = false;
+
+    try {
+      isReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch {}
+
+    const resize = () => {
+      const parent = canvas.parentElement;
+      const width = parent?.clientWidth || window.innerWidth;
+      const height = parent?.clientHeight || window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      drops = [];
+      const count = isReduced ? 0 : Math.min(85, Math.floor(width / 7));
+      for (let i = 0; i < count; i++) {
+        drops.push({
+          x: Math.random() * (width + 60),
+          y: Math.random() * height,
+          length: Math.random() * 20 + 10,
+          speed: Math.random() * 8 + 12,
+        });
+      }
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+
+    if (!isReduced) {
+      const render = () => {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const width = canvas.width / dpr;
+        const height = canvas.height / dpr;
+        ctx.clearRect(0, 0, width, height);
+        ctx.strokeStyle = "rgba(180, 205, 215, 0.35)";
+        ctx.lineWidth = 1.2;
+
+        for (let i = 0; i < drops.length; i++) {
+          const d = drops[i];
+          ctx.beginPath();
+          ctx.moveTo(d.x, d.y);
+          ctx.lineTo(d.x - 3, d.y + d.length);
+          ctx.stroke();
+
+          d.y += d.speed;
+          d.x -= 1.8;
+          if (d.y > height) {
+            d.y = -25;
+            d.x = Math.random() * (width + 80);
+          }
+        }
+        animId = requestAnimationFrame(render);
+      };
+      animId = requestAnimationFrame(render);
+    }
+
+    // Distant lightning flash
+    let lightningTimer = null;
+    const triggerFlash = () => {
+      if (isReduced) return;
+      const flash = flashRef.current;
+      if (flash) {
+        flash.style.opacity = "0.75";
+        setTimeout(() => { if (flash) flash.style.opacity = "0.1"; }, 40);
+        setTimeout(() => {
+          if (flash) flash.style.opacity = "0.85";
+          onThunder?.();
+        }, 90);
+        setTimeout(() => { if (flash) flash.style.opacity = "0"; }, 300);
+      }
+      const nextDelay = Math.random() * 9000 + 7000;
+      lightningTimer = setTimeout(triggerFlash, nextDelay);
+    };
+
+    lightningTimer = setTimeout(triggerFlash, 3500);
+
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+      if (lightningTimer) clearTimeout(lightningTimer);
+      window.removeEventListener("resize", resize);
+    };
+  }, [onThunder]);
+
+  return (
+    <div className={styles.stormBackdrop} aria-hidden="true">
+      <div className={styles.stormSky}/>
+      <canvas ref={canvasRef} className={styles.stormCanvas}/>
+      <div ref={flashRef} className={styles.lightningFlash}/>
+      <svg className={styles.stormPalaceSvg} viewBox="0 0 1200 450" preserveAspectRatio="none">
+        <path d="M 0,330 L 140,310 L 220,340 L 320,320 L 880,320 L 980,300 L 1080,330 L 1200,320 L 1200,450 L 0,450 Z" fill="#040706" opacity="0.85"/>
+        <g id="palace" fill="#080e0c">
+          <rect x="260" y="190" width="680" height="210"/>
+          <polygon points="410,190 600,100 790,190"/>
+          <line x1="600" y1="100" x2="600" y2="28" stroke="#0e1713" strokeWidth="4"/>
+          <polygon points="600,32 645,42 600,52" fill="#8b2b22"/>
+          <rect x="430" y="190" width="20" height="210" fill="#0c1613"/>
+          <rect x="490" y="190" width="20" height="210" fill="#0c1613"/>
+          <rect x="550" y="190" width="20" height="210" fill="#0c1613"/>
+          <rect x="630" y="190" width="20" height="210" fill="#0c1613"/>
+          <rect x="690" y="190" width="20" height="210" fill="#0c1613"/>
+          <rect x="750" y="190" width="20" height="210" fill="#0c1613"/>
+          <rect x="290" y="230" width="24" height="36" fill="#050706"/>
+          <rect x="340" y="230" width="24" height="36" fill="#9a7b38" opacity="0.6"/>
+          <rect x="835" y="230" width="24" height="36" fill="#9a7b38" opacity="0.35"/>
+          <rect x="885" y="230" width="24" height="36" fill="#050706"/>
+          <polygon points="380,400 820,400 880,450 320,450" fill="#0a120f"/>
+        </g>
+        <rect x="0" y="400" width="1200" height="50" fill="url(#wet-ground-grad)"/>
+        <defs>
+          <linearGradient id="wet-ground-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#121b17" stopOpacity="0.95"/>
+            <stop offset="100%" stopColor="#060908" stopOpacity="1"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className={styles.titleVignette}/>
+    </div>
+  );
+}
+
 function Setup({ onStart, saved, onResume }) {
   const country = NEW_GAME_COUNTRY;
   const [diff, setDiff]       = useState(null);
   const [loading, setLoading] = useState(false);
-  const [prologue, setPrologue] = useState(null); // отложенный старт партии с показом пролога
+  const [prologue, setPrologue] = useState(null);
   const [err, setErr]         = useState(null);
+  const [modal, setModal]     = useState(null); // "daily" | "archive" | "settings" | null
+  const [soundEnabled, setSoundEnabled] = useState(() => soundOn());
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
   const meta = useMemo(() => parseMeta(metaRaw), [metaRaw]);
   const activeDiff = diff ?? (meta.runs.length ? "coalition" : "debut");
   const playtest = useSyncExternalStore(subscribeMeta, () => ["sponsor", "cabinet", "minister"].includes(new URLSearchParams(window.location.search).get("playtest")), () => false);
+
+  const handleThunder = useCallback(() => {
+    if (soundOn()) thunderFx();
+  }, []);
+
+  const toggleSound = () => {
+    const next = !soundEnabled;
+    setSound(next);
+    setSoundEnabled(next);
+    if (next) {
+      clickFx();
+      thunderFx();
+    }
+  };
 
   const go = async (c = country, d = activeDiff, i = null, daily = null, b = null, quick = false) => {
     c = countryForNewRun(daily);
@@ -2082,7 +2232,6 @@ function Setup({ onStart, saved, onResume }) {
     if (!(c && chosenDiff && chosenIdeo) || loading) return;
     setLoading(true); setErr(null);
     try {
-      // Биография: у дела дня — общая для всех, иначе начальная (можно сменить в удостоверении ЦИК на первом утре).
       const trial = !daily && playtest;
       const seed = daily?.seed ?? (trial ? 11 : undefined);
       if (trial) { try { localStorage.setItem("sovereign.tester", "1"); } catch {} }
@@ -2096,8 +2245,7 @@ function Setup({ onStart, saved, onResume }) {
         ? customizeLeader(baseState, { bio: B.id, ideo: chosenIdeo })
         : baseState;
       const payload = { st: daily ? { ...st, daily: daily.date, dailyMoves: [] } : st, quick: quick || !!daily };
-      
-      // Запуск кинематографического пролога при старте новой сюжетной кампании
+
       if (!daily && c === ALTERNATE_COUNTRY) {
         setLoading(false);
         setPrologue(payload);
@@ -2123,146 +2271,231 @@ function Setup({ onStart, saved, onResume }) {
   }
 
   return (
-    <div style={{ minHeight:"100dvh", background:"#141a18", color:"#ddcfaf", padding:"24px 16px 44px" }}>
-      <div style={{ maxWidth:640, margin:"0 auto" }}>
-        <header style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:12, fontFamily:mono, fontSize:11, letterSpacing:".08em", paddingBottom:16, color:"#988d75" }}>
-          <span>НЕМАНСКАЯ РЕСПУБЛИКА · ПРАВИТЕЛЬСТВЕННЫЙ ВЕСТНИК</span>
-          <span>МИНСК · 1978</span>
-        </header>
+    <div className={styles.titleScreen}>
+      <StormBackdrop onThunder={handleThunder}/>
 
-        {saved && (
-          <Card style={{ marginBottom:18, padding:"14px 18px", background:"#eee4ce", border:"1px solid #b9ac92", borderLeft:"5px solid #30463b", display:"flex", justifyContent:"space-between", alignItems:"center", gap:14, flexWrap:"wrap", boxShadow:"0 6px 18px rgba(0,0,0,.25)" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:14, minWidth:0 }}>
-              <Portrait name={saved.state.leader.name} size={46}/>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".06em", color:G.tx3, marginBottom:2 }}>НЕОКОНЧЕННОЕ ДЕЛО</div>
-                <div style={{ fontFamily:serif, fontSize:18, fontWeight:700, color:G.txt }}>
-                  <Flag country={saved.state.country}/> {saved.state.leader.name}
-                </div>
-                <div style={{ fontFamily:narrow, fontSize:14, color:G.tx2 }}>
-                  {saved.state.ended ? "правление завершено" : `${reignLength(saved.state.turn)} у власти · ${saved.state.year}`}
-                </div>
-              </div>
-            </div>
-            <PrimaryBtn onClick={onResume}>ПРОДОЛЖИТЬ СРОК</PrimaryBtn>
-          </Card>
-        )}
-
-        <figure style={{ margin:"0 0 16px", border:"2px solid #000", boxShadow:"0 16px 36px rgba(0,0,0,.6)", background:"#0b100e" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={artSource(HISTORICAL_SCENE_ART.ballot.src)}
-            alt="Ночь подсчёта голосов, Минск 1978"
-            className="sv-px"
-            style={{ width:"100%", aspectRatio:"16 / 9", maxHeight:240, objectFit:"cover", display:"block", filter:"contrast(1.05) brightness(0.95)" }}
-          />
-          <div style={{ background:"#1a2320", borderTop:"1px solid #2d3b36", padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-            <div>
-              <div style={{ fontFamily:mono, fontSize:10, letterSpacing:".08em", color:"#9a8c71", textTransform:"uppercase" }}>Резиденция президента · Площадь Республики</div>
-              <div style={{ fontFamily:narrow, fontSize:14, color:"#f4ecd6", fontWeight:700 }}>Ночь подсчёта голосов ЦИК Республики</div>
-            </div>
-            <span style={{ fontFamily:pixel, fontSize:11, color:"#d4c498", letterSpacing:".06em", flexShrink:0 }}>ЯНВАРЬ 1978</span>
-          </div>
-        </figure>
-
-        <article style={{ background:"#eee4ce", color:"#24221b", border:"1px solid #b9ac92", borderTop:"5px solid #8b2b22", padding:"24px 22px 24px", boxShadow:"0 16px 40px rgba(0,0,0,.45)", marginBottom:18 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:8 }}>
-            <span style={{ fontFamily:mono, fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:"#6e624c" }}>
-              Государственный совет Неманской Республики
-            </span>
-            <span className="sv-stamp" style={{ fontSize:11, padding:"2px 6px" }}>СЕКРЕТНО</span>
-          </div>
-          <h1 style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(42px, 11vw, 56px)", lineHeight:0.92, letterSpacing:".04em", color:"#1a1813", margin:"0 0 14px" }}>
-            СУВЕРЕН
-          </h1>
-          <p style={{ fontFamily:serif, fontSize:16, lineHeight:1.6, color:"#2a251c", margin:"0 0 18px" }}>
-            После 1918 года Неманская республика удержала независимость. Заводы требуют сырья, армия и советники преследуют свои цели, а каждое ваше решение меняет баланс сил. Сколько лет вы удержите власть?
-          </p>
-
-          <div style={{ borderTop:"1px dashed #b2a07c", paddingTop:14, marginBottom:18 }}>
-            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", color:"#554933", marginBottom:8 }}>
-              Условия вступления в должность:
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              {Object.entries(DIFFICULTIES).map(([id, d]) => {
-                const active = activeDiff === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setDiff(id)}
-                    style={{
-                      display:"flex",
-                      flexDirection:"column",
-                      alignItems:"flex-start",
-                      gap:3,
-                      padding:"8px 12px",
-                      textAlign:"left",
-                      border:active ? "1px solid #14221a" : "1px solid #b8a885",
-                      background:active ? "#30463b" : "#e6dcc2",
-                      color:active ? "#f0e4c8" : "#2b251a",
-                      cursor:"pointer",
-                      transition:"background .15s, border-color .15s",
-                      boxShadow:active ? "inset 0 1px 3px rgba(0,0,0,.25)" : "none",
-                    }}
-                  >
-                    <span style={{ fontFamily:narrow, fontSize:16, fontWeight:700, lineHeight:1.15 }}>
-                      {d.label}
-                    </span>
-                    <span style={{ fontFamily:serif, fontSize:13, lineHeight:1.25, opacity:active ? 0.9 : 0.78 }}>
-                      {d.desc}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+      <div className={styles.titleHud}>
+        {/* Верхняя строка статуса */}
+        <header className={styles.titleTopBar}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className={styles.titleStamp}>СЕКРЕТНО</span>
+            <span className={styles.titleTopMeta}>ГОССОВЕТ · МИНСК 1978</span>
           </div>
 
           <button
             type="button"
-            disabled={loading}
-            onClick={quick}
-            aria-label={saved ? "Начать новую игру" : "Начать игру"}
-            style={{
-              width:"100%",
-              minHeight:52,
-              border:"1px solid #1c2c24",
-              background:"#30463b",
-              color:"#f0e4c8",
-              fontFamily:narrow,
-              fontWeight:700,
-              fontSize:19,
-              letterSpacing:".04em",
-              padding:"12px 20px",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"space-between",
-              cursor:loading ? "default" : "pointer",
-              opacity:loading ? 0.6 : 1,
-              boxShadow:"0 4px 14px rgba(0,0,0,.25)",
-            }}
+            className={styles.titleAudioToggle}
+            onClick={toggleSound}
+            aria-label={soundEnabled ? "Выключить звук" : "Включить звук"}
+            title="Звуковое окружение кабинета и гроза"
           >
-            <span>{loading ? "ПОДГОТОВКА ДОКУМЕНТОВ…" : saved ? "НАЧАТЬ НОВОЕ ПРАВЛЕНИЕ" : "НАЧАТЬ ИГРУ · В КАБИНЕТ"}</span>
-            <span aria-hidden="true" style={{ fontSize:22 }}>→</span>
+            <span>{soundEnabled ? "ЗВУК: ВКЛ" : "ЗВУК: ВЫКЛ"}</span>
           </button>
-        </article>
+        </header>
 
-        {err && <div role="alert" style={{ color:G.red, marginBottom:12 }}>{err} <button onClick={quick}>Попробовать снова</button></div>}
+        {/* Центральный заголовок и антураж */}
+        <main className={styles.titleHero}>
+          <div className={styles.titleSub}>
+            <span className={styles.titleDot}/>
+            <span>НЕМАНСКАЯ РЕСПУБЛИКА · ЦИК</span>
+          </div>
 
-        <DailyCard meta={meta} disabled={loading} onPlay={d => go(d.country, d.diff, d.ideo, d)}/>
+          <h1 className={styles.titleHeading}>
+            СУВЕРЕН
+          </h1>
 
-        {meta.runs.length > 0 && <Archive meta={meta}/>}
+          <p className={styles.titleDesc}>
+            После 1918 года Неманская республика удержала независимость. Заводы требуют сырья, армия и советники преследуют свои цели, а каждое ваше решение меняет баланс сил. Сколько лет вы удержите власть?
+          </p>
 
-        {playtest && <Card style={{ marginBottom:18 }}>
-          <Label>ПРОВЕРКА МИРА · ЛЮДИ И ПРАВИТЕЛЬСТВО</Label>
-          <p style={{ fontFamily:serif, fontSize:14, lineHeight:1.5, marginBottom:12 }}>Обычное правление с известной начальной ситуацией. Спонсор кампании, энергосеть и больницы существуют одновременно. Можно самим выйти на контакт; партия продолжается после этого столкновения.</p>
-          <PrimaryBtn disabled={loading} onClick={() => go(country, "debut", "pragmatist", null, "economist", true)}>
-            НАЧАТЬ ПРОБНУЮ ПАРТИЮ
-          </PrimaryBtn>
-        </Card>}
-        <VersionLabel/>
+          <div className={styles.titleCardBox}>
+            {/* Неоконченное дело / Сохранение */}
+            {saved && (
+              <div
+                role="button"
+                tabIndex={0}
+                className={styles.titleContinueCard}
+                onClick={() => { clickFx(); onResume(); }}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { clickFx(); onResume(); } }}
+                aria-label="Продолжить сохранённую игру"
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                  <Portrait name={saved.state.leader.name} size={42}/>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ font: "10px var(--font-ptmono), monospace", color: "#c6b58b", letterSpacing: ".06em", textTransform: "uppercase" }}>
+                      НЕОКОНЧЕННОЕ ДЕЛО
+                    </div>
+                    <div style={{ font: "700 16px var(--font-serif), Georgia, serif", color: "#f5eedc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <Flag country={saved.state.country}/> {saved.state.leader.name}
+                    </div>
+                    <div style={{ font: "13px var(--font-narrow), sans-serif", color: "#9c9077" }}>
+                      {saved.state.ended ? "правление завершено" : `${reignLength(saved.state.turn)} у власти · ${saved.state.year}`}
+                    </div>
+                  </div>
+                </div>
+                <span style={{ font: "700 13px var(--font-narrow), sans-serif", color: "#c6b58b", letterSpacing: ".05em", whiteSpace: "nowrap" }}>
+                  ПРОДОЛЖИТЬ →
+                </span>
+              </div>
+            )}
+
+            {/* Выбор сложности */}
+            <div className={styles.titleDiffSection}>
+              <div className={styles.titleDiffLabel}>Условия вступления в должность:</div>
+              <div className={styles.titleDiffPills}>
+                {Object.entries(DIFFICULTIES).map(([id, d]) => {
+                  const active = activeDiff === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={active}
+                      className={`${styles.titleDiffBtn} ${active ? styles.titleDiffActive : ""}`}
+                      onClick={() => { clickFx(); setDiff(id); }}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className={styles.titleDiffNote}>
+                {DIFFICULTIES[activeDiff]?.desc}
+              </div>
+            </div>
+
+            {/* Главная кнопка старта: доступна для playtest.mjs через accessible name /начать игру/i */}
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => { clickFx(); quick(); }}
+              aria-label={saved ? "Начать новую игру" : "Начать игру"}
+              className={styles.titleActionBtn}
+            >
+              <span>
+                {loading ? "ПОДГОТОВКА ДОКУМЕНТОВ…" : saved ? "НАЧАТЬ НОВОЕ ПРАВЛЕНИЕ" : "НАЧАТЬ ИГРУ · В КАБИНЕТ"}
+              </span>
+              <span aria-hidden="true" style={{ fontSize: 20 }}>→</span>
+            </button>
+
+            {err && (
+              <div role="alert" style={{ color: G.red, marginTop: 10, fontSize: 13, font: "13px var(--font-serif), Georgia, serif" }}>
+                {err} <button type="button" onClick={quick} style={{ textDecoration: "underline", background: "none", border: "none", color: G.red, cursor: "pointer" }}>Попробовать снова</button>
+              </div>
+            )}
+
+            {/* Второстепенное меню: компактные кнопки-штампы */}
+            <div className={styles.titleSecondaryGrid}>
+              <button
+                type="button"
+                className={styles.titleSecBtn}
+                onClick={() => { clickFx(); setModal("daily"); }}
+              >
+                ДЕЛО ДНЯ
+              </button>
+              <button
+                type="button"
+                className={styles.titleSecBtn}
+                onClick={() => { clickFx(); setModal("archive"); }}
+                disabled={meta.runs.length === 0}
+                style={{ opacity: meta.runs.length === 0 ? 0.45 : 1 }}
+              >
+                АРХИВ {meta.runs.length > 0 ? `(${meta.runs.length})` : ""}
+              </button>
+              <button
+                type="button"
+                className={styles.titleSecBtn}
+                onClick={() => { clickFx(); setModal("settings"); }}
+              >
+                НАСТРОЙКИ
+              </button>
+            </div>
+
+            {playtest && (
+              <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(30, 44, 38, 0.6)", border: "1px dashed #4a6356" }}>
+                <div style={{ font: "11px var(--font-ptmono), monospace", color: "#c6b58b", marginBottom: 6 }}>
+                  ПРОВЕРКА МИРА · ТЕСТОВЫЙ РЕЖИМ
+                </div>
+                <button
+                  type="button"
+                  disabled={loading}
+                  className={styles.titleSecBtn}
+                  style={{ width: "100%", background: "#25362e", borderColor: "#c6b58b", color: "#f5eedc" }}
+                  onClick={() => { clickFx(); go(country, "debut", "pragmatist", null, "economist", true); }}
+                >
+                  НАЧАТЬ ПРОБНУЮ ПАРТИЮ
+                </button>
+              </div>
+            )}
+          </div>
+        </main>
+
+        {/* Нижний колонтитул */}
+        <footer className={styles.titleFooter}>
+          <span>РЕЗИДЕНЦИЯ ПРЕЗИДЕНТА · ПЛОЩАДЬ РЕСПУБЛИКИ</span>
+          <VersionLabel/>
+        </footer>
       </div>
+
+      {/* Модальное окно: Дело дня */}
+      {modal === "daily" && (
+        <div className={styles.titleModalOverlay} onClick={() => setModal(null)}>
+          <div className={styles.titleModalBox} onClick={e => e.stopPropagation()}>
+            <div className={styles.titleModalHead}>
+              <div className={styles.titleModalTitle}>ДЕЛО ДНЯ · РЕСПУБЛИКА НЕМАН</div>
+              <button type="button" className={styles.titleModalClose} onClick={() => setModal(null)} aria-label="Закрыть">✕</button>
+            </div>
+            <DailyCard meta={meta} disabled={loading} onPlay={d => { setModal(null); go(d.country, d.diff, d.ideo, d); }}/>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно: Архив */}
+      {modal === "archive" && (
+        <div className={styles.titleModalOverlay} onClick={() => setModal(null)}>
+          <div className={styles.titleModalBox} onClick={e => e.stopPropagation()}>
+            <div className={styles.titleModalHead}>
+              <div className={styles.titleModalTitle}>АРХИВ ПРАВИТЕЛЕЙ</div>
+              <button type="button" className={styles.titleModalClose} onClick={() => setModal(null)} aria-label="Закрыть">✕</button>
+            </div>
+            <Archive meta={meta}/>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно: Настройки */}
+      {modal === "settings" && (
+        <div className={styles.titleModalOverlay} onClick={() => setModal(null)}>
+          <div className={styles.titleModalBox} onClick={e => e.stopPropagation()}>
+            <div className={styles.titleModalHead}>
+              <div className={styles.titleModalTitle}>НАСТРОЙКИ</div>
+              <button type="button" className={styles.titleModalClose} onClick={() => setModal(null)} aria-label="Закрыть">✕</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, borderBottom: "1px dashed #2b3a33" }}>
+                <div>
+                  <div style={{ font: "700 15px var(--font-narrow), sans-serif", color: "#f5eedc" }}>Звук и атмосфера</div>
+                  <div style={{ font: "13px var(--font-serif), Georgia, serif", color: "#9c9077" }}>Шум кабинета, раскаты грозы, щелчки тумблеров</div>
+                </div>
+                <button
+                  type="button"
+                  className={styles.titleAudioToggle}
+                  onClick={toggleSound}
+                  style={{ padding: "6px 12px", fontSize: 12 }}
+                >
+                  {soundEnabled ? "ВКЛЮЧЕНО" : "ВЫКЛЮЧЕНО"}
+                </button>
+              </div>
+              <div style={{ padding: "6px 0", color: "#9c9077", font: "13px/1.5 var(--font-serif), Georgia, serif" }}>
+                Анимация грозы оптимизирована для мобильных и настольных браузеров. При системной настройке «Уменьшение движения» (prefers-reduced-motion) вспышки и дождь отключаются.
+              </div>
+              <div style={{ paddingTop: 10, borderTop: "1px dashed #2b3a33", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ font: "12px var(--font-ptmono), monospace", color: "#8e836a" }}>СИМУЛЯЦИЯ</span>
+                <VersionLabel/>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
