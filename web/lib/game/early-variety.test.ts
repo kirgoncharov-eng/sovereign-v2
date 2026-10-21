@@ -75,6 +75,22 @@ test('аванс под российский заказ больше не выи
   assert.ok((choiceEffects(state, paid).resources.internalLegitimacy ?? 0) > (choiceEffects(state, advance).resources.internalLegitimacy ?? 0));
 });
 
+test('у вариантов 2-го хода с ценой личного ресурса и политкапитала есть причина каждого минуса', () => {
+  const texts = [
+    'Дать директору неделю на объяснение',
+    'Попросить директора принести свою копию',
+    'Отправить делегации копию без закрытой страницы',
+  ];
+  const choices = ALTERNATE_ARC.beats[0].variants.flatMap(variant => variant.choices);
+  for (const text of texts) {
+    const choice = choices.find(entry => entry.text === text)!;
+    assert.ok(choice, text);
+    for (const [resource, delta] of Object.entries(choice.policyEffect ?? {})) {
+      if (delta < 0) assert.ok(choice.costReasons?.[resource as keyof typeof choice.costReasons], `${text}: ${resource}`);
+    }
+  }
+});
+
 test('дело о топливе 5-го хода продолжает каждое из трёх первых решений', async () => {
   const fuel: Record<string, string> = {
     'Оплатить зарплату в обмен на проверку договоров': 'alt_fuel_audit',
