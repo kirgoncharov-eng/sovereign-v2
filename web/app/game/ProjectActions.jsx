@@ -7,6 +7,8 @@ export default function ProjectActions({ gs, actions, quota, terminal, pending, 
   return <div>
     <p className="sv-country-capacity">Одно личное поручение на оба проекта за квартал. Деньги списываются из общих ресурсов страны. Можно оставить текущий план в работе.</p>
     {actions.map(action => {
+      const costDescription = Object.entries(action.cost)
+        .map(([key, value]) => `${RESOURCE[key] ?? key} ${value}`).join(' · ') || 'без списания ресурсов';
       const appointment = action.id.match(/^(?:health:)?(?:appoint|replace):(.+)$/);
       const actor = appointment && gs ? worldPerson(gs, appointment[1]) : null;
       return <div key={action.id}>
@@ -17,10 +19,14 @@ export default function ProjectActions({ gs, actions, quota, terminal, pending, 
           <span className="sv-executor-compare"><span>Компетенция <b>{actor.competence}/3</b></span><span>К вам <b>{actor.relation>0?'+':''}{actor.relation}</b></span></span>
           <span>Интерес: {actor.goal}.</span>
         </> : <span>{action.detail}</span>}
-        <small>{Object.entries(action.cost).map(([key,value]) => `${RESOURCE[key] ?? key} ${value}`).join(' · ')}{action.blocked ? ` · ${action.blocked}` : ''}</small>
+        <small>Цена: {costDescription}</small>
+        {action.blocked && <span className="sv-project-blocked">Недоступно: {action.blocked}</span>}
       </button>
       {pending?.id === action.id && <div className="sv-country-confirm" role="group" aria-label="Подписать личное поручение">
-        <h4>{action.title}</h4><p>{action.detail}</p><p>Поручение займёт ваше личное вмешательство в этом квартале. Другой проект продолжит текущий план. Результат увидите после решения в кабинете.</p>
+        <h4>{action.title}</h4><p>{action.detail}</p>
+        <p>Цена подписи: {costDescription}.</p>
+        <p>Поручение займёт ваше личное вмешательство в этом квартале.
+          Другой проект продолжит текущий план. Результат увидите после решения в кабинете.</p>
         <div><button onClick={confirm}>Подписать поручение</button><button onClick={() => setPending(null)}>Отложить</button></div>
       </div>}
     </div>;})}
