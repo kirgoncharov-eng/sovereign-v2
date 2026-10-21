@@ -6,6 +6,15 @@ const KEY = "sovereign.sound";
 let memorySound = true;
 let ctx: AudioContext | null = null;
 
+const soundListeners = new Set<() => void>();
+
+export function subscribeSound(callback: () => void): () => void {
+  soundListeners.add(callback);
+  return () => {
+    soundListeners.delete(callback);
+  };
+}
+
 export function soundOn(): boolean {
   try {
     if (typeof localStorage !== "undefined") {
@@ -26,6 +35,7 @@ export function setSound(on: boolean) {
   } else {
     startCabinetAmbient();
   }
+  soundListeners.forEach(fn => { try { fn(); } catch {} });
 }
 
 function audio(): AudioContext | null {

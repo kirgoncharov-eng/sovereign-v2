@@ -50,7 +50,7 @@ import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/da
 import { installErrorReporting } from "@/lib/client/errors.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { runScore } from "@/lib/game/daily.ts";
-import { clickFx, outcomeFx, pageFx, setSound, soundOn, stampFx, startCabinetAmbient, stopCabinetAmbient, thunderFx } from "@/lib/client/fx.ts";
+import { clickFx, outcomeFx, pageFx, setSound, soundOn, stampFx, startCabinetAmbient, stopCabinetAmbient, subscribeSound, thunderFx } from "@/lib/client/fx.ts";
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
@@ -2198,6 +2198,83 @@ function StormBackdrop({ onThunder }) {
   );
 }
 
+function TitleModal({ id, title, onClose, triggerRef, children }) {
+  const modalRef = useRef(null);
+  const closeBtnRef = useRef(null);
+
+  useEffect(() => {
+    const prevActive = triggerRef?.current ?? document.activeElement;
+    closeBtnRef.current?.focus();
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key === "Tab") {
+        const modal = modalRef.current;
+        if (!modal) return;
+        const focusable = modal.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      if (prevActive && typeof prevActive.focus === "function") {
+        try { prevActive.focus(); } catch {}
+      }
+    };
+  }, [onClose, triggerRef]);
+
+  const titleId = `title-modal-heading-${id}`;
+
+  return (
+    <div className={styles.titleModalOverlay} onClick={onClose}>
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={styles.titleModalBox}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className={styles.titleModalHead}>
+          <div id={titleId} className={styles.titleModalTitle}>{title}</div>
+          <button
+            ref={closeBtnRef}
+            type="button"
+            className={styles.titleModalClose}
+            onClick={onClose}
+            aria-label="Закрыть"
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function Setup({ onStart, saved, onResume }) {
   const country = NEW_GAME_COUNTRY;
   const [diff, setDiff]       = useState(null);
@@ -2205,11 +2282,15 @@ function Setup({ onStart, saved, onResume }) {
   const [prologue, setPrologue] = useState(null);
   const [err, setErr]         = useState(null);
   const [modal, setModal]     = useState(null); // "daily" | "archive" | "settings" | null
-  const [soundEnabled, setSoundEnabled] = useState(() => soundOn());
+  const soundEnabled = useSyncExternalStore(subscribeSound, soundOn, () => true);
   const metaRaw = useSyncExternalStore(subscribeMeta, readMetaRaw, () => null);
   const meta = useMemo(() => parseMeta(metaRaw), [metaRaw]);
   const activeDiff = diff ?? (meta.runs.length ? "coalition" : "debut");
   const playtest = useSyncExternalStore(subscribeMeta, () => ["sponsor", "cabinet", "minister"].includes(new URLSearchParams(window.location.search).get("playtest")), () => false);
+
+  const dailyBtnRef = useRef(null);
+  const archiveBtnRef = useRef(null);
+  const settingsBtnRef = useRef(null);
 
   const handleThunder = useCallback(() => {
     if (soundOn()) thunderFx();
@@ -2218,7 +2299,6 @@ function Setup({ onStart, saved, onResume }) {
   const toggleSound = () => {
     const next = !soundEnabled;
     setSound(next);
-    setSoundEnabled(next);
     if (next) {
       clickFx();
       thunderFx();
@@ -2386,6 +2466,7 @@ function Setup({ onStart, saved, onResume }) {
             {/* Второстепенное меню: компактные кнопки-штампы */}
             <div className={styles.titleSecondaryGrid}>
               <button
+                ref={dailyBtnRef}
                 type="button"
                 className={styles.titleSecBtn}
                 onClick={() => { clickFx(); setModal("daily"); }}
@@ -2393,6 +2474,7 @@ function Setup({ onStart, saved, onResume }) {
                 ДЕЛО ДНЯ
               </button>
               <button
+                ref={archiveBtnRef}
                 type="button"
                 className={styles.titleSecBtn}
                 onClick={() => { clickFx(); setModal("archive"); }}
@@ -2402,6 +2484,7 @@ function Setup({ onStart, saved, onResume }) {
                 АРХИВ {meta.runs.length > 0 ? `(${meta.runs.length})` : ""}
               </button>
               <button
+                ref={settingsBtnRef}
                 type="button"
                 className={styles.titleSecBtn}
                 onClick={() => { clickFx(); setModal("settings"); }}
@@ -2438,63 +2521,60 @@ function Setup({ onStart, saved, onResume }) {
 
       {/* Модальное окно: Дело дня */}
       {modal === "daily" && (
-        <div className={styles.titleModalOverlay} onClick={() => setModal(null)}>
-          <div className={styles.titleModalBox} onClick={e => e.stopPropagation()}>
-            <div className={styles.titleModalHead}>
-              <div className={styles.titleModalTitle}>ДЕЛО ДНЯ · РЕСПУБЛИКА НЕМАН</div>
-              <button type="button" className={styles.titleModalClose} onClick={() => setModal(null)} aria-label="Закрыть">✕</button>
-            </div>
-            <DailyCard meta={meta} disabled={loading} onPlay={d => { setModal(null); go(d.country, d.diff, d.ideo, d); }}/>
-          </div>
-        </div>
+        <TitleModal
+          id="daily"
+          title="ДЕЛО ДНЯ · РЕСПУБЛИКА НЕМАН"
+          onClose={() => setModal(null)}
+          triggerRef={dailyBtnRef}
+        >
+          <DailyCard meta={meta} disabled={loading} onPlay={d => { setModal(null); go(d.country, d.diff, d.ideo, d); }}/>
+        </TitleModal>
       )}
 
       {/* Модальное окно: Архив */}
       {modal === "archive" && (
-        <div className={styles.titleModalOverlay} onClick={() => setModal(null)}>
-          <div className={styles.titleModalBox} onClick={e => e.stopPropagation()}>
-            <div className={styles.titleModalHead}>
-              <div className={styles.titleModalTitle}>АРХИВ ПРАВИТЕЛЕЙ</div>
-              <button type="button" className={styles.titleModalClose} onClick={() => setModal(null)} aria-label="Закрыть">✕</button>
-            </div>
-            <Archive meta={meta}/>
-          </div>
-        </div>
+        <TitleModal
+          id="archive"
+          title="АРХИВ ПРАВИТЕЛЕЙ"
+          onClose={() => setModal(null)}
+          triggerRef={archiveBtnRef}
+        >
+          <Archive meta={meta}/>
+        </TitleModal>
       )}
 
       {/* Модальное окно: Настройки */}
       {modal === "settings" && (
-        <div className={styles.titleModalOverlay} onClick={() => setModal(null)}>
-          <div className={styles.titleModalBox} onClick={e => e.stopPropagation()}>
-            <div className={styles.titleModalHead}>
-              <div className={styles.titleModalTitle}>НАСТРОЙКИ</div>
-              <button type="button" className={styles.titleModalClose} onClick={() => setModal(null)} aria-label="Закрыть">✕</button>
+        <TitleModal
+          id="settings"
+          title="НАСТРОЙКИ"
+          onClose={() => setModal(null)}
+          triggerRef={settingsBtnRef}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, borderBottom: "1px dashed #2b3a33" }}>
+              <div>
+                <div style={{ font: "700 15px var(--font-narrow), sans-serif", color: "#f5eedc" }}>Звук и атмосфера</div>
+                <div style={{ font: "13px var(--font-serif), Georgia, serif", color: "#9c9077" }}>Шум кабинета, раскаты грозы, щелчки тумблеров</div>
+              </div>
+              <button
+                type="button"
+                className={styles.titleAudioToggle}
+                onClick={toggleSound}
+                style={{ padding: "6px 12px", fontSize: 12 }}
+              >
+                {soundEnabled ? "ВКЛЮЧЕНО" : "ВЫКЛЮЧЕНО"}
+              </button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, borderBottom: "1px dashed #2b3a33" }}>
-                <div>
-                  <div style={{ font: "700 15px var(--font-narrow), sans-serif", color: "#f5eedc" }}>Звук и атмосфера</div>
-                  <div style={{ font: "13px var(--font-serif), Georgia, serif", color: "#9c9077" }}>Шум кабинета, раскаты грозы, щелчки тумблеров</div>
-                </div>
-                <button
-                  type="button"
-                  className={styles.titleAudioToggle}
-                  onClick={toggleSound}
-                  style={{ padding: "6px 12px", fontSize: 12 }}
-                >
-                  {soundEnabled ? "ВКЛЮЧЕНО" : "ВЫКЛЮЧЕНО"}
-                </button>
-              </div>
-              <div style={{ padding: "6px 0", color: "#9c9077", font: "13px/1.5 var(--font-serif), Georgia, serif" }}>
-                Анимация грозы оптимизирована для мобильных и настольных браузеров. При системной настройке «Уменьшение движения» (prefers-reduced-motion) вспышки и дождь отключаются.
-              </div>
-              <div style={{ paddingTop: 10, borderTop: "1px dashed #2b3a33", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ font: "12px var(--font-ptmono), monospace", color: "#8e836a" }}>СИМУЛЯЦИЯ</span>
-                <VersionLabel/>
-              </div>
+            <div style={{ padding: "6px 0", color: "#9c9077", font: "13px/1.5 var(--font-serif), Georgia, serif" }}>
+              Анимация грозы оптимизирована для мобильных и настольных браузеров. При системной настройке «Уменьшение движения» (prefers-reduced-motion) вспышки и дождь отключаются.
+            </div>
+            <div style={{ paddingTop: 10, borderTop: "1px dashed #2b3a33", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ font: "12px var(--font-ptmono), monospace", color: "#8e836a" }}>СИМУЛЯЦИЯ</span>
+              <VersionLabel/>
             </div>
           </div>
-        </div>
+        </TitleModal>
       )}
     </div>
   );
