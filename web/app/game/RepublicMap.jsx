@@ -6,12 +6,6 @@ import {
   REGION_IDS,
 } from "@/lib/game/republic-map.ts";
 
-const WORD_LABEL = {
-  верят: "Верят",
-  ждут: "Ждут",
-  против: "Против",
-};
-
 const WORD_COLOR = {
   верят: "#5cb887",
   ждут: "#d8b35d",
@@ -21,7 +15,7 @@ const WORD_COLOR = {
 export default function RepublicMap({ gs, onSelectRegion }) {
   const mapId = useId();
   const regionalData = computeRegionalTrust(gs);
-  
+
   // По умолчанию выбираем либо задетый последним решением регион, либо Минск
   const defaultSelected =
     REGION_IDS.find((id) => regionalData[id]?.lastAffected) || "minsk";
@@ -31,44 +25,76 @@ export default function RepublicMap({ gs, onSelectRegion }) {
 
   return (
     <div className="sv-republic-map-wrap" role="region" aria-label="Карта регионов Неманской республики">
+      {/* Шапка ведомственного планшета */}
       <div className="sv-republic-map-header">
         <div>
-          <span className="sv-republic-map-badge">СХЕМА РЕСПУБЛИКИ · 1978</span>
-          <h3 className="sv-republic-map-title">Доверие и настроения четырёх мест</h3>
+          <span className="sv-republic-map-badge">ВЕДОМСТВЕННАЯ СХЕМА · ЦК 1978</span>
+          <h3 className="sv-republic-map-title">Настроения и доверие четырёх мест</h3>
         </div>
         {current.lastAffected && (
           <span className="sv-republic-map-alert" role="status">
-            ● Задето решением последнего хода
+            ⚡ Задето решением последнего хода
           </span>
         )}
       </div>
 
+      {/* Интерактивная векторная карта */}
       <div className="sv-republic-map-svg-container">
         <svg
-          viewBox="0 0 540 380"
+          viewBox="0 0 540 390"
           className="sv-republic-map-svg"
-          aria-label="Интерактивная карта четырёх мест республики"
+          aria-label="Интерактивная карта четырёх мест республики: Минск, Гродно, Брест, Полесье"
         >
           <defs>
-            {/* Сетка топографического планшета */}
+            {/* Топографическая сетка с крестиками */}
             <pattern id={`grid-${mapId}`} width="30" height="30" patternUnits="userSpaceOnUse">
               <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#1d2b24" strokeWidth="0.75" />
+              <path d="M 13 15 L 17 15 M 15 13 L 15 17" stroke="#2c3f35" strokeWidth="0.8" />
             </pattern>
-            {/* Штриховка болот Полесья */}
-            <pattern id={`swamp-${mapId}`} width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <line x1="0" y1="0" x2="0" y2="12" stroke="#253a30" strokeWidth="1.2" />
+            {/* Штриховка плавней Полесья */}
+            <pattern id={`swamp-${mapId}`} width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="14" stroke="#274034" strokeWidth="1.5" />
             </pattern>
-            {/* Фильтр свечения активного региона */}
+            {/* Мягкое свечение выбранного региона */}
             <filter id={`glow-${mapId}`} x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#d8b35d" floodOpacity="0.45" />
+              <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#d8b35d" floodOpacity="0.5" />
             </filter>
           </defs>
 
           {/* Фоновый планшет */}
-          <rect width="540" height="380" rx="4" fill="#0d1411" stroke="#2a3a30" strokeWidth="1.5" />
-          <rect width="540" height="380" fill={`url(#grid-${mapId})`} />
+          <rect width="540" height="390" rx="4" fill="#0c1310" stroke="#283a2f" strokeWidth="1.5" />
+          <rect width="540" height="390" fill={`url(#grid-${mapId})`} />
 
-          {/* КОНТУРЫ РЕГИОНОВ */}
+          {/* Картографический гриф в правом верхнем углу */}
+          <g opacity="0.65" transform="translate(415, 18)">
+            <rect x="0" y="0" width="112" height="18" fill="#121b16" stroke="#293c32" strokeWidth="0.8" />
+            <text x="56" y="12" textAnchor="middle" fill="#9da89f" fontSize="8.5" fontFamily="var(--font-mono)" letterSpacing="0.5">
+              СХЕМА № 4 · 1978
+            </text>
+          </g>
+
+          {/* Роза ветров (компас) в левом верхнем углу */}
+          <g opacity="0.6" transform="translate(26, 26)">
+            <circle cx="0" cy="0" r="14" fill="none" stroke="#2c4236" strokeWidth="0.8" />
+            <line x1="0" y1="-12" x2="0" y2="12" stroke="#8c7b58" strokeWidth="1" />
+            <line x1="-12" y1="0" x2="12" y2="0" stroke="#8c7b58" strokeWidth="1" />
+            <polygon points="0,-13 -3,-3 0,0 3,-3" fill="#d8b35d" />
+            <text x="0" y="-16" textAnchor="middle" fill="#d8b35d" fontSize="8" fontFamily="var(--font-mono)" fontWeight="700">
+              N
+            </text>
+          </g>
+
+          {/* Горизонтали рельефа (Минская возвышенность) */}
+          <path
+            d="M 280 65 Q 360 55 430 75 Q 470 120 420 160 Q 330 180 270 140 Q 250 90 280 65 Z"
+            fill="none"
+            stroke="#1c2c23"
+            strokeWidth="1.2"
+            strokeDasharray="4 4"
+            opacity="0.8"
+          />
+
+          {/* КОНТУРЫ 4 РЕГИОНОВ */}
 
           {/* 1. ГРОДНО (Северо-Запад) */}
           <g
@@ -81,34 +107,36 @@ export default function RepublicMap({ gs, onSelectRegion }) {
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { setSelectedId("grodno"); onSelectRegion?.("grodno"); } }}
           >
             <path
-              d="M 35 45 L 210 38 L 225 155 L 140 185 L 42 165 Z"
-              fill={selectedId === "grodno" ? "#162820" : "#111f18"}
+              d="M 38 48 L 210 40 L 225 155 L 140 188 L 44 168 Z"
+              fill={selectedId === "grodno" ? "#182c23" : "#111f18"}
               stroke={selectedId === "grodno" ? "#d8b35d" : "#2e4839"}
               strokeWidth={selectedId === "grodno" ? "2.5" : "1.2"}
               filter={selectedId === "grodno" ? `url(#glow-${mapId})` : undefined}
             />
-            {/* Символ Гродно: Таможенная арка и причал */}
-            <g transform="translate(100, 75)" stroke="#cbb37a" strokeWidth="1.5" fill="none" opacity={selectedId === "grodno" ? 1 : 0.85}>
-              {/* Арка */}
-              <path d="M 0 35 L 0 10 Q 15 -2 30 10 L 30 35" />
-              <path d="M 8 35 L 8 14 Q 15 8 22 14 L 22 35" strokeWidth="1" />
-              <line x1="-5" y1="35" x2="35" y2="35" strokeWidth="2" />
-              {/* Речной причал / кнехт */}
-              <rect x="42" y="24" width="16" height="11" fill="#1b2e23" stroke="#9bb39e" strokeWidth="1" />
-              <line x1="45" y1="20" x2="55" y2="20" stroke="#9bb39e" strokeWidth="1.5" />
-              <circle cx="50" cy="18" r="2" fill="#cbb37a" />
+            {/* Символы Гродно: Таможенная арка, крепостной зубец, речной причал */}
+            <g transform="translate(95, 74)" stroke="#cbb37a" strokeWidth="1.5" fill="none" opacity={selectedId === "grodno" ? 1 : 0.85}>
+              {/* Монументальная таможенная арка */}
+              <path d="M 0 36 L 0 12 Q 16 -3 32 12 L 32 36" />
+              <path d="M 8 36 L 8 16 Q 16 9 24 16 L 24 36" strokeWidth="1" />
+              <line x1="-5" y1="36" x2="37" y2="36" strokeWidth="2" />
+              {/* Решетка ворот */}
+              <line x1="16" y1="12" x2="16" y2="36" stroke="#9bb39e" strokeWidth="1" strokeDasharray="3 3" />
+              {/* Причал и кнехт */}
+              <rect x="44" y="24" width="18" height="12" fill="#1b2e23" stroke="#9bb39e" strokeWidth="1.2" />
+              <circle cx="53" cy="20" r="2.5" fill="#cbb37a" stroke="#cbb37a" />
+              <line x1="48" y1="22" x2="58" y2="22" stroke="#9bb39e" strokeWidth="1.5" />
             </g>
-            <text x="115" y="132" textAnchor="middle" fill="#eae3cf" fontSize="13" fontFamily="var(--font-narrow)" fontWeight="600" letterSpacing="1">
+            <text x="115" y="132" textAnchor="middle" fill="#eae3cf" fontSize="13.5" fontFamily="var(--font-narrow)" fontWeight="700" letterSpacing="1">
               ГРОДНО
             </text>
             <text x="115" y="146" textAnchor="middle" fill="#9ba89f" fontSize="10" fontFamily="var(--font-mono)">
-              ТАМОЖНЯ · ПОРТ
+              ТАМОЖНЯ · ТОРГОВЛЯ
             </text>
-            {/* Бейдж статуса */}
-            <g transform="translate(115, 160)">
-              <rect x="-32" y="-9" width="64" height="16" rx="2" fill="#0d1411" stroke={WORD_COLOR[regionalData.grodno.word]} strokeWidth="1" />
-              <text y="3" textAnchor="middle" fill={WORD_COLOR[regionalData.grodno.word]} fontSize="9" fontFamily="var(--font-mono)" fontWeight="700">
-                {WORD_LABEL[regionalData.grodno.word].toUpperCase()} · {regionalData.grodno.score}%
+            {/* Статус-бейдж с числом и расшифровкой */}
+            <g transform="translate(115, 163)">
+              <rect x="-42" y="-10" width="84" height="18" rx="2" fill="#0c1310" stroke={WORD_COLOR[regionalData.grodno.word]} strokeWidth="1.2" />
+              <text y="3" textAnchor="middle" fill={WORD_COLOR[regionalData.grodno.word]} fontSize="9.5" fontFamily="var(--font-mono)" fontWeight="700">
+                {regionalData.grodno.wordInfo.label.toUpperCase()} · {regionalData.grodno.score}%
               </text>
             </g>
           </g>
@@ -124,35 +152,41 @@ export default function RepublicMap({ gs, onSelectRegion }) {
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { setSelectedId("minsk"); onSelectRegion?.("minsk"); } }}
           >
             <path
-              d="M 215 35 L 495 42 L 505 195 L 360 215 L 230 160 Z"
-              fill={selectedId === "minsk" ? "#1a2c22" : "#13211a"}
+              d="M 215 38 L 498 44 L 508 198 L 360 218 L 230 160 Z"
+              fill={selectedId === "minsk" ? "#1a2f24" : "#13211a"}
               stroke={selectedId === "minsk" ? "#d8b35d" : "#32503f"}
               strokeWidth={selectedId === "minsk" ? "2.5" : "1.2"}
               filter={selectedId === "minsk" ? `url(#glow-${mapId})` : undefined}
             />
-            {/* Символ Минска: Заводские корпуса МТЗ, трубы с дымом и звезда столицы */}
-            <g transform="translate(330, 70)" stroke="#cbb37a" strokeWidth="1.5" fill="none" opacity={selectedId === "minsk" ? 1 : 0.85}>
-              {/* Заводской корпус с пилообразными крышами (шед) */}
-              <path d="M 0 38 L 0 20 L 16 12 L 16 20 L 32 12 L 32 20 L 48 12 L 48 38 Z" fill="#1b2e23" />
-              {/* Высокие трубы */}
-              <line x1="56" y1="38" x2="56" y2="2" strokeWidth="2.5" />
-              <line x1="66" y1="38" x2="66" y2="6" strokeWidth="2" />
+            {/* Символы Минска: Заводские цеха МТЗ, 3 трубы с дымом, шестерня и звезда */}
+            <g transform="translate(325, 68)" stroke="#cbb37a" strokeWidth="1.5" fill="none" opacity={selectedId === "minsk" ? 1 : 0.85}>
+              {/* Заводской корпус с пилообразными крышами */}
+              <path d="M 0 40 L 0 20 L 16 12 L 16 20 L 32 12 L 32 20 L 48 12 L 48 40 Z" fill="#1b2e23" />
+              {/* Остекление цеха */}
+              <line x1="6" y1="26" x2="12" y2="34" stroke="#9bb39e" strokeWidth="1" />
+              <line x1="22" y1="26" x2="28" y2="34" stroke="#9bb39e" strokeWidth="1" />
+              <line x1="38" y1="26" x2="44" y2="34" stroke="#9bb39e" strokeWidth="1" />
+              {/* Три заводские трубы */}
+              <line x1="56" y1="40" x2="56" y2="2" strokeWidth="2.8" />
+              <line x1="66" y1="40" x2="66" y2="7" strokeWidth="2.2" />
+              <line x1="74" y1="40" x2="74" y2="12" strokeWidth="1.8" />
               {/* Дым над трубами */}
-              <path d="M 56 0 Q 52 -8 60 -12 Q 68 -15 62 -22" stroke="#7d9185" strokeWidth="1.2" strokeDasharray="2 2" />
-              {/* Звезда столицы */}
-              <polygon points="24,-4 27,3 35,3 29,8 31,16 24,11 17,16 19,8 13,3 21,3" fill="#d8b35d" stroke="#d8b35d" strokeWidth="0.5" />
+              <path d="M 56 0 Q 50 -10 60 -15 Q 70 -20 62 -28" stroke="#8ea396" strokeWidth="1.3" strokeDasharray="2 2" />
+              <path d="M 66 5 Q 63 -3 70 -8" stroke="#8ea396" strokeWidth="1" strokeDasharray="2 2" />
+              {/* Золотая звезда столицы */}
+              <polygon points="24,-6 27,2 35,2 29,8 31,16 24,11 17,16 19,8 13,2 21,2" fill="#d8b35d" stroke="#d8b35d" strokeWidth="0.5" />
             </g>
-            <text x="365" y="132" textAnchor="middle" fill="#eae3cf" fontSize="14" fontFamily="var(--font-narrow)" fontWeight="700" letterSpacing="1">
+            <text x="365" y="132" textAnchor="middle" fill="#eae3cf" fontSize="14.5" fontFamily="var(--font-narrow)" fontWeight="700" letterSpacing="1">
               ★ МИНСК
             </text>
             <text x="365" y="146" textAnchor="middle" fill="#9ba89f" fontSize="10" fontFamily="var(--font-mono)">
-              СТОЛИЦА · ЗАВОДЫ
+              СТОЛИЦА · МАШИНОСТРОЕНИЕ
             </text>
-            {/* Бейдж статуса */}
-            <g transform="translate(365, 160)">
-              <rect x="-32" y="-9" width="64" height="16" rx="2" fill="#0d1411" stroke={WORD_COLOR[regionalData.minsk.word]} strokeWidth="1" />
-              <text y="3" textAnchor="middle" fill={WORD_COLOR[regionalData.minsk.word]} fontSize="9" fontFamily="var(--font-mono)" fontWeight="700">
-                {WORD_LABEL[regionalData.minsk.word].toUpperCase()} · {regionalData.minsk.score}%
+            {/* Статус-бейдж */}
+            <g transform="translate(365, 163)">
+              <rect x="-42" y="-10" width="84" height="18" rx="2" fill="#0c1310" stroke={WORD_COLOR[regionalData.minsk.word]} strokeWidth="1.2" />
+              <text y="3" textAnchor="middle" fill={WORD_COLOR[regionalData.minsk.word]} fontSize="9.5" fontFamily="var(--font-mono)" fontWeight="700">
+                {regionalData.minsk.wordInfo.label.toUpperCase()} · {regionalData.minsk.score}%
               </text>
             </g>
           </g>
@@ -168,32 +202,33 @@ export default function RepublicMap({ gs, onSelectRegion }) {
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { setSelectedId("brest"); onSelectRegion?.("brest"); } }}
           >
             <path
-              d="M 40 170 L 145 190 L 195 245 L 180 345 L 35 330 Z"
-              fill={selectedId === "brest" ? "#162820" : "#111f18"}
+              d="M 42 172 L 145 192 L 195 248 L 180 352 L 36 335 Z"
+              fill={selectedId === "brest" ? "#182c23" : "#111f18"}
               stroke={selectedId === "brest" ? "#d8b35d" : "#2e4839"}
               strokeWidth={selectedId === "brest" ? "2.5" : "1.2"}
               filter={selectedId === "brest" ? `url(#glow-${mapId})` : undefined}
             />
-            {/* Символ Бреста: Цитадель и ж/д стрелка */}
-            <g transform="translate(85, 215)" stroke="#cbb37a" strokeWidth="1.5" fill="none" opacity={selectedId === "brest" ? 1 : 0.85}>
-              {/* Контур бастиона-звезды */}
-              <polygon points="25,5 32,18 45,18 36,28 39,42 25,34 11,42 14,28 5,18 18,18" fill="#1b2e23" stroke="#cbb37a" strokeWidth="1.5" />
-              {/* Ж/Д цистерна / эстакада */}
-              <rect x="52" y="24" width="22" height="12" rx="3" fill="#1a2520" stroke="#9bb39e" strokeWidth="1.2" />
-              <line x1="55" y1="38" x2="57" y2="40" stroke="#9bb39e" strokeWidth="2" />
-              <line x1="69" y1="38" x2="71" y2="40" stroke="#9bb39e" strokeWidth="2" />
+            {/* Символы Бреста: Звездный бастион крепости, мазутная цистерна, рельсовые шпалы */}
+            <g transform="translate(80, 218)" stroke="#cbb37a" strokeWidth="1.5" fill="none" opacity={selectedId === "brest" ? 1 : 0.85}>
+              {/* Бастион цитадели */}
+              <polygon points="25,4 33,18 47,18 37,28 41,43 25,34 9,43 13,28 3,18 17,18" fill="#1b2e23" stroke="#cbb37a" strokeWidth="1.5" />
+              {/* Цистерна / нефтебаза */}
+              <rect x="54" y="24" width="24" height="13" rx="3.5" fill="#1a2520" stroke="#9bb39e" strokeWidth="1.2" />
+              <line x1="57" y1="39" x2="59" y2="42" stroke="#9bb39e" strokeWidth="2" />
+              <line x1="71" y1="39" x2="73" y2="42" stroke="#9bb39e" strokeWidth="2" />
+              <line x1="60" y1="28" x2="72" y2="28" stroke="#d8b35d" strokeWidth="1" />
             </g>
-            <text x="105" y="285" textAnchor="middle" fill="#eae3cf" fontSize="13" fontFamily="var(--font-narrow)" fontWeight="600" letterSpacing="1">
+            <text x="105" y="286" textAnchor="middle" fill="#eae3cf" fontSize="13.5" fontFamily="var(--font-narrow)" fontWeight="700" letterSpacing="1">
               БРЕСТ
             </text>
-            <text x="105" y="299" textAnchor="middle" fill="#9ba89f" fontSize="10" fontFamily="var(--font-mono)">
-              БАСТИОН · ТРАНЗИТ
+            <text x="105" y="300" textAnchor="middle" fill="#9ba89f" fontSize="10" fontFamily="var(--font-mono)">
+              БАСТИОН · НЕФТЬ · Ж/Д
             </text>
-            {/* Бейдж статуса */}
-            <g transform="translate(105, 313)">
-              <rect x="-32" y="-9" width="64" height="16" rx="2" fill="#0d1411" stroke={WORD_COLOR[regionalData.brest.word]} strokeWidth="1" />
-              <text y="3" textAnchor="middle" fill={WORD_COLOR[regionalData.brest.word]} fontSize="9" fontFamily="var(--font-mono)" fontWeight="700">
-                {WORD_LABEL[regionalData.brest.word].toUpperCase()} · {regionalData.brest.score}%
+            {/* Статус-бейдж */}
+            <g transform="translate(105, 318)">
+              <rect x="-42" y="-10" width="84" height="18" rx="2" fill="#0c1310" stroke={WORD_COLOR[regionalData.brest.word]} strokeWidth="1.2" />
+              <text y="3" textAnchor="middle" fill={WORD_COLOR[regionalData.brest.word]} fontSize="9.5" fontFamily="var(--font-mono)" fontWeight="700">
+                {regionalData.brest.wordInfo.label.toUpperCase()} · {regionalData.brest.score}%
               </text>
             </g>
           </g>
@@ -209,38 +244,41 @@ export default function RepublicMap({ gs, onSelectRegion }) {
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { setSelectedId("polesie"); onSelectRegion?.("polesie"); } }}
           >
             <path
-              d="M 200 248 L 362 218 L 505 198 L 505 348 L 185 348 Z"
-              fill={selectedId === "polesie" ? "#172921" : "#112019"}
+              d="M 200 252 L 362 222 L 508 202 L 508 355 L 185 355 Z"
+              fill={selectedId === "polesie" ? "#192e24" : "#112019"}
               stroke={selectedId === "polesie" ? "#d8b35d" : "#2e4839"}
               strokeWidth={selectedId === "polesie" ? "2.5" : "1.2"}
               filter={selectedId === "polesie" ? `url(#glow-${mapId})` : undefined}
             />
             {/* Штриховка плавней */}
-            <path d="M 220 280 L 480 280 L 480 340 L 220 340 Z" fill={`url(#swamp-${mapId})`} opacity="0.35" pointerEvents="none" />
-            {/* Символ Полесья: Зерновые элеваторы и колосья */}
-            <g transform="translate(325, 235)" stroke="#cbb37a" strokeWidth="1.5" fill="none" opacity={selectedId === "polesie" ? 1 : 0.85}>
-              {/* Силосные башни элеватора */}
-              <rect x="0" y="8" width="14" height="30" rx="2" fill="#1b2e23" />
-              <rect x="16" y="4" width="14" height="34" rx="2" fill="#1b2e23" />
-              <rect x="32" y="8" width="14" height="30" rx="2" fill="#1b2e23" />
+            <path d="M 220 286 L 485 286 L 485 348 L 220 348 Z" fill={`url(#swamp-${mapId})`} opacity="0.38" pointerEvents="none" />
+            {/* Символы Полесья: Зерновые элеваторы, колос, шлюзы */}
+            <g transform="translate(320, 238)" stroke="#cbb37a" strokeWidth="1.5" fill="none" opacity={selectedId === "polesie" ? 1 : 0.85}>
+              {/* Силосы элеватора */}
+              <rect x="0" y="8" width="14" height="32" rx="2.5" fill="#1b2e23" />
+              <rect x="16" y="4" width="14" height="36" rx="2.5" fill="#1b2e23" />
+              <rect x="32" y="8" width="14" height="32" rx="2.5" fill="#1b2e23" />
               <line x1="-3" y1="8" x2="49" y2="8" strokeWidth="1.5" />
-              {/* Колосок */}
-              <path d="M 58 38 Q 63 20 60 5" stroke="#d8b35d" strokeWidth="1.5" />
-              <line x1="56" y1="12" x2="62" y2="8" stroke="#d8b35d" strokeWidth="1.2" />
-              <line x1="62" y1="18" x2="68" y2="14" stroke="#d8b35d" strokeWidth="1.2" />
-              <line x1="55" y1="24" x2="61" y2="20" stroke="#d8b35d" strokeWidth="1.2" />
+              {/* Наклонная галерея нории */}
+              <line x1="23" y1="4" x2="48" y2="-5" stroke="#9bb39e" strokeWidth="1.5" />
+              {/* Колос ржи/пшеницы */}
+              <path d="M 58 40 Q 64 20 60 4" stroke="#d8b35d" strokeWidth="1.5" />
+              <line x1="56" y1="12" x2="63" y2="7" stroke="#d8b35d" strokeWidth="1.2" />
+              <line x1="62" y1="18" x2="69" y2="13" stroke="#d8b35d" strokeWidth="1.2" />
+              <line x1="55" y1="24" x2="62" y2="19" stroke="#d8b35d" strokeWidth="1.2" />
+              <line x1="61" y1="30" x2="68" y2="25" stroke="#d8b35d" strokeWidth="1.2" />
             </g>
-            <text x="355" y="295" textAnchor="middle" fill="#eae3cf" fontSize="14" fontFamily="var(--font-narrow)" fontWeight="600" letterSpacing="1">
+            <text x="355" y="296" textAnchor="middle" fill="#eae3cf" fontSize="14.5" fontFamily="var(--font-narrow)" fontWeight="700" letterSpacing="1">
               ПОЛЕСЬЕ
             </text>
-            <text x="355" y="309" textAnchor="middle" fill="#9ba89f" fontSize="10" fontFamily="var(--font-mono)">
-              ЭЛЕВАТОРЫ · ПЛАВНИ · СОВЕТЫ
+            <text x="355" y="310" textAnchor="middle" fill="#9ba89f" fontSize="10" fontFamily="var(--font-mono)">
+              ХЛЕБ · ПЛАВНИ · СОВЕТЫ
             </text>
-            {/* Бейдж статуса */}
-            <g transform="translate(355, 323)">
-              <rect x="-32" y="-9" width="64" height="16" rx="2" fill="#0d1411" stroke={WORD_COLOR[regionalData.polesie.word]} strokeWidth="1" />
-              <text y="3" textAnchor="middle" fill={WORD_COLOR[regionalData.polesie.word]} fontSize="9" fontFamily="var(--font-mono)" fontWeight="700">
-                {WORD_LABEL[regionalData.polesie.word].toUpperCase()} · {regionalData.polesie.score}%
+            {/* Статус-бейдж */}
+            <g transform="translate(355, 328)">
+              <rect x="-42" y="-10" width="84" height="18" rx="2" fill="#0c1310" stroke={WORD_COLOR[regionalData.polesie.word]} strokeWidth="1.2" />
+              <text y="3" textAnchor="middle" fill={WORD_COLOR[regionalData.polesie.word]} fontSize="9.5" fontFamily="var(--font-mono)" fontWeight="700">
+                {regionalData.polesie.wordInfo.label.toUpperCase()} · {regionalData.polesie.score}%
               </text>
             </g>
           </g>
@@ -251,24 +289,24 @@ export default function RepublicMap({ gs, onSelectRegion }) {
             d="M 280 120 Q 210 135 155 125 T 90 90 T 35 70"
             fill="none"
             stroke="#2f544c"
-            strokeWidth="3.5"
+            strokeWidth="3.8"
             strokeLinecap="round"
-            opacity="0.8"
+            opacity="0.85"
           />
-          <text x="65" y="65" fill="#4f7c72" fontSize="9" fontFamily="var(--font-mono)" fontStyle="italic">
+          <text x="65" y="63" fill="#4f7c72" fontSize="9" fontFamily="var(--font-mono)" fontStyle="italic">
             р. Неман
           </text>
 
           {/* Река Припять (вдоль Полесья) */}
           <path
-            d="M 120 280 Q 220 270 310 285 T 490 275"
+            d="M 120 282 Q 220 270 310 286 T 495 276"
             fill="none"
             stroke="#2f544c"
-            strokeWidth="3.5"
+            strokeWidth="3.8"
             strokeLinecap="round"
-            opacity="0.8"
+            opacity="0.85"
           />
-          <text x="440" y="268" fill="#4f7c72" fontSize="9" fontFamily="var(--font-mono)" fontStyle="italic">
+          <text x="445" y="268" fill="#4f7c72" fontSize="9" fontFamily="var(--font-mono)" fontStyle="italic">
             р. Припять
           </text>
 
@@ -277,15 +315,19 @@ export default function RepublicMap({ gs, onSelectRegion }) {
             d="M 105 235 L 210 185 L 330 115"
             fill="none"
             stroke="#8a7952"
-            strokeWidth="2"
-            strokeDasharray="5 4"
-            opacity="0.75"
+            strokeWidth="2.2"
+            strokeDasharray="6 4"
+            opacity="0.8"
           />
-          <circle cx="210" cy="185" r="3" fill="#8a7952" />
+          {/* Узловая станция Барановичи */}
+          <circle cx="210" cy="185" r="3.5" fill="#d8b35d" stroke="#1b241c" strokeWidth="1" />
+          <text x="210" y="200" textAnchor="middle" fill="#8a7952" fontSize="8" fontFamily="var(--font-mono)">
+            узл. Барановичи
+          </text>
         </svg>
       </div>
 
-      {/* Быстрые кнопки переключения регионов */}
+      {/* Быстрые вкладки выбора региона с процентами и ясными статусами */}
       <div className="sv-republic-map-tabs" role="tablist" aria-label="Выбор региона республики">
         {REGION_IDS.map((id) => {
           const r = regionalData[id];
@@ -304,14 +346,14 @@ export default function RepublicMap({ gs, onSelectRegion }) {
                 className="sv-republic-tab-status"
                 style={{ color: WORD_COLOR[r.word] }}
               >
-                {WORD_LABEL[r.word]} · {r.score}%
+                {r.wordInfo.label} · {r.score}%
               </span>
             </button>
           );
         })}
       </div>
 
-      {/* Досье выбранного региона */}
+      {/* Подробное досье выбранного региона с логичным объяснением настроений */}
       <article className="sv-republic-dossier" aria-live="polite">
         <div className="sv-republic-dossier-header">
           <div>
@@ -320,10 +362,17 @@ export default function RepublicMap({ gs, onSelectRegion }) {
           </div>
           <div className="sv-republic-dossier-status-pill" style={{ borderColor: WORD_COLOR[current.word] }}>
             <span style={{ color: WORD_COLOR[current.word] }}>
-              {WORD_LABEL[current.word].toUpperCase()}
+              {current.wordInfo.label.toUpperCase()}
             </span>
             <strong style={{ color: "#eae3cf" }}>{current.score}%</strong>
+            <small style={{ color: "#9da89f", fontSize: "10px" }}>{current.wordInfo.sub}</small>
           </div>
+        </div>
+
+        {/* Разъяснение настроений региона */}
+        <div className="sv-republic-mood-box" style={{ borderLeftColor: WORD_COLOR[current.word] }}>
+          <strong>Настроения людей: {current.wordInfo.label} ({current.wordInfo.sub})</strong>
+          <p>{current.wordInfo.explanation}</p>
         </div>
 
         <p className="sv-republic-dossier-summary">{current.summary}</p>

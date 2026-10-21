@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   computeRegionalTrust,
+  isEntryAffectingRegion,
   isRepublicMapVisible,
   REGION_IDS,
   REGIONS,
+  TRUST_WORD_INFO,
   trustWord,
 } from './republic-map.ts';
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
@@ -23,13 +25,22 @@ function createMockFaction(id: string, name: string, relation: number): Faction 
   };
 }
 
-test('trustWord maps scores strictly to three states: верят / ждут / против', () => {
+test('trustWord and TRUST_WORD_INFO map scores strictly with clear political explanations', () => {
   assert.equal(trustWord(70), 'верят');
+  assert.equal(TRUST_WORD_INFO.верят.label, 'Верят');
+  assert.ok(TRUST_WORD_INFO.верят.explanation.includes('поддерживают'));
+
   assert.equal(trustWord(55), 'верят');
   assert.equal(trustWord(54), 'ждут');
+  assert.equal(TRUST_WORD_INFO.ждут.label, 'Выжидают');
+  assert.ok(TRUST_WORD_INFO.ждут.explanation.includes('выжидает'));
+
   assert.equal(trustWord(45), 'ждут');
   assert.equal(trustWord(36), 'ждут');
   assert.equal(trustWord(35), 'против');
+  assert.equal(TRUST_WORD_INFO.против.label, 'Против');
+  assert.ok(TRUST_WORD_INFO.против.explanation.includes('недовольство'));
+
   assert.equal(trustWord(20), 'против');
 });
 
@@ -72,6 +83,52 @@ test('computeRegionalTrust calculates all 4 regions deterministically without sa
 
   // Полесье: regions = -50, church = -30 -> против
   assert.equal(trust.polesie.word, 'против');
+});
+
+test('unified isEntryAffectingRegion and lastAffected test: воспроизведение замечания ревью', () => {
+  // Тест точного кейса из ревью GPT/Codex:
+  // Дело: «Подрядчик подал в суд» / «Район чинит больницу сам», success=true, hurt=['gossektor']
+  const factions: Faction[] = [
+    createMockFaction('gossektor', 'Промышленная палата', 0),
+    createMockFaction('opposition', 'Гражданское движение', 0),
+    createMockFaction('media', 'Независимые редакции', 0),
+    createMockFaction('west', 'Торговый союз', 0),
+    createMockFaction('russia', 'Российская делегация', 0),
+    createMockFaction('siloviki', 'Служба порядка', 0),
+    createMockFaction('regions', 'Областные советы', 0),
+    createMockFaction('church', 'Совет приходов', 0),
+  ];
+
+  const reviewCaseEntry: HistoryEntry = {
+    year: 1978,
+    title: 'Подрядчик подал в суд',
+    choice: 'Разрешить району действовать самостоятельно',
+    headline: 'Район чинит больницу сам',
+    historianNote: 'Больничный корпус открыт досрочно',
+    success: true,
+    hurt: ['gossektor'],
+  };
+
+  assert.equal(
+    isEntryAffectingRegion(reviewCaseEntry, REGIONS.polesie),
+    true,
+    'Классификатор должен распознать дело Полесья по заголовку газеты «больниц»',
+  );
+
+  const state = {
+    country: ALTERNATE_COUNTRY,
+    factions,
+    history: [reviewCaseEntry],
+  };
+
+  const trust = computeRegionalTrust(state);
+
+  // Доверие Полесья выросло 50 -> 56 за счёт успеха районной больницы
+  assert.equal(trust.polesie.score, 56);
+  // И отметка lastAffected обязана быть true!
+  assert.equal(trust.polesie.lastAffected, true, 'Полесье должно быть отмечено как lastAffected');
+  // Минск задет, так как gossektor в hurt
+  assert.equal(trust.minsk.lastAffected, true, 'Минск задет, так как его палата в hurt');
 });
 
 test('signed affairs shift regional trust up or down', () => {
@@ -130,40 +187,6 @@ test('signed affairs shift regional trust up or down', () => {
     ],
   });
   assert.ok(withHurt.minsk.score < baseTrust.minsk.score);
-});
-
-test('lastAffected identifies region touched by most recent decision', () => {
-  const factions: Faction[] = [
-    createMockFaction('russia', 'Российская делегация', 0),
-    createMockFaction('siloviki', 'Служба порядка', 0),
-    createMockFaction('west', 'Торговый союз', 0),
-  ];
-
-  const state = {
-    country: ALTERNATE_COUNTRY,
-    factions,
-    history: [
-      {
-        year: 1978,
-        title: 'Завод ждёт зарплату',
-        choice: 'План А',
-        headline: '',
-        historianNote: '',
-      },
-      {
-        year: 1978,
-        title: 'Мазут с запада',
-        choice: 'Заблокировать эстакаду',
-        headline: 'Мазутные цистерны задержаны в Бресте',
-        historianNote: '',
-        hurt: ['russia'],
-      },
-    ],
-  };
-
-  const trust = computeRegionalTrust(state);
-  assert.equal(trust.brest.lastAffected, true);
-  assert.equal(trust.grodno.lastAffected, false);
 });
 
 test('isRepublicMapVisible enforces timing: hidden on turn <= 1 and daily games', () => {

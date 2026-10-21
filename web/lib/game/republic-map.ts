@@ -3,7 +3,7 @@
 // Новых полей в сохранении нет (0 миграций); старые сохранения работают побайтно.
 
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
-import type { Faction, GameState } from './types.ts';
+import type { Faction, GameState, HistoryEntry } from './types.ts';
 
 export type RegionId = 'minsk' | 'grodno' | 'brest' | 'polesie';
 export type RegionalTrustWord = 'верят' | 'ждут' | 'против';
@@ -23,7 +23,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     id: 'minsk',
     name: 'Минск',
     tagline: 'Столичный узел и тяжёлое машиностроение',
-    summary: 'Тракторный гигант, ведомственные министерства, конструкторские бюро и профсоюзные собрания.',
+    summary: 'Тракторный гигант, ведомственные министерства, конструкторские бюро и городские собрания.',
     keySymbols: ['Заводские корпуса и трубы МТЗ', 'Министерства проспекта', 'Редакции газет и радио', 'Конвейер'],
     factions: [
       { id: 'gossektor', weight: 0.45 },   // Промышленная палата
@@ -71,6 +71,34 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
 
 export const REGION_IDS: RegionId[] = ['minsk', 'grodno', 'brest', 'polesie'];
 
+export interface TrustWordMeta {
+  word: RegionalTrustWord;
+  label: string;
+  sub: string;
+  explanation: string;
+}
+
+export const TRUST_WORD_INFO: Record<RegionalTrustWord, TrustWordMeta> = {
+  верят: {
+    word: 'верят',
+    label: 'Верят',
+    sub: 'Опора центра',
+    explanation: 'Население и трудовые коллективы поддерживают курс кабинета. Местные комитеты лояльны, забастовочные настроения минимальны.',
+  },
+  ждут: {
+    word: 'ждут',
+    label: 'Выжидают',
+    sub: 'Настороженное выживание',
+    explanation: 'Регион колеблется и выжидает. Открытого протеста нет, но люди следят за ценами и поставками. Доверие неустойчиво и зависит от следующих решений.',
+  },
+  против: {
+    word: 'против',
+    label: 'Против',
+    sub: 'Глухой ропот',
+    explanation: 'Напряжение и недовольство: принятые меры ударили по интересам местных лагерей. В комитетах и на предприятиях назревает открытый саботаж.',
+  },
+};
+
 export interface RegionalTrust {
   id: RegionId;
   name: string;
@@ -78,6 +106,7 @@ export interface RegionalTrust {
   summary: string;
   score: number; // 0..100
   word: RegionalTrustWord;
+  wordInfo: TrustWordMeta;
   keySymbols: string[];
   factions: { id: string; name: string; relation: number }[];
   lastAffected?: boolean;
@@ -86,7 +115,7 @@ export interface RegionalTrust {
 export const REGIONAL_THRESHOLDS = {
   opposed: 35, // <= 35: «против»
   trust: 55,   // >= 55: «верят»
-  // 36..54: «ждут»
+  // 36..54: «ждут» (выжидают)
 } as const;
 
 export function trustWord(score: number): RegionalTrustWord {
@@ -98,6 +127,20 @@ export function trustWord(score: number): RegionalTrustWord {
 function matchesKeywords(text: string, keywords: string[]): boolean {
   const lower = text.toLowerCase();
   return keywords.some(kw => lower.includes(kw));
+}
+
+// Единый классификатор: проверяет, относится ли дело к данному региону
+// Проверяются заголовок дела, газетный заголовок, выбор, историческая справка, а также задетые лагеря
+export function isEntryAffectingRegion(
+  entry: Pick<HistoryEntry, 'title' | 'headline' | 'choice' | 'historianNote' | 'hurt'> | undefined | null,
+  config: RegionConfig,
+): boolean {
+  if (!entry) return false;
+  const texts = [entry.title, entry.headline, entry.choice, entry.historianNote].filter(Boolean);
+  const matchKeywords = texts.some(text => matchesKeywords(text, config.caseKeywords));
+  const regionalFacIds = new Set(config.factions.map(f => f.id));
+  const hurtRegionalFaction = Array.isArray(entry.hurt) && entry.hurt.some(hid => regionalFacIds.has(hid));
+  return matchKeywords || hurtRegionalFaction;
 }
 
 export function computeRegionalTrust(state: Pick<GameState, 'country' | 'factions' | 'history'>): Record<RegionId, RegionalTrust> {
@@ -137,9 +180,7 @@ export function computeRegionalTrust(state: Pick<GameState, 'country' | 'faction
     const regionalFacIds = new Set(config.factions.map(f => f.id));
 
     for (const entry of state.history ?? []) {
-      const titleMatch = entry.title ? matchesKeywords(entry.title, config.caseKeywords) : false;
-      const headlineMatch = entry.headline ? matchesKeywords(entry.headline, config.caseKeywords) : false;
-      const isRegionalCase = titleMatch || headlineMatch;
+      const isRegionalCase = isEntryAffectingRegion(entry, config);
 
       if (isRegionalCase) {
         const hurtAny = Array.isArray(entry.hurt) && entry.hurt.some(hid => regionalFacIds.has(hid));
@@ -159,13 +200,10 @@ export function computeRegionalTrust(state: Pick<GameState, 'country' | 'faction
     const clampedAffairsDelta = Math.max(-20, Math.min(20, affairsDelta));
     const finalScore = Math.max(0, Math.min(100, Math.round(baseScore + clampedAffairsDelta)));
 
-    // Проверяем, задел ли этот регион последний ход
-    let lastAffected = false;
-    if (lastEntry) {
-      const matchRecentCase = lastEntry.title ? matchesKeywords(lastEntry.title, config.caseKeywords) : false;
-      const hurtRecent = Array.isArray(lastEntry.hurt) && lastEntry.hurt.some(hid => regionalFacIds.has(hid));
-      lastAffected = matchRecentCase || hurtRecent;
-    }
+    // Проверяем, задел ли этот регион последний ход (через общий классификатор)
+    const lastAffected = isEntryAffectingRegion(lastEntry, config);
+
+    const word = trustWord(finalScore);
 
     result[id] = {
       id,
@@ -173,7 +211,8 @@ export function computeRegionalTrust(state: Pick<GameState, 'country' | 'faction
       tagline: config.tagline,
       summary: config.summary,
       score: finalScore,
-      word: trustWord(finalScore),
+      word,
+      wordInfo: TRUST_WORD_INFO[word],
       keySymbols: config.keySymbols,
       factions: factionsInfo,
       lastAffected,
