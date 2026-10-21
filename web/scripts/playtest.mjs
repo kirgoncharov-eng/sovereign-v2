@@ -93,6 +93,7 @@ await page.getByRole("button", { name: /начать игру/i }).first().tap()
 const prologue = page.getByRole("dialog");
 await prologue.waitFor({ timeout: 8000 });
 const prologueDate = await prologue.locator("[data-prologue-date]").innerText();
+await page.screenshot({ path: shot("0-prologue") });
 await page.keyboard.press("Enter");
 await prologue.waitFor({ state: "hidden", timeout: 3000 });
 await wait(300);
