@@ -24,6 +24,7 @@ export interface BeatVariant {
   requires?: string[];     // хотя бы один флаг из списка
   requiresAll?: string[];  // все флаги: например, обе успешные проверки
   after?: string[];        // эпизод продолжает одно из прежних решений партии (текст варианта), как у дел (#227)
+  afterSuccess?: boolean;  // и только если то решение удалось (true) или провалилось (false)
   title: string;
   description: string;
   choices: BeatChoice[];

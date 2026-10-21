@@ -212,10 +212,11 @@ export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<Ga
   const beat = arc.beats[idx];
   const documentedNetwork = !state.daily && arc.id === 'money' && beat.turn === 16
     && state.world?.evidence?.target === state.arc.target && state.world.evidence.networkVerifiedAt !== undefined;
-  const signed = (texts: string[]) => (state.history ?? []).some(entry => texts.includes(entry.choice));
+  const signed = (texts: string[], success?: boolean) => (state.history ?? [])
+    .some(entry => texts.includes(entry.choice) && (success === undefined || entry.success === success));
   const variant = documentedNetwork ? beat.variants[0] : beat.variants.find(variant => (!variant.requires || variant.requires.some(flag => state.arc!.flags.includes(flag)))
     && (!variant.requiresAll || variant.requiresAll.every(flag => state.arc!.flags.includes(flag)))
-    && (!variant.after || signed(variant.after))) ?? beat.variants[beat.variants.length - 1];
+    && (!variant.after || signed(variant.after, variant.afterSuccess))) ?? beat.variants[beat.variants.length - 1];
   return { arc, beat, variant, episode: idx + 1, total: arc.beats.length };
 }
 

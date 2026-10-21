@@ -29,8 +29,21 @@ test('эпизод 2-го хода продолжает решение по за
     const state = await afterFirstCase(first);
     const event = await classicApi.event(state);
     assert.equal(event.beat?.arcId, 'alt_contracts', first);
-    assert.equal(event.title, title, first);
+    // Если аванс уже пришёл, покупатель закрывает дело выданного аванса, а не ждёт бумаг для нового платежа.
+    const paid = state.history[0].success && first.startsWith('Получить аванс');
+    assert.equal(event.title, paid ? 'Дело выданного аванса' : title, first);
   }
+});
+
+test('после аванса эпизод 2-го хода помнит, пришли ли деньги', async () => {
+  const state = await afterFirstCase('Получить аванс под трёхлетний российский заказ');
+  const withOutcome = (success: boolean) => ({ ...state, history: state.history.map(entry => ({ ...entry, success })) });
+  assert.equal((await classicApi.event(withOutcome(true))).title, 'Дело выданного аванса');
+  assert.equal((await classicApi.event(withOutcome(false))).title, 'Приложение к российскому заказу');
+  // Выданный аванс не приходит второй раз: ни описание, ни исходы не обещают новых денег.
+  const paid = ALTERNATE_ARC.beats[0].variants.find(variant => variant.title === 'Дело выданного аванса')!;
+  const texts = [paid.description, ...paid.choices.flatMap(choice => [choice.hint, choice.ok, choice.fail ?? ''])];
+  for (const text of texts) assert.doesNotMatch(text, /придут|пришёл|перечисл|в пятницу/, text);
 });
 
 test('старое сохранение без подходящего решения получает прежний эпизод', async () => {
@@ -80,6 +93,7 @@ test('у вариантов 2-го хода с ценой личного рес�
     'Дать директору неделю на объяснение',
     'Попросить директора принести свою копию',
     'Отправить делегации копию без закрытой страницы',
+    'Закрыть дело аванса без закрытой страницы',
   ];
   const choices = ALTERNATE_ARC.beats[0].variants.flatMap(variant => variant.choices);
   for (const text of texts) {
