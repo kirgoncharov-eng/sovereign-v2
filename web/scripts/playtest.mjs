@@ -82,17 +82,29 @@ page.on("pageerror", e => errors.push(e.message));
 page.on("console", m => { if (m.type() === "error" && !/ERR_CERT|net::|Failed to load resource/.test(m.text())) errors.push(m.text()); });
 
 const started = Date.now();
+await page.addInitScript(() => {
+  window.__FORCE_CUTSCENE__ = true;
+});
 await openGame(page);
 const documentMode = await page.evaluate(() => ({ mode: document.compatMode, charset: document.characterSet }));
 await wait(900);
 await page.screenshot({ path: shot("0-title") });
 await page.getByRole("button", { name: /начать игру/i }).first().tap();
-await wait(900);
+const prologue = page.getByRole("dialog");
+await prologue.waitFor({ timeout: 8000 });
+const prologueDate = await prologue.locator("[data-prologue-date]").innerText();
+await page.screenshot({ path: shot("0-prologue") });
+await page.keyboard.press("Enter");
+await prologue.waitFor({ state: "hidden", timeout: 3000 });
+await wait(300);
 const opening = page.getByRole("button", { name: /Открыть первое дело/i });
 if (await opening.isVisible()) {
   await page.screenshot({ path: shot("0-opening"), fullPage: true });
   await opening.tap();
 }
+await page.locator("#opt-1").waitFor({ timeout: 8000 });
+const prologueDay = prologueDate.replace(/ ГОДА.*/u, "").toLowerCase();
+const firstCaseMatchesPrologue = await page.evaluate(day => document.body.innerText.toLowerCase().includes(day), prologueDay);
 
 const timeline = [];
 let firstDecisionMs = null, deskOnTurn1 = false, stuck = false, ended = false;
@@ -141,6 +153,7 @@ const problems = [
   ...layoutProblems,
   ...(stuck ? ["партия застряла"] : []),
   ...(deskOnTurn1 ? ["на первом ходу виден стол — первая сессия перегружена"] : []),
+  ...(!firstCaseMatchesPrologue ? ["дата пролога не совпадает с датой первого дела"] : []),
   ...(firstDecisionMs !== null && firstDecisionMs > FIRST_DECISION_LIMIT_MS ? [`первое решение через ${Math.round(firstDecisionMs / 1000)} с`] : []),
 ];
 const summary = { turns: timeline.length, ended, firstDecisionMs, deskOnTurn1, documentMode, problems, timeline };
