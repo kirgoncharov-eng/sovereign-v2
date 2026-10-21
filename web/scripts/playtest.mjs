@@ -69,7 +69,9 @@ async function decide(page, kind) {
   await opt(1).scrollIntoViewIfNeeded();
   await opt(1).tap();
   await wait(200);
-  const sign = page.locator(".sv-actionbar button", { hasText: "Подписать" });
+  // Some document interactions prepare their resolution directly (no separate selection bar).
+  if (await page.locator('[data-quarter-resolution]').count()) return;
+  const sign = page.locator(".sv-actionbar button", { hasText: /Подписать|Подготовить резолюцию/ });
   if (await sign.count() && await sign.isVisible()) return sign.tap();
   return opt(1).tap();
 }
@@ -109,6 +111,9 @@ const firstCaseMatchesPrologue = await page.evaluate(day => document.body.innerT
 const timeline = [];
 let firstDecisionMs = null, deskOnTurn1 = false, stuck = false, ended = false;
 for (let t = 1; t <= TURNS; t++) {
+  // The inbox preserves free reading; the bot explicitly opens the required document.
+  const folder = page.locator('#quarter-document');
+  if (await folder.isVisible()) await folder.selectOption('main');
   try { await page.locator("#opt-1").waitFor({ timeout: 8000 }); } catch { ended = true; break; }
   await wait(300);
   const kind = await kindOf(page);
@@ -127,6 +132,11 @@ for (let t = 1; t <= TURNS; t++) {
   if (councilOverlaps) layoutProblems.add("переключатели совета выходят за границы блока и перекрывают реплики");
   if (SHOT_TURNS.includes(t)) await page.screenshot({ path: shot(`turn-${t}`), fullPage: true });
   await decide(page, kind);
+  const finishQuarter = page.locator('[data-finish-quarter]');
+  if (await finishQuarter.count()) {
+    await page.locator('[data-quarter-resolution]').waitFor({ timeout:8000 });
+    await finishQuarter.tap();
+  }
   if (firstDecisionMs === null) firstDecisionMs = Date.now() - started;
   await wait(1200);
   // Ночь выборов и печать газеты — ждём или пропускаем анимацию.

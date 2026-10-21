@@ -1,9 +1,11 @@
 "use client";
 import { worldPerson } from '@/lib/game/living-world.ts';
 const RESOURCE = { economy:'экономика', politicalCapital:'политкапитал', personalResource:'личный ресурс', externalReputation:'репутация' };
-export default function ProjectActions({ gs, actions, quota, terminal, pending, setPending, confirm, error }) {
+export default function ProjectActions({ gs, actions, quota, terminal, pending, setPending, confirm, error, quarterMode = false }) {
   if (terminal) return <p>Проект завершён. Итоги и обязательства остаются в поручениях и докладах.</p>;
-  if (quota) return <p className="sv-country-receipt">Личное поручение на этот квартал уже подписано. Оба проекта продолжат работу после решения в кабинете. Новую инициативу можно дать после следующего доклада.</p>;
+  if (quota) return <p className="sv-country-receipt">Личное поручение на этот квартал уже подписано.
+    {quarterMode ? ' Исполнение продолжится при завершении квартала.' : ' Оба проекта продолжат работу после решения в кабинете.'}
+    {' '}Новую инициативу можно дать после следующего доклада.</p>;
   return <div>
     <p className="sv-country-capacity">Одно личное поручение на оба проекта за квартал. Деньги списываются из общих ресурсов страны. Можно оставить текущий план в работе.</p>
     {actions.map(action => {
@@ -26,7 +28,7 @@ export default function ProjectActions({ gs, actions, quota, terminal, pending, 
         <h4>{action.title}</h4><p>{action.detail}</p>
         <p>Цена подписи: {costDescription}.</p>
         <p>Поручение займёт ваше личное вмешательство в этом квартале.
-          Другой проект продолжит текущий план. Результат увидите после решения в кабинете.</p>
+          Другой проект продолжит текущий план. {quarterMode ? 'Результат — в докладах следующего квартала.' : 'Результат увидите после решения в кабинете.'}</p>
         <div><button onClick={confirm}>Подписать поручение</button><button onClick={() => setPending(null)}>Отложить</button></div>
       </div>}
     </div>;})}
