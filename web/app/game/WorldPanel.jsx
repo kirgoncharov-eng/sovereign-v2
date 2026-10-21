@@ -11,6 +11,8 @@ import { healthHasContinuation, healthNeedsAttention } from '@/lib/game/health-a
 import { sponsorSupport } from '@/lib/game/sponsor-world.ts';
 import { projectFinished } from '@/lib/game/living-health.ts';
 import { PeopleText } from './PeopleText.jsx';
+import RepublicMap from './RepublicMap.jsx';
+import { isRepublicMapVisible } from '@/lib/game/republic-map.ts';
 
 const STATUS={unassigned:'Ожидает поручения',running:'Работа продолжается',completed:'Сеть восстановлена',partial:'Восстановлена частично',failed:'Срок сорван'};
 const RESOURCE={economy:'экономика',politicalCapital:'политкапитал',personalResource:'личный ресурс',externalReputation:'репутация'};
@@ -158,19 +160,30 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
         </div>
         <small>Карта и доклады доступны свободно. Одно личное поручение на оба проекта за квартал. Общий резерв экономики: {gs.resources.economy}. Время идёт после решения в кабинете.</small>
       </div>
-      <div className="sv-country-map" aria-label="Резиденция и два проекта страны">
-        <div className="sv-country-river" aria-hidden="true"/>
-        <div className="sv-country-route" aria-hidden="true"/>
-        <button className="sv-country-place" aria-pressed={place==='capital'} onClick={() => { setPlace('capital'); selectTab('dispatches'); }}>
-          <span aria-hidden="true">▥</span><strong>{COUNTRIES[gs.country].capital}</strong><small>Резиденция</small>
-        </button>
-        <button className="sv-country-place" aria-pressed={place==='region'} onClick={() => openProject('region')}>
-          <span aria-hidden="true">▤</span><strong>Промышленный регион</strong><small>{terminal?STATUS[project.status]:'Отключения электричества'}</small>
-        </button>
-        {world.health && <button className="sv-country-place" aria-pressed={place === 'health'} onClick={() => openProject('health')}>
-          <span aria-hidden="true">✚</span><strong>Районные больницы</strong><small>{world.health.progress}% · кадры</small>
-        </button>}
-      </div>
+      {isRepublicMapVisible(gs) ? (
+        <RepublicMap
+          gs={gs}
+          onSelectRegion={(regId) => {
+            if (regId === 'minsk') setPlace('region');
+            else if (regId === 'polesie' && world.health) setPlace('health');
+            else setPlace('capital');
+          }}
+        />
+      ) : (
+        <div className="sv-country-map" aria-label="Резиденция и два проекта страны">
+          <div className="sv-country-river" aria-hidden="true"/>
+          <div className="sv-country-route" aria-hidden="true"/>
+          <button className="sv-country-place" aria-pressed={place==='capital'} onClick={() => { setPlace('capital'); selectTab('dispatches'); }}>
+            <span aria-hidden="true">▥</span><strong>{COUNTRIES[gs.country].capital}</strong><small>Резиденция</small>
+          </button>
+          <button className="sv-country-place" aria-pressed={place==='region'} onClick={() => openProject('region')}>
+            <span aria-hidden="true">▤</span><strong>Промышленный регион</strong><small>{terminal?STATUS[project.status]:'Отключения электричества'}</small>
+          </button>
+          {world.health && <button className="sv-country-place" aria-pressed={place === 'health'} onClick={() => openProject('health')}>
+            <span aria-hidden="true">✚</span><strong>Районные больницы</strong><small>{world.health.progress}% · кадры</small>
+          </button>}
+        </div>
+      )}
       {place === 'health' && world.health ? <HealthPanel gs={gs} Scene={Scene} tab={tab} setTab={selectTab} tabs={tabs} stamp={stamp}
         actionsProps={{ gs, actions: actions.filter(action => action.id.startsWith('health:')), quota, pending, setPending, confirm, error }}/>
         : place === 'capital' ? <div className="sv-country-room">
