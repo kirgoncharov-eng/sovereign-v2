@@ -203,7 +203,7 @@ export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "fact
 }
 
 // Эпизод интриги, который должен случиться на следующем ходу (если есть).
-export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<GameState, "world" | "daily" | "country">>) {
+export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<GameState, "world" | "daily" | "country" | "history">>) {
   const arc = ARCS.find(a => a.id === state.arc?.id);
   if (!arc || !state.arc) return null;
   const scheduledTurn = (turn: number) => state.country === ALTERNATE_COUNTRY && state.turn < 20 && turn === 1 ? 2 : turn;
@@ -212,8 +212,11 @@ export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<Ga
   const beat = arc.beats[idx];
   const documentedNetwork = !state.daily && arc.id === 'money' && beat.turn === 16
     && state.world?.evidence?.target === state.arc.target && state.world.evidence.networkVerifiedAt !== undefined;
+  const signed = (texts: string[], success?: boolean) => (state.history ?? [])
+    .some(entry => texts.includes(entry.choice) && (success === undefined || entry.success === success));
   const variant = documentedNetwork ? beat.variants[0] : beat.variants.find(variant => (!variant.requires || variant.requires.some(flag => state.arc!.flags.includes(flag)))
-    && (!variant.requiresAll || variant.requiresAll.every(flag => state.arc!.flags.includes(flag)))) ?? beat.variants[beat.variants.length - 1];
+    && (!variant.requiresAll || variant.requiresAll.every(flag => state.arc!.flags.includes(flag)))
+    && (!variant.after || signed(variant.after, variant.afterSuccess))) ?? beat.variants[beat.variants.length - 1];
   return { arc, beat, variant, episode: idx + 1, total: arc.beats.length };
 }
 

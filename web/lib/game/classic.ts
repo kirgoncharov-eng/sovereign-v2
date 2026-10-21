@@ -238,6 +238,7 @@ export function beatEvent(state: GameState): GameEvent | null {
       ...(c.policyEffect ? { policyEffect: c.policyEffect } : {}),
       ...(c.costReasons ? { costReasons: Object.fromEntries(Object.entries(c.costReasons).map(([k, v]) => [k, fill(v!, state)])) } : {}),
       ...(c.removes && villain ? { deal: { figure: villain.id, replace: heir } } : {}),
+      ...(c.camps ? { stance: c.camps } : {}),
       arc: { flag: c.flag, ok: fill(c.ok, state) + (c.removes ? heirLine : ""), ...(c.fail ?? BEAT_FAILS[c.text] ? { fail: fill(c.fail ?? BEAT_FAILS[c.text], state) } : {}), effect: c.effect ?? {}, ...(c.epilogue ? { epilogue: fill(c.epilogue, state) } : {}), ...(c.epilogueFail ? { epilogueFail: fill(c.epilogueFail, state) } : {}) },
       ...headlines(BEAT_HEADLINES[c.text], state),
     })),

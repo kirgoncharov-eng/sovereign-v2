@@ -2,7 +2,7 @@
 // Эпизоды идут на заданных ходах; выборы ставят флаги, от флагов зависят следующие эпизоды и развязка.
 // Слоты: {target} — главный антагонист линии, {capital}, {leader}.
 import { ALTERNATE_ARC } from "./alternate-history.ts";
-import type { ActionTag, ResourceDelta, ResourceKey } from "../game/types.ts";
+import type { ActionTag, Bloc, ResourceDelta, ResourceKey } from "../game/types.ts";
 
 export interface BeatChoice {
   policyEffect?: ResourceDelta;
@@ -17,11 +17,14 @@ export interface BeatChoice {
   epilogue?: string;
   epilogueFail?: string;       // строка для исторического вердикта (финальные эпизоды)
   removes?: boolean;       // при успехе антагонист уходит с поста — его место занимает преемник
+  camps?: Partial<Record<Bloc, number>>; // авторские реакции лагерей вместо реакций по тегам (#221, #227)
 }
 
 export interface BeatVariant {
   requires?: string[];     // хотя бы один флаг из списка
   requiresAll?: string[];  // все флаги: например, обе успешные проверки
+  after?: string[];        // эпизод продолжает одно из прежних решений партии (текст варианта), как у дел (#227)
+  afterSuccess?: boolean;  // и только если то решение удалось (true) или провалилось (false)
   title: string;
   description: string;
   choices: BeatChoice[];

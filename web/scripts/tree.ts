@@ -40,7 +40,9 @@ const LANES: Record<string, string[]> = {
 function choose(state: GameState, choices: Choice[], style: ActionTag[], lane?: string[]): Choice {
   const breaks = (choice: Choice) => {
     const delta = choiceEffects(state, choice).resources as Record<string, number>;
-    const after = (key: string) => state.resources[key as keyof GameState["resources"]] + (delta[key] ?? 0);
+    // Отложенную цену сделки игрок видит в подсказке и обязательствах — бот тоже её учитывает.
+    const later = (choice.deal?.later?.res ?? {}) as Record<string, number>;
+    const after = (key: string) => state.resources[key as keyof GameState["resources"]] + (delta[key] ?? 0) + Math.min(0, later[key] ?? 0);
     return RESOURCE_KEYS.reduce((risk, key) => risk + Math.max(0, CRISIS - after(key)) / 5 + Math.max(0, DANGER - after(key)) * 0.4, 0);
   };
   if (lane) {
@@ -55,7 +57,9 @@ function choose(state: GameState, choices: Choice[], style: ActionTag[], lane?: 
     const safe = choices.filter(choice => breaks(choice) <= Math.min(...choices.map(breaks)) + 1);
     return safe[Math.floor(seededRandom(state.seed + state.turn * 7919)() * safe.length)];
   }
-  const score = (choice: Choice) => choice.tags.filter(tag => style.includes(tag)).length * 3 - breaks(choice) * 5;
+  // Смысл варианта — его теги и политические теги: «Оплатить зарплату в обмен на проверку» — это и забота, и борьба с коррупцией.
+  const meaning = (choice: Choice) => new Set([...choice.tags, ...(choice.politicalTags ?? [])]);
+  const score = (choice: Choice) => [...meaning(choice)].filter(tag => style.includes(tag)).length * 3 - breaks(choice) * 5;
   return choices.reduce((best, choice) => (score(choice) > score(best) ? choice : best));
 }
 

@@ -20,7 +20,17 @@ export async function createAdvisorArtScene(country = "Украина"): Promise
   if (!COUNTRIES[country]) throw new Error("Неизвестная страна");
   // Фиксированная сцена приёмки: после исправления лояльности прежний маршрут 1978 не даёт нужную пару.
   // В 1978 году сцена — спор о гарантиях экспортных заказов: другие дела тоже дают пару советников (#196).
-  const seed = country === ALTERNATE_COUNTRY ? 5 : 1;
+  // Маршрут к нему зависит от ранних дел, которые меняются вместе с контентом (#227), поэтому зерно ищется по порядку:
+  // первое, на котором спор находится. Результат детерминирован.
+  const seeds = country === ALTERNATE_COUNTRY ? Array.from({ length: 30 }, (_, index) => index + 1) : [1];
+  for (const seed of seeds) {
+    const scene = await findAdvisorArtScene(country, seed);
+    if (scene) return scene;
+  }
+  throw new Error(`Не найден спор для страны: ${country}`);
+}
+
+async function findAdvisorArtScene(country: string, seed: number): Promise<AdvisorArtScene | null> {
   const wanted = (event: GameState["currentEvent"]) => country !== ALTERNATE_COUNTRY
     || !!event?.choices.some(choice => choice.law?.id === "alt_export_guarantee");
   const intro = await classicApi.setup(country, "coalition", "pragmatist", seed);
@@ -35,7 +45,7 @@ export async function createAdvisorArtScene(country = "Украина"): Promise
     const choice = state.currentEvent!.choices[country === ALTERNATE_COUNTRY && index === 0 ? 1 : 0];
     state = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
   }
-  throw new Error(`Не найден спор для страны: ${country}`);
+  return null;
 }
 
 // Show an explanation rather than exact hidden outcomes before signing.
