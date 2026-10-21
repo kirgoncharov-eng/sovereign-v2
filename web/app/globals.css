@@ -469,6 +469,49 @@ button:focus-visible {
 .sv-country-place[aria-pressed="true"] { border-color:#ded0a0; box-shadow:3px 3px 0 #222a24; background:#4f5744; }
 .sv-country-place > span { font-size:28px; line-height:1; }
 .sv-country-place small { font-size:14px; color:#ccc6ae; }
+
+/* Интерактивная карта Неманской республики 1978 (#215) */
+.sv-republic-map-wrap { margin:0 0 16px; background:#0a100d; border-top:1px solid var(--bdr2); border-bottom:1px solid var(--bdr2); font-family:var(--font-narrow); }
+.sv-republic-map-header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px; padding:14px 16px 10px; border-bottom:1px solid #1a2920; }
+.sv-republic-map-badge { font-family:var(--font-pixel); font-size:12px; letter-spacing:.08em; color:var(--gold); }
+.sv-republic-map-title { margin:3px 0 0; font-family:var(--font-serif); font-size:19px; line-height:1.2; color:#eae3cf; font-weight:normal; }
+.sv-republic-map-alert { display:inline-flex; align-items:center; padding:3px 8px; font-family:var(--font-mono); font-size:12px; color:#d8b35d; background:#1b241c; border:1px solid #d8b35d55; border-radius:2px; }
+.sv-republic-map-svg-container { position:relative; width:100%; max-width:680px; margin:0 auto; padding:8px 12px; }
+.sv-republic-map-svg { width:100%; height:auto; display:block; }
+.sv-map-region-group { cursor:pointer; outline:none; transition:transform .15s ease; }
+.sv-map-region-group:hover path { fill-opacity:.95; }
+.sv-map-region-group:focus-visible path { stroke:#fff; stroke-width:3px; }
+.sv-republic-map-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; padding:8px 12px; background:#0d1612; border-top:1px solid #19271f; border-bottom:1px solid #19271f; }
+.sv-republic-map-tab-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:8px 4px; min-height:44px; background:#121e18; border:1px solid #24382c; color:#eae3cf; cursor:pointer; font-family:inherit; text-align:center; transition:background .15s,border-color .15s; }
+.sv-republic-map-tab-btn[data-active="true"] { background:#1b2e23; border-color:#d8b35d; box-shadow:0 0 6px rgba(216,179,93,.25); }
+.sv-republic-tab-name { font-size:14px; font-weight:600; line-height:1.1; }
+.sv-republic-tab-status { font-family:var(--font-mono); font-size:11px; font-weight:700; line-height:1.1; }
+.sv-republic-dossier { padding:14px 16px; background:#0d1411; border-top:1px solid #1a2b21; }
+.sv-republic-dossier-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px; }
+.sv-republic-dossier-sub { font-family:var(--font-narrow); font-size:13px; color:var(--tx3); text-transform:uppercase; letter-spacing:.05em; }
+.sv-republic-dossier-title { margin:2px 0 0; font-family:var(--font-serif); font-size:22px; color:#eae3cf; font-weight:600; }
+.sv-republic-dossier-status-pill { display:flex; flex-direction:column; align-items:center; padding:4px 10px; background:#121d17; border:1px solid; border-radius:2px; min-width:88px; text-align:center; }
+.sv-republic-dossier-status-pill span { font-family:var(--font-mono); font-size:11px; font-weight:700; line-height:1.2; }
+.sv-republic-dossier-status-pill strong { font-family:var(--font-mono); font-size:16px; line-height:1.2; }
+.sv-republic-dossier-status-pill small { line-height:1.1; margin-top:2px; }
+.sv-republic-mood-box { margin:0 0 12px; padding:8px 12px; background:#121b16; border-left:3px solid #d8b35d; border-radius:0 2px 2px 0; }
+.sv-republic-mood-box strong { display:block; font-size:14px; color:#eae3cf; margin-bottom:3px; }
+.sv-republic-mood-box p { margin:0; font-family:var(--font-serif); font-size:14px; line-height:1.5; color:#c7baa0; }
+.sv-republic-dossier-summary { margin:0 0 12px; font-family:var(--font-serif); font-size:15px; line-height:1.55; color:#d6cfb8; }
+.sv-republic-symbols-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:12px; }
+.sv-republic-symbols-label { font-size:13px; color:var(--tx3); margin-right:4px; }
+.sv-republic-symbols-tags { display:flex; flex-wrap:wrap; gap:6px; }
+.sv-republic-symbol-tag { font-family:var(--font-narrow); font-size:13px; color:#c7baa0; background:#16241c; border:1px solid #2b4032; padding:2px 8px; border-radius:2px; }
+.sv-republic-factions-box { padding:10px 12px; background:#101a14; border:1px solid #203326; border-radius:2px; }
+.sv-republic-factions-label { display:block; font-size:12px; color:var(--tx3); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+.sv-republic-factions-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:6px; }
+.sv-republic-faction-item { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:14px; color:#dfd9c4; border-bottom:1px dashed #203326; padding:3px 0; }
+.sv-republic-faction-item strong { font-family:var(--font-mono); font-size:13px; }
+@media (max-width:480px) {
+  .sv-republic-map-tabs { grid-template-columns:repeat(2,1fr); }
+  .sv-republic-map-tab-btn { min-height:48px; }
+  .sv-republic-factions-list { grid-template-columns:1fr; }
+}
 .sv-country-room { padding:18px; font-family:var(--font-serif); font-size:16px; line-height:1.65; }
 .sv-country-room h3 { font-size:24px; line-height:1.2; margin:6px 0 14px; }
 .sv-country-room p { margin:10px 0; }

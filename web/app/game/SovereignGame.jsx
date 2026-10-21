@@ -101,6 +101,8 @@ import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM, countryName } from "@/lib/game/alternate-world.ts";
 import PresidentialOpening, { PresidentialCouncil, RepublicAtlas } from "./PresidentialOpening.jsx";
+import RepublicMap from "./RepublicMap.jsx";
+import { isRepublicMapVisible } from "@/lib/game/republic-map.ts";
 import { hasPresidentialCouncil, isPresidentialDiscussion } from "@/lib/game/presidential-story.ts";
 import { hasInvestigationDebate } from "@/lib/content/investigation-debates.ts";
 import { isFactoryOpening } from "@/lib/client/factory-scene.ts";
@@ -2815,7 +2817,9 @@ function CountrySheet({ gs, onGovernment, onReports }) {
   const polls = computePolls(gs.country, gs.factions, gs.resources);
   const next = nextElection(gs);
   return <>
-    {gs.country === ALTERNATE_COUNTRY && <RepublicAtlas gs={gs}/>}
+    {gs.country === ALTERNATE_COUNTRY && (
+      isRepublicMapVisible(gs) ? <RepublicMap gs={gs}/> : <RepublicAtlas gs={gs}/>
+    )}
     <Label>{"РЕСУРСЫ"}</Label>
     {RES_CONFIG.map(r => <ResBar key={r.key} k={r.key} label={SHORT[r.key]} val={resources[r.key]} prev={prevResources ? prevResources[r.key] : undefined}/>)}
     <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, margin:"6px 0 10px", lineHeight:1.5 }}>
