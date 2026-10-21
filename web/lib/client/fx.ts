@@ -3,18 +3,39 @@
 import { haptic } from "./telegram.ts";
 
 const KEY = "sovereign.sound";
+let memorySound = true;
 let ctx: AudioContext | null = null;
 
+const soundListeners = new Set<() => void>();
+
+export function subscribeSound(callback: () => void): () => void {
+  soundListeners.add(callback);
+  return () => {
+    soundListeners.delete(callback);
+  };
+}
+
 export function soundOn(): boolean {
-  try { return localStorage.getItem(KEY) !== "0"; } catch { return true; }
+  try {
+    if (typeof localStorage !== "undefined") {
+      return localStorage.getItem(KEY) !== "0";
+    }
+  } catch {}
+  return memorySound;
 }
 export function setSound(on: boolean) {
-  try { localStorage.setItem(KEY, on ? "1" : "0"); } catch { /* недоступно */ }
+  memorySound = on;
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(KEY, on ? "1" : "0");
+    }
+  } catch {}
   if (!on) {
     stopCabinetAmbient();
   } else {
     startCabinetAmbient();
   }
+  soundListeners.forEach(fn => { try { fn(); } catch {} });
 }
 
 function audio(): AudioContext | null {
@@ -205,3 +226,45 @@ export function telephoneFx() {
     oscillator.start(start); oscillator.stop(start + 0.13);
   }
 }
+
+// Далёкий раскат грома: низкочастотный рокот для атмосферы грозы за окном.
+export function thunderFx() {
+  const a = audio();
+  if (!a) return;
+  try {
+    const t = a.currentTime;
+    const duration = 2.4;
+    const n = noise(a, duration);
+    const f = a.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.setValueAtTime(130, t);
+    f.frequency.linearRampToValueAtTime(55, t + duration);
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.linearRampToValueAtTime(0.22, t + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    n.connect(f).connect(g).connect(a.destination);
+    n.start(t);
+  } catch {}
+}
+
+// Тактильный щелчок советского переключателя/тумблера.
+export function clickFx() {
+  haptic("light");
+  const a = audio();
+  if (!a) return;
+  try {
+    const t = a.currentTime;
+    const osc = a.createOscillator();
+    const g = a.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(750, t);
+    osc.frequency.exponentialRampToValueAtTime(150, t + 0.035);
+    g.gain.setValueAtTime(0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    osc.connect(g).connect(a.destination);
+    osc.start(t);
+    osc.stop(t + 0.04);
+  } catch {}
+}
+
