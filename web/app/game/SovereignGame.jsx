@@ -13,7 +13,7 @@ import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, bondOf, breaches, pactInc
 import { ARCS } from "@/lib/content/arcs.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
-import { monthYear, turnDate } from "@/lib/game/calendar.ts";
+import { MONTHS_GEN, monthYear, turnDate } from "@/lib/game/calendar.ts";
 import { JOURNALIST_CALL_TITLE } from '@/lib/game/journalist-call.ts';
 import JournalistCall from './JournalistCall.jsx';
 import NegotiationCall from "./NegotiationCall.jsx";
@@ -1963,33 +1963,56 @@ function VersionLabel() {
 }
 
 // ── КИНЕМАТОГРАФИЧЕСКИЙ ПРОЛОГ ───────────────────────────────────────────────
-function PrologueCutscene({ onComplete }) {
+function PrologueCutscene({ state, onComplete }) {
   const [step, setStep] = useState(0);
+  const completed = useRef(false);
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+  const complete = useCallback(() => {
+    if (completed.current) return;
+    completed.current = true;
+    onCompleteRef.current();
+  }, []);
+
   useEffect(() => {
     startCabinetAmbient();
     stampFx();
-    const isTest = typeof window !== "undefined" && !window.__FORCE_CUTSCENE__ && (window.navigator?.webdriver || /HeadlessChrome/.test(window.navigator?.userAgent || ""));
+    const isTest = typeof window !== "undefined"
+      && !window.__FORCE_CUTSCENE__
+      && (window.navigator?.webdriver || /HeadlessChrome/.test(window.navigator?.userAgent || ""));
     if (isTest) {
-      onComplete();
+      complete();
       return;
     }
+    const skipWithKeyboard = event => {
+      if (event.key !== "Enter" && event.key !== "Escape") return;
+      event.preventDefault();
+      complete();
+    };
+    window.addEventListener("keydown", skipWithKeyboard);
     const t1 = setTimeout(() => {
       setStep(1);
       pageFx();
     }, 1800);
     const t2 = setTimeout(() => {
-      onComplete();
+      complete();
     }, 4200);
     return () => {
+      window.removeEventListener("keydown", skipWithKeyboard);
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [onComplete]);
+  }, [complete]);
+
+  const date = turnDate(state.seed, COUNTRIES[state.country].startYear, state.turn);
+  const dateLabel = `${date.day} ${MONTHS_GEN[date.month]} ${date.year} года · ${COUNTRIES[state.country].capital}`.toUpperCase();
 
   return (
     <div
       className={styles.prologueOverlay}
-      onClick={onComplete}
+      onClick={complete}
       role="dialog"
       aria-modal="true"
       style={{
@@ -2008,8 +2031,12 @@ function PrologueCutscene({ onComplete }) {
         <div className={styles.prologueStamp} style={{ display: "inline-block", fontFamily: mono, fontSize: 11, letterSpacing: ".1em", color: "#e8d6a7", border: "1px solid rgba(232, 214, 167, 0.4)", padding: "5px 12px", marginBottom: 22, textTransform: "uppercase", background: "rgba(0,0,0,0.3)" }}>
           ДЕЛО № 1 · РЕСПУБЛИКА
         </div>
-        <div className={styles.prologueDate} style={{ fontFamily: narrow, fontWeight: 700, fontSize: 26, letterSpacing: ".06em", color: "#ffffff", marginBottom: 18, textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
-          14 ЯНВАРЯ 1978 ГОДА · МИНСК
+        <div
+          className={styles.prologueDate}
+          data-prologue-date
+          style={{ fontFamily: narrow, fontWeight: 700, fontSize: 26, letterSpacing: ".06em", color: "#ffffff", marginBottom: 18, textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
+        >
+          {dateLabel}
         </div>
         <div className={styles.prologueText} style={{ fontFamily: serif, fontSize: 19, lineHeight: 1.75, color: "#e6dcc5", marginBottom: 32, minHeight: 90, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
           {step === 0 ? (
@@ -2027,7 +2054,7 @@ function PrologueCutscene({ onComplete }) {
         <button
           type="button"
           className={styles.prologueSkip}
-          onClick={e => { e.stopPropagation(); onComplete(); }}
+          onClick={e => { e.stopPropagation(); complete(); }}
           style={{ fontFamily: mono, fontSize: 12, letterSpacing: ".08em", color: "#d8cbb0", background: "rgba(48, 70, 59, 0.35)", border: "1px solid rgba(216, 203, 176, 0.4)", padding: "10px 22px", cursor: "pointer", textTransform: "uppercase" }}
         >
           ПРОПУСТИТЬ [ENTER] →
@@ -2091,7 +2118,7 @@ function Setup({ onStart, saved, onResume }) {
 
   if (prologue) {
     return (
-      <PrologueCutscene onComplete={() => onStart(prologue.st, prologue.quick)}/>
+      <PrologueCutscene state={prologue.st} onComplete={() => onStart(prologue.st, prologue.quick)}/>
     );
   }
 
@@ -2131,7 +2158,7 @@ function Setup({ onStart, saved, onResume }) {
           />
           <div style={{ background:"#1a2320", borderTop:"1px solid #2d3b36", padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, flexWrap:"wrap" }}>
             <div>
-              <div style={{ fontFamily:mono, fontSize:10, letterSpacing:".08em", color:"#9a8c71", textTransform:"uppercase" }}>Резиденция президента · Площадь Ленина</div>
+              <div style={{ fontFamily:mono, fontSize:10, letterSpacing:".08em", color:"#9a8c71", textTransform:"uppercase" }}>Резиденция президента · Площадь Республики</div>
               <div style={{ fontFamily:narrow, fontSize:14, color:"#f4ecd6", fontWeight:700 }}>Ночь подсчёта голосов ЦИК Республики</div>
             </div>
             <span style={{ fontFamily:pixel, fontSize:11, color:"#d4c498", letterSpacing:".06em", flexShrink:0 }}>ЯНВАРЬ 1978</span>
