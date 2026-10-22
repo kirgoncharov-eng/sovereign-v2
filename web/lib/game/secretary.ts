@@ -7,7 +7,7 @@ import { FIRST_TERM_CASES, replacedCases, scheduledFirstTerm, versionsOf } from 
 import { reserveShortage } from '../content/quarter-letters.ts';
 import { electionKind, reignOf } from './terms.ts';
 import { turnDate } from './calendar.ts';
-import { feminineSurname, surnameBase } from './surnames.ts';
+import { announcedHeirs, feminineSurname, surnameBase } from './surnames.ts';
 import type { GameState, ResourceDelta, ResourceKey } from './types.ts';
 
 export type FavorId = copy.FavorId;
@@ -80,7 +80,7 @@ const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 function secretaryName(gs: GameState): string {
   const people = [gs.leader.name, ...gs.advisors.map(p => p.name), ...gs.keyFigures.map(p => p.name),
-    ...(gs.world?.people.map(p => p.name) ?? []), ...(gs.former ?? []), ...(gs.arc ? [gs.arc.target] : [])];
+    ...(gs.world?.people.map(p => p.name) ?? []), ...(gs.former ?? []), ...(gs.arc ? [gs.arc.target] : []), ...announcedHeirs(gs)];
   const used = new Set(people.map(secretarySurname));
   const surnames = ALTERNATE_NAMES.last.filter(last => !used.has(last));
   // The cast has fewer surnames than the pool; a deterministic suffix also handles edited old saves.

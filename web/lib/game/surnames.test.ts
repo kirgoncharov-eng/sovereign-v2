@@ -72,3 +72,28 @@ test('1978: назначение до подписи не берёт фамил�
     }
   }
 });
+
+// Сохранение без необязательной секретаря: она создаётся заново при открытии папки и не берёт фамилию объявленного преемника
+// (#250, debut/19: преемник «Михаил Шумский» и новая секретарь «Вера Шумская»).
+test('1978: секретарь, созданная при загрузке, не берёт фамилию преемника из открытого дела', async () => {
+  for (const seed of [19, 36, 39, 49, 57]) {
+    let state = createInitialState(ALTERNATE_COUNTRY, 'debut', 'pragmatist', await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', seed),
+      seededRandom(seed));
+    for (let turn = 0; turn < 20 && !state.ended; turn++) {
+      state = openDeskWhenDue(state);
+      state = startEvent(state, await classicApi.event(state));
+      const heirs = state.currentEvent!.choices.flatMap(choice => (choice.deal?.replace ? [choice.deal.replace] : []));
+      if (state.world?.secretary && heirs.length) {
+        const older = structuredClone(state);
+        delete older.world!.secretary;
+        const restored = openDeskWhenDue(parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'game', state: older }))!.state);
+        const secretary = restored.world!.secretary!.name;
+        for (const heir of heirs) assert.notEqual(surnameBase(secretary), surnameBase(heir), `debut/${seed}, ход ${turn + 1}: ${secretary} и ${heir}`);
+      }
+      const candidate = candidatePool(state).find(entry => staffingBlocked(state, entry) === null);
+      if (candidate) state = hireAdvisor(state, candidate.id);
+      const choice = state.currentEvent!.choices[(turn + 1) % state.currentEvent!.choices.length];
+      state = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
+    }
+  }
+});

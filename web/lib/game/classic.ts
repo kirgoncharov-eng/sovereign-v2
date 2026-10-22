@@ -54,7 +54,7 @@ import { ARCHIVE_CARD, archiveDescription } from "./archive-memory.ts";
 import { advisorNews, forecastReview } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { secretaryEnabled, secretarySurname } from './secretary.ts';
-import { feminineSurname, surnameBase } from './surnames.ts';
+import { announcedHeirs, feminineSurname, surnameBase } from './surnames.ts';
 import { sanitizeProposals } from "./sanitize.ts";
 import { isOrdinaryNewspaperEvent, newspaperHeadline } from "./newspaper-editions.ts";
 import { FIRST_TERM_CASES, firstTermLaw, replacedCases, scheduledFirstTerm, versionsOf } from "./first-term-schedule.ts";
@@ -281,8 +281,8 @@ function usedNames(state: GameState, extra: string[] = []): Set<string> {
   // 1978 (#242): люди папки и антагонист после ухода с поста тоже заняли фамилию — преемник не станет их «родственником».
   if (state.country === ALTERNATE_COUNTRY) {
     // Преемник, уже объявленный в открытом деле, тоже занят: назначение до подписи не должно взять его фамилию.
-    const heirs = state.currentEvent?.choices.flatMap(choice => (choice.deal?.replace ? [choice.deal.replace] : [])) ?? [];
-    for (const name of [...(state.world?.people.map(person => person.name) ?? []), ...(state.arc ? [state.arc.target] : []), ...heirs]) {
+    const people = [...(state.world?.people.map(person => person.name) ?? []), ...(state.arc ? [state.arc.target] : []), ...announcedHeirs(state)];
+    for (const name of people) {
       used.add(surnameBase(name));
     }
   }
