@@ -39,6 +39,8 @@ export const HISTORICAL_OUTCOME_ART = {
   wagesAdvance: { src: '/art/gemini-next/wages-advance.webp', caption: 'Отгрузка тракторов под трёхлетний экспортный аванс' },
   wagesRetool: { src: '/art/gemini-next/wages-retool.webp', caption: 'Перестройка цеха и переобучение рабочих' },
   wagesGate: { src: '/art/gemini-next/wages-gate.webp', caption: 'Заводские цеха остановлены, рабочие ждут у проходной' },
+  harvestSubsidy: { src: '/art/gemini-next/harvest-subsidy.webp', caption: 'Государственная приёмка зерна на центральном элеваторе' },
+  harvestDirect: { src: '/art/gemini-next/harvest-direct.webp', caption: 'Разгрузка муки нового урожая у городской пекарни' },
 } satisfies Record<string, HistoricalArt>;
 const bridgeDossier = MANAGEMENT_DOSSIERS.find(dossier => dossier.id === 'bridges')!;
 const bridgeOutcomes = [
@@ -46,6 +48,7 @@ const bridgeOutcomes = [
 ];
 const districtCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_district')!;
 const wagesCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_wages')!;
+const harvestCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_harvest')!;
 const CARD_ART: Record<string, HistoricalArt> = {
   alt_wages: HISTORICAL_SCENE_ART.wages,
   alt_fuel: HISTORICAL_SCENE_ART.fuel, alt_standards: HISTORICAL_SCENE_ART.standards,
@@ -106,6 +109,12 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
       if (completed.choice === wagesCard.choices[0].text) return HISTORICAL_OUTCOME_ART.wagesAudit;
       if (completed.choice === wagesCard.choices[1].text) return HISTORICAL_OUTCOME_ART.wagesAdvance;
       if (completed.choice === wagesCard.choices[2].text) return HISTORICAL_OUTCOME_ART.wagesRetool;
+    }
+  }
+  if (completed?.title === harvestCard.title) {
+    if (completed.success === true) {
+      if (completed.choice === harvestCard.choices[0].text) return HISTORICAL_OUTCOME_ART.harvestSubsidy;
+      if (completed.choice === harvestCard.choices[1].text) return HISTORICAL_OUTCOME_ART.harvestDirect;
     }
   }
   const title = completed?.title;

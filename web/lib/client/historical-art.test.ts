@@ -22,8 +22,8 @@ async function fresh() {
 test('all 47 mapped WebP files exist within the image budgets', () => {
   const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
     HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 50);
-  assert.equal(new Set(paths).size, 49); // wages and wagesGate share wages-gate.webp
+  assert.equal(paths.length, 52);
+  assert.equal(new Set(paths).size, 51); // wages and wagesGate share wages-gate.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
@@ -34,7 +34,7 @@ test('all 47 mapped WebP files exist within the image budgets', () => {
       assert.ok(statSync(file).size <= (isPortrait ? 10_000 : 100_000), src);
     }
   }
-  assert.ok(bytes < 1_500_000);
+  assert.ok(bytes < 1_800_000);
 });
 
 test('hospital photos distinguish failed repair, ongoing works and a finished roof after reload', async () => {
@@ -161,6 +161,11 @@ test('first crisis and election night resolve authorial outcome scenes', async (
     const failState = { ...base, history: [{ year: 1978, title: wagesCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
     assert.deepEqual(historicalResultArt(failState, 'archive'), HISTORICAL_OUTCOME_ART.wagesGate);
   }
+  const harvestCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_harvest')!;
+  const subsidyState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: harvestCard.choices[0].text, headline: '', historianNote: '', success: true }] };
+  assert.deepEqual(historicalResultArt(subsidyState, 'field'), HISTORICAL_OUTCOME_ART.harvestSubsidy);
+  const directState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: harvestCard.choices[1].text, headline: '', historianNote: '', success: true }] };
+  assert.deepEqual(historicalResultArt(directState, 'field'), HISTORICAL_OUTCOME_ART.harvestDirect);
   const event = await classicApi.event(base);
   const current = startEvent(base, event);
   const report = resolveTurn(current, event.choices[0].id,
