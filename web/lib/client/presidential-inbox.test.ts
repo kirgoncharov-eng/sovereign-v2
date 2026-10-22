@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { classicApi } from '../game/classic.ts';
 import { createInitialState, seededRandom } from '../game/engine.ts';
 import { openLivingWorld, interveneWorld, stepLivingWorld } from '../game/living-world.ts';
-import { presidentialMessages, presidentialReplyActions, readPresidentialMessages } from './presidential-inbox.ts';
+import { presidentialMessages, presidentialReplyActions, projectLetterAuthor, readPresidentialMessages } from './presidential-inbox.ts';
+import { personProfiles } from './people-text.ts';
+import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
+import type { GameState } from '../game/types.ts';
 
 async function fresh(country = 'Украина') {
   const setup = await classicApi.setup(country, 'debut', 'pragmatist', 15);
@@ -53,4 +56,18 @@ test('после провала больниц ответы на продолж�
   assert.ok(presidentialReplyActions(state, message).every(reply => reply.id.startsWith('health:response:')));
   assert.ok(presidentialReplyActions(state, message).length > 0);
   assert.deepEqual(presidentialReplyActions({ ...state, ended: true }, message), []);
+});
+
+test('письмо об исполнении ответа по больницам в 1978 году подписывает исполнитель ответа — и в списке, и в шапке', async () => {
+  const base = await fresh();
+  const health = base.world!.health!;
+  // Программой руководил главный врач, ответ на провал исполняет министр здравоохранения.
+  const working = (country: string): GameState => ({ ...base, country, world: { ...base.world!, health: { ...health, executor: 'doctor',
+    aftermath: { ...(health.aftermath ?? {}), phase: 'working', executor: 'healthMinister' } as NonNullable<typeof health.aftermath> } } });
+  assert.equal(projectLetterAuthor(working(ALTERNATE_COUNTRY), 'health'), 'healthMinister');
+  assert.equal(projectLetterAuthor(working('Украина'), 'health'), 'doctor');
+  const state = working(ALTERNATE_COUNTRY);
+  const minister = state.world!.people.find(person => person.id === 'healthMinister')!.name;
+  const sender = presidentialMessages(state).find(message => message.key === 'health')!.person;
+  assert.equal(personProfiles(state).find(person => person.id === sender)?.name, minister);
 });

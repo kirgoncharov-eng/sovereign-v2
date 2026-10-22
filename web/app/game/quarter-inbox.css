@@ -51,3 +51,7 @@
  .sv-quarter-close {padding:16px;}
  .sv-quarter-close button {width:100%;}
 }
+
+/* Опись папки (#244): главное дело сверху, номера внутри листа. */
+.sv-folder-inventory { margin: 0 0 12px; padding-left: 1.5em; }
+.sv-folder-inventory li { margin-bottom: 6px; }

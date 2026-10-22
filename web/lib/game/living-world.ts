@@ -13,6 +13,7 @@ import type { TraitId } from './people.ts';
 import type { GameState, ResourceDelta, Choice } from './types.ts';
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
 import { signedCaseOrVersion } from './first-term-schedule.ts';
+import * as letters from '../content/quarter-letters.ts';
 export type WorldPersonId = 'minister' | 'governor' | 'engineer' | 'healthMinister' | 'doctor';
 export interface WorldPerson {
     id: WorldPersonId;
@@ -131,10 +132,22 @@ export function openLivingWorld(gs: GameState): GameState {
     };
     if (!previous)
         world = append(world, {
-            turn: gs.turn, kind: 'letter', title: 'Промышленный регион · письмо из диспетчерской', text: `Директор энергосети просит заменить изношенные узлы в течение года. Сейчас электричество отключают по графику; заводы заканчивают смены раньше. За соседним столом ${people[0].name} предлагает взять работу под личный контроль. ${people[2].name} предупреждает: нынешний поставщик требует переделки оборудования. Новый договор обойдётся дороже, а местные подрядчики готовы адаптировать поставку, если сохранят заказы. Заводы требуют подключить их первыми; районная больница просит не отодвигать жилые кварталы.`
+            turn: gs.turn, kind: 'letter', title: 'Промышленный регион · письмо из диспетчерской', text: historical
+                ? letters.energyFirstLetter(people[0].name, people[2].name, people[1].name)
+                : `Директор энергосети просит заменить изношенные узлы в течение года. Сейчас электричество отключают по графику; ` +
+                    `заводы заканчивают смены раньше. За соседним столом ${people[0].name} предлагает взять работу под личный ` +
+                    `контроль. ${people[2].name} предупреждает: нынешний поставщик требует переделки оборудования. Новый договор ` +
+                    `обойдётся дороже, а местные подрядчики готовы адаптировать поставку, если сохранят заказы. Заводы требуют ` +
+                    `подключить их первыми; районная больница просит не отодвигать жилые кварталы.`
         });
     if (openHealth) world = append(world, {
-        project: 'health', turn: gs.turn, kind: 'letter', title: 'Районные больницы · письмо главного врача', text: `${people.find(person => person.id === 'doctor')!.name} просит укомплектовать районные отделения в течение года. Кабинеты и койки есть, но специалистов не хватает. ${people.find(person => person.id === 'healthMinister')!.name} предлагает постоянный набор; местные власти могут согласовать назначения, но уже участвуют в восстановлении энергосети. Временный перевод врачей даст быстрый результат за счёт областных больниц.`
+        project: 'health', turn: gs.turn, kind: 'letter', title: 'Районные больницы · письмо главного врача', text: historical
+            ? letters.healthFirstLetter(people.find(person => person.id === 'doctor')!.name, people.find(person => person.id === 'healthMinister')!.name)
+            : `${people.find(person => person.id === 'doctor')!.name} просит укомплектовать районные отделения в течение ` +
+                `года. Кабинеты и койки есть, но специалистов не хватает. ` +
+                `${people.find(person => person.id === 'healthMinister')!.name} предлагает постоянный набор; местные власти ` +
+                `могут согласовать назначения, но уже участвуют в восстановлении энергосети. Временный перевод врачей даст ` +
+                `быстрый результат за счёт областных больниц.`
     });
     return ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor({ ...gs, world }))));
 }
@@ -169,7 +182,7 @@ export function livingActions(gs: GameState): WorldAction[] {
                 ? 'Он отсчитывается от письма по итогам топливного дела'
                 : 'Он отсчитывается от начала правления';
             list.push({
-                id: `appoint:${actor.id}`, title: `Поручить проект: ${person.name}`,
+                id: `appoint:${actor.id}`, title: `${gs.country === ALTERNATE_COUNTRY ? 'Поручить сеть' : 'Поручить проект'}: ${person.name}`,
                 detail: `${person.role}. Компетенция ${person.competence}/3, отношение к вам `
                     + `${person.relation > 0 ? '+' : ''}${person.relation}. ${person.goal}. `
                     + `Срок — конец квартала ${project.deadline}; осталось ${Math.max(0, project.deadline - gs.turn)} кв. `
@@ -225,9 +238,22 @@ export function livingActions(gs: GameState): WorldAction[] {
     list.push(...governmentActions(gs));
     list.push(...ministerActions(gs));
     list.push(...healthActions(world, world.people.map(person => worldPerson(gs, person.id)!)));
-    return list.map(entry => ({
-        ...entry, blocked: gs.daily ? 'В деле дня личные поручения недоступны' : gs.ended ? 'Правление завершено' : world.lastActionTurn === gs.turn ? 'Личное вмешательство в этом квартале уже использовано' : (entry.id.startsWith('government:start:') || entry.id.startsWith('appoint:') || entry.id.startsWith('health:appoint:')) && world.government && governmentLoad(world) >= 2 ? 'Кабинет уже ведёт две программы; дождитесь результата одной из них' : Object.entries(entry.cost).some(([k, value]) => gs.resources[k as keyof typeof gs.resources] + (value ?? 0) <= 4) ? 'Недостаточно запаса ресурса для этого поручения' : null
-    }));
+    // Ресурс, который поручение опустило бы до порога 4 и ниже, и что от него осталось бы.
+    const shortage = (entry: Omit<WorldAction, 'blocked'>): [string, number] | undefined => Object.entries(entry.cost)
+        .map(([key, value]): [string, number] => [key, gs.resources[key as keyof typeof gs.resources] + (value ?? 0)])
+        .find(([, after]) => after <= 4);
+    const cabinetFull = (entry: Omit<WorldAction, 'blocked'>) => (entry.id.startsWith('government:start:') || entry.id.startsWith('appoint:')
+        || entry.id.startsWith('health:appoint:')) && world.government && governmentLoad(world) >= 2;
+    return list.map(entry => {
+        const lack = shortage(entry);
+        const reserve = lack && (gs.country === ALTERNATE_COUNTRY ? letters.reserveShortage(...lack) : 'Недостаточно запаса ресурса для этого поручения');
+        return {
+            ...entry, blocked: gs.daily ? 'В деле дня личные поручения недоступны' : gs.ended ? 'Правление завершено'
+                : world.lastActionTurn === gs.turn ? 'Личное вмешательство в этом квартале уже использовано'
+                : cabinetFull(entry) ? 'Кабинет уже ведёт две программы; дождитесь результата одной из них'
+                : reserve || null
+        };
+    });
 }
 export function interveneWorld(gs: GameState, id: string): GameState {
     const action = livingActions(gs).find(entry => entry.id === id);
@@ -363,7 +389,8 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
         }))
     };
     const project = world.project;
-    const ministerStory = stepMinister(world, nextTurn);
+    const historical = gs.country === ALTERNATE_COUNTRY;
+    const ministerStory = stepMinister(world, nextTurn, historical);
     if (ministerStory) world = append(world, { turn: nextTurn, kind: "letter", title: "Министр · закупочный мандат", text: ministerStory });
     const politicalStory = stepSponsor(gs, world, nextTurn);
     if (politicalStory) world = append(world, { turn: nextTurn, kind: 'decision', title: 'Политический участник · собственный ход', text: politicalStory });
@@ -469,11 +496,17 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
         project.reported = project.progress;
         const focus = priority === 'industry' ? 'Бригады сосредоточены на заводских линиях; жилые районы ждут своей очереди.' : priority === 'households' ? 'Первыми подключают жилые районы; директора заводов требуют вернуть бригады на промышленные линии.' : 'Бригады работают и на заводских линиях, и в жилых кварталах.';
         const equipment = project.procurementFixed ? 'Новый поставщик доставляет совместимое оборудование.' : sponsorSupport(world) ? 'Компании спонсора согласовали адаптацию оборудования в обмен на сохранение заказов.' : project.deal ? 'Местные подрядчики согласовали адаптацию поставки.' : 'Адаптация нынешнего оборудования задерживает подключение. Можно сменить поставщика или сохранить местные заказы в обмен на согласованную переделку.';
-        story = `${actor.name} присылает доклад: восстановлено ${project.progress}% сети. ${focus} ${equipment} ${factors.filter(f => !f.startsWith('Компетенция')).join('. ')}.`;
+        const reported = factors.filter(f => !f.startsWith('Компетенция'));
+        story = historical ? letters.energyProgress(actor.name, project.progress, `${focus} ${equipment}`, reported)
+            : `${actor.name} присылает доклад: восстановлено ${project.progress}% сети. ${focus} ${equipment} ${reported.join('. ')}.`;
     }
     else {
         factors.push('Руководитель и финансирование не назначены');
-        story = nextTurn - world.openedTurn < 2 ? 'Письмо из диспетчерской остаётся без поручения. Из региона спрашивают, кто будет отвечать за подготовку сети.' : 'Из региона пишут снова: без решения резиденции местные власти ограничились временным ремонтом. Предприятия продолжают работать по сокращённому графику.';
+        const minister = world.people.find(person => person.id === 'minister')!.name;
+        story = historical ? letters.energyWithoutOrder(minister, nextTurn - world.openedTurn < 2)
+            : nextTurn - world.openedTurn < 2 ? 'Письмо из диспетчерской остаётся без поручения. Из региона спрашивают, кто будет отвечать за подготовку сети.'
+            : 'Из региона пишут снова: без решения резиденции местные власти ограничились временным ремонтом. ' +
+                'Предприятия продолжают работать по сокращённому графику.';
     }
     project.lastFactors = factors;
     let res: ResourceDelta = {};
@@ -500,7 +533,11 @@ function stepEnergyProject(gs: GameState, nextTurn: number): {
             economy: -4, internalLegitimacy: -4
         };
         const ending = project.status === 'completed' ? 'Сеть прошла нагрузочные испытания. График отключений отменён; заводы возвращают вечерние смены.' : project.status === 'partial' ? (priority === 'households' ? 'Часть сети восстановлена. Жилые районы получают электричество надёжнее; заводские линии ещё работают с ограничениями.' : 'Часть сети восстановлена. Заводы получают электричество, но жилые кварталы по-прежнему отключают. На совещании приходится объяснять, почему обещанный результат получился лишь частично.') : 'Комиссия не принимает сеть. График отключений продлевают; владельцы предприятий сокращают смены, жители требуют назвать ответственного.';
-        story = `${ending} Восстановлено ${project.progress}% сети. ${factors.join('. ')}. Результат для страны: экономика ${res.economy! > 0 ? '+' : ''}${res.economy}, легитимность ${res.internalLegitimacy! > 0 ? '+' : ''}${res.internalLegitimacy}.`;
+        const speaker = worldPerson(gs, project.executor ?? 'minister')!.name;
+        story = historical ? letters.energyEnding(ending, speaker, !!project.executor, project.progress, factors, res)
+            : `${ending} Восстановлено ${project.progress}% сети. ${factors.join('. ')}. Результат для страны: экономика ` +
+                `${res.economy! > 0 ? '+' : ''}${res.economy}, легитимность ` +
+                `${res.internalLegitimacy! > 0 ? '+' : ''}${res.internalLegitimacy}.`;
         if (project.executor) {
             const actor = world.people.find(entry => entry.id === project.executor)!;
             if (!actor.figure)
