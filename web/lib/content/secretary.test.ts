@@ -27,9 +27,16 @@ test('в текстах только известные слоты и без п�
   }
 });
 
-test('у советников и послов пол неизвестен: в их строках нет местоимений по роду', () => {
-  for (const text of texts.filter(line => /\{(advisor|advisorRole|figure|figureRole)\}/.test(line)))
+test('у советников и послов пол неизвестен: в их строках нет местоимений по роду и глаголов прошедшего времени', () => {
+  for (const text of texts.filter(line => /\{(advisor|advisorRole|figure|figureRole)\}/.test(line))) {
     assert.doesNotMatch(text, /(^|\s)(он|она|ему|ей|его|её)(\s|[.,])/i, text);
+    // «{advisorRole} присмотрел»: прошедшее время в единственном числе выдаёт род. Проверяем сказуемое самого слота —
+    // от слота до конца предложения; «Повар купил рыбу», «слышали» и короткие «стол», «зал» не трогаем.
+    for (const [, clause] of text.matchAll(/\{(?:advisor|advisorRole|figure|figureRole)\}([^.;!?—]*)/g)) {
+      const past = clause.match(/[а-яё]{2,}[аеиоуыя]ла?(?![а-яё])/gi) ?? [];
+      assert.deepEqual(past.filter(word => word.length >= 5), [], text);
+    }
+  }
 });
 
 test('сплетня о следующем деле есть для каждого дела первого срока', () => {
