@@ -3423,7 +3423,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <figure className={`sv-scene${inboxMode && !event.call && !event.press ? ' sv-case-attachment' : ''}`}
                     style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
                     <SquareView gs={gs} art={historicalEventArt(gs.country, event, sceneOf(event))} sceneKey={sceneOf(event)}
-                      partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60}/>
+                      partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60} still/>
                     {inboxMode && !event.call && !event.press && <figcaption>
                       Приложение к делу · {historicalEventArt(gs.country, event, sceneOf(event))?.caption ?? SCENE_CAPTION[sceneOf(event)]}
                     </figcaption>}
