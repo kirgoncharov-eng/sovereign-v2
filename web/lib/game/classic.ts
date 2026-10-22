@@ -28,6 +28,7 @@ import { DAY_TIMES, DAYLIGHT, NIGHT, NIGHT_TIMES, type PlaceKind, INTERCEPTS, PL
 import { MONTHS_ADJ, MONTHS_GEN, turnDate } from "./calendar.ts";
 import { ECHOES } from "../content/echoes.ts";
 import { sceneAfter } from "../content/scene-map.ts";
+import { computeRegionalTrust, type RegionId } from "./republic-map.ts";
 import { BUSINESS, FOREIGN, OPPOSITION, OPPOSITION_ELECTION, OPPOSITION_FAIL, OPPOSITION_SPECIAL, OUTLETS } from "../content/newspaper.ts";
 import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
 import { termFinale } from "./term-finale.ts";
@@ -203,6 +204,19 @@ export function cardAvailable(card: EventCard, state: GameState): boolean {
   if (w.rival && rivalOf(state)?.bloc !== w.rival) return false;
   if (w.ally && mostLoyal(state.factions)?.bloc !== w.ally) return false;
   if (w.after && !state.history.some(entry => w.after!.includes(entry.choice))) return false;
+  if (w.regions) {
+    if (state.country !== ALTERNATE_COUNTRY) return false;
+    const regionalTrusts = computeRegionalTrust(state);
+    for (const [regId, expected] of Object.entries(w.regions)) {
+      const actual = regionalTrusts[regId as RegionId]?.word;
+      if (!actual) return false;
+      if (Array.isArray(expected)) {
+        if (!expected.includes(actual)) return false;
+      } else {
+        if (actual !== expected) return false;
+      }
+    }
+  }
   return true;
 }
 

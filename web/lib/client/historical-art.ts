@@ -61,6 +61,11 @@ const CARD_ART: Record<string, HistoricalArt> = {
   alt_standards_chamber: HISTORICAL_SCENE_ART.standards, alt_standards_patriots: HISTORICAL_SCENE_ART.standards,
   alt_radio: HISTORICAL_SCENE_ART.radio, alt_harvest: HISTORICAL_SCENE_ART.harvest,
   alt_archive: HISTORICAL_SCENE_ART.archive,
+  alt_region_walkers: HISTORICAL_SCENE_ART.bridge,
+  alt_region_factory_strike: HISTORICAL_SCENE_ART.protest,
+  alt_region_customs: HISTORICAL_SCENE_ART.rail,
+  alt_region_governors: HISTORICAL_SCENE_ART.parliamentHall,
+  alt_region_border_rift: HISTORICAL_SCENE_ART.rail,
   law_alt_export_guarantee: HISTORICAL_SCENE_ART.parliamentHall,
   law_alt_open_orders: HISTORICAL_SCENE_ART.parliamentHall,
 };

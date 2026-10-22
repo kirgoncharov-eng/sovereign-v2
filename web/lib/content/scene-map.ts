@@ -13,6 +13,8 @@ const BY_CARD: Record<string, SceneKey> = {
   alt_district_police: "hospital", alt_district_court: "hospital",
   alt_standards_chamber: "factory", alt_standards_patriots: "factory",
   alt_rail: "border", alt_rail_blockade: "border", alt_rail_chamber: "border", alt_radio: "tv", alt_harvest: "field", alt_archive: "archive",
+  alt_region_walkers: "bridge", alt_region_factory_strike: "protest", alt_region_customs: "border",
+  alt_region_governors: "office", alt_region_border_rift: "border",
   law_alt_export_guarantee: "money", law_alt_open_orders: "hospital",
   // позднее правление
   late_son: "money", late_health: "hospital", late_portraits: "stamp", late_old_friend: "stamp", late_generation: "protest",
