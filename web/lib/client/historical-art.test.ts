@@ -19,11 +19,11 @@ async function fresh() {
     await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', 21), seededRandom(21));
 }
 
-test('all 47 mapped WebP files exist within the image budgets', () => {
+test('all mapped WebP files exist within the image budgets', () => {
   const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
     HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 50);
-  assert.equal(new Set(paths).size, 49); // wages and wagesGate share wages-gate.webp
+  assert.equal(paths.length, 54);
+  assert.equal(new Set(paths).size, 53); // wages and wagesGate share wages-gate.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
@@ -34,7 +34,7 @@ test('all 47 mapped WebP files exist within the image budgets', () => {
       assert.ok(statSync(file).size <= (isPortrait ? 10_000 : 100_000), src);
     }
   }
-  assert.ok(bytes < 1_500_000);
+  assert.ok(bytes < 2_000_000);
 });
 
 test('hospital photos distinguish failed repair, ongoing works and a finished roof after reload', async () => {
@@ -160,6 +160,18 @@ test('first crisis and election night resolve authorial outcome scenes', async (
     assert.deepEqual(historicalResultArt(successState, 'archive'), expectedOutcomes[idx]);
     const failState = { ...base, history: [{ year: 1978, title: wagesCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
     assert.deepEqual(historicalResultArt(failState, 'archive'), HISTORICAL_OUTCOME_ART.wagesGate);
+  }
+  const fuelCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_fuel')!;
+  const expectedFuelOutcomes = [
+    HISTORICAL_OUTCOME_ART.fuelTransitEast,
+    HISTORICAL_OUTCOME_ART.fuelTransitWest,
+    HISTORICAL_OUTCOME_ART.fuelInsulation,
+  ];
+  for (const [idx, choice] of fuelCard.choices.entries()) {
+    const successState = { ...base, history: [{ year: 1978, title: fuelCard.title, choice: choice.text, headline: '', historianNote: '', success: true }] };
+    assert.deepEqual(historicalResultArt(successState, 'energy'), expectedFuelOutcomes[idx]);
+    const failState = { ...base, history: [{ year: 1978, title: fuelCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
+    assert.deepEqual(historicalResultArt(failState, 'energy'), HISTORICAL_OUTCOME_ART.fuelFreeze);
   }
   const event = await classicApi.event(base);
   const current = startEvent(base, event);
