@@ -48,3 +48,7 @@ test('слоты подставляются, неизвестные остают
   assert.equal(secretary.fillSecretary('{secretary} и {director}, {unknown}', { secretary: 'Нина Острина', director: 'Роман Лесин' }),
     'Нина Острина и Роман Лесин, {unknown}');
 });
+
+test('реакции на ответ идут после исхода, где имя уже названо, — без повторного имени', () => {
+  for (const text of Object.values(secretary.TRUST_CHANGE)) assert.doesNotMatch(text, /\{secretary\}/, text);
+});
