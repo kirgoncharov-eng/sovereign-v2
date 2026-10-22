@@ -59,6 +59,7 @@ export interface SecretaryState {
   finale: string | null;
   inventory?: string;
   lastGossipText?: string;
+  figureLines?: number[];
 }
 export interface SecretaryAction {
   id: string;
@@ -153,6 +154,9 @@ function nextSecretaryCase(gs: GameState): string | undefined {
 
 function chooseGossip(gs: GameState, secretary: SecretaryState): SecretaryGossip | null {
   const candidates: Omit<SecretaryGossip, 'turn' | 'checked' | 'protected' | 'exposed'>[] = [];
+  const figureLine = new Map<string, number>();
+  const usedFigures = secretary.figureLines ?? [];
+  const figureCycle = usedFigures.length < copy.GOSSIP.figure.length ? usedFigures : usedFigures.slice(-1);
   const addAdvisor = (id: string, kind: 'leak' | 'disloyal', truthful = true, source: SecretaryGossip['source'] = 'state') => {
     const advisor = gs.advisors.find(a => a.id === id)!;
     const lines = source === 'director' ? copy.PLANTED_GOSSIP : copy.GOSSIP[kind];
@@ -176,9 +180,14 @@ function chooseGossip(gs: GameState, secretary: SecretaryState): SecretaryGossip
       source: 'state', subject: base, name: ALTERNATE_EVENTS.find(card => card.id === base)!.title, text: copy.NEXT_CASE_GOSSIP[base] });
     if (!candidates.length) {
       const falling = gs.keyFigures.filter(f => gs.prevFigures?.some(p => p.id === f.id && p.name === f.name && f.relation < p.relation));
-      for (const figure of falling) candidates.push({ kind: 'figure', truthful: true, source: 'state', subject: figure.id, name: figure.name,
-        text: sentence(copy.fillSecretary(copy.GOSSIP.figure[hashSeed(gs.seed, 'secretary-figure', gs.turn) % copy.GOSSIP.figure.length],
-          { figure: figure.name, figureRole: roleSlot(figure.role) })) });
+      // Figure gossip is the most common kind: every line is used once before any repeats, and a new cycle skips the last one.
+      const lines = copy.GOSSIP.figure.map((_, index) => index).filter(index => !figureCycle.includes(index));
+      for (const figure of falling) {
+        const line = lines[hashSeed(gs.seed, 'secretary-figure', gs.turn, figure.id) % lines.length];
+        figureLine.set(figure.id, line);
+        candidates.push({ kind: 'figure', truthful: true, source: 'state', subject: figure.id, name: figure.name,
+          text: sentence(copy.fillSecretary(copy.GOSSIP.figure[line], { figure: figure.name, figureRole: roleSlot(figure.role) })) });
+      }
     }
     if (!candidates.length && gs.arc && !gs.arc.epilogue) candidates.push({ kind: 'intrigue', truthful: true, source: 'state',
       subject: gs.arc.id, name: gs.arc.target,
@@ -196,6 +205,8 @@ function chooseGossip(gs: GameState, secretary: SecretaryState): SecretaryGossip
       chosen = candidates[0];
     }
   }
+  const line = chosen.kind === 'figure' ? figureLine.get(chosen.subject) : undefined;
+  if (line !== undefined) secretary.figureLines = [...figureCycle, line];
   return { ...chosen, turn: gs.turn, checked: null, protected: false, exposed: false };
 }
 
@@ -225,7 +236,8 @@ export function ensureSecretary(gs: GameState): GameState {
     s.gossip = chooseGossip(next, s);
     if (s.gossip) s.lastGossipTurn = gs.turn;
   }
-  const electionEve = !!electionKind(gs.turn + 2, gs.path, reignOf(gs).office);
+  // Only an unseen election-eve scene bypasses the queue; afterwards other scenes keep their spacing.
+  const electionEve = !!electionKind(gs.turn + 2, gs.path, reignOf(gs).office) && !s.seenScenes.includes('electionEve');
   if (gs.turn >= s.nextScene || electionEve) {
     const winter = turnDate(gs.seed, 1978, gs.turn).season === 'winter';
     const health = gs.world.health;
@@ -380,7 +392,9 @@ export function validSecretary(value: unknown, turn: number): value is Secretary
     || !n(s.nextFavor) || !nullableTurn(s.lastGossipTurn) || !n(s.nextScene) || typeof s.planted !== 'boolean'
     || typeof s.channelExposed !== 'boolean' || !(s.receipt === null || text(s.receipt)) || !nullableTurn(s.receiptTurn)
     || !(s.finale === null || text(s.finale)) || !(s.inventory === undefined || text(s.inventory))
-    || !(s.lastGossipText === undefined || text(s.lastGossipText))) return false;
+    || !(s.lastGossipText === undefined || text(s.lastGossipText))
+    || !(s.figureLines === undefined || Array.isArray(s.figureLines) && s.figureLines.length <= copy.GOSSIP.figure.length
+      && s.figureLines.every(line => n(line, copy.GOSSIP.figure.length - 1)))) return false;
   if (!Array.isArray(s.favors) || s.favors.length > 6 || new Set(s.favors.map(f => f?.id)).size !== s.favors.length
     || !s.favors.every(f => f && favorIds.includes(f.id) && n(f.offered, turn) && f.offered >= s.joined
       && (f.answer === null ? f.answered === null && f.outcome === null
