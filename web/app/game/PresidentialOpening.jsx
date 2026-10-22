@@ -257,7 +257,7 @@ function SpokenExchange({ gs, lines, staged }) {
       <button type="button" onClick={() => setVisible(lines.length)}>Весь разговор</button>
     </div>}
     <p className={styles.attribution}>{visible < lines.length
-      ? 'Можно продолжить разговор или подписать решение сейчас.'
+      ? 'Можно продолжить разговор или выбрать решение сейчас.'
       : 'Совет высказался. Резолюция и ответственность остаются вашими.'}</p>
   </>;
 }

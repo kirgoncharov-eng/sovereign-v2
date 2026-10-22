@@ -54,6 +54,8 @@ import { clickFx, outcomeFx, pageFx, setSound, soundOn, stampFx, startCabinetAmb
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
+import QuarterInbox, { IncomingLetter } from './QuarterInbox.jsx';
+import { prepareQuarterResolution, quarterInboxEnabled, quarterResolution, withoutQuarterDraft } from '@/lib/client/quarter-inbox.ts';
 import PresidentialDesk from "./PresidentialDesk.jsx";
 import { readPresidentialMessages, presidentialMessages } from "@/lib/client/presidential-inbox.ts";
 import OrderGuide from "./OrderGuide.jsx";
@@ -2938,6 +2940,9 @@ function PeopleSheet({ gs, onDossier, onHire, onInbox }) {
 }
 
 function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
+  const inboxMode = quarterInboxEnabled(gs);
+  const prepared = quarterResolution(gs);
+  const [inboxPage, setInboxPage] = useState(gs.world ? 'secretary' : 'main');
   const needsEvent = !gs.ended && !gs.currentEvent && !gs.lastTurn;
   const [busy, setBusy]       = useState(needsEvent ? "event" : null); // "event" | "choice" | null
   const [error, setError]     = useState(null); // { message, choice? }
@@ -3015,7 +3020,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
   const retryEvent = () => { setBusy("event"); setError(null); setAttempt(a => a + 1); };
 
-  const choose = async (choice, details = {}) => {
+  const resolveChoice = async (choice, details = {}) => {
     if (busy || transition || inFlight.current) return;
     inFlight.current = true;
     const dailyMove = { id: choice.id, ...details, ...(gsRef.current.currentEvent?.council?.length ? { council:true } : {}) };
@@ -3027,7 +3032,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     setBusy("choice"); setError(null);
     try {
       const consequence = await game.consequence(gsRef.current, choice.id);
-      let next = openDeskWhenDue(resolveTurn(gsRef.current, choice.id, consequence));
+      let next = openDeskWhenDue(resolveTurn(withoutQuarterDraft(gsRef.current), choice.id, consequence));
       if (next.daily && gsRef.current.dailyMoves) {
         next = { ...next, dailyMoves: [...gsRef.current.dailyMoves, dailyMove] };
       }
@@ -3054,9 +3059,44 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     }
   };
 
+  const choose = (choice, details = {}) => {
+    if (!inboxMode) return resolveChoice(choice, details);
+    if (busy || transition || inFlight.current) return;
+    try {
+      commit(prepareQuarterResolution(gsRef.current, choice.id, details));
+      setArmed(null);
+      setPreview(null);
+      setError(null);
+    } catch (error) {
+      setError({ message: error.message, choice, details, preparing: true });
+    }
+  };
+
+  const openIncoming = key => {
+    if (inFlight.current) return;
+    setInboxPage(key);
+    const message = presidentialMessages(gsRef.current).find(letter => letter.key === key);
+    if (message) commit(readPresidentialMessages(gsRef.current, message.person, message.key));
+    setPreview(null);
+  };
+
+  const incomingAction = id => {
+    if (inFlight.current) throw new Error('Дождитесь завершения текущего решения');
+    prefetch.current = null;
+    commit(interveneWorld(gsRef.current, id));
+    setPreview(null);
+    stampFx();
+  };
+
+  const finishQuarter = () => {
+    const choice = quarterResolution(gsRef.current);
+    if (choice) { setInboxPage('main'); resolveChoice(choice, gsRef.current.quarterDraft.move); }
+  };
+
   const nextTurn = () => {
     if (transition || inFlight.current || !gsRef.current.lastTurn || gsRef.current.ended) return;
     setCountryOpen(false); setContactOpen(false);
+    setInboxPage(gsRef.current.world ? 'secretary' : 'main');
     setBusy("event"); setError(null); setPreview(null); setArmed(null);
     pageFx();
     commit({ ...gsRef.current, lastTurn: null });
@@ -3121,7 +3161,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
   // Касание выбирает; отдельная кнопка подписывает. Повторное касание не исполняет приказ.
   const pick = (c, preview = true) => {
-    if (matchMedia("(pointer:coarse)").matches) { setArmed(c.id); setPreview(preview ? c : null); return; }
+    if (inboxMode || matchMedia("(pointer:coarse)").matches) { setArmed(c.id); setPreview(preview ? c : null); return; }
     setArmed(null); choose(c);
   };
   const optProps = (c, n) => ({
@@ -3154,7 +3194,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
   }, [event, busy, gs.turn, gs.lastTurn, counted, recap, countryOpen, contactOpen, resourceOpen, help, transition]);
   // Срочное дело: власть под угрозой — на резолюцию 25 секунд с момента, как варианты на экране.
-  const urgent = !!event && event.isCritical && !event.beat && !event.special && !recap && !busy;
+  const urgent = !inboxMode && !!event && event.isCritical && !event.beat && !event.special && !recap && !busy;
   if (urgent && resolutionInView && urgentTurn !== gs.turn) setUrgentTurn(gs.turn);
   const timeUp = () => {
     const ev = gsRef.current.currentEvent;
@@ -3196,9 +3236,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       {help && <HowToPlay gs={gs} onClose={() => setHelp(false)}/>}
       {recap && <Recap gs={gs} onClose={onRecapDone}/>}
       <div style={{ display:"flex", justifyContent:"center", padding:"14px" }}>
-      <div className="sv-game-grid" style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px minmax(0, 1fr)", gap:14 }}>
+      <div className={`sv-game-grid${inboxMode ? ' is-inbox' : ''}`}
+        style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px minmax(0, 1fr)", gap:14 }}>
 
         <div className="sv-sidebar" data-open={dossier || undefined}>
+          {inboxMode && !busy && !recap && <QuarterInbox gs={gs} page={inboxPage} onOpen={openIncoming}/>}
+          <details className={inboxMode ? 'sv-inbox-reference' : 'sv-reference-plain'} open={!inboxMode || dossier}>
+          <summary hidden={!inboxMode}>Справочники · страна и люди</summary>
           <nav className="sv-sheet-switch" aria-label="Страна и люди" inert={dossier || undefined}>
             {SHEETS.map(sheet => {
               const isPeople = sheet.id === "people";
@@ -3254,7 +3298,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             </div>
             {sideTab === "country" ? <CountrySheet gs={gs}
               onGovernment={() => fromSheet(() => deskRef.current?.government())}
-              onReports={() => fromSheet(() => countryPanel.current?.showReport())}/> : <PeopleSheet gs={gs}
+              onReports={() => fromSheet(() => inboxMode ? openIncoming('energy') : countryPanel.current?.showReport())}/> : <PeopleSheet gs={gs}
               onInbox={id => fromSheet(() => (id === "people" ? deskRef.current?.people() : deskRef.current?.person(id)))}
               onDossier={(id, action) => {
                 if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
@@ -3267,6 +3311,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 commit(hireAdvisor(gsRef.current, id)); stampFx();
               }}/>}
           </div>
+          </details>
         </div>
 
         <div className="sv-main" inert={dossier || undefined}>
@@ -3276,20 +3321,28 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               if (!inFlight.current) commit(readPresidentialMessages(gsRef.current, person, key));
             }}
             onDesk={() => document.getElementById("sv-main-case")?.scrollIntoView({behavior:"smooth",block:"start"})}
-            onProject={id => countryPanel.current?.showProject(id)} onAction={id => {
+            onProject={id => inboxMode ? openIncoming(id === 'health' ? 'health' : 'energy') : countryPanel.current?.showProject(id)} onAction={id => {
             if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
             let next = interveneWorld(gsRef.current, id);
             if (id.startsWith("sponsor:") || id.startsWith("minister:") || id.startsWith("evidence:")) { const action = id.split(":")[0]; const person = presidentialMessages(next).find(m => m.action === action)?.person; if (person) next = readPresidentialMessages(next, person); }
             prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
           }}/>}
-          {!busy && !recap && gs.world && <WorldPanel compact ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}
+          {!inboxMode && !busy && !recap && gs.world && <WorldPanel
+            compact ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn}
+            onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})}
+            onViewChange={setCountryOpen}
             onOpen={() => { if (!inFlight.current) commit(openLivingWorld(gsRef.current)); }}
             onAction={id => {
               if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
               const next = interveneWorld(gsRef.current, id);
               prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
             }}/>}
-          <div id="sv-main-case" className="sv-main-case-label">{event ? "ГЛАВНОЕ ДЕЛО · ЗАВЕРШАЕТ КВАРТАЛ" : "ИТОГИ ГЛАВНОГО РЕШЕНИЯ"}</div>
+          {inboxMode && !busy && event && inboxPage !== 'main' && <IncomingLetter gs={gs} page={inboxPage}
+            onAction={incomingAction} onOpen={openIncoming} Scene={SquareView}/>}
+          <div hidden={inboxMode && !!event && inboxPage !== 'main'}>
+          <div id="sv-main-case" className="sv-main-case-label">{event
+            ? inboxMode ? 'ТРЕБУЕТСЯ РЕЗОЛЮЦИЯ ПРЕЗИДЕНТА' : 'ГЛАВНОЕ ДЕЛО · ЗАВЕРШАЕТ КВАРТАЛ'
+            : inboxMode ? 'ГАЗЕТА · ИТОГИ КВАРТАЛА' : 'ИТОГИ ГЛАВНОГО РЕШЕНИЯ'}</div>
           {gs.turn === 0 && !busy && <details className="sv-mandate"><summary>Ваш мандат и обещания</summary><BriefCard gs={gs}/></details>}
           {warnLevel !== "none" && !busy && !gs.ended && (
             <div className="sv-paper sv-citation" style={{ marginBottom:10, padding:"9px 16px" }}>
@@ -3311,7 +3364,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           )}
 
           {error && !busy && (
-            <ErrorBanner message={error.message} onRetry={error.choice ? () => choose(error.choice, error.details) : retryEvent}/>
+            <ErrorBanner message={error.message} onRetry={error.choice
+              ? () => (error.preparing ? choose : resolveChoice)(error.choice, error.details)
+              : retryEvent}/>
           )}
 
           {activeCrises?.length > 0 && !busy && (
@@ -3365,9 +3420,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 )}
                 <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
                 {isFactoryOpening(gs) ? <FactoryLive/> : sceneOf(event) !== "square" && (
-                  <figure className="sv-scene" style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
+                  <figure className={`sv-scene${inboxMode && !event.call && !event.press ? ' sv-case-attachment' : ''}`}
+                    style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
                     <SquareView gs={gs} art={historicalEventArt(gs.country, event, sceneOf(event))} sceneKey={sceneOf(event)}
                       partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60}/>
+                    {inboxMode && !event.call && !event.press && <figcaption>
+                      Приложение к делу · {historicalEventArt(gs.country, event, sceneOf(event))?.caption ?? SCENE_CAPTION[sceneOf(event)]}
+                    </figcaption>}
                   </figure>
                 )}
                 {event.special && <SpecialHeader gs={gs} event={event}/>}
@@ -3384,6 +3443,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </div>
                 )}
               </Card>
+              {prepared ? <div className="sv-quarter-draft" data-quarter-resolution>
+                <h3>Резолюция подготовлена</h3><p>{prepared.text}</p>
+                <p>Вступит в силу при завершении квартала. До подписи можно дочитать папку и изменить решение.</p>
+                <button onClick={() => { commit(withoutQuarterDraft(gsRef.current)); setArmed(null); }}>Изменить резолюцию</button>
+              </div> : <>
               {event.doc && <InspectDoc doc={event.doc}/>}
               {event.budget ? (
                 <BudgetPanel key={`budget${turn}`} gs={gs} stamping={stamping}
@@ -3458,6 +3522,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 </div>
               </Card>
               )}
+              {inboxMode && armedChoice && <div className="sv-quarter-prepare">
+                <PrimaryBtn onClick={() => choose(armedChoice)}>Подготовить резолюцию</PrimaryBtn>
+                <button onClick={() => { setArmed(null); setPreview(null); }}>Отменить выбор</button>
+              </div>}
+              </>}
             </div>
           )}
 
@@ -3670,11 +3739,11 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   if (inFlight.current) return;
                   prefetch.current = null; commit(replyToLetter(gsRef.current, story, reply)); stampFx();
                 }}/>}
-              {typed && orderLesson && <OrderGuide lesson={orderLesson}
+              {typed && !inboxMode && orderLesson && <OrderGuide lesson={orderLesson}
                 onAssign={()=>countryPanel.current?.startHospital('assign')}
                 onReport={()=>countryPanel.current?.startHospital('report')}
                 onBrowse={()=>countryPanel.current?.showReport()} onContinue={nextTurn}/>}
-              {typed && !orderLesson && gs.world && !gs.daily && !gs.ended && <div className="sv-country-entry" style={{marginBottom:12}}>
+              {typed && !inboxMode && !orderLesson && gs.world && !gs.daily && !gs.ended && <div className="sv-country-entry" style={{marginBottom:12}}>
                 <strong>Поручения · энергосеть {gs.world.project.progress}%{gs.world.health ? ` · больницы ${gs.world.health.progress}%` : ''}</strong>
                 <span>{healthNeedsAttention(gs.world.health)?'По больницам требуется ваш ответ. Срок и варианты вмешательства — в поручениях.':gs.world.health?.aftermath?.phase==='working'?'Поручение по больницам исполняется. Продолжите решения в кабинете до итогового доклада.':gs.world.health?.aftermath?.phase==='scheduled'&&projectFinished(gs.world.project)?'Программы завершены; ожидается доклад о последствиях. Продолжите решения в кабинете.':agendaFinished?'Проекты завершены. Итоги и оставшиеся обязательства — в досье. Продолжите управление из кабинета.':gs.world.lastActionTurn===gs.turn?'Поручение на новый квартал уже подписано. Можно продолжить к делу в кабинете.':'Доклад получен. Можно дать поручение сейчас или оставить текущий план в работе.'}</span>
                 <button onClick={()=>countryPanel.current?.showReport()}>{agendaFinished?'Открыть итоги проектов':'Открыть поручения и доклады'} →</button>
@@ -3690,14 +3759,20 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           {!busy && !event && !lastTurn && gs.ended && (
             <div style={{ textAlign:"right" }}><PrimaryBtn onClick={onEnd} danger>ПОДВЕСТИ ИТОГИ →</PrimaryBtn></div>
           )}
+          </div>
+          {inboxMode && !busy && event && prepared && <footer className="sv-quarter-close">
+            <p>Резолюция подготовлена. Завершение квартала подпишет её и покажет газету.</p>
+            <button type="button" data-finish-quarter disabled={!prepared || !!recap} onClick={finishQuarter}>Завершить квартал</button>
+          </footer>}
         </div>
       </div>
       </div>
       <ActionBar
-        mode={recap ? "recap" : busy || countryOpen || contactOpen || resourceOpen || help || dossier ? null
+        mode={recap ? "recap" : busy || countryOpen || contactOpen || resourceOpen || help || dossier || inboxMode && event && inboxPage !== 'main' ? null
           : event ? (armedChoice ? "sign" : null)
           : lastTurn ? (!counted ? "count" : typed ? (gs.ended ? "end" : "next") : "skip") : null}
         choice={armedChoice}
+        prepare={inboxMode}
         onSign={() => { const c = armedChoice; setArmed(null); if (c) choose(c); }}
         onCancel={() => { setArmed(null); setPreview(null); }}
         onSkip={() => window.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter" }))}
@@ -3718,14 +3793,14 @@ function useTelegramButtons() {
 
 // Нижняя панель на телефоне: главное действие хода всегда под большим пальцем.
 // Кнопки не забирают фокус — иначе выбранная резолюция успела бы сброситься.
-function ActionBar({ mode, choice, onSign, onCancel, onSkip, onNext, onEnd, onRecap, onCount, onGuide, onGuideReport }) {
+function ActionBar({ mode, choice, onSign, onCancel, onSkip, onNext, onEnd, onRecap, onCount, onGuide, onGuideReport, prepare = false }) {
   // В Telegram то же действие уходит на его родную кнопку внизу экрана, отмена — на «Назад».
   const tg = useTelegramButtons();
   useEffect(() => {
     if (!tg) return;
     const short = t => (t.length > 34 ? t.slice(0, 33).trimEnd() + "…" : t);
     const specs = {
-      sign: { text: `Подписать: ${short(choice?.text ?? "")}`, onClick: onSign },
+      sign: { text: `${prepare ? 'Подготовить' : 'Подписать'}: ${short(choice?.text ?? "")}`, onClick: onSign },
       skip: { text: "Показать текст сразу", onClick: onSkip },
       transition: { text: "К итогам решения →", onClick: onSkip },
       next: { text: "Следующий ход →", onClick: onNext },
@@ -3748,7 +3823,7 @@ function ActionBar({ mode, choice, onSign, onCancel, onSkip, onNext, onEnd, onRe
         <button {...keep} onClick={onCancel} aria-label="Отменить выбор"
           style={{ width:48, minHeight:48, background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, fontSize:20 }}>×</button>
         <button {...keep} onClick={onSign} style={{ ...main, display:"flex", flexDirection:"column", alignItems:"flex-start", justifyContent:"center", textAlign:"left", gap:2, minWidth:0 }}>
-          <span>Подписать</span>
+          <span>{prepare ? 'Подготовить резолюцию' : 'Подписать'}</span>
           <span style={{ fontFamily:narrow, fontSize:14, textTransform:"none", opacity:.8, maxWidth:"100%", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{choice?.text}</span>
         </button>
       </>}
