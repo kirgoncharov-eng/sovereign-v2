@@ -128,3 +128,22 @@ test('дело о топливе 5-го хода продолжает каждо
     }
   }
 });
+
+test('директор концерна узнаётся по имени с первого хода, и ни одна сцена ходов 1–5 не теряет его имя', async () => {
+  for (const diff of ['coalition', 'debut', 'crisis'] as const) for (const seed of [2, 3, 4]) {
+    const intro = await classicApi.setup(ALTERNATE_COUNTRY, diff, 'pragmatist', seed);
+    let state = createInitialState(ALTERNATE_COUNTRY, diff, 'pragmatist', intro, seededRandom(seed));
+    const director = state.arc!.target;
+    state = startEvent(state, await classicApi.event(state));
+    assert.match(state.currentEvent!.description, new RegExp(`${director}, директор концерна`), `${diff}/${seed}`);
+    for (let turn = 0; turn < 5; turn++) {
+      if (turn) state = startEvent(state, await classicApi.event(state));
+      const choice = state.currentEvent!.choices[turn % state.currentEvent!.choices.length];
+      const narration = await classicApi.consequence(state, choice.id);
+      for (const text of [state.currentEvent!.description, narration.narrative]) {
+        assert.doesNotMatch(text, /неизвестный|\{target\}/, `${diff}/${seed}, ход ${turn + 1}`);
+      }
+      state = resolveTurn(state, choice.id, narration);
+    }
+  }
+});
