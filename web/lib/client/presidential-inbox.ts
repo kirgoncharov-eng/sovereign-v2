@@ -4,13 +4,15 @@ import { personProfiles } from './people-text.ts';
 import { livingActions, type WorldAction, type WorldPersonId } from '../game/living-world.ts';
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { governmentProposals } from '../content/quarter-letters.ts';
+import { pendingSecretaryFavor, secretaryEnabled, secretaryText } from '../game/secretary.ts';
+import { FAVORS } from '../content/secretary.ts';
 export interface PresidentialMessage {
   key: string;
   token: string;
   person: string;
   title: string;
   text: string;
-  action: 'sponsor' | 'government' | 'energy' | 'health' | 'minister' | 'evidence';
+  action: 'sponsor' | 'government' | 'energy' | 'health' | 'minister' | 'evidence' | 'secretary';
   needsReply: boolean;
   deadline?: number;
 }
@@ -29,6 +31,12 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
   const world = gs.world, profiles = personProfiles(gs);
   const personId = (name: string) => profiles.find(p => p.name === name)?.id;
   const messages: PresidentialMessage[] = [];
+  const secretary = world.secretary;
+  if (secretaryEnabled(gs) && secretary?.present) {
+    const favor = pendingSecretaryFavor(gs) ?? secretary.favors.at(-1);
+    if (favor) messages.push({ key: 'secretary-favor', token: `${favor.id}:${favor.answer ?? 'open'}`, person: 'secretary',
+      title: FAVORS[favor.id].title, text: secretaryText(gs, FAVORS[favor.id].letter), action: 'secretary', needsReply: favor.answer === null });
+  }
   const source = world.evidence;
   if (source) {
     const person = personId(source.name);

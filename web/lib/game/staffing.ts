@@ -12,6 +12,7 @@ import { ARCS } from "../content/arcs.ts";
 import { DOSSIERS, DOSSIER_TEXT } from "../content/advisors.ts";
 import { ABSURD, CHANNELS, DISMISSAL, FREAKS, RELATIVES, SERIOUS, STAFFING_TEXT, type Channel } from "../content/staffing.ts";
 import type { Advisor, Bloc, GameState, ResourceDelta, ResourceKey } from "./types.ts";
+import { secretaryStaffingChange } from './secretary.ts';
 
 export const POOL_SIZE = 3;
 export const POOL_TURNS = 4; // резерв обновляется раз в год (четыре квартала)
@@ -149,14 +150,14 @@ export function hireAdvisor(state: GameState, candidateId: string): GameState {
     CHANNELS[candidate.channel].receipt.replace("{name}", candidate.name).replace("{title}", candidate.title),
     dismissal?.text,
   ].filter(Boolean).join(" ");
-  return {
+  return secretaryStaffingChange(state, {
     ...state,
     resources,
     factions,
     advisors: state.advisors.map(advisor => (advisor.id === candidate.seat ? hired : advisor)),
     former: current ? [...(state.former ?? []), current.name] : state.former,
     staffing: { lastTurn: state.turn, taken: [...(state.staffing?.taken ?? []), candidate.id], receipt },
-  };
+  }, current?.name);
 }
 
 // ── Досье ───────────────────────────────────────────────────────────────────

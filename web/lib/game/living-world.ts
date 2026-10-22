@@ -14,6 +14,7 @@ import type { GameState, ResourceDelta, Choice } from './types.ts';
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
 import { signedCaseOrVersion } from './first-term-schedule.ts';
 import * as letters from '../content/quarter-letters.ts';
+import { actSecretary, ensureSecretary, secretarySurname, validSecretary, type SecretaryState } from './secretary.ts';
 export type WorldPersonId = 'minister' | 'governor' | 'engineer' | 'healthMinister' | 'doctor';
 export interface WorldPerson {
     id: WorldPersonId;
@@ -53,6 +54,7 @@ export interface EnergyProject {
     lastFactors: string[];
 }
 export interface LivingWorld {
+    secretary?: SecretaryState;
     version: 1;
     mandate?: MinisterMandate;
     government?: GovernmentState;
@@ -86,9 +88,9 @@ export function openLivingWorld(gs: GameState): GameState {
     if (gs.daily || gs.ended) return gs;
     const historical = gs.country === ALTERNATE_COUNTRY;
     if (historical && !gs.world && !signedCaseOrVersion(gs, 'alt_fuel')) return gs;
-    if (gs.world?.health) return ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor(gs))));
+    if (gs.world?.health) return ensureSecretary(ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor(gs)))));
     const openHealth = !historical || signedCaseOrVersion(gs, 'alt_district');
-    if (gs.world && !openHealth) return ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor(gs))));
+    if (gs.world && !openHealth) return ensureSecretary(ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor(gs)))));
     const previous = gs.world;
     const used = new Set([...(previous?.people.map(person => person.name) ?? []), gs.leader.name, ...gs.keyFigures.map(f => f.name), ...gs.advisors.map(entry => entry.name), ...(gs.former ?? [])]);
     const pool = NAMES[gs.country] ?? NAMES['Беларусь'];
@@ -96,7 +98,7 @@ export function openLivingWorld(gs: GameState): GameState {
         for (let i = 0; i < 200; i++) {
             const h = hash(gs.seed, 'world-name', slot, i);
             const n = `${pool.first[h % 8]} ${pool.last[(h >>> 5) % pool.last.length]}`;
-            if (!used.has(n)) {
+            if (!used.has(n) && (!gs.world?.secretary || secretarySurname(n) !== secretarySurname(gs.world.secretary.name))) {
                 used.add(n);
                 return n;
             }
@@ -149,7 +151,7 @@ export function openLivingWorld(gs: GameState): GameState {
                 `могут согласовать назначения, но уже участвуют в восстановлении энергосети. Временный перевод врачей даст ` +
                 `быстрый результат за счёт областных больниц.`
     });
-    return ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor({ ...gs, world }))));
+    return ensureSecretary(ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor({ ...gs, world })))));
 }
 export function worldPerson(gs: GameState, id: WorldPersonId): WorldPerson | undefined {
     const person = gs.world?.people.find(project => project.id === id);
@@ -256,6 +258,7 @@ export function livingActions(gs: GameState): WorldAction[] {
     });
 }
 export function interveneWorld(gs: GameState, id: string): GameState {
+    if (id.startsWith('secretary:')) return actSecretary(gs, id);
     const action = livingActions(gs).find(entry => entry.id === id);
     if (!action || action.blocked)
         throw Error(action?.blocked ?? 'Поручение недоступно');
@@ -609,6 +612,7 @@ export function validLivingWorld(value: unknown): value is LivingWorld {
         || typeof value !== 'object')
         return false;
     const world = value as LivingWorld;
+    if (world.secretary !== undefined && !validSecretary(world.secretary, world.lastTick)) return false;
     const n = (x: unknown, min = 0, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(x)
         && Number(x) >= min
         && Number(x) <= max;
