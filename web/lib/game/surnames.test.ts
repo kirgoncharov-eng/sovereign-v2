@@ -5,7 +5,9 @@ import { classicApi } from './classic.ts';
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
 import { createInitialState, seededRandom, startEvent, resolveTurn } from './engine.ts';
 import { openDeskWhenDue } from './desk-timing.ts';
-import { candidatePool } from './staffing.ts';
+import { candidatePool, hireAdvisor, staffingBlocked } from './staffing.ts';
+import { parseSave } from '../client/save.ts';
+import { SAVE_VERSION } from './data.ts';
 import type { DifficultyId, GameState } from './types.ts';
 
 test('женская форма и основа фамилии согласованы для всех окончаний пула', () => {
@@ -40,6 +42,33 @@ test('1978: за срок ни у кого нет мужской фамилии 
       assert.deepEqual(repeated, [], `${where}: фамилия повторяется`);
       const choice = state.currentEvent!.choices[turn % state.currentEvent!.choices.length];
       state = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
+    }
+  }
+});
+
+// Порядок «открыть дело → назначить советника → подписать»: преемник уже объявлен в деле, его фамилия занята (#250, coalition/50).
+test('1978: назначение до подписи не берёт фамилию преемника, объявленного в открытом деле', async () => {
+  for (const seed of [50, ...Array.from({ length: 19 }, (_, index) => index + 1)]) {
+    let state = createInitialState(ALTERNATE_COUNTRY, 'coalition', 'pragmatist', await classicApi.setup(ALTERNATE_COUNTRY, 'coalition', 'pragmatist', seed),
+      seededRandom(seed));
+    for (let turn = 0; turn < 20 && !state.ended; turn++) {
+      state = openDeskWhenDue(state);
+      state = startEvent(state, await classicApi.event(state));
+      const candidate = candidatePool(state).find(entry => staffingBlocked(state, entry) === null);
+      if (candidate) {
+        state = hireAdvisor(state, candidate.id);
+        state = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'game', state }))!.state;
+      }
+      const heirs = state.currentEvent!.choices.flatMap(choice => (choice.deal?.replace ? [choice.deal.replace] : []));
+      const where = `coalition/${seed}, ход ${turn + 1}`;
+      for (const heir of heirs) {
+        const namesake = people(state).filter(name => name !== heir && surnameBase(name) === surnameBase(heir));
+        assert.deepEqual(namesake, [], `${where}: преемник ${heir}`);
+      }
+      const choice = state.currentEvent!.choices[(turn + 1) % state.currentEvent!.choices.length];
+      state = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
+      const bases = people(state).map(surnameBase);
+      assert.equal(new Set(bases).size, bases.length, `${where}: после подписи`);
     }
   }
 });

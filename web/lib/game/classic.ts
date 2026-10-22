@@ -280,7 +280,9 @@ function usedNames(state: GameState, extra: string[] = []): Set<string> {
   if (secretaryEnabled(state) && state.world?.secretary) used.add(secretarySurname(state.world.secretary.name));
   // 1978 (#242): люди папки и антагонист после ухода с поста тоже заняли фамилию — преемник не станет их «родственником».
   if (state.country === ALTERNATE_COUNTRY) {
-    for (const name of [...(state.world?.people.map(person => person.name) ?? []), ...(state.arc ? [state.arc.target] : [])]) {
+    // Преемник, уже объявленный в открытом деле, тоже занят: назначение до подписи не должно взять его фамилию.
+    const heirs = state.currentEvent?.choices.flatMap(choice => (choice.deal?.replace ? [choice.deal.replace] : [])) ?? [];
+    for (const name of [...(state.world?.people.map(person => person.name) ?? []), ...(state.arc ? [state.arc.target] : []), ...heirs]) {
       used.add(surnameBase(name));
     }
   }

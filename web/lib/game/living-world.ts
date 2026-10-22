@@ -96,8 +96,10 @@ export function openLivingWorld(gs: GameState): GameState {
     const used = new Set([...(previous?.people.map(person => person.name) ?? []), gs.leader.name, ...gs.keyFigures.map(f => f.name), ...gs.advisors.map(entry => entry.name), ...(gs.former ?? [])]);
     const pool = NAMES[gs.country] ?? NAMES['Беларусь'];
     // 1978 (#242): новый человек папки не делит фамилию ни с кем из партии — иначе игрок примет их за родственников.
-    const surnames = new Set(historical ? [...used, ...(gs.arc ? [gs.arc.target] : []), ...(gs.world?.secretary ? [gs.world.secretary.name] : [])]
-        .map(surnameBase) : []);
+    const heirs = gs.currentEvent?.choices.flatMap(choice => (choice.deal?.replace ? [choice.deal.replace] : [])) ?? [];
+    const surnames = new Set(historical
+        ? [...used, ...(gs.arc ? [gs.arc.target] : []), ...(gs.world?.secretary ? [gs.world.secretary.name] : []), ...heirs].map(surnameBase)
+        : []);
     const name = (slot: string) => {
         for (let i = 0; i < 200; i++) {
             const h = hash(gs.seed, 'world-name', slot, i);
