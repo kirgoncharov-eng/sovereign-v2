@@ -1,7 +1,7 @@
 import type { GameState } from '../game/types.ts';
 import { healthNeedsAttention } from '../game/health-aftermath.ts';
 import { personProfiles } from './people-text.ts';
-import { livingActions, type WorldAction } from '../game/living-world.ts';
+import { livingActions, type WorldAction, type WorldPersonId } from '../game/living-world.ts';
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { governmentProposals } from '../content/quarter-letters.ts';
 export interface PresidentialMessage {
@@ -14,6 +14,16 @@ export interface PresidentialMessage {
   needsReply: boolean;
   deadline?: number;
 }
+// Кто подписывает письмо проекта: в 1978 году письмо об исполнении ответа по больницам — его исполнитель,
+// иначе руководитель программы. Один источник для списка папки и шапки открытого письма (#244).
+export function projectLetterAuthor(gs: GameState, project: 'energy' | 'health'): WorldPersonId | null {
+  const world = gs.world;
+  if (!world) return null;
+  const answering = project === 'health' && gs.country === ALTERNATE_COUNTRY && world.health?.aftermath?.phase === 'working'
+    ? world.health.aftermath.executor : null;
+  return answering ?? (project === 'energy' ? world.project : world.health)?.executor ?? null;
+}
+
 export function presidentialMessages(gs: GameState): PresidentialMessage[] {
   if (gs.daily || !gs.world) return [];
   const world = gs.world, profiles = personProfiles(gs);
@@ -37,10 +47,7 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
   for (const project of ['energy', 'health'] as const) {
     const latest = [...world.dispatches].reverse().find(d => d.project === project && ['letter', 'report', 'news'].includes(d.kind) && (project !== 'energy' || /Энергосеть|Промышленный регион/.test(d.title)));
     const p = project === 'energy' ? world.project : world.health;
-    // Письмо об исполнении ответа по больницам подписывает тот, кто исполняет этот ответ, а не прежний руководитель программы.
-    const answering = project === 'health' && gs.country === ALTERNATE_COUNTRY && world.health?.aftermath?.phase === 'working'
-      ? world.health.aftermath.executor : undefined;
-    const executor = answering ?? p?.executor;
+    const executor = projectLetterAuthor(gs, project);
     const actor = world.people.find(p => p.id === (executor ?? (project === 'energy' ? 'minister' : 'doctor')));
     const name = actor?.figure ? gs.keyFigures.find(f => f.id === actor.figure)?.name : actor?.name;
     const person = name && personId(name);
