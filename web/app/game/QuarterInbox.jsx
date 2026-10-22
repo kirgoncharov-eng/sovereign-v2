@@ -9,6 +9,8 @@ import MinisterPanel from './MinisterPanel.jsx';
 import EvidencePanel from './EvidencePanel.jsx';
 import GovernmentPanel from './GovernmentPanel.jsx';
 import { PeopleText } from './PeopleText.jsx';
+import SecretaryLetter, { SecretaryNote } from './SecretaryLetter.jsx';
+import { secretaryInventory } from '@/lib/game/secretary.ts';
 import './quarter-inbox.css';
 
 // Документы папки в порядке срочности: опись, главное дело, письма (#244 — один словарь статусов).
@@ -16,7 +18,8 @@ function folderEntries(gs) {
   const profiles = personProfiles(gs);
   const prepared = quarterResolution(gs);
   return [
-    ...(gs.world ? [{ key:'secretary', title:'Опись папки', sender:'Секретарь', status:'Что сверху и что подождёт' }] : []),
+    ...(gs.world ? [{ key:'secretary', title:'Опись папки', sender:gs.world.secretary?.present ? gs.world.secretary.name : 'Канцелярия',
+      status:'Что сверху и что подождёт' }] : []),
     ...(gs.currentEvent ? [{ key:'main', title:gs.currentEvent.title, sender:gs.currentEvent.source, prepared:!!prepared,
       status:prepared ? 'Резолюция готова к подписи' : 'Ждёт вашей резолюции' }] : []),
     ...presidentialMessages(gs).map(message => ({ key:message.key, title:message.title,
@@ -47,7 +50,8 @@ export function IncomingLetter({ gs, page, onAction, onOpen, Scene }) {
   if (page === 'secretary' || !message) return <article className="sv-paper sv-incoming-project" data-quarter-secretary>
     <header><small>КАНЦЕЛЯРИЯ ПРЕЗИДЕНТА</small><span className="sv-stamp">Опись</span></header>
     <h2>Опись папки</h2>
-    <p>Секретарь разложила бумаги по срочности.</p>
+    <p><PeopleText>{secretaryInventory(gs) ?? (gs.world?.secretary ? '' : 'Секретарь разложила бумаги по срочности.')}</PeopleText></p>
+    <SecretaryNote gs={gs} onAction={onAction} Scene={Scene}/>
     <ol className="sv-folder-inventory">{folderEntries(gs).filter(entry => entry.key !== 'secretary').map(entry =>
       <li key={entry.key}>{entry.key === 'main'
         ? <><strong>Сверху — «<PeopleText>{entry.title}</PeopleText>».</strong> {entry.prepared ? 'Резолюция готова к подписи.'
@@ -55,6 +59,7 @@ export function IncomingLetter({ gs, page, onAction, onOpen, Scene }) {
         : <PeopleText>{`${entry.sender} — «${entry.title}». ${entry.status}.`}</PeopleText>}</li>)}</ol>
     <p className="sv-incoming-status">Пока папка на столе, время стоит.</p>
   </article>;
+  if (message.action === 'secretary') return <SecretaryLetter gs={gs} onAction={onAction}/>;
   if (message.action === 'energy' || message.action === 'health') return <IncomingProject key={message.action}
     gs={gs} projectId={message.action} onAction={onAction} Scene={Scene}/>;
   const props = { gs, onAction, Scene, onClose:() => onOpen('secretary') };

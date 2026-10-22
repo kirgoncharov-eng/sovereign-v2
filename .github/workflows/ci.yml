@@ -60,6 +60,7 @@ jobs:
       - run: npm ci
       - run: npm run playtest:install -- --with-deps
       - run: npm run playtest -- --turns=24 --out=playtest
+      - run: node scripts/playtest-secretary.mjs --out=playtest/secretary
       - if: always()
         uses: actions/upload-artifact@v4
         with:

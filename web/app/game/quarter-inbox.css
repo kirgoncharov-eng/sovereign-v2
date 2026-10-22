@@ -55,3 +55,10 @@
 /* Опись папки (#244): главное дело сверху, номера внутри листа. */
 .sv-folder-inventory { margin: 0 0 12px; padding-left: 1.5em; }
 .sv-folder-inventory li { margin-bottom: 6px; }
+.sv-secretary-actions { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.sv-secretary-actions button { max-width:100%; text-align:left; white-space:normal; }
+.sv-secretary-actions button small { display:block; font-size:12px; margin-top:4px; }
+.sv-secretary-actions .sv-country-confirm { flex-basis:100%; }
+.sv-secretary-trust { display:block; margin-bottom:12px; }
+.sv-secretary-scene { margin:16px 0; }
+.sv-secretary-scene figcaption { margin-top:8px; line-height:1.5; }

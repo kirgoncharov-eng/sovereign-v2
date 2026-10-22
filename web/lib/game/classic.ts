@@ -53,6 +53,7 @@ import { storyLetters } from "./stories.ts";
 import { ARCHIVE_CARD, archiveDescription } from "./archive-memory.ts";
 import { advisorNews, forecastReview } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
+import { secretaryEnabled, secretarySurname } from './secretary.ts';
 import { sanitizeProposals } from "./sanitize.ts";
 import { isOrdinaryNewspaperEvent, newspaperHeadline } from "./newspaper-editions.ts";
 import { FIRST_TERM_CASES, firstTermLaw, replacedCases, scheduledFirstTerm, versionsOf } from "./first-term-schedule.ts";
@@ -275,6 +276,7 @@ function usedNames(state: GameState, extra: string[] = []): Set<string> {
     used.add(`first:${first}`);
     if (last) used.add(last.replace(/(ов|ев|ин)а$/, "$1").replace(/(ск|цк)ая$/, "$1ий"));
   }
+  if (secretaryEnabled(state) && state.world?.secretary) used.add(secretarySurname(state.world.secretary.name));
   return used;
 }
 

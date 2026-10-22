@@ -3,6 +3,7 @@ import { ACTION_TAGS, END_TYPES, RESOURCE_KEYS, SAVE_VERSION } from "../game/dat
 import { isObj, validCountry, validDiff, validIdeo } from "../game/sanitize.ts";
 import { validAnalyticsRun } from "./run-context.ts";
 import { validQuarterDraft } from './quarter-inbox.ts';
+import { secretaryEnabled, validSecretary } from '../game/secretary.ts';
 import { validDailyMoves } from "../game/daily-run.ts";
 import { managementDocument } from "../game/classic.ts";
 import { validLivingWorld } from "../game/living-world.ts";
@@ -140,6 +141,9 @@ export function parseSave(raw: string | null): SaveData | null {
     if (!isObj(d) || d.version !== SAVE_VERSION) return null;
     if (d.screen !== "intro" && d.screen !== "game" && d.screen !== "ending") return null;
     const s = d.state;
+    // A damaged optional character must not discard the rest of a pre-existing campaign.
+    if (isObj(s) && isObj(s.world) && s.world.secretary !== undefined
+      && (!secretaryEnabled(s as unknown as GameState) || !validSecretary(s.world.secretary, Number(s.turn)))) delete s.world.secretary;
     if (!isObj(s) || !validState(s)) return null;
     if (d.screen === "ending" && !s.ended) return null;
     const saved=d as unknown as SaveData;

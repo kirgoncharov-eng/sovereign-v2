@@ -16,6 +16,7 @@ import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE
 import { stepPromises } from "./promises.ts";
 import { stepLaws } from "./laws.ts";
 import { stepLivingWorld, type LivingWorld } from "./living-world.ts";
+import { ensureSecretary, finishSecretaryTurn, secretaryDueEffects, secretaryLeakCost } from './secretary.ts';
 import { electionKind, isTermEnd, nextReign, pathEnd, reignOf } from "./terms.ts";
 import type {
   Advisor, AdvisorNews, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
@@ -259,7 +260,7 @@ export function createInitialState(
 export function startEvent(state: GameState, event: GameEvent & { cardId?: string }): GameState {
   const { cardId, ...ev } = event;
   const usedEvents = cardId ? [...(state.usedEvents ?? []), cardId].slice(-40) : (state.usedEvents ?? []);
-  return { ...state, currentEvent: cardId ? { ...ev, card: cardId } : ev, lastTurn: null, usedEvents };
+  return ensureSecretary({ ...state, currentEvent: cardId ? { ...ev, card: cardId } : ev, lastTurn: null, usedEvents });
 }
 
 // Дополнительные предложения расходуют сбор; обсуждение исходной исторической подписи бесплатно.
@@ -564,8 +565,9 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   add("решение", effects.resources);
   // Утечки нелояльных советников: что вынесли в прессу, то и бьёт.
   const leaks = leakingAdvisors(state);
-  for (const advisor of leaks) add(`утечка: ${advisor.name}`, LEAKS[advisor.id].cost);
+  for (const advisor of leaks) add(`утечка: ${advisor.name}`, secretaryLeakCost(state, advisor, LEAKS[advisor.id].cost));
   const nextTurn = state.turn + 1;
+  for (const consequence of secretaryDueEffects(state, nextTurn)) add(consequence.label, consequence.res);
 
   // Срабатывают отложенные последствия прошлых решений; новые встают в очередь.
   const pendingAll = state.pending ?? [];
@@ -749,7 +751,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     return { ...fig, name: heir.name, relation, loyalty: loyaltyLabel(relation) };
   });
 
-  return {
+  return finishSecretaryTurn(state, {
     ...state,
     resources: plan.resources, prevResources: { ...state.resources },
     ...(plan.world ? { world: plan.world } : {}),
@@ -833,5 +835,5 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     ended: plan.endType !== null,
     endType: plan.endType,
     powerLoss: plan.endType && !isSurvival(plan.endType) ? narration.powerLoss : null,
-  };
+  });
 }
