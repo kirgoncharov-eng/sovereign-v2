@@ -306,7 +306,7 @@ export function actSecretary(gs: GameState, id: string): GameState {
     s.nextFavor = gs.turn + 3 + hashSeed(gs.seed, 'secretary-favor-gap', favor.id) % 2;
     s.receipt = secretaryText(next, grant ? copy.FAVORS[favor.id].granted : copy.FAVORS[favor.id].refused);
     favor.outcome = s.receipt;
-    if (s.trust !== oldTrust) s.receipt += ` ${secretaryText(next, copy.TRUST_CHANGE[s.trust > oldTrust ? 'up' : 'down'])}`;
+    if (s.trust !== oldTrust && !(favor.id === 'herSeat' && !grant)) s.receipt += ` ${secretaryText(next, copy.TRUST_CHANGE[s.trust > oldTrust ? 'up' : 'down'])}`;
     if (!grant && DUBIOUS.includes(favor.id)) s.receipt += ` ${secretaryText(next, copy.TRUST_CHANGE.refusedDubious)}`;
     if (grant && favor.id === 'leave') s.away = gs.turn + 1;
     if (!grant && favor.id === 'herSeat') { s.present = false; s.gossip = null; s.scene = null; }

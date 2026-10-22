@@ -112,6 +112,9 @@ test('отказы различаются по доверию; отгул и у�
   assert.equal(secretaryAvailable({ ...absent, turn: absent.turn + 1 }), true);
   const left = actSecretary(offer(gs, 'herSeat'), 'secretary:favor:herSeat:refuse');
   assert.equal(left.world!.secretary!.present, false);
+  assert.equal(left.world!.secretary!.trust, 1, 'the refusal still reduces trust');
+  assert.equal(left.world!.secretary!.receipt, left.world!.secretary!.favors[0].outcome, 'final departure has no ordinary trust reaction');
+  assert.doesNotMatch(left.world!.secretary!.receipt!, /С этого квартала папку она кладёт/);
   assert.equal(secretaryActions(left).length, 0);
   assert.match(secretaryInventory(left)!, /канцелярия/);
 });
