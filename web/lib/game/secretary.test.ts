@@ -328,7 +328,7 @@ test('опись не повторяется подряд; напоминани�
 
 
 test('ложное предупреждение тратит личный ресурс, не отменяет чужие утечки и не обещает успех', async () => {
-  let gs = await fixture();
+  const gs = await fixture();
   gs.advisors = gs.advisors.map((a, i) => ({ ...a, loyalty: i === 0 ? 80 : 10 }));
   while (!leakingAdvisors(gs).length) gs.turn++;
   const innocent = gs.advisors[0];
