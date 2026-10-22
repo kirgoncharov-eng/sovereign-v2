@@ -97,6 +97,62 @@ try {
     results.push({ width, naturalFirstRequest: true, cancel: true, signedOnce: true, draftReload: true, errors });
     await context.close();
   }
+  // Isolate a real current-quarter leak to verify the approved price and newspaper result.
+  let warned = structuredClone(state);
+  warned.advisors = warned.advisors.map(a => ({ ...a, loyalty: 10 }));
+  warned.world.secretary.trust = 2;
+  warned.world.secretary.updated = warned.turn - 1;
+  warned.world.secretary.lastGossipTurn = null;
+  for (let turn = warned.turn; turn < 20; turn++) {
+    warned.turn = turn;
+    warned.world.lastTick = turn;
+    warned = ensureSecretary(warned);
+    if (warned.world.secretary.gossip?.kind === 'leak') break;
+  }
+  assert.equal(warned.world.secretary.gossip?.kind, 'leak');
+  assert.ok(warned.world.secretary.gossip.truthful);
+  assert.ok(parseSave(JSON.stringify(encode(warned))));
+  const protectionContext = await browser.newContext({ viewport: { width: 390, height: 900 }, reducedMotion: 'reduce' });
+  const protectionPage = await protectionContext.newPage();
+  const protectionErrors = [];
+  protectionPage.on('pageerror', error => protectionErrors.push(error.message));
+  await protectionPage.addInitScript(save => {
+    if (!localStorage.getItem('sovereign.save')) localStorage.setItem('sovereign.save', JSON.stringify(save));
+  }, encode(warned));
+  const protectionRead = () => protectionPage.evaluate(() => JSON.parse(localStorage.getItem('sovereign.save')).state);
+  const protectionResume = async () => {
+    await protectionPage.getByRole('button', { name: 'Продолжить сохранённую игру', exact: true }).click();
+    await protectionPage.getByRole('dialog').getByRole('button', { name: 'ПРОДОЛЖИТЬ', exact: true }).click();
+  };
+  await protectionPage.goto(url, { waitUntil: 'domcontentloaded' });
+  await protectionResume();
+  const protectButton = protectionPage.locator('[data-secretary-action="secretary:protect"]');
+  await protectButton.click();
+  assert.match(await protectionPage.locator('.sv-country-confirm').innerText(), /Личный ресурс −1/);
+  await protectionPage.getByRole('button', { name: 'Отложить', exact: true }).click();
+  assert.deepEqual((await protectionRead()).resources, warned.resources);
+  await protectButton.click();
+  await protectionPage.locator('[data-secretary-confirm]').click();
+  await protectionPage.waitForFunction(() => JSON.parse(localStorage.getItem('sovereign.save')).state.world.secretary.gossip.protected);
+  const protectedSave = await protectionRead();
+  assert.equal(protectedSave.resources.personalResource, warned.resources.personalResource - 1);
+  assert.equal(protectedSave.resources.politicalCapital, warned.resources.politicalCapital);
+  assert.equal(await protectButton.count(), 0);
+  await protectionPage.reload({ waitUntil: 'domcontentloaded' });
+  await protectionResume();
+  assert.deepEqual((await protectionRead()).world.secretary.gossip, protectedSave.world.secretary.gossip);
+  await protectionPage.locator('#quarter-document').selectOption('main');
+  await protectionPage.locator('#opt-1').click();
+  await protectionPage.locator('.sv-quarter-prepare button').first().click();
+  await protectionPage.locator('[data-finish-quarter]').click();
+  await protectionPage.locator('#sv-turn-result').waitFor();
+  await protectionPage.waitForFunction(() => JSON.parse(localStorage.getItem('sovereign.save')).state.lastTurn?.narrative.includes('Утечку предотвратили'));
+  await protectionPage.evaluate(() => window.scrollTo({ top: 0 }));
+  await protectionPage.screenshot({ path: `${output}/390-prevented-leak.png`, fullPage: true });
+  assert.deepEqual(protectionErrors, []);
+  results.push({ leakPrevented: true, personalCost: 1, politicalCost: 0, protectionReload: true, errors: protectionErrors });
+  await protectionContext.close();
+
   // Isolate the director's channel after the grant: this is not an assertion about natural unlock timing.
   const controlled = structuredClone(state);
   controlled.world.secretary.favors = [{ id: 'archiveKey', offered: state.turn, answer: null, answered: null, outcome: null }];

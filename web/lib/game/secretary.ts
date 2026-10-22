@@ -265,9 +265,9 @@ export function secretaryActions(gs: GameState): SecretaryAction[] {
     if (gossip.checked === null) actions.push({ id: 'secretary:verify', title: 'Проверить сведения',
       detail: 'Личный разговор с источниками: личный ресурс −1. Проверка не меняет должности и не тратит квартал.', cost: { personalResource: -1 } });
     if (gossip.kind === 'leak' && !gossip.protected && gossip.checked !== false) actions.push({
-      id: 'secretary:protect', title: 'Поручить силовикам ограничить утечку',
-      detail: 'Политкапитал −1, личный ресурс −1: согласовать доступ к черновику. Если утечка случится сейчас, ущерб вдвое меньше (с округлением вверх).',
-      cost: { politicalCapital: -1, personalResource: -1 } });
+      id: 'secretary:protect', title: 'Поручить силовикам предотвратить утечку',
+      detail: 'Личный ресурс −1: согласовать доступ к черновику. Это предотвратит утечку названного советника в текущем квартале, если сведения верны.',
+      cost: { personalResource: -1 } });
   }
   return actions.map(action => {
     const shortage = Object.entries(action.cost).map(([key, delta]) =>
@@ -330,11 +330,10 @@ export function actSecretary(gs: GameState, id: string): GameState {
   return next;
 }
 
-export function secretaryLeakCost(gs: GameState, advisor: { id: string; name: string }, cost: ResourceDelta): ResourceDelta {
+export function secretaryPreventsLeak(gs: GameState, advisor: { id: string; name: string }): boolean {
   const gossip = secretaryEnabled(gs) && gs.world?.secretary?.gossip;
-  if (!gossip || gossip.turn !== gs.turn || !gossip.protected || !gossip.truthful
-    || gossip.subject !== advisor.id || gossip.name !== advisor.name || gossip.kind !== 'leak') return cost;
-  return Object.fromEntries(Object.entries(cost).map(([key, value]) => [key, value! < 0 ? -Math.ceil(-value! / 2) : value]));
+  return !!gossip && gossip.turn === gs.turn && gossip.protected && gossip.truthful && gossip.kind === 'leak'
+    && gossip.subject === advisor.id && gossip.name === advisor.name && gossipConfirmed(gs, gossip);
 }
 
 export function secretaryDueEffects(gs: GameState, turn: number): { label: string; res: ResourceDelta }[] {
@@ -361,9 +360,7 @@ export function finishSecretaryTurn(before: GameState, after: GameState): GameSt
   const due = s.pending.filter(p => p.due <= after.turn);
   s.pending = s.pending.filter(p => p.due > after.turn);
   const notes = due.map(p => p.text);
-  const gossip = s.gossip;
-  if (gossip?.protected && gossip.turn === before.turn && gossip.truthful
-    && leakingAdvisors(before).some(a => a.id === gossip.subject && a.name === gossip.name)) notes.push(secretaryText(before, copy.LEAK_DEFUSED));
+  if (leakingAdvisors(before).some(advisor => secretaryPreventsLeak(before, advisor))) notes.push(secretaryText(before, copy.LEAK_DEFUSED));
   if (after.turn >= 20 && !s.finale) { s.finale = copy.TERM_FINALE[s.present ? s.trust : 'left']; notes.push(s.finale); }
   if (due.length) { s.receipt = notes.join('\n\n'); s.receiptTurn = after.turn; }
   return { ...after, world: { ...after.world!, secretary: s },

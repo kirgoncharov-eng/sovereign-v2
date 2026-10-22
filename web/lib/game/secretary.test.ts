@@ -11,7 +11,7 @@ import { SAVE_VERSION } from './data.ts';
 import { candidatePool, hireAdvisor } from './staffing.ts';
 import { presidentialMessages } from '../client/presidential-inbox.ts';
 import { actSecretary, ensureSecretary, finishSecretaryTurn, gossipConfirmed, pendingSecretaryFavor, secretaryActions,
-  secretaryAvailable, secretaryInventory, secretaryLeakCost, secretarySurname, secretaryDueEffects, validSecretary } from './secretary.ts';
+  secretaryAvailable, secretaryInventory, secretaryPreventsLeak, secretarySurname, secretaryDueEffects, validSecretary } from './secretary.ts';
 import type { FavorId, SecretaryState } from './secretary.ts';
 import type { DifficultyId, GameState } from './types.ts';
 
@@ -174,7 +174,7 @@ test('директор передаёт ложь через архив; пров
   assert.throws(() => actSecretary(checked, 'secretary:verify'));
 });
 
-test('предупреждённая утечка бьёт вдвое слабее только по названному человеку и текущему кварталу', async () => {
+test('поручение за личный ресурс предотвращает только текущую утечку названного советника', async () => {
   let gs = await fixture();
   gs.advisors = gs.advisors.map(a => ({ ...a, loyalty: 10 }));
   while (!leakingAdvisors(gs).length) gs.turn++;
@@ -182,18 +182,31 @@ test('предупреждённая утечка бьёт вдвое слабе
   gs.world!.secretary!.lastGossipTurn = null;
   gs = ensureSecretary({ ...gs, turn: gs.turn + 1 });
   while (!gs.world!.secretary!.gossip || gs.world!.secretary!.gossip!.kind !== 'leak') gs = ensureSecretary({ ...gs, turn: gs.turn + 1 });
+  gs.world!.lastTick = gs.turn;
   const g = gs.world!.secretary!.gossip!;
   const advisor = gs.advisors.find(a => a.id === g.subject)!;
   const protectedState = actSecretary(gs, 'secretary:protect');
-  assert.deepEqual(secretaryLeakCost(protectedState, advisor, { politicalCapital: -3 }), { politicalCapital: -2 });
-  assert.deepEqual(secretaryLeakCost({ ...protectedState, turn: gs.turn + 1 }, advisor, { politicalCapital: -3 }), { politicalCapital: -3 });
-  assert.deepEqual(secretaryLeakCost(protectedState, { ...advisor, name: 'Другой человек' }, { politicalCapital: -3 }), { politicalCapital: -3 });
+  assert.equal(protectedState.resources.personalResource, gs.resources.personalResource - 1);
+  assert.equal(protectedState.resources.politicalCapital, gs.resources.politicalCapital);
+  assert.throws(() => actSecretary(protectedState, 'secretary:protect'));
+  assert.ok(secretaryPreventsLeak(protectedState, advisor));
+  assert.equal(secretaryPreventsLeak({ ...protectedState, turn: gs.turn + 1 }, advisor), false);
+  assert.equal(secretaryPreventsLeak(protectedState, { ...advisor, name: 'Другой человек' }), false);
   const cost = planTurn(gs, gs.currentEvent!.choices[0].id).sources;
   const reduced = planTurn(protectedState, gs.currentEvent!.choices[0].id).sources;
   const originalLeak = Object.values(cost).flat().filter(([label]) => label === `утечка: ${advisor.name}`);
   const protectedLeak = Object.values(reduced).flat().filter(([label]) => label === `утечка: ${advisor.name}`);
-  assert.ok(originalLeak.length > 0 && protectedLeak.length > 0);
-  assert.ok(Math.abs(protectedLeak[0][1]) <= Math.ceil(Math.abs(originalLeak[0][1]) / 2));
+  assert.ok(originalLeak.length > 0);
+  assert.equal(protectedLeak.length, 0);
+  assert.ok(!planTurn(protectedState, gs.currentEvent!.choices[0].id).leaks.includes(advisor.id));
+  const result = resolveTurn(protectedState, gs.currentEvent!.choices[0].id,
+    await classicApi.consequence(protectedState, gs.currentEvent!.choices[0].id));
+  assert.match(result.lastTurn!.narrative, /Утечку предотвратили/);
+  assert.doesNotMatch(result.lastTurn!.narrative, /половину черновика/);
+  const saved = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'game', state: protectedState }));
+  assert.ok(saved && secretaryPreventsLeak(saved.state, advisor));
+  const other = gs.advisors.find(a => a.id !== advisor.id)!;
+  assert.equal(secretaryPreventsLeak(protectedState, other), false);
 });
 
 test('публичная замена названного советника снижает доверие и вызывает квартал молчания', async () => {
@@ -311,4 +324,26 @@ test('опись не повторяется подряд; напоминани�
   assert.deepEqual(secretaryDueEffects(gs, gs.turn + 1), []);
   const next = finishSecretaryTurn(gs, { ...gs, turn: gs.turn + 1 });
   assert.match(next.world!.secretary!.receipt!, /Напоминание/);
+});
+
+
+test('ложное предупреждение тратит личный ресурс, не отменяет чужие утечки и не обещает успех', async () => {
+  let gs = await fixture();
+  gs.advisors = gs.advisors.map((a, i) => ({ ...a, loyalty: i === 0 ? 80 : 10 }));
+  while (!leakingAdvisors(gs).length) gs.turn++;
+  const innocent = gs.advisors[0];
+  gs.world!.secretary!.gossip = { turn: gs.turn, kind: 'leak', text: 'Ложное предупреждение', truthful: false,
+    source: 'director', subject: innocent.id, name: innocent.name, checked: null, protected: false, exposed: false };
+  const protectedState = actSecretary(gs, 'secretary:protect');
+  assert.equal(protectedState.resources.personalResource, gs.resources.personalResource - 1);
+  assert.equal(protectedState.resources.politicalCapital, gs.resources.politicalCapital);
+  const before = planTurn(gs, gs.currentEvent!.choices[0].id);
+  const after = planTurn(protectedState, gs.currentEvent!.choices[0].id);
+  assert.deepEqual(after.leaks, before.leaks);
+  const result = resolveTurn(protectedState, gs.currentEvent!.choices[0].id,
+    await classicApi.consequence(protectedState, gs.currentEvent!.choices[0].id));
+  assert.doesNotMatch(result.lastTurn!.narrative, /Утечку предотвратили/);
+  const poor = { ...gs, resources: { ...gs.resources, personalResource: 5 } };
+  assert.throws(() => actSecretary(poor, 'secretary:protect'));
+  assert.match(secretaryActions(poor).find(a => a.id === 'secretary:protect')!.blocked!, /личного ресурса/);
 });

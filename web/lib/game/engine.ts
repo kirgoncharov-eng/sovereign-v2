@@ -16,7 +16,7 @@ import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE
 import { stepPromises } from "./promises.ts";
 import { stepLaws } from "./laws.ts";
 import { stepLivingWorld, type LivingWorld } from "./living-world.ts";
-import { ensureSecretary, finishSecretaryTurn, secretaryDueEffects, secretaryLeakCost } from './secretary.ts';
+import { ensureSecretary, finishSecretaryTurn, secretaryDueEffects, secretaryPreventsLeak } from './secretary.ts';
 import { electionKind, isTermEnd, nextReign, pathEnd, reignOf } from "./terms.ts";
 import type {
   Advisor, AdvisorNews, ArcState, Choice, Crisis, GameMode, Pending, DifficultyId, Election, EndType, Polls, Faction, Figure, GameEvent, GameState, IdeologyId, Intro, Loyalty,
@@ -564,8 +564,8 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   const add = (label: string, d: ResourceDelta | null | undefined) => { const next = applyDeltas(resources, d); note(label, resources, next); resources = next; };
   add("решение", effects.resources);
   // Утечки нелояльных советников: что вынесли в прессу, то и бьёт.
-  const leaks = leakingAdvisors(state);
-  for (const advisor of leaks) add(`утечка: ${advisor.name}`, secretaryLeakCost(state, advisor, LEAKS[advisor.id].cost));
+  const leaks = leakingAdvisors(state).filter(advisor => !secretaryPreventsLeak(state, advisor));
+  for (const advisor of leaks) add(`утечка: ${advisor.name}`, LEAKS[advisor.id].cost);
   const nextTurn = state.turn + 1;
   for (const consequence of secretaryDueEffects(state, nextTurn)) add(consequence.label, consequence.res);
 
