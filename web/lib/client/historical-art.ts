@@ -39,6 +39,10 @@ export const HISTORICAL_OUTCOME_ART = {
   wagesAdvance: { src: '/art/gemini-next/wages-advance.webp', caption: 'Отгрузка тракторов под трёхлетний экспортный аванс' },
   wagesRetool: { src: '/art/gemini-next/wages-retool.webp', caption: 'Перестройка цеха и переобучение рабочих' },
   wagesGate: { src: '/art/gemini-next/wages-gate.webp', caption: 'Заводские цеха остановлены, рабочие ждут у проходной' },
+  fuelTransitEast: { src: '/art/gemini-next/fuel-transit-east.webp', caption: 'Эшелон цистерн мазута на разгрузке ТЭЦ' },
+  fuelTransitWest: { src: '/art/gemini-next/fuel-transit-west.webp', caption: 'Перевалка мазута Торгового союза на пограничной эстакаде' },
+  fuelInsulation: { src: '/art/gemini-next/fuel-insulation.webp', caption: 'Срочный ремонт теплотрассы в жилом квартале' },
+  fuelFreeze: { src: '/art/gemini-next/fuel-freeze.webp', caption: 'Остановленная городская ТЭЦ в январские морозы' },
 } satisfies Record<string, HistoricalArt>;
 const bridgeDossier = MANAGEMENT_DOSSIERS.find(dossier => dossier.id === 'bridges')!;
 const bridgeOutcomes = [
@@ -46,6 +50,7 @@ const bridgeOutcomes = [
 ];
 const districtCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_district')!;
 const wagesCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_wages')!;
+const fuelCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_fuel')!;
 const CARD_ART: Record<string, HistoricalArt> = {
   alt_wages: HISTORICAL_SCENE_ART.wages,
   alt_fuel: HISTORICAL_SCENE_ART.fuel, alt_standards: HISTORICAL_SCENE_ART.standards,
@@ -106,6 +111,14 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
       if (completed.choice === wagesCard.choices[0].text) return HISTORICAL_OUTCOME_ART.wagesAudit;
       if (completed.choice === wagesCard.choices[1].text) return HISTORICAL_OUTCOME_ART.wagesAdvance;
       if (completed.choice === wagesCard.choices[2].text) return HISTORICAL_OUTCOME_ART.wagesRetool;
+    }
+  }
+  if (completed?.title === fuelCard.title) {
+    if (completed.success === false) return HISTORICAL_OUTCOME_ART.fuelFreeze;
+    if (completed.success === true) {
+      if (completed.choice === fuelCard.choices[0].text) return HISTORICAL_OUTCOME_ART.fuelTransitEast;
+      if (completed.choice === fuelCard.choices[1].text) return HISTORICAL_OUTCOME_ART.fuelTransitWest;
+      if (completed.choice === fuelCard.choices[2].text) return HISTORICAL_OUTCOME_ART.fuelInsulation;
     }
   }
   const title = completed?.title;
