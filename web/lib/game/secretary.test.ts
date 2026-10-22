@@ -6,6 +6,8 @@ import { createInitialState, hashSeed, leakingAdvisors, planTurn, resolveTurn, s
 import { openDeskWhenDue } from './desk-timing.ts';
 import { interveneWorld, openLivingWorld } from './living-world.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
+import { GOSSIP } from '../content/secretary.ts';
+import { FIRST_TERM_CASES } from './first-term-schedule.ts';
 import { parseSave } from '../client/save.ts';
 import { SAVE_VERSION } from './data.ts';
 import { candidatePool, hireAdvisor } from './staffing.ts';
@@ -310,6 +312,42 @@ test('канун настоящих выборов обходит очередь
   assert.equal(election.world!.secretary!.scene?.id, 'electionEve');
   const postponed = ensureSecretary({ ...base, turn: 18, path: { id: 'postpone', turn: 17 } });
   assert.equal(postponed.world!.secretary!.scene, null);
+  // Увиденная сцена кануна не открывает очередь для остальных: отключение света ждёт своего интервала.
+  const seen = structuredClone(election);
+  seen.world!.secretary!.updated = 17;
+  seen.world!.secretary!.nextScene = 99;
+  seen.resources.economy = 20;
+  assert.equal(ensureSecretary({ ...seen, turn: 18 }).world!.secretary!.scene, null);
+});
+
+test('сплетни о фигурах не повторяют строку за срок, пока есть неиспользованные', async () => {
+  let gs = await fixture();
+  gs.advisors = gs.advisors.map(a => ({ ...a, loyalty: 80 }));
+  gs.world!.secretary!.trust = 2;
+  gs.arc = null;
+  const lines = new Set<number>();
+  for (let turn = 6; turn < 20; turn++) {
+    // Отношение каждой фигуры падает каждый квартал — фигуры остаются единственным источником сведений.
+    gs = { ...gs, turn, usedEvents: Object.values(FIRST_TERM_CASES), prevFigures: gs.keyFigures.map(f => ({ ...f, relation: f.relation + 5 })) };
+    gs = ensureSecretary(gs);
+    const g = gs.world!.secretary!.gossip!;
+    assert.equal(g.kind, 'figure', `ход ${turn}`);
+    const line = gs.world!.secretary!.figureLines!.at(-1)!;
+    assert.ok(lines.size === GOSSIP.figure.length || !lines.has(line), `ход ${turn}: строка ${line} повторилась`);
+    lines.add(line);
+    assert.doesNotMatch(g.text, /\{/);
+  }
+  assert.equal(lines.size, GOSSIP.figure.length);
+  // Новый круг после исчерпания не начинается с только что сказанной строки.
+  const last = gs.world!.secretary!.figureLines!.at(-1)!;
+  const full = structuredClone(gs);
+  full.world!.secretary!.figureLines = [...GOSSIP.figure.keys()].filter(line => line !== last).concat(last);
+  full.world!.secretary!.updated = 19;
+  const again = ensureSecretary({ ...full, turn: 20, prevFigures: full.keyFigures.map(f => ({ ...f, relation: f.relation + 5 })) });
+  if (again.world!.secretary!.gossip?.kind === 'figure') assert.deepEqual(again.world!.secretary!.figureLines!.slice(0, 1), [last]);
+  assert.notEqual(again.world!.secretary!.figureLines!.at(-1), last);
+  assert.ok(validSecretary(gs.world!.secretary, gs.turn));
+  assert.equal(validSecretary({ ...gs.world!.secretary!, figureLines: [GOSSIP.figure.length] }, gs.turn), false);
 });
 
 test('опись не повторяется подряд; напоминание директора не создаёт пустой расход', async () => {
