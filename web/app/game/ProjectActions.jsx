@@ -28,7 +28,9 @@ export default function ProjectActions({ gs, actions, quota, terminal, pending, 
         <h4>{action.title}</h4><p>{action.detail}</p>
         <p>Цена подписи: {costDescription}.</p>
         <p>Поручение займёт ваше личное вмешательство в этом квартале.
-          Другой проект продолжит текущий план. {quarterMode ? 'Результат — в докладах следующего квартала.' : 'Результат увидите после решения в кабинете.'}</p>
+          Другой проект продолжит текущий план. {quarterMode
+            ? 'Результат — в докладах следующего квартала.'
+            : 'Результат увидите после решения в кабинете.'}</p>
         <div><button onClick={confirm}>Подписать поручение</button><button onClick={() => setPending(null)}>Отложить</button></div>
       </div>}
     </div>;})}

@@ -51,7 +51,7 @@ try {
     const open = async key => width > 760 ? page.locator(`[data-quarter-document="${key}"]`).click()
       : page.locator('#quarter-document').selectOption(key);
     const finish = page.locator('[data-finish-quarter]');
-    assert.ok(await finish.isDisabled());
+    assert.equal(await finish.count(), 0, 'Quarter close stays hidden before preparation');
     await open('main');
     await page.locator('#opt-1').click();
     await page.locator('.sv-quarter-prepare button').first().click();
@@ -85,7 +85,7 @@ try {
     await page.locator('[data-quarter-resolution]').waitFor();
     // A changed mind is a free edit; it does not undo an already signed project order.
     await page.getByRole('button', { name:'Изменить резолюцию', exact:true }).click();
-    assert.ok(await finish.isDisabled());
+    assert.equal(await finish.count(), 0, 'Editing the resolution hides quarter close again');
     assert.deepEqual((await read()).resources, signed.resources);
     await page.locator('#opt-1').click();
     await page.locator('.sv-quarter-prepare button').first().click();

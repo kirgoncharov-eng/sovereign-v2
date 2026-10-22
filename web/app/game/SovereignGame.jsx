@@ -3058,8 +3058,14 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const choose = (choice, details = {}) => {
     if (!inboxMode) return resolveChoice(choice, details);
     if (busy || transition || inFlight.current) return;
-    commit(prepareQuarterResolution(gsRef.current, choice.id, details));
-    setArmed(null); setPreview(null); setError(null);
+    try {
+      commit(prepareQuarterResolution(gsRef.current, choice.id, details));
+      setArmed(null);
+      setPreview(null);
+      setError(null);
+    } catch (error) {
+      setError({ message: error.message, choice, details, preparing: true });
+    }
   };
 
   const openIncoming = key => {
@@ -3226,7 +3232,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       {help && <HowToPlay gs={gs} onClose={() => setHelp(false)}/>}
       {recap && <Recap gs={gs} onClose={onRecapDone}/>}
       <div style={{ display:"flex", justifyContent:"center", padding:"14px" }}>
-      <div className={`sv-game-grid${inboxMode ? ' is-inbox' : ''}`} style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px minmax(0, 1fr)", gap:14 }}>
+      <div className={`sv-game-grid${inboxMode ? ' is-inbox' : ''}`}
+        style={{ maxWidth:1080, width:"100%", display:"grid", gridTemplateColumns:"260px minmax(0, 1fr)", gap:14 }}>
 
         <div className="sv-sidebar" data-open={dossier || undefined}>
           {inboxMode && !busy && !recap && <QuarterInbox gs={gs} page={inboxPage} onOpen={openIncoming}/>}
@@ -3316,7 +3323,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             if (id.startsWith("sponsor:") || id.startsWith("minister:") || id.startsWith("evidence:")) { const action = id.split(":")[0]; const person = presidentialMessages(next).find(m => m.action === action)?.person; if (person) next = readPresidentialMessages(next, person); }
             prefetch.current = null; setArmed(null); setPreview(null); commit(next); stampFx();
           }}/>}
-          {!inboxMode && !busy && !recap && gs.world && <WorldPanel compact ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn} onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})} onViewChange={setCountryOpen}
+          {!inboxMode && !busy && !recap && gs.world && <WorldPanel
+            compact ref={countryPanel} gs={gs} Scene={SquareView} onContinue={nextTurn}
+            onCurrentCase={() => document.getElementById("sv-choice-list")?.scrollIntoView({behavior:"smooth",block:"start"})}
+            onViewChange={setCountryOpen}
             onOpen={() => { if (!inFlight.current) commit(openLivingWorld(gsRef.current)); }}
             onAction={id => {
               if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
@@ -3350,7 +3360,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           )}
 
           {error && !busy && (
-            <ErrorBanner message={error.message} onRetry={error.choice ? () => resolveChoice(error.choice, error.details) : retryEvent}/>
+            <ErrorBanner message={error.message} onRetry={error.choice
+              ? () => (error.preparing ? choose : resolveChoice)(error.choice, error.details)
+              : retryEvent}/>
           )}
 
           {activeCrises?.length > 0 && !busy && (
@@ -3404,10 +3416,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 )}
                 <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
                 {isFactoryOpening(gs) ? <FactoryLive/> : sceneOf(event) !== "square" && (
-                  <figure className={`sv-scene${inboxMode && !event.call && !event.press ? ' sv-case-attachment' : ''}`} style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
+                  <figure className={`sv-scene${inboxMode && !event.call && !event.press ? ' sv-case-attachment' : ''}`}
+                    style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
                     <SquareView gs={gs} art={historicalEventArt(gs.country, event, sceneOf(event))} sceneKey={sceneOf(event)}
                       partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60}/>
-                    {inboxMode && !event.call && !event.press && <figcaption>Приложение к делу · {historicalEventArt(gs.country, event, sceneOf(event))?.caption ?? SCENE_CAPTION[sceneOf(event)]}</figcaption>}
+                    {inboxMode && !event.call && !event.press && <figcaption>
+                      Приложение к делу · {historicalEventArt(gs.country, event, sceneOf(event))?.caption ?? SCENE_CAPTION[sceneOf(event)]}
+                    </figcaption>}
                   </figure>
                 )}
                 {event.special && <SpecialHeader gs={gs} event={event}/>}
@@ -3741,9 +3756,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             <div style={{ textAlign:"right" }}><PrimaryBtn onClick={onEnd} danger>ПОДВЕСТИ ИТОГИ →</PrimaryBtn></div>
           )}
           </div>
-          {inboxMode && !busy && event && <footer className="sv-quarter-close">
-            <p>{prepared ? 'Резолюция подготовлена. Завершение квартала подпишет её и покажет газету.'
-              : 'Не по всем обязательным делам подготовлена резолюция.'}</p>
+          {inboxMode && !busy && event && prepared && <footer className="sv-quarter-close">
+            <p>Резолюция подготовлена. Завершение квартала подпишет её и покажет газету.</p>
             <button type="button" data-finish-quarter disabled={!prepared || !!recap} onClick={finishQuarter}>Завершить квартал</button>
           </footer>}
         </div>

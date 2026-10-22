@@ -130,6 +130,10 @@ for (let t = 1; t <= TURNS; t++) {
     });
   });
   if (councilOverlaps) layoutProblems.add("переключатели совета выходят за границы блока и перекрывают реплики");
+  if (SHOT_TURNS.includes(t) && await page.locator('[data-quarter-secretary]').count()
+    && await page.locator('[data-finish-quarter]').count()) {
+    layoutProblems.add("панель завершения квартала видна до подготовки резолюции");
+  }
   if (SHOT_TURNS.includes(t)) await page.screenshot({ path: shot(`turn-${t}`), fullPage: true });
   await decide(page, kind);
   const finishQuarter = page.locator('[data-finish-quarter]');
