@@ -54,6 +54,7 @@ import { ARCHIVE_CARD, archiveDescription } from "./archive-memory.ts";
 import { advisorNews, forecastReview } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { secretaryEnabled, secretarySurname } from './secretary.ts';
+import { feminineSurname, surnameBase } from './surnames.ts';
 import { sanitizeProposals } from "./sanitize.ts";
 import { isOrdinaryNewspaperEvent, newspaperHeadline } from "./newspaper-editions.ts";
 import { FIRST_TERM_CASES, firstTermLaw, replacedCases, scheduledFirstTerm, versionsOf } from "./first-term-schedule.ts";
@@ -274,9 +275,15 @@ function usedNames(state: GameState, extra: string[] = []): Set<string> {
   for (const name of [...people, ...(state.former ?? []), ...extra]) {
     const [first, last] = name.split(" ");
     used.add(`first:${first}`);
-    if (last) used.add(last.replace(/(ов|ев|ин)а$/, "$1").replace(/(ск|цк)ая$/, "$1ий"));
+    if (last) used.add(surnameBase(last));
   }
   if (secretaryEnabled(state) && state.world?.secretary) used.add(secretarySurname(state.world.secretary.name));
+  // 1978 (#242): люди папки и антагонист после ухода с поста тоже заняли фамилию — преемник не станет их «родственником».
+  if (state.country === ALTERNATE_COUNTRY) {
+    for (const name of [...(state.world?.people.map(person => person.name) ?? []), ...(state.arc ? [state.arc.target] : [])]) {
+      used.add(surnameBase(name));
+    }
+  }
   return used;
 }
 
@@ -1426,7 +1433,7 @@ function personName(country: string, r: Rand, male = false, used?: Set<string>):
   const free = used ? n.last.filter(l => !used.has(l)) : [];
   let last = pick(r, free.length ? free : n.last);
   used?.add(last);
-  if (i >= 8) last = last.replace(/(ов|ев|ин)$/, "$1а").replace(/(ск|цк)ий$/, "$1ая");
+  if (i >= 8) last = feminineSurname(last);
   return `${n.first[i]} ${last}`;
 }
 
@@ -1455,7 +1462,7 @@ export function freshLeaderName(state: GameState, female: boolean, step = 0): st
   const freeLast = n.last.filter(l => !used.has(l));
   const lastPool = freeLast.length ? freeLast : n.last;
   let last = lastPool[Math.floor(r() * lastPool.length)];
-  if (female) last = last.replace(/(ов|ев|ин)$/, "$1а").replace(/(ск|цк)ий$/, "$1ая");
+  if (female) last = feminineSurname(last);
   return `${n.first[i]} ${last}`;
 }
 

@@ -7,6 +7,7 @@ import { FIRST_TERM_CASES, replacedCases, scheduledFirstTerm, versionsOf } from 
 import { reserveShortage } from '../content/quarter-letters.ts';
 import { electionKind, reignOf } from './terms.ts';
 import { turnDate } from './calendar.ts';
+import { feminineSurname, surnameBase } from './surnames.ts';
 import type { GameState, ResourceDelta, ResourceKey } from './types.ts';
 
 export type FavorId = copy.FavorId;
@@ -73,8 +74,7 @@ export const secretaryAvailable = (gs: GameState) => secretaryEnabled(gs) && !!g
   && gs.world.secretary.away !== gs.turn && (gs.world.secretary.muteUntil ?? -1) < gs.turn;
 
 // Normalize only this character's surname; shared name generation and archive rosters stay unchanged.
-export const secretarySurname = (name: string) => name.trim().split(/\s+/).at(-1)!
-  .replace(/(ов|ев|ин)а$/, '$1').replace(/(ск|цк)ая$/, '$1ий').replace(/ая$/, 'ой');
+export const secretarySurname = surnameBase;
 const roleSlot = (role: string) => role.charAt(0).toLowerCase() + role.slice(1);
 const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
@@ -85,7 +85,7 @@ function secretaryName(gs: GameState): string {
   const surnames = ALTERNATE_NAMES.last.filter(last => !used.has(last));
   // The cast has fewer surnames than the pool; a deterministic suffix also handles edited old saves.
   const last = surnames.length ? surnames[hashSeed(gs.seed, 'secretary-last') % surnames.length] : 'Залесский';
-  const female = last.replace(/(ов|ев|ин)$/, '$1а').replace(/(ск|цк)ий$/, '$1ая').replace(/ой$/, 'ая');
+  const female = feminineSurname(last);
   const first = ALTERNATE_NAMES.first.slice(8);
   return `${first[(hashSeed(gs.seed, 'secretary-first') >>> 8) % first.length]} ${female}`;
 }
