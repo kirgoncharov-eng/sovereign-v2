@@ -1,5 +1,6 @@
 import type { GameState } from './types.ts';
 import type { LivingWorld, WorldAction } from './living-world.ts';
+import { mandateOffer } from '../content/quarter-letters.ts';
 export interface MinisterMandate {
     name: string;
     phase: 'offered' | 'accepted' | 'used' | 'refused' | 'expired' | 'withdrawn' | 'fulfilled' | 'departed';
@@ -49,13 +50,18 @@ export function ministerDecision(world: LivingWorld, id: string, turn: number): 
     m.changed = turn;
     return m.text;
 }
-export function stepMinister(world: LivingWorld, turn: number): string | null {
+export function stepMinister(world: LivingWorld, turn: number, historical = false): string | null {
     const actor = world.people.find(p => p.id === 'minister');
     if (!world.mandate) {
         const housing = world.government?.programs.find(p => p.id === 'housing');
         if (!actor || actor.trait !== 'careerist' || world.project.status !== 'running' || world.project.executor !== 'minister' || housing?.status !== 'proposed')
             return null;
-        const text = `${actor.name} сам просит встречу. «Энергосеть можно ускорить через аппарат. В следующей жилищной программе дайте мне право выбирать подрядчиков». Он хочет расширить свою власть за пределами ведомства. Условие: +4 работы энергосети сейчас; позже местные подрядчики ускорят жильё на 5 пунктов, но каждый квартал будет стоить экономики −1. Проверке закупок потребуется прямой доступ к документам, иначе она потеряет 5 пунктов работы. Ответ до конца квартала ${turn + 2}; читать письмо бесплатно.`;
+        const text = historical ? mandateOffer(actor.name, turn + 2)
+            : `${actor.name} сам просит встречу. «Энергосеть можно ускорить через аппарат. В следующей жилищной программе ` +
+                `дайте мне право выбирать подрядчиков». Он хочет расширить свою власть за пределами ведомства. Условие: +4 ` +
+                `работы энергосети сейчас; позже местные подрядчики ускорят жильё на 5 пунктов, но каждый квартал будет стоить ` +
+                `экономики −1. Проверке закупок потребуется прямой доступ к документам, иначе она потеряет 5 пунктов работы. ` +
+                `Ответ до конца квартала ${turn + 2}; читать письмо бесплатно.`;
         world.mandate = { name: actor.name, phase: 'offered', offered: turn, due: turn + 2, changed: turn, text, handover: false };
         return text;
     }

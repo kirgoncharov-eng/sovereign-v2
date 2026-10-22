@@ -2,6 +2,8 @@ import type { GameState } from '../game/types.ts';
 import { healthNeedsAttention } from '../game/health-aftermath.ts';
 import { personProfiles } from './people-text.ts';
 import { livingActions, type WorldAction } from '../game/living-world.ts';
+import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
+import { governmentProposals } from '../content/quarter-letters.ts';
 export interface PresidentialMessage {
   key: string;
   token: string;
@@ -35,7 +37,10 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
   for (const project of ['energy', 'health'] as const) {
     const latest = [...world.dispatches].reverse().find(d => d.project === project && ['letter', 'report', 'news'].includes(d.kind) && (project !== 'energy' || /Энергосеть|Промышленный регион/.test(d.title)));
     const p = project === 'energy' ? world.project : world.health;
-    const executor = p?.executor;
+    // Письмо об исполнении ответа по больницам подписывает тот, кто исполняет этот ответ, а не прежний руководитель программы.
+    const answering = project === 'health' && gs.country === ALTERNATE_COUNTRY && world.health?.aftermath?.phase === 'working'
+      ? world.health.aftermath.executor : undefined;
+    const executor = answering ?? p?.executor;
     const actor = world.people.find(p => p.id === (executor ?? (project === 'energy' ? 'minister' : 'doctor')));
     const name = actor?.figure ? gs.keyFigures.find(f => f.id === actor.figure)?.name : actor?.name;
     const person = name && personId(name);
@@ -51,7 +56,11 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
     const advisor = gs.advisors.find(a => a.id === 'economist') ?? gs.advisors[0];
     const person = advisor && personId(advisor.name);
     const count = world.government.programs.filter(p => p.status === 'proposed').length + [world.project, world.health].filter(p => p?.status === 'unassigned').length;
-    if (count && person) messages.push({ key: 'government-proposals', token: 'proposal:v1', person, title: 'Предложения правительства', text: `Кабинет подготовил пять направлений работы. ${count} ещё не запущено. У каждого есть бюджет, ожидаемый результат и причины риска. Можно делегировать работу кабинету, а одну действующую программу сделать личным приоритетом. Предложения не требуют обязательного обхода каждый квартал.`, action: 'government', needsReply: false });
+    if (count && person) messages.push({ key: 'government-proposals', token: 'proposal:v1', person, title: 'Предложения правительства',
+      text: gs.country === ALTERNATE_COUNTRY ? governmentProposals(advisor.name, count)
+      : `Кабинет подготовил пять направлений работы. ${count} ещё не запущено. У каждого есть бюджет, ожидаемый ` +
+          `результат и причины риска. Можно делегировать работу кабинету, а одну действующую программу сделать личным ` +
+          `приоритетом. Предложения не требуют обязательного обхода каждый квартал.`, action: 'government', needsReply: false });
     const next = world.government.housingNext;
     const nextPerson = next && personId(next.name ?? next.previousName);
     const nextLetter = next && [...world.dispatches].reverse().find(d => d.id.includes(':housing-next:'));

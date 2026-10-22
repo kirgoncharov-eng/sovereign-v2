@@ -3341,7 +3341,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             onAction={incomingAction} onOpen={openIncoming} Scene={SquareView}/>}
           <div hidden={inboxMode && !!event && inboxPage !== 'main'}>
           <div id="sv-main-case" className="sv-main-case-label">{event
-            ? inboxMode ? 'ТРЕБУЕТСЯ РЕЗОЛЮЦИЯ ПРЕЗИДЕНТА' : 'ГЛАВНОЕ ДЕЛО · ЗАВЕРШАЕТ КВАРТАЛ'
+            ? inboxMode ? 'ЖДЁТ ВАШЕЙ РЕЗОЛЮЦИИ' : 'ГЛАВНОЕ ДЕЛО · ЗАВЕРШАЕТ КВАРТАЛ'
             : inboxMode ? 'ГАЗЕТА · ИТОГИ КВАРТАЛА' : 'ИТОГИ ГЛАВНОГО РЕШЕНИЯ'}</div>
           {gs.turn === 0 && !busy && <details className="sv-mandate"><summary>Ваш мандат и обещания</summary><BriefCard gs={gs}/></details>}
           {warnLevel !== "none" && !busy && !gs.ended && (
@@ -3444,9 +3444,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 )}
               </Card>
               {prepared ? <div className="sv-quarter-draft" data-quarter-resolution>
-                <h3>Резолюция подготовлена</h3><p>{prepared.text}</p>
-                <p>Вступит в силу при завершении квартала. До подписи можно дочитать папку и изменить решение.</p>
-                <button onClick={() => { commit(withoutQuarterDraft(gsRef.current)); setArmed(null); }}>Изменить резолюцию</button>
+                <h3>Резолюция готова к подписи</h3><p>{prepared.text}</p>
+                <p>До подписи её можно переписать.</p>
+                <button onClick={() => { commit(withoutQuarterDraft(gsRef.current)); setArmed(null); }}>Переписать резолюцию</button>
               </div> : <>
               {event.doc && <InspectDoc doc={event.doc}/>}
               {event.budget ? (
@@ -3761,8 +3761,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           )}
           </div>
           {inboxMode && !busy && event && prepared && <footer className="sv-quarter-close">
-            <p>Резолюция подготовлена. Завершение квартала подпишет её и покажет газету.</p>
-            <button type="button" data-finish-quarter disabled={!prepared || !!recap} onClick={finishQuarter}>Завершить квартал</button>
+            <p>Утром выйдет газета.</p>
+            <button type="button" data-finish-quarter disabled={!prepared || !!recap} onClick={finishQuarter}>Подписать и закрыть квартал</button>
           </footer>}
         </div>
       </div>

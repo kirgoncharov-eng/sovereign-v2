@@ -1,6 +1,8 @@
 import { bargainActions, bargainFactors, newHealthBargain, validHealthBargain, type HealthBargain } from './health-bargain.ts';
 // Одна история после кадровой программы: память о решении, срок ответа и исполнение.
 import type { GameState, ResourceDelta } from './types.ts';
+import { ALTERNATE_COUNTRY } from './alternate-world.ts';
+import { healthAnswerReminder, healthExecution } from '../content/quarter-letters.ts';
 import type { HealthProject } from './living-health.ts';
 import type { LivingWorld, WorldAction, WorldPerson, WorldPersonId } from './living-world.ts';
 
@@ -116,6 +118,8 @@ function reduceDistricts(project: HealthProject, amount: number) {
 }
 
 export function stepHealthAftermath(state: GameState, world: LivingWorld, turn: number, people: WorldPerson[]): { res: ResourceDelta; story: string | null } {
+  // В папке квартала (#244) ответ подписывают в резолюции самого письма, а не в отдельной панели поручений.
+  const answerPlace = state.country === ALTERNATE_COUNTRY ? 'в резолюции этого письма' : 'в поручениях районных больниц';
   const project = world.health!, continuation = project.aftermath!;
   const minister = people.find(p => p.id === 'healthMinister')!, doctor = people.find(p => p.id === 'doctor')!;
   if (continuation.phase === 'settled') {
@@ -135,10 +139,16 @@ export function stepHealthAftermath(state: GameState, world: LivingWorld, turn: 
       : continuation.branch === 'rotation'
         ? `В областном приёмном покое очередь выходит в коридор. На дверях двух кабинетов фамилии врачей, которых вы перевели в районы. ${minister.name} показывает районные показатели и просит не разрушать достигнутый результат. ${doctor.name} раскладывает расписания обеих больниц: одни и те же люди не могут принимать одновременно в двух местах. Можно нанять замену, вернуть врачей или согласовать выездные дни.`
         : `На встрече с районными жителями первый ряд занимают люди с направлениями в областную больницу. ${minister.name} предлагает закрыть программу в отчёте; ${doctor.name} просит начать хотя бы с нескольких отделений. Оппозиция раздаёт копии обещания резиденции. Можно ограниченно перезапустить набор, опубликовать проверку или признать провал без нового бюджета.`;
-    return { res: {}, story: `${AFTERMATH_TITLE[continuation.branch]}. ${scene}\n\nПричина: ${continuation.cause} Ответ ждут в течение двух кварталов. Ответ можно подписать в поручениях районных больниц. Без вмешательства ${continuation.branch === 'permanent' ? 'часть врачей уйдёт, а открытые приёмы закроются' : continuation.branch === 'rotation' ? 'областные больницы останутся без замены специалистов' : 'недовольство жителей усилится'}.` };
+    return { res: {}, story: `${AFTERMATH_TITLE[continuation.branch]}. ${scene}\n\nПричина: ${continuation.cause} Ответ ждут в течение двух ` +
+        `кварталов. Ответ можно подписать ${answerPlace}. Без вмешательства ` +
+        `${continuation.branch === 'permanent' ? 'часть врачей уйдёт, а открытые приёмы закроются'
+          : continuation.branch === 'rotation' ? 'областные больницы останутся без замены специалистов' : 'недовольство жителей усилится'}.` };
   }
   if (continuation.phase === 'open') {
-    if (turn < continuation.deadline) return { res: {}, story: `По больницам ответа ещё нет. ${doctor.name} просит подписать решение до следующего квартального доклада. Причина остаётся прежней: ${continuation.cause}` };
+    if (turn < continuation.deadline) return { res: {}, story: state.country === ALTERNATE_COUNTRY
+      ? healthAnswerReminder(doctor.name, continuation.cause)
+      : `По больницам ответа ещё нет. ${doctor.name} просит подписать решение до следующего квартального доклада. ` +
+          `Причина остаётся прежней: ${continuation.cause}` };
     continuation.phase = 'settled'; continuation.outcome = 'neglected';
     if (continuation.branch === 'permanent') {
       reduceDistricts(project, 25);
@@ -150,11 +160,17 @@ export function stepHealthAftermath(state: GameState, world: LivingWorld, turn: 
   }
   if (turn < continuation.due && continuation.bargain?.phase === 'waiting') {
     continuation.bargain.phase = 'open';
-    return { res: {}, story: `Согласование остановилось на двух подписях. ${continuation.bargain.ministerCondition} ${continuation.bargain.doctorCondition} До итогового доклада остался один квартал. Выберите, чьи полномочия закрепить, в поручениях районных больниц. Без ответа министерство задержит график; лояльность сама по себе не снимает спор об интересах.` };
+    return { res: {}, story: `Согласование остановилось на двух подписях. ${continuation.bargain.ministerCondition} ` +
+        `${continuation.bargain.doctorCondition} До итогового доклада остался один квартал. Выберите, чьи полномочия ` +
+        `закрепить, ${answerPlace}. Без ответа министерство задержит график; лояльность сама по себе не снимает спор об ` +
+        `интересах.` };
   }
   if (turn >= continuation.due && continuation.bargain?.phase === 'open') continuation.bargain.phase = 'ignored';
   const actor = people.find(p => p.id === continuation.executor)!;
-  if (turn < continuation.due) return { res: {}, story: `${actor.name} исполняет поручение «${PLANS[continuation.response!].title}». Решение проходит согласования; итоговый доклад — после следующего решения в кабинете.` };
+  if (turn < continuation.due) return { res: {}, story: state.country === ALTERNATE_COUNTRY
+    ? healthExecution(actor.name, PLANS[continuation.response!].title)
+    : `${actor.name} исполняет поручение «${PLANS[continuation.response!].title}». Решение проходит согласования; ` +
+        `итоговый доклад — после следующего решения в кабинете.` };
   const response = continuation.response!;
   const policy = ['cuts', 'return', 'acknowledge'].includes(response);
   const { good, factors } = policy ? { good: true, factors: ['Резиденция сознательно выбрала сокращение помощи или отказ от перезапуска'] } : executionFactors(state, continuation, actor, people);

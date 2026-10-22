@@ -7,6 +7,7 @@ import { BARGAIN_PLANS } from '@/lib/game/health-bargain.ts';
 import { trackAppointment } from '@/lib/client/desk-analytics.ts';
 import ProjectActions from './ProjectActions.jsx';
 import { PeopleText } from './PeopleText.jsx';
+import { LetterText } from './LetterText.jsx';
 
 export default function IncomingProject({ gs, projectId, onAction, Scene }) {
   const [pendingId, setPendingId] = useState(null);
@@ -38,10 +39,10 @@ export default function IncomingProject({ gs, projectId, onAction, Scene }) {
   };
   return <article className="sv-paper sv-incoming-project" data-incoming-project={projectId}>
     <header><small>{health ? 'РАЙОННЫЕ БОЛЬНИЦЫ' : 'ЭНЕРГОСЕТЬ'} · ПОРУЧЕНИЯ И ДОКЛАДЫ</small>
-      <span className="sv-stamp">{needsAnswer ? 'На рассмотрении' : 'Лично в руки'}</span></header>
+      <span className="sv-stamp">{needsAnswer ? 'Ждёт ответа' : 'Лично в руки'}</span></header>
     <h2><PeopleText>{latest?.title ?? (health ? 'Врач рядом с домом' : 'Свет в окнах')}</PeopleText></h2>
     {executor && <p className="sv-incoming-sender"><PeopleText>{executor.name}</PeopleText> · {executor.role}</p>}
-    {latest && <p><PeopleText>{latest.text}</PeopleText></p>}
+    {latest && <LetterText text={latest.text}/>}
     <p className="sv-incoming-status">{project.status === 'unassigned' ? 'Руководитель не назначен'
       : `${executor?.name ?? 'Исполнитель'} · выполнено ${project.progress}%`}
       {finished ? ` · ${project.status === 'completed' ? 'программа завершена' : project.status === 'partial' ? 'частичный результат' : 'срок сорван'}`
@@ -70,7 +71,7 @@ export default function IncomingProject({ gs, projectId, onAction, Scene }) {
       </div>}
     </section>}
     {receipt?.turn === gs.turn && <p className="sv-country-receipt" role="status">Подписано: {receipt.title}.
-      Цена учтена. Исполнение — в следующих докладах.</p>}
+      Исполнение — в докладах следующего квартала.</p>}
     <h3>Резолюция</h3>
     {waiting ? <p>{continuation.phase === 'settled' ? 'Поручение завершено. Обязательства и последствия указаны в докладе.'
       : 'Ожидается следующий доклад. Нового ответа сейчас не требуется.'}</p>
@@ -82,6 +83,6 @@ export default function IncomingProject({ gs, projectId, onAction, Scene }) {
         <li key={index}><PeopleText>{factor}</PeopleText></li>)}</ul></details>}
     {reports.length > 1 && <details><summary>Подшитые доклады и резолюции ({reports.length - 1})</summary>
       {reports.slice(0, -1).reverse().map(report => <section key={report.id}><h3><PeopleText>{report.title}</PeopleText></h3>
-        <p><PeopleText>{report.text}</PeopleText></p></section>)}</details>}
+        <LetterText text={report.text}/></section>)}</details>}
   </article>;
 }

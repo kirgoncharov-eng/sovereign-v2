@@ -1,5 +1,7 @@
 import type { Choice, GameEvent, GameState, ResourceDelta } from './types.ts';
 import type { LivingWorld, WorldAction } from './living-world.ts';
+import { ALTERNATE_COUNTRY } from './alternate-world.ts';
+import { housingNextProposal, housingNextQuote } from '../content/quarter-letters.ts';
 
 export interface HousingNext {
     mode: 'settle' | 'expand' | null;
@@ -30,7 +32,7 @@ export function startHousingNext(gs: GameState, world: LivingWorld, mode: 'settl
     return `${advisor.name} принимает «${housingNextTitle(p)}». Первая программа сохранила ${p.originProgress}% работы. ${mode === 'expand' ? 'Строители переходят на новую площадку; подключение первого района ещё не профинансировано.' : 'Теперь результат измеряется готовностью района к жизни: дома, сети и заселение, а не только строительным объёмом.'} ${advisor.name === p.previousName ? 'Он знает прежнюю стройку: преемственность +3 работы.' : `Прежний координатор ${p.previousName} не в кабинете; его личный опыт не присвоен преемнику.`} Закупки ведёт кабинет по обычной процедуре: прежний мандат министра действует только на первую программу.`;
 }
 export function stepHousingNext(gs: GameState, world: LivingWorld, turn: number, review?: Choice['projectReview']) {
-    const proposal = offerHousingNext(world, turn);
+    const proposal = offerHousingNext(world, turn, gs.country === ALTERNATE_COUNTRY);
     if (proposal) return { story: proposal, effects: [] as { label: string; res: ResourceDelta }[] };
     const g = world.government!;
     const p = g.housingNext;
@@ -58,18 +60,29 @@ export function stepHousingNext(gs: GameState, world: LivingWorld, turn: number,
         p.reviewed = true; // Итог опубликован вместе с исполнением, без отдельного квартала.
     }
     const res: ResourceDelta = !terminal ? {} : p.status === 'completed' ? p.mode === 'settle' ? { internalLegitimacy: 5, economy: 2 } : { economy: 7, internalLegitimacy: 2 } : { internalLegitimacy: p.status === 'partial' ? 1 : -2 };
-    const text = `${p.name}: «${housingNextTitle(p)}» — ${p.progress}%. ${factors.join('. ')}. ${terminal ? p.status === 'completed' ? p.mode === 'settle' ? 'Район подключён к сетям; дома подготовлены к заселению. Это новый результат поверх прежней стройки.' : 'Новый район построен.' : 'Полного результата нет; готовность всего района не объявлена.' : 'Поручение продолжает исполняться.'}${terminal && p.mode === 'expand' ? ' Подключение и заселение первого района этим бюджетом не оплачены.' : ''}`;
+    const text = gs.country === ALTERNATE_COUNTRY
+        ? housingNextQuote(p.name!, p.progress, factors, terminal ? p.status as 'completed' | 'partial' | 'failed' : false, p.mode === 'settle')
+        : `${p.name}: «${housingNextTitle(p)}» — ${p.progress}%. ${factors.join('. ')}. ` +
+            (terminal ? p.status === 'completed'
+              ? p.mode === 'settle' ? 'Район подключён к сетям; дома подготовлены к заселению. ' + 'Это новый результат поверх прежней стройки.'
+                : 'Новый район построен.'
+              : 'Полного результата нет; готовность всего района не объявлена.' : 'Поручение продолжает исполняться.') +
+            (terminal && p.mode === 'expand' ? ' Подключение и заселение первого района этим бюджетом не оплачены.' : '');
     world.dispatches = [...world.dispatches, { project: 'housing' as const, id: `${turn}:housing-next:report`, turn, kind: terminal ? 'news' as const : 'report' as const, title: housingNextTitle(p), text }].slice(-24);
     return { story: text, effects: terminal ? [{ label: housingNextTitle(p), res }] : [] };
 }
 
 // Вызывается и при исполнении, и при открытии старого сохранения; наград не начисляет.
-export function offerHousingNext(world: LivingWorld, turn: number): string | null {
+export function offerHousingNext(world: LivingWorld, turn: number, historical = false): string | null {
     const g = world.government!;
     const origin = g.programs.find(p => p.id === 'housing')!;
     if (!g.housingNext && origin.reviewed && ['completed', 'partial'].includes(origin.status)) {
         g.housingNext = { mode: null, status: 'proposed', originProgress: origin.progress, previousName: origin.name!, progress: 0, started: null, due: null, coordinator: null, name: null, reviewed: false, factors: [] };
-        const text = `${origin.name} приносит карту района. Строительная программа дала ${origin.progress}%, но процент стройки ещё не означает готовность всех домов к жизни. Следующее поручение может оплатить ${origin.progress === 100 ? 'сети и заселение либо перенести команду на новую площадку' : 'оставшиеся работы, сети и заселение'}. В «Правительство → Жилищная программа» есть бюджет, срок и условия; читать бесплатно, решение необязательно.`;
+        const text = historical ? housingNextProposal(origin.name!, origin.progress)
+            : `${origin.name} приносит карту района. Строительная программа дала ${origin.progress}%, но процент стройки ещё ` +
+                `не означает готовность всех домов к жизни. Следующее поручение может оплатить ` +
+                (origin.progress === 100 ? 'сети и заселение либо перенести команду на новую площадку' : 'оставшиеся работы, сети и заселение') +
+                '. В «Правительство → Жилищная программа» есть бюджет, срок и условия; читать бесплатно, решение необязательно.';
         world.dispatches = [...world.dispatches, { project: 'housing' as const, id: `${turn}:housing-next:proposal`, turn, kind: 'letter' as const, title: 'После стройки: что получат жители?', text }].slice(-24);
         return text;
     }

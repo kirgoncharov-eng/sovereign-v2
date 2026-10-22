@@ -2,6 +2,7 @@
 import { presidentialMessages, messageUnread } from '@/lib/client/presidential-inbox.ts';
 import { personProfiles } from '@/lib/client/people-text.ts';
 import { quarterResolution } from '@/lib/client/quarter-inbox.ts';
+import { LetterText } from './LetterText.jsx';
 import IncomingProject from './IncomingProject.jsx';
 import SponsorPanel from './SponsorPanel.jsx';
 import MinisterPanel from './MinisterPanel.jsx';
@@ -10,17 +11,22 @@ import GovernmentPanel from './GovernmentPanel.jsx';
 import { PeopleText } from './PeopleText.jsx';
 import './quarter-inbox.css';
 
-export default function QuarterInbox({ gs, page, onOpen }) {
+// Документы папки в порядке срочности: опись, главное дело, письма (#244 — один словарь статусов).
+function folderEntries(gs) {
   const profiles = personProfiles(gs);
   const prepared = quarterResolution(gs);
-  const entries = [
-    ...(gs.world ? [{ key:'secretary', title:'Папка на рассмотрение', sender:'Канцелярия', status:'Ключевые дела квартала' }] : []),
-    ...(gs.currentEvent ? [{ key:'main', title:gs.currentEvent.title, sender:gs.currentEvent.source,
-      status:prepared ? 'Резолюция подготовлена' : 'Требуется резолюция президента' }] : []),
+  return [
+    ...(gs.world ? [{ key:'secretary', title:'Опись папки', sender:'Секретарь', status:'Что сверху и что подождёт' }] : []),
+    ...(gs.currentEvent ? [{ key:'main', title:gs.currentEvent.title, sender:gs.currentEvent.source, prepared:!!prepared,
+      status:prepared ? 'Резолюция готова к подписи' : 'Ждёт вашей резолюции' }] : []),
     ...presidentialMessages(gs).map(message => ({ key:message.key, title:message.title,
       sender:profiles.find(person => person.id === message.person)?.name ?? 'Канцелярия',
-      status:message.needsReply ? 'На рассмотрении' : messageUnread(gs, message) ? 'Новый доклад' : 'Для сведения' })),
+      status:message.needsReply ? 'Ждёт ответа' : messageUnread(gs, message) ? 'Новый доклад' : 'Для сведения' })),
   ];
+}
+
+export default function QuarterInbox({ gs, page, onOpen }) {
+  const entries = folderEntries(gs);
   if (!gs.currentEvent || entries.length < 2) return null;
   return <nav className="sv-quarter-folder" aria-label="Папка входящих">
     <div className="sv-quarter-folder-heading">НА РАССМОТРЕНИЕ</div>
@@ -39,24 +45,27 @@ export default function QuarterInbox({ gs, page, onOpen }) {
 export function IncomingLetter({ gs, page, onAction, onOpen, Scene }) {
   const message = presidentialMessages(gs).find(letter => letter.key === page);
   if (page === 'secretary' || !message) return <article className="sv-paper sv-incoming-project" data-quarter-secretary>
-    <header><small>КАНЦЕЛЯРИЯ ПРЕЗИДЕНТА</small><span className="sv-stamp">На рассмотрении</span></header>
-    <h2>Папка текущего квартала</h2>
-    <p>К делу «<PeopleText>{gs.currentEvent?.title}</PeopleText>» нужна ваша резолюция.
-      Письма и доклады исполнителей подшиты отдельно.</p>
-    <p>Поручения прошлых кварталов продолжают действовать. Можно запросить вмешательство или оставить исполнителям текущий план.</p>
-    <p className="sv-incoming-status">Чтение не двигает время. Основная резолюция вступит в силу при завершении квартала.</p>
+    <header><small>КАНЦЕЛЯРИЯ ПРЕЗИДЕНТА</small><span className="sv-stamp">Опись</span></header>
+    <h2>Опись папки</h2>
+    <p>Секретарь разложила бумаги по срочности.</p>
+    <ol className="sv-folder-inventory">{folderEntries(gs).filter(entry => entry.key !== 'secretary').map(entry =>
+      <li key={entry.key}>{entry.key === 'main'
+        ? <><strong>Сверху — «<PeopleText>{entry.title}</PeopleText>».</strong> {entry.prepared ? 'Резолюция готова к подписи.'
+          : 'Ждёт вашей резолюции: квартал закроется, когда вы её подпишете.'}</>
+        : <PeopleText>{`${entry.sender} — «${entry.title}». ${entry.status}.`}</PeopleText>}</li>)}</ol>
+    <p className="sv-incoming-status">Пока папка на столе, время стоит.</p>
   </article>;
   if (message.action === 'energy' || message.action === 'health') return <IncomingProject key={message.action}
     gs={gs} projectId={message.action} onAction={onAction} Scene={Scene}/>;
   const props = { gs, onAction, Scene, onClose:() => onOpen('secretary') };
   return <article className="sv-paper sv-incoming-project" data-incoming-letter={message.key}>
     <header><small>{personProfiles(gs).find(person => person.id === message.person)?.name ?? 'Канцелярия'}</small>
-      <span className="sv-stamp">{message.needsReply ? 'На рассмотрении' : 'Для сведения'}</span></header>
+      <span className="sv-stamp">{message.needsReply ? 'Ждёт ответа' : 'Для сведения'}</span></header>
     <h2><PeopleText>{message.title}</PeopleText></h2>
     {message.action === 'sponsor' ? <SponsorPanel {...props} embedded/>
       : message.action === 'minister' ? <MinisterPanel {...props}/>
       : message.action === 'evidence' ? <EvidencePanel {...props}/>
-      : <><p><PeopleText>{message.text}</PeopleText></p><GovernmentPanel {...props}
+      : <><LetterText text={message.text}/><GovernmentPanel {...props}
         initialProject={message.key === 'housing-next' ? 'housing' : message.key.startsWith('program:') ? message.key.split(':')[1] : 'energy'}
         onDetails={id => onOpen(id === 'health' ? 'health' : 'energy')}/></>}
   </article>;

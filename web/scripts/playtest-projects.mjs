@@ -84,7 +84,7 @@ try {
     await open('main');
     await page.locator('[data-quarter-resolution]').waitFor();
     // A changed mind is a free edit; it does not undo an already signed project order.
-    await page.getByRole('button', { name:'Изменить резолюцию', exact:true }).click();
+    await page.getByRole('button', { name:'Переписать резолюцию', exact:true }).click();
     assert.equal(await finish.count(), 0, 'Editing the resolution hides quarter close again');
     assert.deepEqual((await read()).resources, signed.resources);
     await page.locator('#opt-1').click();

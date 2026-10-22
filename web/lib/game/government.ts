@@ -2,6 +2,8 @@ import { housingNextActions, housingNextReview, offerHousingNext, startHousingNe
 import { mandateHousing } from './minister-mandate.ts';
 import type { GameEvent, GameState, ResourceDelta, Choice } from './types.ts';
 import type { LivingWorld, WorldAction } from './living-world.ts';
+import { ALTERNATE_COUNTRY } from './alternate-world.ts';
+import { programReport } from '../content/quarter-letters.ts';
 
 export type GovernmentProjectId = 'energy' | 'health' | 'procurement' | 'exports' | 'housing';
 export type ProgramId = Exclude<GovernmentProjectId, 'energy' | 'health'>;
@@ -61,7 +63,7 @@ export function publishSavedGovernmentReports(gs: GameState): GameState {
   }
   const next = world.government.housingNext;
   if (next && ['completed', 'partial', 'failed'].includes(next.status)) next.reviewed = true;
-  offerHousingNext(world, gs.turn);
+  offerHousingNext(world, gs.turn, gs.country === ALTERNATE_COUNTRY);
   world.dispatches = world.dispatches.slice(-24);
   return { ...gs, world, ...(pendingReport ? { currentEvent: null } : {}) };
 }
@@ -157,7 +159,12 @@ export function stepGovernment(gs: GameState, world: LivingWorld, turn: number, 
       const res: ResourceDelta = p.status === 'completed' ? p.id === 'procurement' ? { economy: 3, internalLegitimacy: 4 } : p.id === 'exports' ? { economy: 6, externalReputation: 3 } : { economy: 2, internalLegitimacy: 6 } : p.status === 'partial' ? { internalLegitimacy: 1 } : { internalLegitimacy: -2 };
       effects.push({ label: `программа «${def.title}»`, res });
     }
-    const text = `${p.name ?? 'Кабинет'}: «${def.title}» — ${p.progress}%. ${factors.join('. ')}. ${terminal ? `Срок закончен: ${p.status === 'completed' ? 'программа исполнена' : p.status === 'partial' ? 'частичный результат' : 'срок сорван'}. Итог опубликован в сообщениях и правительстве. Результат уже учтён; отдельная резолюция не требуется.` : 'Подписанное поручение продолжает исполняться.'}`;
+    const text = gs.country === ALTERNATE_COUNTRY
+      ? programReport(p.name, p.progress, factors, terminal ? p.status as 'completed' | 'partial' | 'failed' : 'running')
+      : `${p.name ?? 'Кабинет'}: «${def.title}» — ${p.progress}%. ${factors.join('. ')}. ` +
+          (terminal ? `Срок закончен: ${p.status === 'completed' ? 'программа исполнена' : p.status === 'partial' ? 'частичный результат' : 'срок сорван'}. `
+            + 'Итог опубликован в сообщениях и правительстве. Результат уже учтён; отдельная резолюция не требуется.'
+            : 'Подписанное поручение продолжает исполняться.');
     world.dispatches = [...world.dispatches, { project: p.id, id: `${turn}:government:${p.id}`, turn, kind: terminal ? 'news' as const : 'report' as const, title: def.title, text }].slice(-24);
     stories.push(text);
   }

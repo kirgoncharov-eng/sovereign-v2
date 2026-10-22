@@ -2,12 +2,15 @@
 import { worldPerson } from '@/lib/game/living-world.ts';
 const RESOURCE = { economy:'экономика', politicalCapital:'политкапитал', personalResource:'личный ресурс', externalReputation:'репутация' };
 export default function ProjectActions({ gs, actions, quota, terminal, pending, setPending, confirm, error, quarterMode = false }) {
-  if (terminal) return <p>Проект завершён. Итоги и обязательства остаются в поручениях и докладах.</p>;
+  if (terminal) return <p>{quarterMode ? 'Проект завершён. Итоги и обязательства — в докладах этого письма.'
+    : 'Проект завершён. Итоги и обязательства остаются в поручениях и докладах.'}</p>;
   if (quota) return <p className="sv-country-receipt">Личное поручение на этот квартал уже подписано.
     {quarterMode ? ' Исполнение продолжится при завершении квартала.' : ' Оба проекта продолжат работу после решения в кабинете.'}
     {' '}Новую инициативу можно дать после следующего доклада.</p>;
   return <div>
-    <p className="sv-country-capacity">Одно личное поручение на оба проекта за квартал. Деньги списываются из общих ресурсов страны. Можно оставить текущий план в работе.</p>
+    <p className="sv-country-capacity">{quarterMode
+      ? 'Одно личное поручение на квартал — на сеть или на больницы. Без него проекты идут по прежнему плану.'
+      : 'Одно личное поручение на оба проекта за квартал. Деньги списываются из общих ресурсов страны. Можно оставить текущий план в работе.'}</p>
     {actions.map(action => {
       const costDescription = Object.entries(action.cost)
         .map(([key, value]) => `${RESOURCE[key] ?? key} ${value}`).join(' · ') || 'без списания ресурсов';
@@ -22,7 +25,7 @@ export default function ProjectActions({ gs, actions, quota, terminal, pending, 
           <span>Интерес: {actor.goal}.</span>
         </> : <span>{action.detail}</span>}
         <small>Цена: {costDescription}</small>
-        {action.blocked && <span className="sv-project-blocked">Недоступно: {action.blocked}</span>}
+        {action.blocked && <span className="sv-project-blocked">Недоступно{quarterMode ? '. ' : ': '}{action.blocked}</span>}
       </button>
       {pending?.id === action.id && <div className="sv-country-confirm" role="group" aria-label="Подписать личное поручение">
         <h4>{action.title}</h4><p>{action.detail}</p>

@@ -2,6 +2,8 @@ import { priorityWork } from './government.ts';
 import { decideHealthBargain, type HealthBargainChoice } from './health-bargain.ts';
 import { aftermathActions, decideHealthAftermath, scheduleHealthAftermath, stepHealthAftermath, validHealthAftermath, type HealthAftermath, type HealthResponse } from './health-aftermath.ts';
 import type { GameState, ResourceDelta } from './types.ts';
+import { ALTERNATE_COUNTRY } from './alternate-world.ts';
+import * as letters from '../content/quarter-letters.ts';
 import type { LivingWorld, WorldAction, WorldPerson, WorldPersonId } from './living-world.ts';
 
 export type ProjectStatus = 'unassigned' | 'running' | 'completed' | 'partial' | 'failed';
@@ -99,12 +101,17 @@ export function stepHealthProject(state: GameState, world: LivingWorld, turn: nu
     const figure = p.figure && state.keyFigures.find(f => f.id === p.figure);
     return figure ? { ...p, name: figure.name, relation: figure.relation } : p;
   }));
+  const historical = state.country === ALTERNATE_COUNTRY;
   if (projectFinished(project)) {
     if (project.followupTurn === null || turn < project.followupTurn) return { res: {}, story: null };
     project.followupTurn = null;
-    return project.approach === 'rotation'
-      ? { res: { economy: -2, internalLegitimacy: -2 }, story: 'Из областных больниц приходят жалобы: временно переведённых специалистов не заменили. Районы удержали врачей, но нагрузка переместилась в областные центры. На замену выделяют дополнительные средства. Экономика −2, легитимность −2.' }
-      : { res: { economy: -1 }, story: 'Районные больницы сохранили набранных специалистов. Программа закончилась, но жильё и постоянные ставки остаются обязательствами бюджета. Экономика −1.' };
+    const followup = project.approach === 'rotation'
+      ? { res: { economy: -2, internalLegitimacy: -2 }, story: 'Из областных больниц приходят жалобы: временно переведённых специалистов не заменили. ' +
+          'Районы удержали врачей, но нагрузка переместилась в областные центры. На замену выделяют дополнительные средства.' }
+      : { res: { economy: -1 }, story: 'Районные больницы сохранили набранных специалистов. Программа закончилась, но жильё и постоянные ставки ' +
+          'остаются обязательствами бюджета.' };
+    return { res: followup.res, story: historical ? letters.healthFollowup(followup.story, followup.res)
+      : `${followup.story} ${project.approach === 'rotation' ? 'Экономика −2, легитимность −2.' : 'Экономика −1.'}` };
   }
   const factors: string[] = [];
   let gain = 0;
@@ -133,9 +140,14 @@ export function stepHealthProject(state: GameState, world: LivingWorld, turn: nu
   } else factors.push('Нет руководителя и кадрового бюджета');
   project.progress = Math.min(100, project.progress + Math.max(0, gain));
   project.lastFactors = factors;
+  const situation = project.approach === 'rotation' ? 'Врачи приезжают по временным переводам; областные центры ждут замены.'
+    : 'Идёт набор на постоянные ставки; без специалиста отделение остаётся закрытым.';
+  const doctor = world.people.find(person => person.id === 'doctor')?.name ?? '';
   let story = executor && project.status === 'running'
-    ? `${executor.name} сообщает: программа укомплектована на ${project.progress}%. ${project.approach === 'rotation' ? 'Врачи приезжают по временным переводам; областные центры ждут замены.' : 'Идёт набор на постоянные ставки; без специалиста отделение остаётся закрытым.'} ${factors.slice(1).join('. ')}.`
+    ? historical ? letters.healthProgress(executor.name, project.progress, situation.replace(/\.$/, ''), factors.slice(1))
+      : `${executor.name} сообщает: программа укомплектована на ${project.progress}%. ${situation} ${factors.slice(1).join('. ')}.`
     : (turn - project.openedTurn) % 3 !== 1 ? '' // напоминание раз в три квартала, а не в каждой газете
+    : historical ? letters.healthWithoutOrder(doctor)
     : 'Районные больницы ждут решения резиденции. Койки есть, но кабинеты без специалистов закрыты; пациентов направляют в областной центр.';
   let res: ResourceDelta = {};
   if (project.progress >= 100 || turn >= project.deadline) {
@@ -148,7 +160,13 @@ export function stepHealthProject(state: GameState, world: LivingWorld, turn: nu
     const ending = project.status === 'completed' ? 'Районные отделения открыты; запись к специалистам снова доступна на месте.'
       : project.status === 'partial' ? 'Часть районных отделений открылась. В остальных пациенты по-прежнему едут в областной центр.'
       : 'Программа не выполнена. Незанятые ставки остаются пустыми; жители требуют объяснить, куда ушёл год.';
-    story = `${ending} Укомплектовано ${project.progress}%. ${factors.join('. ')}. Продолжение истории — через ${project.aftermath.due - turn} кв.: ${project.status === 'failed' ? 'ответ жителям за провал программы' : 'бюджетные и кадровые обязательства после завершения проекта'}. Экономика ${res.economy ?? 0}, легитимность ${(res.internalLegitimacy ?? 0) > 0 ? '+' : ''}${res.internalLegitimacy}.`;
+    const next = `через ${project.aftermath.due - turn} кв. — ${project.status === 'failed' ? 'ответ жителям за провал программы'
+      : 'бюджетные и кадровые обязательства после завершения проекта'}`;
+    story = historical ? letters.healthEnding(ending, executor?.name ?? doctor, project.progress, factors, next, res)
+      : `${ending} Укомплектовано ${project.progress}%. ${factors.join('. ')}. Продолжение истории — через ` +
+          `${project.aftermath.due - turn} кв.: ` +
+          (project.status === 'failed' ? 'ответ жителям за провал программы' : 'бюджетные и кадровые обязательства после завершения проекта') +
+          `. Экономика ${res.economy ?? 0}, легитимность ${(res.internalLegitimacy ?? 0) > 0 ? '+' : ''}${res.internalLegitimacy}.`;
   }
   return { res, story };
 }
