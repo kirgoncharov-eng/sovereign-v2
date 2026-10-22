@@ -15,6 +15,7 @@ import { ALTERNATE_COUNTRY } from './alternate-world.ts';
 import { signedCaseOrVersion } from './first-term-schedule.ts';
 import * as letters from '../content/quarter-letters.ts';
 import { actSecretary, ensureSecretary, secretarySurname, validSecretary, type SecretaryState } from './secretary.ts';
+import { announcedHeirs, surnameBase } from './surnames.ts';
 export type WorldPersonId = 'minister' | 'governor' | 'engineer' | 'healthMinister' | 'doctor';
 export interface WorldPerson {
     id: WorldPersonId;
@@ -94,12 +95,18 @@ export function openLivingWorld(gs: GameState): GameState {
     const previous = gs.world;
     const used = new Set([...(previous?.people.map(person => person.name) ?? []), gs.leader.name, ...gs.keyFigures.map(f => f.name), ...gs.advisors.map(entry => entry.name), ...(gs.former ?? [])]);
     const pool = NAMES[gs.country] ?? NAMES['Беларусь'];
+    // 1978 (#242): новый человек папки не делит фамилию ни с кем из партии — иначе игрок примет их за родственников.
+    const surnames = new Set(historical
+        ? [...used, ...(gs.arc ? [gs.arc.target] : []), ...(gs.world?.secretary ? [gs.world.secretary.name] : []), ...announcedHeirs(gs)].map(surnameBase)
+        : []);
     const name = (slot: string) => {
         for (let i = 0; i < 200; i++) {
             const h = hash(gs.seed, 'world-name', slot, i);
             const n = `${pool.first[h % 8]} ${pool.last[(h >>> 5) % pool.last.length]}`;
-            if (!used.has(n) && (!gs.world?.secretary || secretarySurname(n) !== secretarySurname(gs.world.secretary.name))) {
+            if (!used.has(n) && !surnames.has(surnameBase(n))
+                && (!gs.world?.secretary || secretarySurname(n) !== secretarySurname(gs.world.secretary.name))) {
                 used.add(n);
+                if (historical) surnames.add(surnameBase(n));
                 return n;
             }
         }
