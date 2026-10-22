@@ -23,7 +23,7 @@ export default function MinisterPanel({ gs, Scene, onAction, onClose }) {
     } catch (e) { setError(e.message || 'Не удалось записать решение'); }
   }
   return <section className="sv-sponsor" data-minister-panel>
-    <Scene gs={gs} sceneKey="office" height={48}/>
+    <Scene gs={gs} sceneKey="office" height={48} still/>
     <div className="sv-sponsor-person">{person ? `Министр энергетики · отношение ${person.relation > 0 ? '+' : ''}${person.relation} · интерес: контроль строительных закупок` : 'Прежний министр больше не занимает должность'}</div>
     <p><PeopleText>{mandate.text}</PeopleText></p>
     <p className="sv-sponsor-help">Чтение бесплатно. Подпись использует одно личное вмешательство квартала, общее с другими поручениями. Координатор программы и распорядитель закупок — разные роли.</p>
