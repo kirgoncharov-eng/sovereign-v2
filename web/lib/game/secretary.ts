@@ -3,6 +3,9 @@ import * as copy from '../content/secretary.ts';
 import { ALTERNATE_COUNTRY, ALTERNATE_NAMES } from './alternate-world.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { computePolls, hashSeed, isDisloyal, leakingAdvisors } from './engine.ts';
+import { FIRST_TERM_CASES, replacedCases, scheduledFirstTerm, versionsOf } from './first-term-schedule.ts';
+import { reserveShortage } from '../content/quarter-letters.ts';
+import { electionKind, reignOf } from './terms.ts';
 import { turnDate } from './calendar.ts';
 import type { GameState, ResourceDelta, ResourceKey } from './types.ts';
 
@@ -54,6 +57,8 @@ export interface SecretaryState {
   receipt: string | null;
   receiptTurn: number | null;
   finale: string | null;
+  inventory?: string;
+  lastGossipText?: string;
 }
 export interface SecretaryAction {
   id: string;
@@ -126,8 +131,24 @@ export function secretaryInventory(gs: GameState): string | null {
   if (!s.present) return copy.WITHOUT_HER;
   if (!secretaryAvailable(gs)) return null;
   if (gs.turn === s.joined) return secretaryText(gs, copy.FIRST_DAY);
-  const lines = copy.INVENTORY_LINES[occasion(gs)][s.trust];
-  return secretaryText(gs, lines[hashSeed(gs.seed, 'secretary-inventory', gs.turn) % lines.length]);
+  return s.inventory ?? inventoryLine(gs, s);
+}
+
+function inventoryLine(gs: GameState, s: SecretaryState): string {
+  const lines = copy.INVENTORY_LINES[occasion(gs)][s.trust].map(line => secretaryText(gs, line));
+  const fresh = lines.filter(line => line !== s.inventory);
+  const available = fresh.length ? fresh : lines;
+  return available[hashSeed(gs.seed, 'secretary-inventory', gs.turn) % available.length];
+}
+
+// Forecast only unconditional, unused slots. Conditional versions may change after this quarter's decision.
+function nextSecretaryCase(gs: GameState): string | undefined {
+  if (!scheduledFirstTerm(gs)) return;
+  const id = FIRST_TERM_CASES[gs.turn + 2];
+  if (!id || gs.usedEvents.includes(id) || replacedCases(gs).includes(id) || versionsOf(id).length) return;
+  const card = ALTERNATE_EVENTS.find(c => c.id === id);
+  if (!card || Object.keys(card.when ?? {}).some(key => !['minTurn', 'maxTurn'].includes(key))) return;
+  return id;
 }
 
 function chooseGossip(gs: GameState, secretary: SecretaryState): SecretaryGossip | null {
@@ -135,11 +156,14 @@ function chooseGossip(gs: GameState, secretary: SecretaryState): SecretaryGossip
   const addAdvisor = (id: string, kind: 'leak' | 'disloyal', truthful = true, source: SecretaryGossip['source'] = 'state') => {
     const advisor = gs.advisors.find(a => a.id === id)!;
     const lines = source === 'director' ? copy.PLANTED_GOSSIP : copy.GOSSIP[kind];
-    const text = lines[hashSeed(gs.seed, 'secretary-gossip-text', gs.turn, id) % lines.length];
+    const filled = lines.map(text => sentence(copy.fillSecretary(text, { advisor: advisor.name, advisorRole: roleSlot(advisor.role) })));
+    const fresh = filled.filter(text => text !== secretary.lastGossipText);
+    const available = fresh.length ? fresh : filled;
+    const text = available[hashSeed(gs.seed, 'secretary-gossip-text', gs.turn, id) % available.length];
     candidates.push({ kind, truthful, source, subject: id, name: advisor.name,
-      text: sentence(copy.fillSecretary(text, { advisor: advisor.name, advisorRole: roleSlot(advisor.role) })) });
+      text });
   };
-  if (secretary.planted && !secretary.channelExposed) {
+  if (secretary.planted && !secretary.channelExposed && hashSeed(gs.seed, 'secretary-director-channel', gs.turn) % 2 === 0) {
     const loyal = gs.advisors.filter(a => !isDisloyal(a));
     const target = loyal[hashSeed(gs.seed, 'secretary-planted', gs.turn) % loyal.length];
     if (target) addAdvisor(target.id, 'leak', false, 'director');
@@ -147,10 +171,9 @@ function chooseGossip(gs: GameState, secretary: SecretaryState): SecretaryGossip
   if (!candidates.length) {
     for (const advisor of leakingAdvisors(gs)) addAdvisor(advisor.id, 'leak');
     if (!candidates.length) for (const advisor of gs.advisors.filter(isDisloyal)) addAdvisor(advisor.id, 'disloyal');
-    const card = ALTERNATE_EVENTS.find(c => c.id === gs.currentEvent?.card);
-    const base = card?.when?.versionOf ?? card?.id;
+    const base = nextSecretaryCase(gs);
     if (!candidates.length && base && copy.NEXT_CASE_GOSSIP[base]) candidates.push({ kind: 'nextCase', truthful: true,
-      source: 'state', subject: base, name: gs.currentEvent!.title, text: copy.NEXT_CASE_GOSSIP[base] });
+      source: 'state', subject: base, name: ALTERNATE_EVENTS.find(card => card.id === base)!.title, text: copy.NEXT_CASE_GOSSIP[base] });
     if (!candidates.length) {
       const falling = gs.keyFigures.filter(f => gs.prevFigures?.some(p => p.id === f.id && p.name === f.name && f.relation < p.relation));
       for (const figure of falling) candidates.push({ kind: 'figure', truthful: true, source: 'state', subject: figure.id, name: figure.name,
@@ -187,9 +210,11 @@ export function ensureSecretary(gs: GameState): GameState {
   s = structuredClone(s);
   const next = { ...gs, world: { ...gs.world, secretary: s } };
   s.updated = gs.turn;
+  if (s.gossip) s.lastGossipText = s.gossip.text;
   s.gossip = null;
   s.scene = null;
   if (!secretaryAvailable(next)) return next;
+  s.inventory = inventoryLine(next, s);
   if (gs.turn < 20 && gs.turn >= s.nextFavor && !pendingSecretaryFavor(next)) {
     const available = eligibleFavors(gs, s);
     const id = available[hashSeed(gs.seed, 'secretary-favor', gs.turn) % available.length];
@@ -200,11 +225,12 @@ export function ensureSecretary(gs: GameState): GameState {
     s.gossip = chooseGossip(next, s);
     if (s.gossip) s.lastGossipTurn = gs.turn;
   }
-  if (gs.turn >= s.nextScene) {
+  const electionEve = !!electionKind(gs.turn + 2, gs.path, reignOf(gs).office);
+  if (gs.turn >= s.nextScene || electionEve) {
     const winter = turnDate(gs.seed, 1978, gs.turn).season === 'winter';
     const health = gs.world.health;
     const scenes: [copy.SecretaryScene, boolean][] = [
-      ['electionEve', [7, 19].includes(gs.turn % 20)],
+      ['electionEve', electionEve],
       ['blackout', gs.resources.economy < 30 && gs.world.project.status !== 'completed'],
       ['coldWaitingRoom', winter && gs.resources.economy < 30],
       ['hospitalQueue', !!health && health.status === 'failed'],
@@ -243,11 +269,14 @@ export function secretaryActions(gs: GameState): SecretaryAction[] {
       detail: 'Политкапитал −1, личный ресурс −1: согласовать доступ к черновику. Если утечка случится сейчас, ущерб вдвое меньше (с округлением вверх).',
       cost: { politicalCapital: -1, personalResource: -1 } });
   }
-  return actions.map(action => ({ ...action, blocked: gs.ended ? 'Правление завершено'
-    : !gs.currentEvent ? 'Дождитесь нового дела' : !s.present ? 'Секретарь больше не в приёмной'
-    : s.away === gs.turn ? 'Секретарь в отгуле'
-    : Object.entries(action.cost).some(([key, delta]) => gs.resources[key as ResourceKey] + delta! < 5)
-      ? 'Для подписи нужен запас ресурса не ниже 5' : null }));
+  return actions.map(action => {
+    const shortage = Object.entries(action.cost).map(([key, delta]) =>
+      [key, gs.resources[key as ResourceKey] + delta!] as const).find(([, after]) => after < 5);
+    return { ...action, blocked: gs.ended ? 'Правление завершено'
+      : !gs.currentEvent ? 'Дождитесь нового дела' : !s.present ? 'Секретарь больше не в приёмной'
+      : s.away === gs.turn ? 'Секретарь в отгуле'
+      : shortage ? reserveShortage(...shortage) : null };
+  });
 }
 
 export function gossipConfirmed(gs: GameState, gossip: SecretaryGossip): boolean {
@@ -257,8 +286,7 @@ export function gossipConfirmed(gs: GameState, gossip: SecretaryGossip): boolean
   if (gossip.kind === 'intrigue') return gs.arc?.id === gossip.subject && gs.arc.target === gossip.name && !gs.arc.epilogue;
   if (gossip.kind === 'figure') return gs.keyFigures.some(f => f.id === gossip.subject && f.name === gossip.name
     && gs.prevFigures?.some(p => p.id === f.id && p.name === f.name && p.relation > f.relation));
-  const card = ALTERNATE_EVENTS.find(c => c.id === gs.currentEvent?.card);
-  return (card?.when?.versionOf ?? card?.id) === gossip.subject;
+  return nextSecretaryCase(gs) === gossip.subject;
 }
 
 export function actSecretary(gs: GameState, id: string): GameState {
@@ -311,7 +339,8 @@ export function secretaryLeakCost(gs: GameState, advisor: { id: string; name: st
 
 export function secretaryDueEffects(gs: GameState, turn: number): { label: string; res: ResourceDelta }[] {
   if (!secretaryEnabled(gs)) return [];
-  return (gs.world?.secretary?.pending ?? []).filter(p => p.due <= turn).map(p => ({ label: 'просьба секретаря: кумовство', res: p.res }));
+  return (gs.world?.secretary?.pending ?? []).filter(p => p.due <= turn && Object.values(p.res).some(delta => delta !== 0))
+    .map(p => ({ label: 'просьба секретаря: кумовство', res: p.res }));
 }
 
 export function secretaryStaffingChange(before: GameState, after: GameState, name: string | undefined): GameState {
@@ -353,7 +382,8 @@ export function validSecretary(value: unknown, turn: number): value is Secretary
     || ![0, 1, 2].includes(s.trust) || typeof s.present !== 'boolean' || !nullableTurn(s.away) || !nullableTurn(s.muteUntil)
     || !n(s.nextFavor) || !nullableTurn(s.lastGossipTurn) || !n(s.nextScene) || typeof s.planted !== 'boolean'
     || typeof s.channelExposed !== 'boolean' || !(s.receipt === null || text(s.receipt)) || !nullableTurn(s.receiptTurn)
-    || !(s.finale === null || text(s.finale))) return false;
+    || !(s.finale === null || text(s.finale)) || !(s.inventory === undefined || text(s.inventory))
+    || !(s.lastGossipText === undefined || text(s.lastGossipText))) return false;
   if (!Array.isArray(s.favors) || s.favors.length > 6 || new Set(s.favors.map(f => f?.id)).size !== s.favors.length
     || !s.favors.every(f => f && favorIds.includes(f.id) && n(f.offered, turn) && f.offered >= s.joined
       && (f.answer === null ? f.answered === null && f.outcome === null

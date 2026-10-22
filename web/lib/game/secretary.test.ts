@@ -11,7 +11,7 @@ import { SAVE_VERSION } from './data.ts';
 import { candidatePool, hireAdvisor } from './staffing.ts';
 import { presidentialMessages } from '../client/presidential-inbox.ts';
 import { actSecretary, ensureSecretary, finishSecretaryTurn, gossipConfirmed, pendingSecretaryFavor, secretaryActions,
-  secretaryAvailable, secretaryInventory, secretaryLeakCost, secretarySurname, validSecretary } from './secretary.ts';
+  secretaryAvailable, secretaryInventory, secretaryLeakCost, secretarySurname, secretaryDueEffects, validSecretary } from './secretary.ts';
 import type { FavorId, SecretaryState } from './secretary.ts';
 import type { DifficultyId, GameState } from './types.ts';
 
@@ -159,7 +159,10 @@ test('директор передаёт ложь через архив; пров
   let gs = actSecretary(offer(await fixture(), 'archiveKey'), 'secretary:favor:archiveKey:grant');
   gs.advisors = gs.advisors.map(a => ({ ...a, loyalty: 80 }));
   gs.world!.secretary!.lastGossipTurn = null;
-  gs = ensureSecretary({ ...gs, turn: gs.turn + 1 });
+  for (let turn = gs.turn + 1; turn < 20; turn++) {
+    gs = ensureSecretary({ ...gs, turn });
+    if (gs.world!.secretary!.gossip?.source === 'director') break;
+  }
   const g = gs.world!.secretary!.gossip!;
   assert.equal(g.source, 'director');
   assert.equal(g.truthful, false);
@@ -241,4 +244,71 @@ test('старое и повреждённое необязательное со
   const invalid = structuredClone(gs.world!.secretary!) as SecretaryState;
   invalid.favors = [{ id: 'leave', offered: gs.turn, answer: 'grant', answered: null, outcome: null }];
   assert.equal(validSecretary(invalid, gs.turn), false);
+});
+
+
+test('прогноз относится к следующему незаменённому делу, а не к текущему или его версии', async () => {
+  const base = await fixture();
+  base.advisors = base.advisors.map(a => ({ ...a, loyalty: 80 }));
+  base.prevFigures = base.keyFigures.map(f => ({ ...f }));
+  const forecast = (turn: number, usedEvents: string[] = []) => {
+    const gs = structuredClone(base);
+    gs.turn = turn;
+    gs.usedEvents = usedEvents;
+    gs.world!.secretary!.updated = turn - 1;
+    gs.world!.secretary!.lastGossipTurn = null;
+    return ensureSecretary(gs);
+  };
+  const next = forecast(18);
+  const gossip = next.world!.secretary!.gossip!;
+  assert.equal(gossip.kind, 'nextCase');
+  assert.equal(gossip.subject, 'alt_archive');
+  assert.ok(gossipConfirmed(next, gossip));
+  assert.equal(gossipConfirmed({ ...next, usedEvents: ['alt_archive'] }, gossip), false);
+  for (const turn of [6, 8, 11, 13]) assert.notEqual(forecast(turn).world!.secretary!.gossip?.kind, 'nextCase');
+  assert.notEqual(forecast(18, ['alt_archive']).world!.secretary!.gossip?.kind, 'nextCase');
+});
+
+test('канал директора подменяет только часть сообщений, не повторяя одну строку подряд', async () => {
+  let gs = await fixture();
+  gs.advisors = gs.advisors.map(a => ({ ...a, loyalty: 80 }));
+  gs.world!.secretary!.planted = true;
+  gs.world!.secretary!.trust = 2;
+  const sources = new Set<string>();
+  let previous = '';
+  for (let turn = 6; turn < 20; turn++) {
+    gs = ensureSecretary({ ...gs, turn });
+    const g = gs.world!.secretary!.gossip;
+    if (!g) continue;
+    sources.add(g.source);
+    if (g.source === 'director') assert.notEqual(g.text, previous);
+    previous = g.text;
+  }
+  assert.ok(sources.has('state') && sources.has('director'));
+});
+
+test('канун настоящих выборов обходит очередь сцен; отменённые выборы не анонсируются', async () => {
+  const base = await fixture();
+  base.world!.secretary!.nextScene = 99;
+  const election = ensureSecretary({ ...base, turn: 8 });
+  assert.equal(election.world!.secretary!.scene?.id, 'electionEve');
+  const postponed = ensureSecretary({ ...base, turn: 18, path: { id: 'postpone', turn: 17 } });
+  assert.equal(postponed.world!.secretary!.scene, null);
+});
+
+test('опись не повторяется подряд; напоминание директора не создаёт пустой расход', async () => {
+  let gs = await fixture();
+  gs.activeCrises = [];
+  gs.resources.economy = 20;
+  let previous = '';
+  for (const turn of [10, 11, 12, 13]) {
+    gs = ensureSecretary({ ...gs, turn });
+    const text = secretaryInventory(gs)!;
+    assert.notEqual(text, previous);
+    previous = text;
+  }
+  gs.world!.secretary!.pending = [{ id: 'directorRemembers', due: gs.turn + 1, text: 'Напоминание', res: {} }];
+  assert.deepEqual(secretaryDueEffects(gs, gs.turn + 1), []);
+  const next = finishSecretaryTurn(gs, { ...gs, turn: gs.turn + 1 });
+  assert.match(next.world!.secretary!.receipt!, /Напоминание/);
 });

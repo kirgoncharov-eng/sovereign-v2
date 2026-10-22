@@ -1,7 +1,8 @@
 // #245: a naturally reached first request, then a controlled planted-rumour fixture.
 // npm run build:demo && node scripts/playtest-secretary.mjs [--out=playtest-secretary]
 import { chromium } from 'playwright';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
 import { classicApi } from '../lib/game/classic.ts';
@@ -28,9 +29,18 @@ state = startEvent(state, await classicApi.event(state));
 assert.ok(!state.ended && pendingSecretaryFavor(state));
 const encode = gs => ({ version: SAVE_VERSION, screen: 'game', state: gs });
 assert.ok(parseSave(JSON.stringify(encode(state))));
-const browser = await chromium.launch();
+// A normal HTTP origin gives reload the same storage guarantees as the deployed game.
+const html = readFileSync(new URL('../demo/dist/sovereign.html', import.meta.url));
+const server = createServer((request, response) => {
+  response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  response.end(html);
+});
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const url = `http://127.0.0.1:${server.address().port}/`;
+let browser;
 const results = [];
 try {
+  browser = await chromium.launch();
   for (const width of [1440, 390, 320]) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, isMobile: width < 760,
       hasTouch: width < 760, reducedMotion: 'reduce' });
@@ -49,7 +59,7 @@ try {
     const open = async key => width > 760 ? page.locator(`[data-quarter-document="${key}"]`).click()
       : page.locator('#quarter-document').selectOption(key);
     const read = () => page.evaluate(() => JSON.parse(localStorage.getItem('sovereign.save')).state);
-    await page.goto(new URL('../demo/dist/sovereign.html', import.meta.url).href, { waitUntil: 'domcontentloaded' });
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
     await resume();
     assert.match(await page.locator('[data-quarter-secretary]').innerText(), /держит дистанцию/);
     await page.screenshot({ path: `${output}/${width}-inventory.png`, fullPage: true });
@@ -75,6 +85,7 @@ try {
     await page.screenshot({ path: `${output}/${width}-answer.png`, fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.reload({ waitUntil: 'domcontentloaded' });
+    assert.deepEqual((await read()).world.secretary, signed.world.secretary, 'reload preserves stored answer');
     await resume();
     assert.deepEqual((await read()).world.secretary, signed.world.secretary);
     assert.deepEqual((await read()).quarterDraft, signed.quarterDraft);
@@ -92,15 +103,18 @@ try {
   let planted = actSecretary(controlled, 'secretary:favor:archiveKey:grant');
   planted.advisors = planted.advisors.map(a => ({ ...a, loyalty: 80 }));
   planted.world.secretary.lastGossipTurn = null;
-  planted.turn++;
-  planted.world.lastTick = planted.turn;
-  planted = ensureSecretary(planted);
+  for (let turn = planted.turn + 1; turn < 20; turn++) {
+    planted.turn = turn;
+    planted.world.lastTick = turn;
+    planted = ensureSecretary(planted);
+    if (planted.world.secretary.gossip?.source === 'director') break;
+  }
   assert.ok(planted.world.secretary.gossip.source === 'director');
   assert.ok(parseSave(JSON.stringify(encode(planted))));
   const context = await browser.newContext({ viewport: { width: 390, height: 900 }, reducedMotion: 'reduce' });
   const page = await context.newPage();
   await page.addInitScript(save => localStorage.setItem('sovereign.save', JSON.stringify(save)), encode(planted));
-  await page.goto(new URL('../demo/dist/sovereign.html', import.meta.url).href, { waitUntil: 'domcontentloaded' });
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'Продолжить сохранённую игру', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'ПРОДОЛЖИТЬ', exact: true }).click();
   await page.locator('[data-secretary-action="secretary:verify"]').click();
@@ -111,6 +125,9 @@ try {
   assert.match(await page.locator('[data-secretary-receipt]').innerText(), /директору/);
   results.push({ plantedChannelUncovered: true });
   await context.close();
-} finally { await browser.close(); }
+} finally {
+  await browser?.close();
+  await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+}
 writeFileSync(`${output}/summary.json`, JSON.stringify(results, null, 2));
 console.log(JSON.stringify(results, null, 2));
