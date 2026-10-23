@@ -1234,7 +1234,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
         source: 'Приёмная правительства',
         when: {
             minTurn: 4,
-            regions: { minsk: 'верят', polesie: 'против' }
+            regions: { minsk: ['верят', 'ждут'], polesie: ['против', 'ждут'] }
         },
         weight: 2,
         title: 'Ходоки из Полесья',
@@ -1248,7 +1248,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'помощь селу за счёт столичных резервов',
                 tags: ['social'],
                 stance: { regional: 6, church: 4, business: -4 },
-                policyEffect: { economy: -4, internalLegitimacy: 3, personalResource: -1 },
+                policyEffect: { economy: -2, internalLegitimacy: 3, personalResource: -1 },
                 scene: 'Деньги ушли в районные казначейства. Шлюзы начали чистить, а ходоки вернулись в Лунинец с обещанием фельдшеров.',
                 fail: 'Субсидия застряла в областном центре. До мелиоративных станций дошли только предписания, вода осталась на полях.',
                 head: ['Полесье получило средства на мелиорацию', 'Помощь Полесью задержали в областном центре']
@@ -1293,7 +1293,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'мир в цехах ценой заморозки переоборудования',
                 tags: ['social'],
                 stance: { liberal: 6, regional: 2, business: -6 },
-                policyEffect: { economy: -5, internalLegitimacy: 4, personalResource: -2 },
+                policyEffect: { economy: -3, internalLegitimacy: 4, personalResource: -2 },
                 scene: 'Гудки дали отбой. Смены вернулись к станкам; стачком празднует победу, а директора считают замороженные инвестиции.',
                 fail: 'Другие заводы Минска посчитали уступку слабостью и тоже остановили конвейеры. Забастовка перекинулась на автозавод.',
                 head: ['Забастовка в Минске прекращена компромиссом', 'Забастовка тракторного перекинулась на автозавод']
@@ -1370,7 +1370,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
         source: 'Совет губернаторов',
         when: {
             minTurn: 5,
-            regions: { polesie: 'против', grodno: 'против', brest: ['против', 'ждут'] }
+            regions: { polesie: ['против', 'ждут'], grodno: ['против', 'ждут'], brest: ['против', 'ждут'] }
         },
         weight: 2,
         title: 'Губернаторы съезжаются в Минск',
@@ -1383,7 +1383,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'мир с областями ценой ослабления казны республики',
                 tags: ['reform'],
                 stance: { regional: 10, church: 4, business: -6, security: -4 },
-                policyEffect: { economy: -6, internalLegitimacy: 5, politicalCapital: -2 },
+                policyEffect: { economy: -3, internalLegitimacy: 5, politicalCapital: -2 },
                 scene: 'Хартия подписана. Областные центры получили деньги на больницы и дороги; угроза налогового бойкота снята.',
                 fail: 'Регионы забрали налоги, но сорвали республиканские программы. Столице нечем платить пенсии в центральных районах.',
                 head: ['Подписана хартия бюджетной автономии областей', 'Децентрализация оставила столичную казну без налогов']
@@ -1415,7 +1415,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
         source: 'Министерство путей сообщения',
         when: {
             minTurn: 4,
-            regions: { grodno: 'верят', brest: 'против' }
+            regions: { grodno: ['верят', 'ждут'], brest: 'против' }
         },
         weight: 2,
         title: 'Разрыв на границах',

@@ -942,7 +942,16 @@ function buildFirstTermEvent(state: GameState): GameEvent & { cardId?: string } 
   // письмо о пустом магазине при упавшей легитимности, закупочная цена при пустой казне.
   const sooner = turn === 4 && ready.some(card => card.id === 'alt_radio') && ready.some(card => card.id === preferred)
     && state.resources.internalLegitimacy < state.resources.economy ? 'alt_radio' : preferred;
-  const base = ready.find(card => card.id === sooner)
+  const regionalReady = ready.filter(card => !!card.when?.regions);
+  const usedRegional = state.usedEvents.filter(id => id.startsWith('alt_region_')).length;
+  // Региональные события (#215): при расколе доверия мест республика рождает срочное региональное дело.
+  // Якорные ходы 1 (зарплаты), 4–6 (урожай, топливо, радио/станки), 13 (больницы) и 20 (архив) фиксированы для сюжета и механик.
+  const canRegional = (turn === 10 || turn === 15) && usedRegional < 2 && regionalReady.length > 0;
+  const regional = canRegional
+    ? regionalReady[Math.floor(seededRandom(hashSeed(state.seed, "regional_card", turn))() * regionalReady.length)]
+    : undefined;
+  const base = (turn === 4 ? ready.find(card => card.id === sooner) ?? ready.find(card => card.id === 'alt_radio') : regional)
+    ?? ready.find(card => card.id === sooner)
     ?? ready.find(card => card.id === 'alt_radio') ?? ready.find(card => !card.when?.versionOf)
     ?? available.find(card => card.id === preferred) ?? available.find(card => !card.when?.versionOf);
   // Положение дел в стране выбирает версию дела (#214): первая подходящая версия, иначе само дело.
