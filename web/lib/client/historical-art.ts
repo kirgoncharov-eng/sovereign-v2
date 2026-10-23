@@ -51,6 +51,10 @@ export const HISTORICAL_OUTCOME_ART = {
   standardsEastern: { src: '/art/gemini-next/standards-eastern.webp', caption: 'Конвейер сохранён: отгрузка насосов по прежним стандартам' },
   standardsContest: { src: '/art/gemini-next/standards-contest.webp', caption: 'Небольшой завод выиграл контракт на поставку насосов' },
   standardsDefect: { src: '/art/gemini-next/standards-defect.webp', caption: 'Партия насосов забракована комиссией Торгового союза' },
+  railGrain: { src: '/art/gemini-next/rail-grain.webp', caption: 'Эшелон с зерном подан на районные мельницы' },
+  railExport: { src: '/art/gemini-next/rail-export.webp', caption: 'Экспортный состав прошёл пограничный рубеж по договору' },
+  railDispatch: { src: '/art/gemini-next/rail-dispatch.webp', caption: 'Единый диспетчерский график восстановил движение составов' },
+  railJam: { src: '/art/gemini-next/rail-jam.webp', caption: 'Затор на узле: задержка движения и ручная проверка стрелок' },
 } satisfies Record<string, HistoricalArt>;
 const bridgeDossier = MANAGEMENT_DOSSIERS.find(dossier => dossier.id === 'bridges')!;
 const bridgeOutcomes = [
@@ -63,6 +67,9 @@ const fuelCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_fuel')!;
 const standardsCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_standards')!;
 const standardsChamberCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_standards_chamber');
 const standardsPatriotsCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_standards_patriots');
+const railCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_rail')!;
+const railBlockadeCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_rail_blockade');
+const railChamberCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_rail_chamber');
 const CARD_ART: Record<string, HistoricalArt> = {
   alt_wages: HISTORICAL_SCENE_ART.wages,
   alt_fuel: HISTORICAL_SCENE_ART.fuel, alt_standards: HISTORICAL_SCENE_ART.standards,
@@ -177,6 +184,30 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
   if (standardsPatriotsCard && completed?.title === standardsPatriotsCard.title) {
     if (completed.choice === standardsPatriotsCard.choices[0].text) {
       return completed.success ? HISTORICAL_OUTCOME_ART.standardsTesting : HISTORICAL_OUTCOME_ART.standardsDefect;
+    }
+  }
+  if (completed?.title === railCard.title) {
+    if (completed.choice === railCard.choices[0].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.railGrain : HISTORICAL_OUTCOME_ART.railJam;
+    }
+    if (completed.choice === railCard.choices[1].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.railExport : HISTORICAL_SCENE_ART.rail;
+    }
+    if (completed.choice === railCard.choices[2].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.railDispatch : HISTORICAL_OUTCOME_ART.railJam;
+    }
+  }
+  if (railBlockadeCard && completed?.title === railBlockadeCard.title) {
+    if (completed.choice === railBlockadeCard.choices[0].text) {
+      return HISTORICAL_OUTCOME_ART.railGrain;
+    }
+    if (completed.choice === railBlockadeCard.choices[1].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.railExport : HISTORICAL_OUTCOME_ART.railJam;
+    }
+  }
+  if (railChamberCard && completed?.title === railChamberCard.title) {
+    if (completed.choice === railChamberCard.choices[0].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.railDispatch : HISTORICAL_OUTCOME_ART.railJam;
     }
   }
   const title = completed?.title;

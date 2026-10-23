@@ -23,8 +23,8 @@ test('all mapped WebP files exist within the image budgets', () => {
   const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
     HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART,
     HISTORICAL_SECRETARY_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 67);
-  assert.equal(new Set(paths).size, 66); // wages and wagesGate share wages-gate.webp
+  assert.equal(paths.length, 71);
+  assert.equal(new Set(paths).size, 70); // wages and wagesGate share wages-gate.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
@@ -35,7 +35,7 @@ test('all mapped WebP files exist within the image budgets', () => {
       assert.ok(statSync(file).size <= (isPortrait ? 10_000 : 100_000), src);
     }
   }
-  assert.ok(bytes < 2_500_000);
+  assert.ok(bytes < 2_800_000);
 });
 
 test('hospital photos distinguish failed repair, ongoing works and a finished roof after reload', async () => {
@@ -207,6 +207,23 @@ test('first crisis and election night resolve authorial outcome scenes', async (
     assert.deepEqual(historicalResultArt(successState, 'factory'), expectedStandardsSuccess[idx]);
     const failState = { ...base, history: [{ year: 1978, title: standardsCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
     assert.deepEqual(historicalResultArt(failState, 'factory'), expectedStandardsFail[idx]);
+  }
+  const railCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_rail')!;
+  const expectedRailSuccess = [
+    HISTORICAL_OUTCOME_ART.railGrain,
+    HISTORICAL_OUTCOME_ART.railExport,
+    HISTORICAL_OUTCOME_ART.railDispatch,
+  ];
+  const expectedRailFail = [
+    HISTORICAL_OUTCOME_ART.railJam,
+    HISTORICAL_SCENE_ART.rail,
+    HISTORICAL_OUTCOME_ART.railJam,
+  ];
+  for (const [idx, choice] of railCard.choices.entries()) {
+    const successState = { ...base, history: [{ year: 1978, title: railCard.title, choice: choice.text, headline: '', historianNote: '', success: true }] };
+    assert.deepEqual(historicalResultArt(successState, 'border'), expectedRailSuccess[idx]);
+    const failState = { ...base, history: [{ year: 1978, title: railCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
+    assert.deepEqual(historicalResultArt(failState, 'border'), expectedRailFail[idx]);
   }
   const event = await classicApi.event(base);
   const current = startEvent(base, event);
