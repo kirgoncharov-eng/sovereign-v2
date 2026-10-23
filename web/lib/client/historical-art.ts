@@ -209,6 +209,14 @@ export const HISTORICAL_LEADER_ART: Record<string, { src: string; female: boolea
   diplomat: { src: '/art/gemini-next/leader-diplomat.webp', female: false, label: 'МИД · Дипломат' },
 };
 
+export const HISTORICAL_SECRETARY_ART = {
+  portrait: { src: '/art/gemini-next/secretary-portrait.webp', caption: 'Секретарь аппарата президента' },
+  electionEve: { src: '/art/gemini-next/secretary-scene-election-eve.webp', caption: 'Ночь перед выборами: термос на краю стола, свет только из приёмной' },
+  blackout: { src: '/art/gemini-next/secretary-scene-blackout.webp', caption: 'Отключение по графику: секретарь печатает при керосиновой лампе' },
+  coldWaitingRoom: { src: '/art/gemini-next/secretary-scene-cold-waiting-room.webp', caption: 'Зима: секретарь в пальто за столом в холодной приёмной' },
+  hospitalQueue: { src: '/art/gemini-next/secretary-scene-hospital-queue.webp', caption: 'Приёмный покой областной больницы: очередь в коридоре, секретарь с пожилой женщиной' },
+} as const;
+
 export function historicalPortraitArt(
   state: GameState | null, name: string, roster?: Record<string, string> | null,
 ): string | null {
@@ -216,6 +224,9 @@ export function historicalPortraitArt(
   if (state.leader.name === name) {
     const p = state.leader.portrait && HISTORICAL_LEADER_ART[state.leader.portrait];
     return p && p.female === isFemaleName(name) ? p.src : null;
+  }
+  if (state.world?.secretary?.name === name) {
+    return HISTORICAL_SECRETARY_ART.portrait.src;
   }
   const figure = state.keyFigures.find(person => person.name === name);
   if (figure) {
