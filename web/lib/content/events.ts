@@ -6,6 +6,8 @@ import type { Season } from "../game/calendar.ts";
 import { ALTERNATE_EVENTS } from "./alternate-history.ts";
 import type { Deal, ActionTag, Bloc, IdeologyId, ResourceDelta, ResourceKey } from "../game/types.ts";
 
+import type { RegionId, RegionalTrustWord } from "../game/republic-map.ts";
+
 export interface CardCondition {
   seasons?: Season[];
   low?: ResourceKey[];     // ресурс ниже 30
@@ -24,6 +26,7 @@ export interface CardCondition {
   ally?: Bloc;             // этот блок сейчас настроен к президенту лучше всех
   after?: string[];        // раньше подписан один из этих вариантов: решение приводит следующее дело (#214)
   versionOf?: string;      // версия дела первого срока: приходит вместо этого дела, когда выполнены её условия
+  regions?: Partial<Record<RegionId, RegionalTrustWord | RegionalTrustWord[]>>; // условие на доверие регионов (#215)
 }
 
 export interface CardChoice {
