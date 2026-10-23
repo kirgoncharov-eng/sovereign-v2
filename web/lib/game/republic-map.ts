@@ -222,8 +222,8 @@ export function computeRegionalTrust(state: Pick<GameState, 'country' | 'faction
   return result;
 }
 
-// Отображается только для Неманской республики 1978 года со 2-го хода (на ходу 1 нового блока нет)
+// В справочнике страны видна с первого решения: игроку нужно знать исходное доверие регионов.
 export function isRepublicMapVisible(gs: Pick<GameState, 'country' | 'turn' | 'daily'>): boolean {
   if (gs.daily) return false;
-  return gs.country === ALTERNATE_COUNTRY && (gs.turn ?? 0) >= 2;
+  return gs.country === ALTERNATE_COUNTRY;
 }

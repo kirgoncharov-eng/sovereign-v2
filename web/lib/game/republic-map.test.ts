@@ -189,9 +189,9 @@ test('signed affairs shift regional trust up or down', () => {
   assert.ok(withHurt.minsk.score < baseTrust.minsk.score);
 });
 
-test('isRepublicMapVisible enforces timing: hidden on turn <= 1 and daily games', () => {
-  assert.equal(isRepublicMapVisible({ country: ALTERNATE_COUNTRY, turn: 0 }), false);
-  assert.equal(isRepublicMapVisible({ country: ALTERNATE_COUNTRY, turn: 1 }), false);
+test('isRepublicMapVisible shows trust before the first decision, excluding archive and daily games', () => {
+  assert.equal(isRepublicMapVisible({ country: ALTERNATE_COUNTRY, turn: 0 }), true);
+  assert.equal(isRepublicMapVisible({ country: ALTERNATE_COUNTRY, turn: 1 }), true);
   assert.equal(isRepublicMapVisible({ country: ALTERNATE_COUNTRY, turn: 2 }), true);
   assert.equal(isRepublicMapVisible({ country: ALTERNATE_COUNTRY, turn: 5 }), true);
   // На архивных странах и в деле дня не отображается
