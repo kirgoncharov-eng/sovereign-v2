@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, statSync } from 'node:fs';
 import { HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, historicalEventArt, historicalResultArt,
   historicalPortraitArt, HISTORICAL_OUTCOME_ART, HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART,
-  HISTORICAL_LEADER_ART, LEADER_PORTRAIT_IDS, historicalEndingArt } from './historical-art.ts';
+  HISTORICAL_LEADER_ART, LEADER_PORTRAIT_IDS, historicalEndingArt, HISTORICAL_SECRETARY_ART } from './historical-art.ts';
 import { MANAGEMENT_DOSSIERS } from '../content/management.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { sceneOf } from '../content/scene-map.ts';
@@ -21,20 +21,21 @@ async function fresh() {
 
 test('all mapped WebP files exist within the image budgets', () => {
   const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
-    HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 54);
-  assert.equal(new Set(paths).size, 53); // wages and wagesGate share wages-gate.webp
+    HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART,
+    HISTORICAL_SECRETARY_ART].flatMap(group => Object.values(group).map(art => art.src));
+  assert.equal(paths.length, 59);
+  assert.equal(new Set(paths).size, 58); // wages and wagesGate share wages-gate.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
     assert.ok(existsSync(file), src);
     bytes += statSync(file).size;
     if (src.includes('/gemini-next/')) {
-      const isPortrait = src.includes('male.webp') || src.includes('adv-') || src.includes('leader-');
+      const isPortrait = src.includes('male.webp') || src.includes('adv-') || src.includes('leader-') || src.includes('secretary-portrait');
       assert.ok(statSync(file).size <= (isPortrait ? 10_000 : 100_000), src);
     }
   }
-  assert.ok(bytes < 2_000_000);
+  assert.ok(bytes < 2_100_000);
 });
 
 test('hospital photos distinguish failed repair, ongoing works and a finished roof after reload', async () => {
@@ -248,5 +249,16 @@ test('leader persona customization resolves portraits from bio, updates starting
   const verdict = await classicApi.ending(endedFemale);
   assert.match(verdict.verdict, /правила страной/);
   assert.match(verdict.verdict, /приняла/);
+});
+
+test('secretary portrait resolves by current secretary name in Neman 1978 and stays null for other countries', async () => {
+  const base = await fresh();
+  const name = 'Елена Верес';
+  const stateWithSecretary = { ...base, world: { ...base.world, secretary: { name } } } as unknown as GameState;
+  assert.equal(historicalPortraitArt(stateWithSecretary, name), HISTORICAL_SECRETARY_ART.portrait.src);
+  assert.equal(historicalPortraitArt(stateWithSecretary, 'Другое Имя'), null);
+  for (const country of LEGACY_COUNTRIES) {
+    assert.equal(historicalPortraitArt({ ...stateWithSecretary, country }, name), null);
+  }
 });
 
