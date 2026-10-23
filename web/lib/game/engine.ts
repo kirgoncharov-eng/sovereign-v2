@@ -2,7 +2,7 @@
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
 import { historicalDelayedLabel } from "../content/historical-echoes.ts";
 import {
-  ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, MAX_PENDING, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, COSTS, CRISIS_DRAIN, pressureAt,
+  ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, COSTS, CRISIS_DRAIN, pressureAt,
   ELECTION_LOSS_PENALTY, ELECTION_WIN_BONUS, HOSTILE_DRAIN, HOSTILE_RELATION, IMPEACH_RATING, NON_VOTING_BLOCS, PARTIES, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, RECOVERY_BELOW, RECOVERY_RATE,
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES, SURVIVAL_ENDS, CONTINUE_ENDS, TERM_FATIGUE, DEATH_FROM, DEATH_STEP, localTurn,
@@ -16,6 +16,7 @@ import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE
 import { stepPromises } from "./promises.ts";
 import { stepLaws } from "./laws.ts";
 import { stepLivingWorld, type LivingWorld } from "./living-world.ts";
+import { initiativePactWaiting, initiativeResourcesBefore, initiativeTurnSources, retainInitiativeDebts } from './initiatives.ts';
 import { ensureSecretary, finishSecretaryTurn, secretaryDueEffects, secretaryPreventsLeak } from './secretary.ts';
 import { electionKind, isTermEnd, nextReign, pathEnd, reignOf } from "./terms.ts";
 import type {
@@ -561,6 +562,9 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     }
   };
   let resources = state.resources;
+  for (const source of initiativeTurnSources(state)) {
+    for (const k of RESOURCE_KEYS) if (source.res[k]) (sources[k] ??= []).push([source.label, source.res[k]!]);
+  }
   const add = (label: string, d: ResourceDelta | null | undefined) => { const next = applyDeltas(resources, d); note(label, resources, next); resources = next; };
   add("решение", effects.resources);
   // Утечки нелояльных советников: что вынесли в прессу, то и бьёт.
@@ -583,7 +587,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     ...(state.currentEvent?.title ? { event: state.currentEvent.title } : {}),
     ...(d.story ? { story: d.story } : {}),
   }));
-  const pending = [...pendingAll.filter(p => p.due > nextTurn), ...scheduled].slice(-MAX_PENDING);
+  const pending = retainInitiativeDebts(state, [...pendingAll.filter(p => p.due > nextTurn), ...scheduled]);
   if (event.randomEvent) add(event.randomEvent.title.toLowerCase(), event.randomEvent.resourceEffect);
 
   // Союзы: нарушенные рвутся, истёкшие засчитываются, новые вступают в силу со следующего хода.
@@ -592,7 +596,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   const kept = oldPacts.filter(p => !broken.includes(p) && p.until <= nextTurn);
   const facName = (id: string) => state.factions.find(f => f.id === id)?.name ?? id;
   for (const p of oldPacts) {
-    if (broken.includes(p)) continue;
+    if (broken.includes(p) || initiativePactWaiting(state, p, nextTurn)) continue;
     const bloc = state.factions.find(f => f.id === p.faction)?.bloc;
     if (bloc) add(`союз с «${facName(p.faction)}»`, { [PACT_INCOME[bloc]]: pactIncome(p) });
   }
@@ -753,7 +757,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
 
   return finishSecretaryTurn(state, {
     ...state,
-    resources: plan.resources, prevResources: { ...state.resources },
+    resources: plan.resources, prevResources: initiativeResourcesBefore(state),
     ...(plan.world ? { world: plan.world } : {}),
     factions: plan.factions, prevFactions: state.factions.map(f => ({ ...f })),
     keyFigures, prevFigures: state.keyFigures.map(f => ({ ...f })),

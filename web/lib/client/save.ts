@@ -7,6 +7,7 @@ import { secretaryEnabled, validSecretary } from '../game/secretary.ts';
 import { validDailyMoves } from "../game/daily-run.ts";
 import { managementDocument } from "../game/classic.ts";
 import { validLivingWorld } from "../game/living-world.ts";
+import { validInitiatives } from '../game/initiatives.ts';
 import type { GameState } from "../game/types.ts";
 
 const KEY = "sovereign.save";
@@ -114,6 +115,7 @@ function validState(s: Obj): boolean {
   if (!rows(s.history, h => fields(h, ["title", "choice", "headline", "historianNote"]) && integer(h.year) && (h.law === undefined || h.law === null || validLawNews(h.law)))) return false;
   if (!rows(s.activeCrises, c => fields(c, ["id", "title", "description", "severity"]) && isObj(c.resourceDrain) && integer(c.turnsActive))) return false;
   if (!pending(s.pending)) return false;
+  if (s.initiatives !== undefined && !validInitiatives(s.initiatives, s as unknown as GameState)) return false;
   if (!Array.isArray(s.elections) || !s.elections.every(election) || !strings(s.usedEvents) || !isObj(s.stats) || !["councils", "failures", "crisesResolved"].every(k => integer((s.stats as Obj)[k]))) return false;
   if (s.currentEvent !== null && !event(s.currentEvent) || s.lastTurn !== null && !report(s.lastTurn)) return false;
   if (s.arc && (!fields(s.arc, ["id", "target", "targetRole"]) || !strings((s.arc as Obj).flags) || !Array.isArray((s.arc as Obj).done))) return false;
