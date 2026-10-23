@@ -124,11 +124,14 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
     }
   }
   if (completed?.title === harvestCard.title) {
-    if (completed.success === false) return HISTORICAL_OUTCOME_ART.harvestRot;
-    if (completed.success === true) {
-      if (completed.choice === harvestCard.choices[0].text) return HISTORICAL_OUTCOME_ART.harvestSubsidy;
-      if (completed.choice === harvestCard.choices[1].text) return HISTORICAL_OUTCOME_ART.harvestDirect;
-      if (completed.choice === harvestCard.choices[2].text) return HISTORICAL_OUTCOME_ART.harvestCredit;
+    if (completed.choice === harvestCard.choices[0].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.harvestSubsidy : HISTORICAL_SCENE_ART.harvest;
+    }
+    if (completed.choice === harvestCard.choices[1].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.harvestDirect : HISTORICAL_SCENE_ART.harvest;
+    }
+    if (completed.choice === harvestCard.choices[2].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.harvestCredit : HISTORICAL_SCENE_ART.harvest;
     }
   }
   if (completed?.title === fuelCard.title) {

@@ -171,7 +171,7 @@ test('first crisis and election night resolve authorial outcome scenes', async (
     const successState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: choice.text, headline: '', historianNote: '', success: true }] };
     assert.deepEqual(historicalResultArt(successState, 'field'), expectedHarvestSuccess[idx]);
     const failState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
-    assert.deepEqual(historicalResultArt(failState, 'field'), HISTORICAL_OUTCOME_ART.harvestRot);
+    assert.deepEqual(historicalResultArt(failState, 'field'), HISTORICAL_SCENE_ART.harvest);
   }
   const fuelCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_fuel')!;
   const expectedFuelSuccess = [
