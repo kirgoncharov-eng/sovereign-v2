@@ -162,16 +162,21 @@ test('first crisis and election night resolve authorial outcome scenes', async (
     assert.deepEqual(historicalResultArt(failState, 'archive'), HISTORICAL_OUTCOME_ART.wagesGate);
   }
   const fuelCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_fuel')!;
-  const expectedFuelOutcomes = [
+  const expectedFuelSuccess = [
     HISTORICAL_OUTCOME_ART.fuelTransitEast,
     HISTORICAL_OUTCOME_ART.fuelTransitWest,
     HISTORICAL_OUTCOME_ART.fuelInsulation,
   ];
+  const expectedFuelFail = [
+    HISTORICAL_SCENE_ART.fuel,
+    HISTORICAL_SCENE_ART.fuel,
+    HISTORICAL_OUTCOME_ART.fuelInsulation,
+  ];
   for (const [idx, choice] of fuelCard.choices.entries()) {
     const successState = { ...base, history: [{ year: 1978, title: fuelCard.title, choice: choice.text, headline: '', historianNote: '', success: true }] };
-    assert.deepEqual(historicalResultArt(successState, 'energy'), expectedFuelOutcomes[idx]);
+    assert.deepEqual(historicalResultArt(successState, 'energy'), expectedFuelSuccess[idx]);
     const failState = { ...base, history: [{ year: 1978, title: fuelCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
-    assert.deepEqual(historicalResultArt(failState, 'energy'), HISTORICAL_OUTCOME_ART.fuelFreeze);
+    assert.deepEqual(historicalResultArt(failState, 'energy'), expectedFuelFail[idx]);
   }
   const event = await classicApi.event(base);
   const current = startEvent(base, event);

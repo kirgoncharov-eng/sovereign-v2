@@ -119,11 +119,14 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
     }
   }
   if (completed?.title === fuelCard.title) {
-    if (completed.success === false) return HISTORICAL_OUTCOME_ART.fuelFreeze;
-    if (completed.success === true) {
-      if (completed.choice === fuelCard.choices[0].text) return HISTORICAL_OUTCOME_ART.fuelTransitEast;
-      if (completed.choice === fuelCard.choices[1].text) return HISTORICAL_OUTCOME_ART.fuelTransitWest;
-      if (completed.choice === fuelCard.choices[2].text) return HISTORICAL_OUTCOME_ART.fuelInsulation;
+    if (completed.choice === fuelCard.choices[0].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.fuelTransitEast : HISTORICAL_SCENE_ART.fuel;
+    }
+    if (completed.choice === fuelCard.choices[1].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.fuelTransitWest : HISTORICAL_SCENE_ART.fuel;
+    }
+    if (completed.choice === fuelCard.choices[2].text) {
+      return HISTORICAL_OUTCOME_ART.fuelInsulation;
     }
   }
   const title = completed?.title;
