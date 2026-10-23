@@ -1684,9 +1684,9 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
             </button>
             <div style={{ display:"flex", gap:6 }}>
               <button onClick={onHelp} title="Как играть" aria-label="Как играть"
-                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, width:30, height:30, borderRadius:0, fontSize:16 }}>?</button>
+                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, minWidth:44, minHeight:44, borderRadius:0, fontSize:18, display:"inline-flex", alignItems:"center", justifyContent:"center" }}>?</button>
               <button onClick={onMenu} title="В меню (партия сохранится)"
-                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, padding:"0 12px", height:30, borderRadius:0, fontSize:16 }}>Меню</button>
+                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, padding:"0 14px", minHeight:44, borderRadius:0, fontFamily:narrow, fontSize:16, display:"inline-flex", alignItems:"center", justifyContent:"center" }}>Меню</button>
             </div>
           </div>
         </div>
@@ -3423,7 +3423,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   <figure className={`sv-scene${inboxMode && !event.call && !event.press ? ' sv-case-attachment' : ''}`}
                     style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
                     <SquareView gs={gs} art={historicalEventArt(gs.country, event, sceneOf(event))} sceneKey={sceneOf(event)}
-                      partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60}/>
+                      partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60} still/>
                     {inboxMode && !event.call && !event.press && <figcaption>
                       Приложение к делу · {historicalEventArt(gs.country, event, sceneOf(event))?.caption ?? SCENE_CAPTION[sceneOf(event)]}
                     </figcaption>}

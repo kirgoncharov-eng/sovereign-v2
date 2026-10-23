@@ -24,8 +24,8 @@
 .sv-quarter-close {padding:18px 20px;border-top:2px solid var(--bdr2);margin-top:16px;display:flex;align-items:center;
   justify-content:space-between;gap:14px;flex-wrap:wrap;background:var(--bg2);}
 .sv-quarter-close p {font:15px/1.5 var(--font-narrow);color:var(--tx3);margin:0;flex:1;min-width:180px;}
-.sv-quarter-close button {padding:12px 18px;background:var(--gold);color:var(--on-gold);border:2px solid var(--bdr2);
-  font:17px var(--font-narrow);min-height:48px;}
+.sv-quarter-close button {padding:12px 20px;background:var(--gold);color:var(--on-gold);border:2px solid rgba(0,0,0,.55);
+  font:15px var(--font-pixel, monospace);letter-spacing:.04em;text-transform:uppercase;min-height:48px;box-shadow:var(--hard);}
 .sv-quarter-close button:disabled {opacity:.45;cursor:default;}
 .sv-quarter-draft {padding:20px;margin-top:16px;border:1px solid var(--bdr2);background:var(--bg2);}
 .sv-quarter-draft h3 {font:20px var(--font-serif);margin:0 0 10px;}

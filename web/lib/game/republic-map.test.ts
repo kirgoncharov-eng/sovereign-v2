@@ -10,7 +10,7 @@ import {
   trustWord,
 } from './republic-map.ts';
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
-import type { Faction, HistoryEntry } from './types.ts';
+import type { Faction, GameState, HistoryEntry } from './types.ts';
 
 function createMockFaction(id: string, name: string, relation: number): Faction {
   return {
@@ -198,3 +198,155 @@ test('isRepublicMapVisible enforces timing: hidden on turn <= 1 and daily games'
   assert.equal(isRepublicMapVisible({ country: 'Беларусь', turn: 5 }), false);
   assert.equal(isRepublicMapVisible({ country: ALTERNATE_COUNTRY, turn: 5, daily: '2026-10-21' }), false);
 });
+
+test('regional combination events (#215) are valid, reachability is verified in cardAvailable', async () => {
+  const { ALTERNATE_EVENTS } = await import('../content/alternate-history.ts');
+  const { cardAvailable } = await import('./classic.ts');
+  const { createInitialState } = await import('./engine.ts');
+  const { classicApi } = await import('./classic.ts');
+
+  const regionalCardIds = [
+    'alt_region_walkers',
+    'alt_region_factory_strike',
+    'alt_region_customs',
+    'alt_region_governors',
+    'alt_region_border_rift',
+  ];
+
+  for (const id of regionalCardIds) {
+    const card = ALTERNATE_EVENTS.find(c => c.id === id);
+    assert.ok(card, `Карточка ${id} должна существовать в ALTERNATE_EVENTS`);
+    assert.ok(card.when?.regions, `Карточка ${id} должна иметь условие when.regions`);
+    assert.ok(card.choices.length >= 2, `Карточка ${id} должна иметь выбор`);
+    for (const ch of card.choices) {
+      assert.ok(ch.text, `Выбор ${ch.text} должен иметь текст`);
+      assert.ok(ch.hint, `Выбор ${ch.text} должен иметь подсказку`);
+      assert.ok(ch.scene, `Выбор ${ch.text} должен иметь сцену`);
+      assert.ok(ch.fail, `Выбор ${ch.text} должен иметь сцену неуспеха`);
+      assert.ok(ch.head && ch.head.length === 2, `Выбор ${ch.text} должен иметь заголовки газеты`);
+    }
+  }
+
+  // Проверяем карточку «Ходоки из Полесья» (Минск верят, Полесье против)
+  const intro = await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', 42);
+  const state = createInitialState(ALTERNATE_COUNTRY, 'debut', 'pragmatist', intro, () => 0.5);
+  state.turn = 5;
+
+  const walkersCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_region_walkers')!;
+  
+  // При нейтральном состоянии Минск:ждут, Полесье:ждут -> карточка недоступна
+  assert.equal(cardAvailable(walkersCard, state), false);
+
+  // Поднимаем Минск в «верят» (+50 gossektor/opposition) и роняем Полесье в «против» (-60 regions/church)
+  state.factions = state.factions.map(f => {
+    if (f.id === 'gossektor' || f.id === 'opposition') return { ...f, relation: 60 };
+    if (f.id === 'regions' || f.id === 'church') return { ...f, relation: -60 };
+    return f;
+  });
+
+  const trusts = computeRegionalTrust(state);
+  assert.equal(trusts.minsk.word, 'верят');
+  assert.equal(trusts.polesie.word, 'против');
+
+  // Теперь карточка «Ходоки из Полесья» доступна!
+  assert.equal(cardAvailable(walkersCard, state), true);
+
+  // На другой стране карточка недоступна
+  const foreignState = { ...state, country: 'Беларусь' };
+  assert.equal(cardAvailable(walkersCard, foreignState), false);
+});
+
+test('end-to-end reachability: all 5 regional events are served by classicApi.event and signed into history', async () => {
+  const { classicApi } = await import('./classic.ts');
+  const { createInitialState, resolveTurn, startEvent } = await import('./engine.ts');
+  const { ALTERNATE_EVENTS } = await import('../content/alternate-history.ts');
+
+  const configs = [
+    {
+      id: 'alt_region_walkers',
+      setupState: (s: GameState) => {
+        // minsk: верят, polesie: против, grodno/brest: верят
+        s.factions = s.factions.map((f: Faction) => {
+          if (f.id === 'gossektor' || f.id === 'opposition') return { ...f, relation: 60 };
+          if (f.id === 'regions' || f.id === 'church') return { ...f, relation: -40 };
+          if (f.id === 'west' || f.id === 'russia' || f.id === 'siloviki') return { ...f, relation: 60 };
+          return f;
+        });
+      },
+    },
+    {
+      id: 'alt_region_factory_strike',
+      setupState: (s: GameState) => {
+        // minsk: против, остальные: верят
+        s.factions = s.factions.map((f: Faction) => {
+          if (f.id === 'gossektor' || f.id === 'opposition') return { ...f, relation: -60 };
+          if (f.id === 'regions' || f.id === 'church') return { ...f, relation: 60 };
+          if (f.id === 'west' || f.id === 'russia' || f.id === 'siloviki') return { ...f, relation: 60 };
+          return f;
+        });
+      },
+    },
+    {
+      id: 'alt_region_customs',
+      setupState: (s: GameState) => {
+        // minsk/polesie: верят, grodno: против, brest: ждут
+        s.factions = s.factions.map((f: Faction) => {
+          if (f.id === 'gossektor' || f.id === 'opposition') return { ...f, relation: 60 };
+          if (f.id === 'regions' || f.id === 'church') return { ...f, relation: 60 };
+          if (f.id === 'west') return { ...f, relation: -40 };
+          if (f.id === 'russia' || f.id === 'siloviki') return { ...f, relation: 0 };
+          return f;
+        });
+      },
+    },
+    {
+      id: 'alt_region_governors',
+      setupState: (s: GameState) => {
+        // все регионы против, customs уже в истории -> срабатывают губернаторы
+        s.usedEvents = ['alt_region_customs'];
+        s.factions = s.factions.map((f: Faction) => {
+          if (f.id === 'gossektor' || f.id === 'opposition') return { ...f, relation: -50 };
+          if (f.id === 'regions' || f.id === 'church') return { ...f, relation: -50 };
+          if (f.id === 'west') return { ...f, relation: -50 };
+          if (f.id === 'russia' || f.id === 'siloviki') return { ...f, relation: -50 };
+          return f;
+        });
+      },
+    },
+    {
+      id: 'alt_region_border_rift',
+      setupState: (s: GameState) => {
+        // minsk/polesie: верят, grodno: верят, brest: против
+        s.factions = s.factions.map((f: Faction) => {
+          if (f.id === 'gossektor' || f.id === 'opposition') return { ...f, relation: 60 };
+          if (f.id === 'regions' || f.id === 'church') return { ...f, relation: 60 };
+          if (f.id === 'west') return { ...f, relation: 60 };
+          if (f.id === 'russia' || f.id === 'siloviki') return { ...f, relation: -60 };
+          return f;
+        });
+      },
+    },
+  ];
+
+  for (const { id, setupState } of configs) {
+    const expectedCard = ALTERNATE_EVENTS.find(c => c.id === id)!;
+    const intro = await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', 101);
+    let state = createInitialState(ALTERNATE_COUNTRY, 'debut', 'pragmatist', intro, () => 0.42);
+    state.turn = 9; // Ход 10 — региональный ход
+    setupState(state);
+
+    const event = await classicApi.event(state);
+    assert.ok(event, `Событие должно быть построено для ${id}`);
+    assert.equal(event.title, expectedCard.title, `classicApi.event должен вернуть событие ${expectedCard.title}`);
+
+    state = startEvent(state, event);
+    const choice = event.choices[0];
+    const consequence = await classicApi.consequence(state, choice.id);
+    state = resolveTurn(state, choice.id, consequence);
+
+    const signed = state.history.some(e => e.title === expectedCard.title);
+    assert.ok(signed, `Дело ${expectedCard.title} должно быть успешно записано в историю`);
+  }
+});
+
+

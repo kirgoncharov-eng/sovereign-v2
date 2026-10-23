@@ -48,7 +48,7 @@ export function SecretaryNote({ gs, onAction, Scene }) {
     </div>}
     {s.receiptTurn === gs.turn && s.receipt && <p role="status" data-secretary-receipt><PeopleText>{s.receipt}</PeopleText></p>}
     {available && s.scene?.turn === gs.turn && <figure className="sv-secretary-scene" data-secretary-scene={s.scene.id}>
-      <Scene gs={gs} sceneKey={s.scene.id === 'hospitalQueue' ? 'hospital' : 'office'} partner={s.name} height={65}/>
+      <Scene gs={gs} sceneKey={s.scene.id === 'hospitalQueue' ? 'hospital' : 'office'} partner={s.name} height={65} still/>
       <figcaption><PeopleText>{s.scene.text}</PeopleText></figcaption>
     </figure>}
   </>;

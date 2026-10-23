@@ -19,11 +19,11 @@ async function fresh() {
     await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', 21), seededRandom(21));
 }
 
-test('all 47 mapped WebP files exist within the image budgets', () => {
+test('all mapped WebP files exist within the image budgets', () => {
   const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
     HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 52);
-  assert.equal(new Set(paths).size, 51); // wages and wagesGate share wages-gate.webp
+  assert.equal(paths.length, 58);
+  assert.equal(new Set(paths).size, 57); // wages and wagesGate share wages-gate.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
@@ -34,7 +34,7 @@ test('all 47 mapped WebP files exist within the image budgets', () => {
       assert.ok(statSync(file).size <= (isPortrait ? 10_000 : 100_000), src);
     }
   }
-  assert.ok(bytes < 1_800_000);
+  assert.ok(bytes < 2_200_000);
 });
 
 test('hospital photos distinguish failed repair, ongoing works and a finished roof after reload', async () => {
@@ -162,10 +162,34 @@ test('first crisis and election night resolve authorial outcome scenes', async (
     assert.deepEqual(historicalResultArt(failState, 'archive'), HISTORICAL_OUTCOME_ART.wagesGate);
   }
   const harvestCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_harvest')!;
-  const subsidyState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: harvestCard.choices[0].text, headline: '', historianNote: '', success: true }] };
-  assert.deepEqual(historicalResultArt(subsidyState, 'field'), HISTORICAL_OUTCOME_ART.harvestSubsidy);
-  const directState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: harvestCard.choices[1].text, headline: '', historianNote: '', success: true }] };
-  assert.deepEqual(historicalResultArt(directState, 'field'), HISTORICAL_OUTCOME_ART.harvestDirect);
+  const expectedHarvestSuccess = [
+    HISTORICAL_OUTCOME_ART.harvestSubsidy,
+    HISTORICAL_OUTCOME_ART.harvestDirect,
+    HISTORICAL_OUTCOME_ART.harvestCredit,
+  ];
+  for (const [idx, choice] of harvestCard.choices.entries()) {
+    const successState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: choice.text, headline: '', historianNote: '', success: true }] };
+    assert.deepEqual(historicalResultArt(successState, 'field'), expectedHarvestSuccess[idx]);
+    const failState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
+    assert.deepEqual(historicalResultArt(failState, 'field'), HISTORICAL_OUTCOME_ART.harvestRot);
+  }
+  const fuelCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_fuel')!;
+  const expectedFuelSuccess = [
+    HISTORICAL_OUTCOME_ART.fuelTransitEast,
+    HISTORICAL_OUTCOME_ART.fuelTransitWest,
+    HISTORICAL_OUTCOME_ART.fuelInsulation,
+  ];
+  const expectedFuelFail = [
+    HISTORICAL_SCENE_ART.fuel,
+    HISTORICAL_SCENE_ART.fuel,
+    HISTORICAL_OUTCOME_ART.fuelInsulation,
+  ];
+  for (const [idx, choice] of fuelCard.choices.entries()) {
+    const successState = { ...base, history: [{ year: 1978, title: fuelCard.title, choice: choice.text, headline: '', historianNote: '', success: true }] };
+    assert.deepEqual(historicalResultArt(successState, 'energy'), expectedFuelSuccess[idx]);
+    const failState = { ...base, history: [{ year: 1978, title: fuelCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
+    assert.deepEqual(historicalResultArt(failState, 'energy'), expectedFuelFail[idx]);
+  }
   const event = await classicApi.event(base);
   const current = startEvent(base, event);
   const report = resolveTurn(current, event.choices[0].id,
