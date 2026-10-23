@@ -39,6 +39,10 @@ export const HISTORICAL_OUTCOME_ART = {
   wagesAdvance: { src: '/art/gemini-next/wages-advance.webp', caption: 'Отгрузка тракторов под трёхлетний экспортный аванс' },
   wagesRetool: { src: '/art/gemini-next/wages-retool.webp', caption: 'Перестройка цеха и переобучение рабочих' },
   wagesGate: { src: '/art/gemini-next/wages-gate.webp', caption: 'Заводские цеха остановлены, рабочие ждут у проходной' },
+  fuelTransitEast: { src: '/art/gemini-next/fuel-transit-east.webp', caption: 'Эшелон цистерн мазута на разгрузке ТЭЦ' },
+  fuelTransitWest: { src: '/art/gemini-next/fuel-transit-west.webp', caption: 'Перевалка мазута Торгового союза на пограничной эстакаде' },
+  fuelInsulation: { src: '/art/gemini-next/fuel-insulation.webp', caption: 'Срочный ремонт теплотрассы в жилом квартале' },
+  fuelFreeze: { src: '/art/gemini-next/fuel-freeze.webp', caption: 'Остановленная городская ТЭЦ в январские морозы' },
 } satisfies Record<string, HistoricalArt>;
 const bridgeDossier = MANAGEMENT_DOSSIERS.find(dossier => dossier.id === 'bridges')!;
 const bridgeOutcomes = [
@@ -46,6 +50,7 @@ const bridgeOutcomes = [
 ];
 const districtCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_district')!;
 const wagesCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_wages')!;
+const fuelCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_fuel')!;
 const CARD_ART: Record<string, HistoricalArt> = {
   alt_wages: HISTORICAL_SCENE_ART.wages,
   alt_fuel: HISTORICAL_SCENE_ART.fuel, alt_standards: HISTORICAL_SCENE_ART.standards,
@@ -56,6 +61,11 @@ const CARD_ART: Record<string, HistoricalArt> = {
   alt_standards_chamber: HISTORICAL_SCENE_ART.standards, alt_standards_patriots: HISTORICAL_SCENE_ART.standards,
   alt_radio: HISTORICAL_SCENE_ART.radio, alt_harvest: HISTORICAL_SCENE_ART.harvest,
   alt_archive: HISTORICAL_SCENE_ART.archive,
+  alt_region_walkers: HISTORICAL_SCENE_ART.bridge,
+  alt_region_factory_strike: HISTORICAL_SCENE_ART.protest,
+  alt_region_customs: HISTORICAL_SCENE_ART.rail,
+  alt_region_governors: HISTORICAL_SCENE_ART.parliamentHall,
+  alt_region_border_rift: HISTORICAL_SCENE_ART.rail,
   law_alt_export_guarantee: HISTORICAL_SCENE_ART.parliamentHall,
   law_alt_open_orders: HISTORICAL_SCENE_ART.parliamentHall,
 };
@@ -106,6 +116,17 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
       if (completed.choice === wagesCard.choices[0].text) return HISTORICAL_OUTCOME_ART.wagesAudit;
       if (completed.choice === wagesCard.choices[1].text) return HISTORICAL_OUTCOME_ART.wagesAdvance;
       if (completed.choice === wagesCard.choices[2].text) return HISTORICAL_OUTCOME_ART.wagesRetool;
+    }
+  }
+  if (completed?.title === fuelCard.title) {
+    if (completed.choice === fuelCard.choices[0].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.fuelTransitEast : HISTORICAL_SCENE_ART.fuel;
+    }
+    if (completed.choice === fuelCard.choices[1].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.fuelTransitWest : HISTORICAL_SCENE_ART.fuel;
+    }
+    if (completed.choice === fuelCard.choices[2].text) {
+      return HISTORICAL_OUTCOME_ART.fuelInsulation;
     }
   }
   const title = completed?.title;

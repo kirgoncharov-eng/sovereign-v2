@@ -16,7 +16,7 @@ export default function HealthPanel({ gs, Scene, tab, setTab, tabs, stamp, actio
   const date = report => stamp(gs, Math.max(project.openedTurn, report.turn - (['report','news'].includes(report.kind) ? 1 : 0)));
   return <div className="sv-country-room" data-health-panel>
     <div className="sv-country-label">РАЙОННЫЕ БОЛЬНИЦЫ · КАДРЫ</div><h3>Врач рядом с домом</h3>
-    <div className="sv-country-photo"><Scene gs={gs} sceneKey="hospital" partner={`clinic:${project.progress}`} height={42}/></div>
+    <div className="sv-country-photo"><Scene gs={gs} sceneKey="hospital" partner={`clinic:${project.progress}`} height={42} still/></div>
     <p>{project.status === 'completed' ? 'Районные отделения открыты. Пациентам больше не приходится ехать в областной центр за каждой консультацией.' : project.status === 'partial' ? 'Часть отделений работает. В остальных районах жители ещё ждут специалистов.' : project.status === 'failed' ? 'Год прошёл, незанятые ставки остались пустыми. Жители требуют объяснений.' : 'Отделения закрыты из-за нехватки специалистов. Постоянный набор потребует денег и времени; перевод из областных центров ускорит работу за их счёт.'}</p>
     <div className="sv-country-summary">
       <div><small>Срок</small><strong>{stamp(gs,project.deadline-1)}</strong><span>{finished?'Работа завершена':`${Math.max(0,project.deadline-gs.turn)} кв. до срока`}</span></div>

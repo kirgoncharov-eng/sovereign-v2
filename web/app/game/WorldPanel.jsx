@@ -182,7 +182,7 @@ export default function WorldPanel({ ref, gs, onOpen, onAction, Scene, onViewCha
       </div>:<div className="sv-country-room">
         <div className="sv-country-label">ПРОМЫШЛЕННЫЙ РЕГИОН · ЭНЕРГОСЕТЬ</div>
         <h3>Свет в окнах, работа на заводах</h3>
-        <div className="sv-country-photo"><Scene gs={gs} sceneKey={project.status==='completed'?'factory':'energy'} partner={project.status==='completed'?'restored':`grid:${project.progress}`} height={42}/></div>
+        <div className="sv-country-photo"><Scene gs={gs} sceneKey={project.status==='completed'?'factory':'energy'} partner={project.status==='completed'?'restored':`grid:${project.progress}`} height={42} still/></div>
         <p>{terminal?project.status==='completed'?'Вечерние смены вернулись. Диспетчерская сняла график отключений.':project.status==='partial'?(project.priority==='households'?'В жилых районах электричество надёжнее; заводы ещё работают с ограничениями.':'Заводы работают дольше, но жилые кварталы ещё отключают.'):'Диспетчерская продлила график отключений. Срок подготовки сети истёк.':'Изношенная сеть не выдерживает нагрузки. Заводы сокращают смены, жители сверяются с графиком отключений. На восстановление отведён год.'}</p>
         <div className="sv-country-summary">
           <div><small>Срок</small><strong>{stamp(gs,Math.max(0,project.deadline-1))}</strong><span>{terminal?'Итоговая проверка завершена':`${Math.max(0,project.deadline-gs.turn)} кв. до срока`}</span></div>
