@@ -23,6 +23,7 @@
   color-scheme: dark;
   --font-narrow: "Handjet SV", "PT Sans Narrow", "Arial Narrow", sans-serif;
   --font-pixel: "Tiny5 SV", "Handjet SV", monospace;
+  --font-mono: var(--font-ptmono), monospace;
   --bg:   #2a2622;               /* стол */
   --bg-deep: #1c1a17;            /* тень под столом, панель окна */
   --bg2:  rgba(226, 217, 194, 0.05);
@@ -97,6 +98,8 @@ button {
   cursor: pointer;
   transition: background-color 0.1s, border-color 0.1s, filter 0.1s, transform 0.05s;
   font-family: var(--font-narrow);
+  border-radius: 0;
+  -webkit-appearance: none;
 }
 button:active:not(:disabled) { transform: translate(2px, 2px); }
 img, canvas.sv-px { image-rendering: pixelated; }
@@ -432,7 +435,7 @@ button:focus-visible {
 .sv-person-name:hover, .sv-person-name[aria-expanded="true"] { color:var(--blue); border-bottom-style:solid; }
 .sv-person-name:focus-visible { outline:2px solid var(--blue); outline-offset:3px; }
 .sv-person-card { position:fixed; z-index:1000; padding:18px; overflow:auto; box-shadow:4px 5px 0 rgba(0,0,0,.4); font-family:var(--font-narrow); font-size:16px; line-height:1.4; border:2px solid var(--bdr2); }
-.sv-person-close { position:absolute; top:3px; right:4px; width:32px; height:32px; border:0; background:transparent; font-size:26px; color:var(--tx3); cursor:pointer; }
+.sv-person-close { position:absolute; top:2px; right:2px; min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:0; background:transparent; font-size:26px; color:var(--tx3); cursor:pointer; }
 .sv-person-heading { display:flex; gap:12px; align-items:center; padding-right:14px; margin-bottom:14px; }
 .sv-person-heading strong { font-family:var(--font-serif); font-size:18px; }
 .sv-person-heading div div { color:var(--tx2); font-size:15px; }
@@ -559,7 +562,7 @@ button:focus-visible {
 @media(max-width:560px) { .sv-country-map { flex-wrap:wrap; } .sv-country-place { flex-basis:42%; } .sv-country-place:first-of-type { flex-basis:100%; max-width:none; } }
 
 .sv-resource-info{position:absolute;left:0;right:0;margin:6px auto 0;top:100%;width:min(440px,calc(100vw - 24px));padding:14px;z-index:25;max-height:calc(100dvh - 170px);overflow-y:auto;font-family:var(--font-narrow);font-size:16px;line-height:1.45}
-.sv-resource-info-heading{display:flex;align-items:flex-start;gap:10px;font-size:20px}.sv-resource-info-heading strong{flex:1}.sv-resource-info-heading button{background:transparent;border:1px solid var(--bdr2);color:var(--txt);width:32px;height:32px;flex-shrink:0;font-size:22px}.sv-resource-info p{margin:8px 0}.sv-resource-info ul{padding-left:20px;margin:6px 0}.sv-resource-info-note{color:var(--tx3);font-size:14px}.sv-resource-info-changes{border-top:1px dashed var(--bdr2);margin-top:10px;padding-top:8px}
+.sv-resource-info-heading{display:flex;align-items:flex-start;gap:10px;font-size:20px}.sv-resource-info-heading strong{flex:1}.sv-resource-info-heading button{background:transparent;border:1px solid var(--bdr2);color:var(--txt);min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px}.sv-resource-info p{margin:8px 0}.sv-resource-info ul{padding-left:20px;margin:6px 0}.sv-resource-info-note{color:var(--tx3);font-size:14px}.sv-resource-info-changes{border-top:1px dashed var(--bdr2);margin-top:10px;padding-top:8px}
 
 .sv-hud-side [data-rating] div:first-child{text-decoration:underline dotted;text-underline-offset:3px}
 
@@ -700,15 +703,21 @@ button:focus-visible {
 
 .sv-negotiation-call {padding:18px 20px;}
 .sv-negotiation-call small {color:var(--amb);font:13px var(--font-narrow);}
-.sv-negotiation-call p {font:17px/1.5 Georgia,serif;}
+.sv-negotiation-call p {font:17px/1.5 var(--font-serif), "PT Serif", Georgia, serif;}
 .sv-negotiation-call .sv-negotiation-context,.sv-negotiation-confirm p {font:15px/1.4 var(--font-narrow);color:var(--tx2);}
 .sv-negotiation-options {display:grid;gap:8px;margin-top:16px;}
-.sv-negotiation-options button {min-height:48px;text-align:left;background:transparent;border:1px solid var(--bdr);color:var(--txt);padding:12px;font:16px/1.4 Georgia,serif;}
+.sv-negotiation-options button {min-height:48px;text-align:left;background:transparent;border:1px solid var(--bdr);color:var(--txt);padding:12px;font:16px/1.4 var(--font-serif), "PT Serif", Georgia, serif;}
 .sv-negotiation-options button[aria-pressed=true] {border-color:var(--amb);background:var(--bg3);}
 .sv-negotiation-options span {display:block;margin-top:8px;font:15px/1.45 var(--font-narrow);color:var(--tx2);}
 .sv-negotiation-confirm {margin-top:14px;padding:12px;border:1px solid var(--amb);}
-.sv-negotiation-confirm button {min-height:44px;padding:10px 12px;margin:4px 8px 0 0;background:var(--amb);color:var(--bg);border:0;font:17px var(--font-narrow);}
-.sv-negotiation-confirm button:last-child {background:transparent;color:var(--tx2);}
+.sv-negotiation-confirm button {
+  min-height:44px;padding:10px 18px;margin:8px 8px 0 0;background:var(--gold);color:var(--on-gold);
+  border:2px solid rgba(0,0,0,.55);font:14px var(--font-pixel, monospace);letter-spacing:.04em;text-transform:uppercase;
+  box-shadow:var(--hard);cursor:pointer;
+}
+.sv-negotiation-confirm button:last-child {
+  background:transparent;color:var(--tx2);border:1.5px solid var(--bdr2);box-shadow:none;font:15px var(--font-narrow);text-transform:none;letter-spacing:normal;
+}
 .sv-negotiation-call button:focus-visible {outline:2px solid var(--amb);outline-offset:3px;}
 
 .sv-negotiation-historical small {color:var(--gold);font:12px var(--font-pixel, monospace);letter-spacing:.04em;}
@@ -790,7 +799,7 @@ button:focus-visible {
 .sv-staff-bad { color:var(--red); }
 .sv-staff-muted { color:var(--tx3); font-style:italic; }
 .sv-staff-actions { display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
-.sv-staff-hire, .sv-staff-sign, .sv-staff-cancel { margin-top:8px; padding:7px 14px; border-radius:0; font-family:var(--font-narrow); font-size:15px; cursor:pointer; }
+.sv-staff-hire, .sv-staff-sign, .sv-staff-cancel { margin-top:8px; min-height:44px; padding:8px 16px; border-radius:0; font-family:var(--font-narrow); font-size:15px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
 .sv-staff-actions .sv-staff-sign, .sv-staff-actions .sv-staff-cancel { margin-top:0; }
 .sv-staff-hire { background:transparent; border:1.5px solid var(--gold); color:var(--gold); }
 .sv-staff-sign { background:var(--gold); border:2px solid rgba(0,0,0,.55); color:var(--on-gold); }
