@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { FAVORS, TRUST_WORDS } from '@/lib/content/secretary.ts';
 import { pendingSecretaryFavor, secretaryActions, secretaryAvailable, secretaryText } from '@/lib/game/secretary.ts';
+import { HISTORICAL_SECRETARY_ART } from '@/lib/client/historical-art.ts';
 import { PeopleText } from './PeopleText.jsx';
 
 const RESOURCE = { politicalCapital: 'политкапитал', personalResource: 'личный ресурс', internalLegitimacy: 'легитимность' };
@@ -48,7 +49,8 @@ export function SecretaryNote({ gs, onAction, Scene }) {
     </div>}
     {s.receiptTurn === gs.turn && s.receipt && <p role="status" data-secretary-receipt><PeopleText>{s.receipt}</PeopleText></p>}
     {available && s.scene?.turn === gs.turn && <figure className="sv-secretary-scene" data-secretary-scene={s.scene.id}>
-      <Scene gs={gs} sceneKey={s.scene.id === 'hospitalQueue' ? 'hospital' : 'office'} partner={s.name} height={65} still/>
+      <Scene gs={gs} sceneKey={s.scene.id === 'hospitalQueue' ? 'hospital' : 'office'} partner={s.name} height={65} still
+        art={HISTORICAL_SECRETARY_ART[s.scene.id]}/>
       <figcaption><PeopleText>{s.scene.text}</PeopleText></figcaption>
     </figure>}
   </>;
