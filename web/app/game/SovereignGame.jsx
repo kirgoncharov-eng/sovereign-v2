@@ -1684,9 +1684,9 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
             </button>
             <div style={{ display:"flex", gap:6 }}>
               <button onClick={onHelp} title="Как играть" aria-label="Как играть"
-                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, width:30, height:30, borderRadius:0, fontSize:16 }}>?</button>
+                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, minWidth:44, minHeight:44, borderRadius:0, fontSize:18, display:"inline-flex", alignItems:"center", justifyContent:"center" }}>?</button>
               <button onClick={onMenu} title="В меню (партия сохранится)"
-                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, padding:"0 12px", height:30, borderRadius:0, fontSize:16 }}>Меню</button>
+                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, padding:"0 14px", minHeight:44, borderRadius:0, fontFamily:narrow, fontSize:16, display:"inline-flex", alignItems:"center", justifyContent:"center" }}>Меню</button>
             </div>
           </div>
         </div>
