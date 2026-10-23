@@ -39,6 +39,10 @@ export const HISTORICAL_OUTCOME_ART = {
   wagesAdvance: { src: '/art/gemini-next/wages-advance.webp', caption: 'Отгрузка тракторов под трёхлетний экспортный аванс' },
   wagesRetool: { src: '/art/gemini-next/wages-retool.webp', caption: 'Перестройка цеха и переобучение рабочих' },
   wagesGate: { src: '/art/gemini-next/wages-gate.webp', caption: 'Заводские цеха остановлены, рабочие ждут у проходной' },
+  harvestSubsidy: { src: '/art/gemini-next/harvest-subsidy.webp', caption: 'Государственная приёмка зерна на центральном элеваторе' },
+  harvestDirect: { src: '/art/gemini-next/harvest-direct.webp', caption: 'Разгрузка муки нового урожая у городской пекарни' },
+  harvestCredit: { src: '/art/gemini-next/harvest-credit.webp', caption: 'Оформление кредитных расписок в отделении сельхозбанка' },
+  harvestRot: { src: '/art/gemini-next/harvest-rot.webp', caption: 'Сорванная закупка зерна и брошенная техника под дождём' },
   fuelTransitEast: { src: '/art/gemini-next/fuel-transit-east.webp', caption: 'Эшелон цистерн мазута на разгрузке ТЭЦ' },
   fuelTransitWest: { src: '/art/gemini-next/fuel-transit-west.webp', caption: 'Перевалка мазута Торгового союза на пограничной эстакаде' },
   fuelInsulation: { src: '/art/gemini-next/fuel-insulation.webp', caption: 'Срочный ремонт теплотрассы в жилом квартале' },
@@ -50,6 +54,7 @@ const bridgeOutcomes = [
 ];
 const districtCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_district')!;
 const wagesCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_wages')!;
+const harvestCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_harvest')!;
 const fuelCard = ALTERNATE_EVENTS.find(card => card.id === 'alt_fuel')!;
 const CARD_ART: Record<string, HistoricalArt> = {
   alt_wages: HISTORICAL_SCENE_ART.wages,
@@ -116,6 +121,17 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
       if (completed.choice === wagesCard.choices[0].text) return HISTORICAL_OUTCOME_ART.wagesAudit;
       if (completed.choice === wagesCard.choices[1].text) return HISTORICAL_OUTCOME_ART.wagesAdvance;
       if (completed.choice === wagesCard.choices[2].text) return HISTORICAL_OUTCOME_ART.wagesRetool;
+    }
+  }
+  if (completed?.title === harvestCard.title) {
+    if (completed.choice === harvestCard.choices[0].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.harvestSubsidy : HISTORICAL_SCENE_ART.harvest;
+    }
+    if (completed.choice === harvestCard.choices[1].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.harvestDirect : HISTORICAL_SCENE_ART.harvest;
+    }
+    if (completed.choice === harvestCard.choices[2].text) {
+      return completed.success ? HISTORICAL_OUTCOME_ART.harvestCredit : HISTORICAL_SCENE_ART.harvest;
     }
   }
   if (completed?.title === fuelCard.title) {

@@ -23,8 +23,8 @@ test('all mapped WebP files exist within the image budgets', () => {
   const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
     HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART,
     HISTORICAL_SECRETARY_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 59);
-  assert.equal(new Set(paths).size, 58); // wages and wagesGate share wages-gate.webp
+  assert.equal(paths.length, 63);
+  assert.equal(new Set(paths).size, 62); // wages and wagesGate share wages-gate.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
@@ -35,7 +35,7 @@ test('all mapped WebP files exist within the image budgets', () => {
       assert.ok(statSync(file).size <= (isPortrait ? 10_000 : 100_000), src);
     }
   }
-  assert.ok(bytes < 2_100_000);
+  assert.ok(bytes < 2_300_000);
 });
 
 test('hospital photos distinguish failed repair, ongoing works and a finished roof after reload', async () => {
@@ -161,6 +161,18 @@ test('first crisis and election night resolve authorial outcome scenes', async (
     assert.deepEqual(historicalResultArt(successState, 'archive'), expectedOutcomes[idx]);
     const failState = { ...base, history: [{ year: 1978, title: wagesCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
     assert.deepEqual(historicalResultArt(failState, 'archive'), HISTORICAL_OUTCOME_ART.wagesGate);
+  }
+  const harvestCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_harvest')!;
+  const expectedHarvestSuccess = [
+    HISTORICAL_OUTCOME_ART.harvestSubsidy,
+    HISTORICAL_OUTCOME_ART.harvestDirect,
+    HISTORICAL_OUTCOME_ART.harvestCredit,
+  ];
+  for (const [idx, choice] of harvestCard.choices.entries()) {
+    const successState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: choice.text, headline: '', historianNote: '', success: true }] };
+    assert.deepEqual(historicalResultArt(successState, 'field'), expectedHarvestSuccess[idx]);
+    const failState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
+    assert.deepEqual(historicalResultArt(failState, 'field'), HISTORICAL_SCENE_ART.harvest);
   }
   const fuelCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_fuel')!;
   const expectedFuelSuccess = [
