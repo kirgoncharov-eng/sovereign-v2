@@ -474,7 +474,7 @@ button:focus-visible {
 .sv-country-place small { font-size:14px; color:#ccc6ae; }
 
 /* Интерактивная карта Неманской республики 1978 (#215) */
-.sv-republic-map-wrap { margin:0 0 16px; background:#0a100d; border-top:1px solid var(--bdr2); border-bottom:1px solid var(--bdr2); font-family:var(--font-narrow); }
+.sv-republic-map-wrap { margin:0 0 16px; background:#0a100d; border-top:1px solid var(--bdr2); border-bottom:1px solid var(--bdr2); font-family:var(--font-narrow); scroll-margin-top:54px; }
 .sv-republic-map-header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px; padding:14px 16px 10px; border-bottom:1px solid #1a2920; }
 .sv-republic-map-badge { font-family:var(--font-pixel); font-size:12px; letter-spacing:.08em; color:var(--gold); }
 .sv-republic-map-title { margin:3px 0 0; font-family:var(--font-serif); font-size:19px; line-height:1.2; color:#eae3cf; font-weight:normal; }
@@ -511,9 +511,12 @@ button:focus-visible {
 .sv-republic-faction-item { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:14px; color:#dfd9c4; border-bottom:1px dashed #203326; padding:3px 0; }
 .sv-republic-faction-item strong { font-family:var(--font-mono); font-size:13px; }
 @media (max-width:480px) {
+  .sv-republic-map-header { padding:10px 12px 8px; }
+  .sv-republic-map-title { font-size:17px; }
   .sv-republic-map-tabs { grid-template-columns:repeat(2,1fr); }
   .sv-republic-map-tab-btn { min-height:48px; }
   .sv-republic-factions-list { grid-template-columns:1fr; }
+  .sv-republic-dossier { padding:12px; }
 }
 .sv-country-room { padding:18px; font-family:var(--font-serif); font-size:16px; line-height:1.65; }
 .sv-country-room h3 { font-size:24px; line-height:1.2; margin:6px 0 14px; }
