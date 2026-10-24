@@ -42,6 +42,7 @@
  .sv-game-grid.is-inbox {display:flex!important;flex-direction:column;}
  .sv-game-grid.is-inbox .sv-sidebar {order:0;}
  .sv-game-grid.is-inbox .sv-main {order:1;}
+ .sv-inbox-reference {margin-top:0;} /* #275: справочники открываются из меню партии */
  .sv-quarter-letters {display:none;}
  .sv-quarter-mobile {display:block;width:100%;font:16px var(--font-narrow);}
  select.sv-quarter-mobile {padding:11px 8px;background:var(--bg);color:var(--txt);border:1px solid var(--bdr2);margin-top:8px;}

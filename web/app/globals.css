@@ -365,11 +365,41 @@ button:focus-visible {
   padding: 16px;
 }
 
+/* Меню партии (#275): разделы, мандат, справка и выход к титулу. */
+.sv-hud-menu-dot { position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; background: var(--red); }
+.sv-hud-menu-list {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 250px;
+  display: grid; background: var(--bg-deep); border: 2px solid var(--bdr2); box-shadow: 0 6px 0 rgba(0, 0, 0, 0.4);
+}
+.sv-hud-menu-list button {
+  display: grid; gap: 2px; text-align: left; min-height: 48px; padding: 8px 14px;
+  background: transparent; border: none; border-bottom: 1px solid var(--bdr); color: var(--txt); cursor: pointer;
+}
+.sv-hud-menu-list button:last-child { border-bottom: none; }
+.sv-hud-menu-list button:hover, .sv-hud-menu-list button:focus-visible { background: var(--bg3); }
+.sv-hud-menu-list strong { font: 600 17px var(--font-narrow); }
+.sv-hud-menu-list small { font: 14px var(--font-narrow); color: var(--tx2); }
+.sv-case-when { display: none; }
+
+/* Телефон (#275): дело на первом экране. Шапка — одна строка: опоры, рейтинг, справка, меню.
+   Площадь скрыта, пока на столе дело; подписи опор — по нажатию на опору. */
 @media (max-width: 760px) {
-  .sv-hud-who { flex: 1 1 0; }
-  .sv-hud-res { order: 3; flex-basis: 100%; max-width: none; gap: 4px; }
+  .sv-window.is-deciding { display: none; }
+  .sv-hud-who { display: none; }
+  .sv-hud-row { flex-wrap: nowrap; gap: 6px; }
+  .sv-hud-res { order: 0; flex: 1 1 auto; max-width: none; gap: 0; min-width: 0; }
+  .sv-hud-res button { min-height: 44px; justify-content: center; }
+  .sv-hud-res svg { width: 22px; height: 22px; }
+  .sv-hud-resource-label, .sv-hud-rating-label, .sv-hud-menu-label { display: none; }
+  .sv-hud-side { gap: 6px !important; }
+  .sv-hud-side > div { gap: 4px !important; }
   .sv-hud-track { display: none !important; }
-  .sv-hud-turn { display: inline; }
+  .sv-case-when { display: inline; }
+  .sv-mandate { display: none; }
+  .sv-inbox-reference > summary { display: none; }
+  .sv-main-case-label { margin-top: 4px; }
+  .sv-hud > div { padding: 4px 10px !important; }
+  .sv-hud-menu-list { position: fixed; left: 8px; right: 8px; top: calc(env(safe-area-inset-top, 0px) + 60px); min-width: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

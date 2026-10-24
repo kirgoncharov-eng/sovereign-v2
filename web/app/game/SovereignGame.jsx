@@ -1631,9 +1631,23 @@ const HUD_LABEL = { politicalCapital:"Влияние", economy:"Экономик
 const SHORT = { politicalCapital:"Политкапитал", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимность", personalResource:"Личный ресурс" };
 
 // Постоянная панель статуса. При наведении на вариант показывает итог хода, посчитанный движком.
-function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
+function Hud({ gs, preview, onMenu, onHelp, onInfoChange, onSheet, sheetAlerts }) {
   const [info, setInfo] = useState(null);
+  // Меню партии (#275): разделы, мандат и выход — вместо кнопки, которая сразу выводила на титул.
+  const [menu, setMenu] = useState(false);
+  const [mandate, setMandate] = useState(false);
+  const menuRef = useRef(null);
   useEffect(() => { onInfoChange?.(!!info); }, [info, onInfoChange]);
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = e => { if (e.key === "Escape") setMenu(false); };
+    const onDown = e => { if (!menuRef.current?.contains(e.target)) setMenu(false); };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => { window.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+  }, [menu]);
+  const menuAlerts = (sheetAlerts?.country || 0) + (sheetAlerts?.people || 0);
+  const pick = action => () => { setMenu(false); action(); };
   const ci = IDEOLOGIES.find(i => i.id === gs.ideo);
   let plan = null;
   if (preview && gs.currentEvent) { try { plan = planTurn(gs, preview.id, { assumeSuccess: true }); } catch { plan = null; } }
@@ -1676,8 +1690,8 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
             })}
           </div>
           <div className="sv-hud-side" style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <button data-rating aria-label={`Рейтинг партии: ${rating}%. Подробнее`} aria-expanded={info==='rating'} onClick={()=>setInfo(value=>value==='rating'?null:'rating')} style={{ textAlign:"right", background:"transparent", border:"none", padding:0, color:"inherit" }}>
-              <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.1, marginBottom:3 }}>рейтинг</div>
+            <button data-rating aria-label={`Рейтинг партии: ${rating}%. Подробнее`} aria-expanded={info==='rating'} onClick={()=>setInfo(value=>value==='rating'?null:'rating')} style={{ textAlign:"right", background:"transparent", border:"none", padding:0, color:"inherit", minHeight:44 }}>
+              <div className="sv-hud-rating-label" style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.1, marginBottom:3 }}>рейтинг</div>
               <div style={{ fontFamily:narrow, fontWeight:700, fontSize:24, color:rating >= 35 ? G.grn : rating >= 20 ? G.amb : G.red, lineHeight:1 }}>
                 {rating}%<span style={{ fontSize:16 }}>{arrow(rating, nextRating)}</span>
               </div>
@@ -1685,8 +1699,26 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
             <div style={{ display:"flex", gap:6 }}>
               <button onClick={onHelp} title="Как играть" aria-label="Как играть"
                 style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, minWidth:44, minHeight:44, borderRadius:0, fontSize:18, display:"inline-flex", alignItems:"center", justifyContent:"center" }}>?</button>
-              <button onClick={onMenu} title="В меню (партия сохранится)"
-                style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, padding:"0 14px", minHeight:44, borderRadius:0, fontFamily:narrow, fontSize:16, display:"inline-flex", alignItems:"center", justifyContent:"center" }}>Меню</button>
+              <div ref={menuRef} style={{ position:"relative" }}>
+                <button onClick={() => setMenu(open => !open)} aria-expanded={menu} aria-haspopup="menu" aria-label="Меню партии" className="sv-hud-menu"
+                  style={{ position:"relative", background:menu ? G.bg3 : "transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, padding:"0 12px", minWidth:44, minHeight:44, borderRadius:0, fontFamily:narrow, fontSize:16, display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                  <span aria-hidden="true" style={{ fontSize:18, lineHeight:1 }}>≡</span><span className="sv-hud-menu-label">Меню</span>
+                  {menuAlerts > 0 && <span aria-hidden="true" className="sv-hud-menu-dot"/>}
+                </button>
+                {menu && (
+                  <div role="menu" aria-label="Меню партии" className="sv-hud-menu-list">
+                    {SHEETS.map(sheet => (
+                      <button key={sheet.id} role="menuitem" onClick={pick(() => onSheet?.(sheet.id))}>
+                        <strong>{sheet.label}</strong>
+                        <small>{sheet.hint}{sheetAlerts?.[sheet.id] ? ` · ${sheet.alert.toLowerCase()}` : ""}</small>
+                      </button>
+                    ))}
+                    {!gs.daily && <button role="menuitem" onClick={pick(() => setMandate(true))}><strong>Мандат и обещания</strong><small>что вы обещали стране</small></button>}
+                    <button role="menuitem" onClick={pick(onHelp)}><strong>Как играть</strong><small>основы управления</small></button>
+                    <button role="menuitem" onClick={pick(onMenu)}><strong>Выйти к титулу</strong><small>партия сохранится</small></button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1705,6 +1737,17 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange }) {
           </div>
         </div>
       </div>
+      {mandate && (
+        <div className="sv-modal" role="dialog" aria-modal="true" aria-label="Мандат и обещания" onClick={e => { if (e.target === e.currentTarget) setMandate(false); }}>
+          <div className="sv-paper" style={{ maxWidth:560, width:"100%", maxHeight:"90vh", overflow:"auto", padding:"16px 18px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginBottom:8 }}>
+              <strong style={{ fontFamily:narrow, fontSize:20, color:G.txt }}>Мандат и обещания</strong>
+              <button onClick={() => setMandate(false)} aria-label="Закрыть" style={{ minWidth:44, minHeight:44, background:"transparent", border:`2px solid ${G.bdr2}`, color:G.txt, fontSize:18 }}>×</button>
+            </div>
+            <BriefCard gs={gs}/>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
@@ -3231,8 +3274,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
 
   return (
     <div style={{ minHeight:"100vh", background:G.bg }}>
-      <div className="sv-window"><SquareView gs={gs} height={64} describe/></div>
-      <Hud gs={gs} onInfoChange={setResourceOpen} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => { setHelp(true); track("help"); }}/>
+      {/* На телефоне площадь не занимает экран, пока на столе дело (#275): её видно в газете итога. */}
+      <div className={`sv-window${event ? " is-deciding" : ""}`}><SquareView gs={gs} height={64} describe/></div>
+      <Hud gs={gs} onInfoChange={setResourceOpen} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => { setHelp(true); track("help"); }}
+        onSheet={id => { setSideTab(id); if (window.matchMedia?.(PHONE_SHEET).matches) setDossier(true); }} sheetAlerts={alerts}/>
       {help && <HowToPlay gs={gs} onClose={() => setHelp(false)}/>}
       {recap && <Recap gs={gs} onClose={onRecapDone}/>}
       <div style={{ display:"flex", justifyContent:"center", padding:"14px" }}>
@@ -3342,7 +3387,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
           <div hidden={inboxMode && !!event && inboxPage !== 'main'}>
           <div id="sv-main-case" className="sv-main-case-label">{event
             ? inboxMode ? 'ЖДЁТ ВАШЕЙ РЕЗОЛЮЦИИ' : 'ГЛАВНОЕ ДЕЛО · ЗАВЕРШАЕТ КВАРТАЛ'
-            : inboxMode ? 'ГАЗЕТА · ИТОГИ КВАРТАЛА' : 'ИТОГИ ГЛАВНОГО РЕШЕНИЯ'}</div>
+            : inboxMode ? 'ГАЗЕТА · ИТОГИ КВАРТАЛА' : 'ИТОГИ ГЛАВНОГО РЕШЕНИЯ'}
+            {/* На телефоне год и ход живут здесь: шапка — только опоры и рейтинг (#275). */}
+            <span className="sv-case-when"> · {gs.country === ALTERNATE_COUNTRY ? `${gs.year} · ход ${event ? gs.turn + 1 : gs.turn}` : `ход ${localTurn(event ? gs.turn + 1 : gs.turn)}/${TERM}`}</span></div>
           {gs.turn === 0 && !busy && <details className="sv-mandate"><summary>Ваш мандат и обещания</summary><BriefCard gs={gs}/></details>}
           {warnLevel !== "none" && !busy && !gs.ended && (
             <div className="sv-paper sv-citation" style={{ marginBottom:10, padding:"9px 16px" }}>
