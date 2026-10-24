@@ -22,6 +22,7 @@ import { BEAT_HEADLINES } from "../content/headlines-beats.ts";
 import { COUNCIL_B } from "../content/council-b.ts";
 import { CRISIS_ESCALATE, EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../content/events.ts";
 import { ALTERNATE_RANDOM_EVENTS } from "../content/alternate-history.ts";
+import { QUARTER_MARK } from "./turn-report.ts";
 import { SCENES } from "../content/scenes.ts";
 import { EVENT_EXT } from "../content/events-ext.ts";
 import { BEAT_EXT } from "../content/beats-ext.ts";
@@ -1138,9 +1139,15 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   }
 
   const after: string[] = [];
+  // Что вызвала сама подпись (#260): в газете 1978 года остальное уходит под «В том же квартале».
+  const ownLines = new Set<string>();
   if (plan.worldStory) after.push(plan.worldStory);
   let electionLine: string | null = null;
-  if (plan.resolvedCrisis && !arc) after.push(`Кризис «${plan.resolvedCrisis}» наконец отступает. В ситуационном центре впервые за много дней кто-то шутит.`);
+  if (plan.resolvedCrisis && !arc) {
+    const line = `Кризис «${plan.resolvedCrisis}» наконец отступает. В ситуационном центре впервые за много дней кто-то шутит.`;
+    after.push(line);
+    ownLines.add(line);
+  }
   const echoed: Record<string, number> = { ...(state.echoes ?? {}) };
   // Эхо прошлых решений: сначала — какое именно решение аукнулось, чтобы связь была видна. Не больше двух за ход:
   // газета, в которой аукается всё сразу, читается как список.
@@ -1168,7 +1175,11 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   }
   const news = plan.pactNews;
   for (const name of news.kept) after.push(fill(cycle(PACT_KEPT_LINE, state.seed, "kept", state.turn), state, { camp: name }));
-  for (const name of news.broken) after.push(fill(cycle(PACT_BROKEN_LINE, state.seed, "broken", state.betrayals ?? 0), state, { camp: name }));
+  for (const name of news.broken) {
+    const line = fill(cycle(PACT_BROKEN_LINE, state.seed, "broken", state.betrayals ?? 0), state, { camp: name });
+    after.push(line);
+    ownLines.add(line);
+  }
   // Строка об опросах — если сцена сама уже не говорит о рейтинге: два разных числа в одной заметке — небрежность.
   if (Math.abs(pollsAfter - pollsBefore) >= 4 && !/рейтинг|опрос|замер/i.test(scene)) after.push(cycle(pollsAfter > pollsBefore ? POLLS_UP : POLLS_DOWN, state.seed, `polls${pollsAfter > pollsBefore}`, state.turn));
 
@@ -1230,8 +1241,17 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // законы и обещания (#147); первый абзац виден без «Читать полностью». Особые развязки «вопроса о сроках» пишут свой финал.
   const night = !finale && plan.election?.kind === "president" && state.country === ALTERNATE_COUNTRY
     ? termFinale(state, plan.election, reignOf(state).term + 1, { laws: plan.laws, promises: plan.promises }) : null;
+  // Кампания 1978 (#260): сначала сцена и то, что вызвала подпись; реакция задетого человека — тоже её следствие,
+  // кроме ночи выборов, где говорят о результате. Эхо прежних решений, жизнь ведомств, опросы, выборы и предвестия
+  // интриги — под разделителем. Архив и развязки срока — в прежнем порядке.
+  // Первый ход — без нового блока (AGENTS.md): газета первого решения остаётся прежней.
+  const quarter = state.country === ALTERNATE_COUNTRY && state.turn > 0 && !night && !finale;
+  const ownIntercut = quarter && !electionLine ? intercut : null;
+  const other = quarter ? [...after.filter(line => !ownLines.has(line)), electionLine, ownIntercut ? null : intercut, hook].filter(Boolean) : [];
   const parts = night
     ? [night.lead, scene, ...after, ...night.after, intercut, hook]
+    : quarter
+    ? [scene, ...after.filter(line => ownLines.has(line)), ownIntercut, ...(other.length ? [QUARTER_MARK, ...other] : [])]
     : [scene, ...after, finale?.text ?? electionLine, intercut, hook];
 
   // То, что уже звучало в партии, не повторяется, пока в пуле есть свежие варианты.
