@@ -346,6 +346,7 @@ export interface Verdict {
 }
 
 export interface GameState {
+  initiatives?: import('./initiatives.ts').InitiativeState;
   quarterDraft?: { turn: number; event: string; move: DailyMove }; // prepared, applied only when the quarter is closed
   analyticsRun?: import("../client/run-context.ts").AnalyticsRun;
   world?: LivingWorld;

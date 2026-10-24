@@ -16,6 +16,7 @@ import { signedCaseOrVersion } from './first-term-schedule.ts';
 import * as letters from '../content/quarter-letters.ts';
 import { actSecretary, ensureSecretary, secretarySurname, validSecretary, type SecretaryState } from './secretary.ts';
 import { announcedHeirs, surnameBase } from './surnames.ts';
+import { interventionUsed } from './initiatives.ts';
 export type WorldPersonId = 'minister' | 'governor' | 'engineer' | 'healthMinister' | 'doctor';
 export interface WorldPerson {
     id: WorldPersonId;
@@ -258,7 +259,7 @@ export function livingActions(gs: GameState): WorldAction[] {
         const reserve = lack && (gs.country === ALTERNATE_COUNTRY ? letters.reserveShortage(...lack) : 'Недостаточно запаса ресурса для этого поручения');
         return {
             ...entry, blocked: gs.daily ? 'В деле дня личные поручения недоступны' : gs.ended ? 'Правление завершено'
-                : world.lastActionTurn === gs.turn ? 'Личное вмешательство в этом квартале уже использовано'
+                : interventionUsed(gs) ? 'Личное вмешательство в этом квартале уже использовано'
                 : cabinetFull(entry) ? 'Кабинет уже ведёт две программы; дождитесь результата одной из них'
                 : reserve || null
         };
