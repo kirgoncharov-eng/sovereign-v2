@@ -63,7 +63,7 @@ test("память срока: по одной строке на дело, бо�
   const lines = termMemories(stateWith(history));
   assert.deepEqual(lines, [
     TERM_MEMORY.alt_wages["Получить аванс под трёхлетний российский заказ"].ok,
-    TERM_MEMORY.alt_standards["Позволить двум заводам конкурировать за контракт"].ok,
+    TERM_MEMORY.alt_standards["Отдать контракт конкурсу заводов без гарантии казны"].ok,
     TERM_MEMORY.alt_rail["Согласовать единый график с министрами"].ok,
   ]);
   assert.deepEqual(termMemories(stateWith(history.slice(0, 3))), [

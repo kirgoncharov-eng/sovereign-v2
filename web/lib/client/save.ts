@@ -8,6 +8,7 @@ import { validDailyMoves } from "../game/daily-run.ts";
 import { managementDocument } from "../game/classic.ts";
 import { validLivingWorld } from "../game/living-world.ts";
 import { validInitiatives } from '../game/initiatives.ts';
+import { migrateLegacyCaseText } from '../game/legacy-case-text.ts';
 import type { GameState } from "../game/types.ts";
 
 const KEY = "sovereign.save";
@@ -153,6 +154,8 @@ export function parseSave(raw: string | null): SaveData | null {
     // Повреждение необязательной аналитики не лишает игрока сохранения.
     if (saved.state.analyticsRun !== undefined && !validAnalyticsRun(saved.state.analyticsRun)) delete saved.state.analyticsRun;
     if(saved.state.currentEvent?.doc&&saved.state.currentEvent.choices.some(c=>c.id==='d'))saved.state={...saved.state,currentEvent:managementDocument(saved.state.currentEvent)};
+    // #260: прежние тексты вариантов переписанных дел 1978 года.
+    saved.state = migrateLegacyCaseText(saved.state);
     return saved;
   } catch {
     return null;
