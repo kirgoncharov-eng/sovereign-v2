@@ -72,6 +72,7 @@ import { warningDetails } from "@/lib/client/warning-detail.ts";
 import { squareStateOf } from "@/lib/client/square-state.ts";
 import QuarterTransition from "./QuarterTransition.jsx";
 import { CASE_LEAD, NEWS_LEAD, ledgerRows, splitLead, withoutHeadline } from "@/lib/client/brief.ts";
+import { QUARTER_MARK, sourceLabel, splitQuarter } from "@/lib/game/turn-report.ts";
 import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
 import { artSource, historicalEventArt, historicalResultArt, historicalPortraitArt, historicalEndingArt, HISTORICAL_SCENE_ART } from "@/lib/client/historical-art.ts";
@@ -1598,7 +1599,7 @@ function Ledger({ rows: all, extra }) {
         )).flatMap((row, i) => {
           // Из чего сложилась перемена — если источников больше одного или он не очевиден.
           const src = rows[i].sources?.filter(([, d]) => Math.round(d)).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
-          if (!src?.length || (src.length === 1 && src[0][0] === "решение")) return [row];
+          if (!src?.length || (src.length === 1 && ["решение", "ваша резолюция"].includes(src[0][0]))) return [row];
           return [row, (
             <div key={`${rows[i].k}-src`} style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.35, margin:"-2px 0 4px 10px" }}>
               {src.slice(0, full ? 4 : 2).map(([label, d]) => `${label} ${signed(Math.round(d))}`).join(" · ")}{src.length > (full ? 4 : 2) ? " · …" : ""}
@@ -3562,7 +3563,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </figcaption>
                 </figure>
                 {(() => {
-                  const { lead, rest } = splitLead(withoutHeadline(lastTurn.narrative, lastTurn.headline), NEWS_LEAD);
+                  // #260: первый абзац — всегда о резолюции; эхо прежних решений и прочее в квартале — отдельным блоком.
+                  const quarter = splitQuarter(withoutHeadline(lastTurn.narrative, lastTurn.headline));
+                  const { lead, rest } = splitLead(quarter.own, NEWS_LEAD);
                   const reactions = (lastTurn.reactions || []).slice(0, 2);
                   const press = lastTurn.press ?? [];
                   // Историк подводит черту только в конце главы — иначе его реплики приедаются.
@@ -3573,7 +3576,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                           {lead.map((p, i) => <p key={i} style={{ marginBottom:i < lead.length - 1 ? 12 : 0 }}><PeopleText>{p}</PeopleText></p>)}
                         </div>
                       : <Typewriter key={`t${turn}`} text={lead.join("\n\n")} onDone={() => setTypedTurn(turn)}/>}
-                    {typed && (rest.length > 0 || reactions.length > 0 || press.length > 0 || historian) && (
+                    {typed && (rest.length > 0 || reactions.length > 0 || press.length > 0 || quarter.other.length > 0 || historian) && (
                       <More key={`news${turn}`} label="Читать полностью">
                         {rest.map((p, i) => (
                           <p key={i} style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:12 }}><PeopleText>{p}</PeopleText></p>
@@ -3600,6 +3603,17 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                                   <PeopleText>{p.headline}</PeopleText>
                                 </div>
                               </div>
+                            ))}
+                          </div>
+                        )}
+                        {quarter.other.length > 0 && (
+                          <div data-quarter style={{ marginTop:12, paddingTop:10, borderTop:`2px solid ${G.txt}` }}>
+                            <div style={{ fontFamily:narrow, fontWeight:700, fontSize:12, letterSpacing:".1em", textTransform:"uppercase",
+                              color:G.tx3, marginBottom:6 }}>
+                              {QUARTER_MARK}
+                            </div>
+                            {quarter.other.map((p, i) => (
+                              <p key={i} style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:12 }}><PeopleText>{p}</PeopleText></p>
                             ))}
                           </div>
                         )}
@@ -3643,7 +3657,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 )}
                 {(turnDelta || Object.keys(lastTurn.factionRelChanges||{}).length > 0) && (
                   <Ledger key={`ledger${turn}`} rows={[
-                    ...(turnDelta ? RES_CONFIG.filter(r => turnDelta[r.key]).map(r => ({ k:r.key, label:SHORT[r.key], value:resources[r.key], delta:turnDelta[r.key], sources:lastTurn.sources?.[r.key] })) : []),
+                    ...(turnDelta ? RES_CONFIG.filter(r => turnDelta[r.key]).map(r => ({ k:r.key, label:SHORT[r.key], value:resources[r.key], delta:turnDelta[r.key], sources:lastTurn.sources?.[r.key]?.map(([label, d]) => [sourceLabel(gs, lastTurn, label), d]) })) : []),
                     ...Object.entries(lastTurn.factionRelChanges||{}).flatMap(([fid, v]) => {
                       const f = factions.find(x => x.id === fid);
                       return f ? [{ k:fid, label:f.name, value:f.relation, delta:v, rel:true }] : [];
