@@ -18,11 +18,11 @@ export default function JournalistCall({ gs, onFinish, stamping, renderPromises,
     <section className="sv-paper sv-negotiation-call sv-negotiation-historical" data-negotiation-call data-journalist-call>
       <div id="sv-resolution">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <small style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--gold)", fontFamily: "var(--font-pixel, monospace)", fontSize: 12, textTransform: "uppercase" }}>
+          <small style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--gold)", fontFamily: "var(--font-pixel, monospace)", fontSize:13, textTransform: "uppercase" }}>
             <span className="sv-sheet-pulse-dot" aria-hidden="true" />
             ЗАЩИЩЁННАЯ ЛИНИЯ · РЕДАКЦИЯ
           </small>
-          <span style={{ fontFamily: "var(--font-pixel, monospace)", fontSize: 11, color: "var(--tx3)" }}>
+          <span style={{ fontFamily: "var(--font-pixel, monospace)", fontSize:13, color: "var(--tx3)" }}>
             АППАРАТ СПЕЦСВЯЗИ
           </span>
         </div>

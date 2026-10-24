@@ -37,7 +37,7 @@
   --bl2:  #bccbe6;
   --txt:  #e6dec8;
   --tx2:  #b9af99;
-  --tx3:  #8d8471;
+  --tx3:  #9d947e;               /* #277: ≥4,5:1 на столе */
   --grn:  #a6c97f;
   --amb:  #e6bd5c;
   --red:  #e8735e;
@@ -60,9 +60,9 @@
   --bl2:  #34529a;
   --txt:  #2a241d;
   --tx2:  #4a4236;
-  --tx3:  #74695a;
-  --grn:  #3d6a27;               /* штемпель «исполнено» */
-  --amb:  #8a5c0f;
+  --tx3:  #5e5446;               /* #277: ≥4,5:1 на бумаге */
+  --grn:  #365e22;               /* штемпель «исполнено»; ≥4,5:1 на бумаге (#277) */
+  --amb:  #734d0c;               /* #277: ≥4,5:1 на бумаге */
   --red:  #a02f24;               /* штемпель «отказ» */
   --stamp: #a02f24;
   color: var(--txt);
@@ -185,7 +185,7 @@ button:focus-visible {
   top: 12px;
   right: 12px;
   font-family: var(--font-ptmono), monospace;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--tx3);
 }
 
@@ -476,9 +476,9 @@ button:focus-visible {
 /* Интерактивная карта Неманской республики 1978 (#215) */
 .sv-republic-map-wrap { margin:0 0 16px; background:#0a100d; border-top:1px solid var(--bdr2); border-bottom:1px solid var(--bdr2); font-family:var(--font-narrow); scroll-margin-top:54px; }
 .sv-republic-map-header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px; padding:14px 16px 10px; border-bottom:1px solid #1a2920; }
-.sv-republic-map-badge { font-family:var(--font-pixel); font-size:12px; letter-spacing:.08em; color:var(--gold); }
+.sv-republic-map-badge { font-family:var(--font-pixel); font-size:13px; letter-spacing:.08em; color:var(--gold); }
 .sv-republic-map-title { margin:3px 0 0; font-family:var(--font-serif); font-size:19px; line-height:1.2; color:#eae3cf; font-weight:normal; }
-.sv-republic-map-alert { display:inline-flex; align-items:center; padding:3px 8px; font-family:var(--font-mono); font-size:12px; color:#d8b35d; background:#1b241c; border:1px solid #d8b35d55; border-radius:2px; }
+.sv-republic-map-alert { display:inline-flex; align-items:center; padding:3px 8px; font-family:var(--font-mono); font-size:13px; color:#d8b35d; background:#1b241c; border:1px solid #d8b35d55; border-radius:2px; }
 .sv-republic-map-svg-container { position:relative; width:100%; max-width:680px; margin:0 auto; padding:8px 12px; }
 .sv-republic-map-svg { width:100%; height:auto; display:block; }
 .sv-map-region-group { cursor:pointer; outline:none; transition:transform .15s ease; }
@@ -488,13 +488,13 @@ button:focus-visible {
 .sv-republic-map-tab-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:8px 4px; min-height:44px; background:#121e18; border:1px solid #24382c; color:#eae3cf; cursor:pointer; font-family:inherit; text-align:center; transition:background .15s,border-color .15s; }
 .sv-republic-map-tab-btn[data-active="true"] { background:#1b2e23; border-color:#d8b35d; box-shadow:0 0 6px rgba(216,179,93,.25); }
 .sv-republic-tab-name { font-size:14px; font-weight:600; line-height:1.1; }
-.sv-republic-tab-status { font-family:var(--font-mono); font-size:11px; font-weight:700; line-height:1.1; }
+.sv-republic-tab-status { font-family:var(--font-mono); font-size:13px; font-weight:700; line-height:1.1; }
 .sv-republic-dossier { padding:14px 16px; background:#0d1411; border-top:1px solid #1a2b21; }
 .sv-republic-dossier-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px; }
 .sv-republic-dossier-sub { font-family:var(--font-narrow); font-size:13px; color:var(--tx3); text-transform:uppercase; letter-spacing:.05em; }
 .sv-republic-dossier-title { margin:2px 0 0; font-family:var(--font-serif); font-size:22px; color:#eae3cf; font-weight:600; }
 .sv-republic-dossier-status-pill { display:flex; flex-direction:column; align-items:center; padding:4px 10px; background:#121d17; border:1px solid; border-radius:2px; min-width:88px; text-align:center; }
-.sv-republic-dossier-status-pill span { font-family:var(--font-mono); font-size:11px; font-weight:700; line-height:1.2; }
+.sv-republic-dossier-status-pill span { font-family:var(--font-mono); font-size:13px; font-weight:700; line-height:1.2; }
 .sv-republic-dossier-status-pill strong { font-family:var(--font-mono); font-size:16px; line-height:1.2; }
 .sv-republic-dossier-status-pill small { line-height:1.1; margin-top:2px; }
 .sv-republic-mood-box { margin:0 0 12px; padding:8px 12px; background:#121b16; border-left:3px solid #d8b35d; border-radius:0 2px 2px 0; }
@@ -506,7 +506,7 @@ button:focus-visible {
 .sv-republic-symbols-tags { display:flex; flex-wrap:wrap; gap:6px; }
 .sv-republic-symbol-tag { font-family:var(--font-narrow); font-size:13px; color:#c7baa0; background:#16241c; border:1px solid #2b4032; padding:2px 8px; border-radius:2px; }
 .sv-republic-factions-box { padding:10px 12px; background:#101a14; border:1px solid #203326; border-radius:2px; }
-.sv-republic-factions-label { display:block; font-size:12px; color:var(--tx3); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+.sv-republic-factions-label { display:block; font-size:13px; color:var(--tx3); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
 .sv-republic-factions-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:6px; }
 .sv-republic-faction-item { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:14px; color:#dfd9c4; border-bottom:1px dashed #203326; padding:3px 0; }
 .sv-republic-faction-item strong { font-family:var(--font-mono); font-size:13px; }
@@ -572,7 +572,7 @@ button:focus-visible {
 /* Кабинет: проекты свёрнуты, решение и результат занимают основной лист. */
 .sv-country:not(:has(.sv-country-body)) .sv-country-toggle { min-height:48px; padding:10px 14px; }
 .sv-agenda-attention { display:block; width:100%; min-height:44px; padding:8px 14px; text-align:left; background:var(--bg3); border:0; border-top:1px solid var(--bdr2); color:var(--gold); font-family:var(--font-narrow); font-size:16px; }
-.sv-hud-resource-label { font-family:var(--font-narrow); font-size:12px; line-height:1.1; color:var(--tx2); white-space:nowrap; }
+.sv-hud-resource-label { font-family:var(--font-narrow); font-size:13px; line-height:1.1; color:var(--tx2); white-space:nowrap; }
 .sv-mandate { margin-bottom:12px; color:var(--tx2); font-family:var(--font-narrow); }
 .sv-mandate summary { cursor:pointer; min-height:44px; padding:10px 14px; border:1px solid var(--bdr2); font-size:16px; }
 .sv-executor-compare { display:flex; gap:16px; flex-wrap:wrap; padding:6px 0; }
@@ -653,8 +653,8 @@ button:focus-visible {
 .sv-desk-person[aria-pressed=true] {border-color:var(--amb);background:rgba(191,153,83,.12);}
 .sv-desk-person>span:last-child {min-width:0;}
 .sv-desk-person strong,.sv-desk-person small,.sv-desk-person em {display:block;overflow-wrap:anywhere;}
-.sv-desk-person strong {font-size:14px;}.sv-desk-person small {font-size:12px;color:var(--tx3);}.sv-desk-person em {font-style:normal;font-size:12px;color:var(--amb);}
-.sv-desk-portrait {position:relative;flex-shrink:0;}.sv-desk-portrait b {position:absolute;right:-5px;top:-4px;border-radius:50%;background:var(--red);color:#fff;min-width:16px;text-align:center;font:12px var(--font-narrow);}
+.sv-desk-person strong {font-size:14px;}.sv-desk-person small {font-size:13px;color:var(--tx3);}.sv-desk-person em {font-style:normal;font-size:13px;color:var(--amb);}
+.sv-desk-portrait {position:relative;flex-shrink:0;}.sv-desk-portrait b {position:absolute;right:-5px;top:-4px;border-radius:50%;background:var(--red);color:#fff;min-width:16px;text-align:center;font:13px var(--font-narrow);}
 .sv-desk-controls {display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;}.sv-desk-controls button,.sv-desk-link {min-height:44px;padding:8px 10px;background:transparent;border:1px solid var(--bdr);color:var(--txt);font:16px var(--font-narrow);text-align:left;}.sv-desk-controls .sv-desk-government {flex:1;color:var(--amb);}
 .sv-desk-correspondence,.sv-government {border-top:1px solid var(--bdr);margin-top:12px;padding-top:12px;}.sv-desk-correspondence>header {display:flex;align-items:center;gap:10px;}.sv-desk-correspondence h3 {margin:0;font:18px var(--font-serif);}.sv-desk-correspondence header p {margin:4px 0;color:var(--tx3);font:14px var(--font-narrow);}
 .sv-desk-message {margin-top:12px;}.sv-desk-message>small,.sv-government>header>small {color:var(--amb);font:13px var(--font-narrow);}.sv-desk-message h4 {font:18px var(--font-serif);margin:7px 0;}.sv-desk-message p,.sv-government p {font:14px/1.6 var(--font-serif);overflow-wrap:anywhere;}.sv-desk-message .sv-sponsor {border:0;padding:0;margin:0;}.sv-desk-message .sv-sponsor-body {border:0;padding-top:0;}.sv-desk-correspondence .sv-desk-link {margin-top:10px;}
@@ -662,8 +662,8 @@ button:focus-visible {
 .sv-government-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:12px 0;}.sv-government-list button {min-height:62px;padding:10px;text-align:left;border:1px solid var(--bdr);background:transparent;color:var(--txt);font:16px var(--font-narrow);}.sv-government-list button[aria-pressed=true] {border-color:var(--amb);background:rgba(191,153,83,.12);}.sv-government-list span {display:block;color:var(--tx3);font-size:13px;margin-top:3px;}
 .sv-government-detail {background:rgba(0,0,0,.12);padding:12px;margin-bottom:12px;}.sv-government dl {margin:10px 0;}.sv-government dl>div {border-top:1px dashed var(--bdr);padding:8px 0;}.sv-government dt {font:13px var(--font-narrow);color:var(--amb);}.sv-government dd {margin:4px 0 0;font:14px/1.5 var(--font-serif);}.sv-government-priority {border-left:3px solid var(--amb);padding-left:10px;}.sv-government-factors {color:var(--tx3);}
 .sv-government-actions {display:grid;gap:8px;margin-top:12px;}.sv-government-actions>button {padding:12px;min-height:44px;text-align:left;border:1px solid var(--bdr);background:transparent;color:var(--txt);}.sv-government-actions>button[aria-pressed=true] {border-color:var(--amb);}.sv-government-actions strong {font:17px var(--font-narrow);}.sv-government-actions span {display:block;font:14px/1.5 var(--font-serif);margin:6px 0;}.sv-government-actions em {display:block;font:14px var(--font-narrow);color:var(--amb);}.sv-government-actions>button:disabled {opacity:.6;}.sv-government-sign {margin-top:12px;padding:12px;border:1px solid var(--amb);}.sv-government-sign>strong {display:block;font:15px var(--font-narrow);}.sv-government-sign>button {min-height:44px;padding:8px 12px;margin:8px 8px 0 0;background:var(--paper);color:#2a241d;border:1px solid var(--bdr);font:17px var(--font-narrow);}
-@media(max-width:600px){.sv-desk-people{grid-template-columns:repeat(2,minmax(0,1fr));}.sv-desk-person{gap:6px;padding:6px;}.sv-government-list{grid-template-columns:1fr;}.sv-desk-heading{font-size:12px;}}
-.sv-desk-current-case {display:block;width:100%;text-align:left;border:0;border-left:3px solid var(--amb);padding:8px 10px;background:rgba(191,153,83,.1);color:var(--txt);margin-bottom:12px;min-height:48px;}.sv-desk-current-case small {display:block;font:12px var(--font-narrow);color:var(--amb);}.sv-desk-current-case strong {display:block;font:17px var(--font-serif);margin-top:4px;}.sv-main-case-label {font:13px var(--font-narrow);color:var(--tx3);margin:12px 0 8px;scroll-margin-top:140px;}
+@media(max-width:600px){.sv-desk-people{grid-template-columns:repeat(2,minmax(0,1fr));}.sv-desk-person{gap:6px;padding:6px;}.sv-government-list{grid-template-columns:1fr;}.sv-desk-heading{font-size:13px;}}
+.sv-desk-current-case {display:block;width:100%;text-align:left;border:0;border-left:3px solid var(--amb);padding:8px 10px;background:rgba(191,153,83,.1);color:var(--txt);margin-bottom:12px;min-height:48px;}.sv-desk-current-case small {display:block;font:13px var(--font-narrow);color:var(--amb);}.sv-desk-current-case strong {display:block;font:17px var(--font-serif);margin-top:4px;}.sv-main-case-label {font:13px var(--font-narrow);color:var(--tx3);margin:12px 0 8px;scroll-margin-top:140px;}
 @media(max-width:600px){.sv-desk-people{display:flex;overflow-x:auto;padding-top:5px;padding-bottom:5px;}.sv-desk-person{flex:0 0 175px;}.sv-government-sign>button{display:block;width:100%;margin-right:0;}}
 
 /* The main desk stays brief; correspondence occupies its own focused surface. */
@@ -672,7 +672,7 @@ button:focus-visible {
 .sv-desk-entry button {min-height:58px;min-width:0;padding:9px 11px;text-align:left;border:1px solid var(--bdr);background:var(--bg2);color:var(--txt);}
 .sv-desk-entry strong {display:block;font:18px var(--font-narrow);}
 .sv-desk-entry span {display:block;margin-top:3px;font:13px var(--font-narrow);color:var(--amb);}
-.sv-desk-attention {display:block;margin:7px 0;color:var(--tx3);font:12px var(--font-narrow);}
+.sv-desk-attention {display:block;margin:7px 0;color:var(--tx3);font:13px var(--font-narrow);}
 .sv-desk-dialog {margin:auto;padding:0;border:1px solid var(--bdr2);width:min(680px,calc(100vw - 24px));max-height:calc(100dvh - 24px);background:var(--bg);color:var(--txt);overflow:auto;overscroll-behavior:contain;}
 .sv-desk-dialog::backdrop {background:rgba(0,0,0,.76);}
 .sv-desk-dialog-header {position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;background:var(--bg);border-bottom:1px solid var(--bdr2);}
@@ -723,7 +723,7 @@ button:focus-visible {
 }
 .sv-negotiation-call button:focus-visible {outline:2px solid var(--amb);outline-offset:3px;}
 
-.sv-negotiation-historical small {color:var(--gold);font:12px var(--font-pixel, monospace);letter-spacing:.04em;}
+.sv-negotiation-historical small {color:var(--gold);font:13px var(--font-pixel, monospace);letter-spacing:.04em;}
 .sv-negotiation-historical p {font:16px/1.55 var(--font-serif), "PT Serif", Georgia, serif;}
 .sv-negotiation-historical .sv-negotiation-options button {
   border:1.5px solid var(--bdr2);padding:12px 14px;font:16px/1.4 var(--font-serif), "PT Serif", Georgia, serif;cursor:pointer;transition:border-color .15s ease, background-color .15s ease;
@@ -848,7 +848,7 @@ button:focus-visible {
 .sv-sheet-title { font-family: var(--font-narrow); font-size: 17px; font-weight: 700; line-height: 1.1; letter-spacing: .02em; }
 .sv-sheet-badge {
   margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
-  font-family: var(--font-pixel, monospace); font-size: 11px; letter-spacing: .03em;
+  font-family: var(--font-pixel, monospace); font-size: 13px; letter-spacing: .03em;
   padding: 1px 5px; border-radius: 2px; line-height: 1.2; flex-shrink: 0;
 }
 .sv-sheet-badge.is-inbox { background: rgba(200, 155, 60, 0.15); border: 1px solid var(--gold); color: var(--gold); }

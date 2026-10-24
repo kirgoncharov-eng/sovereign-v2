@@ -12,14 +12,14 @@
 }
 
 .sv-post-heading strong {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: normal;
 }
 
 .sv-post-heading button {
   margin-left: auto;
   font: inherit;
-  font-size: 11px;
+  font-size: 13px;
   color: #b5a784;
   background: none;
   border: 0;
@@ -107,7 +107,7 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 6px;
-  font-size: 10px;
+  font-size: 13px;
   color: #b6a888;
 }
 
@@ -125,19 +125,19 @@
 }
 
 .sv-post-sender {
-  font-size: 11px;
+  font-size: 13px;
   color: #b8b49e;
   line-height: 1.5;
 }
 
 .sv-post-open {
-  font-size: 11px;
+  font-size: 13px;
   color: #dcc08b;
   padding-top: 5px;
 }
 
 .sv-post-warning {
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.5;
   color: #c7bca1;
 }
@@ -148,7 +148,7 @@
 }
 
 .sv-post-tray .sv-post-letter strong {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .sv-post-tray .sv-post-letter {
@@ -200,7 +200,7 @@
 }
 
 .sv-post-file span {
-  font-size: 10px;
+  font-size: 13px;
   padding: 4px 6px;
   border: 1px solid #6a604a;
   color: #c4b38f;
