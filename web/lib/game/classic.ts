@@ -21,6 +21,7 @@ import { COUNCIL_HEADLINES } from "../content/headlines-council.ts";
 import { BEAT_HEADLINES } from "../content/headlines-beats.ts";
 import { COUNCIL_B } from "../content/council-b.ts";
 import { CRISIS_ESCALATE, EVENT_CARDS, RANDOM_EVENTS, type EventCard } from "../content/events.ts";
+import { ALTERNATE_RANDOM_EVENTS } from "../content/alternate-history.ts";
 import { SCENES } from "../content/scenes.ts";
 import { EVENT_EXT } from "../content/events-ext.ts";
 import { BEAT_EXT } from "../content/beats-ext.ts";
@@ -969,7 +970,8 @@ function buildCardEvent(state: GameState, selected: EventCard, r: Rand): GameEve
   const escalated = card.id === "crisis_escalates" && !!crisisKey && !!CRISIS_ESCALATE[crisisKey];
   if (escalated) card = { ...card, ...CRISIS_ESCALATE[crisisKey!] };
   const blocs = new Set(card.choices.flatMap(c => c.tags.flatMap(t => Object.keys(ACTIONS[t].rel))));
-  const random = state.turn > 0 && r() < 0.28 ? pick(r, RANDOM_EVENTS) : null;
+  // Архив берёт прежний пул; для 1978 года — фон своей эпохи той же длины, последовательность r() одна и та же.
+  const random = state.turn > 0 && r() < 0.28 ? pick(r, state.country === ALTERNATE_COUNTRY ? ALTERNATE_RANDOM_EVENTS : RANDOM_EVENTS) : null;
   return {
     cardId: card.id,
     title: fill(card.title, state),
