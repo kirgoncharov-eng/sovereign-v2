@@ -48,8 +48,8 @@ try {
     await page.goto(new URL('../demo/dist/sovereign.html', import.meta.url).href, { waitUntil:'domcontentloaded' });
     await resume();
     const read = () => page.evaluate(() => JSON.parse(localStorage.getItem('sovereign.save')).state);
-    const open = async key => width > 760 ? page.locator(`[data-quarter-document="${key}"]`).click()
-      : page.locator('#quarter-document').selectOption(key);
+    // #279: на телефоне папка тоже список карточек, а не выпадающий список.
+    const open = async key => page.locator(`[data-quarter-document="${key}"]`).click();
     const finish = page.locator('[data-finish-quarter]');
     assert.equal(await finish.count(), 0, 'Quarter close stays hidden before preparation');
     await open('main');
