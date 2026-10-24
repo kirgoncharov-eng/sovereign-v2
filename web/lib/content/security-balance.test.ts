@@ -10,7 +10,7 @@ import type { Choice, GameState } from '../game/types.ts';
 
 // #196: две проверки первого срока проводит Служба порядка — честный путь, который не копит угрозу переворота.
 const POLICE_CHECKS: Record<string, string> = {
-  alt_district: 'Сверить акты на месте и остановить лишние платежи',
+  alt_district: 'Направить республиканскую ревизию по всей области',
   alt_radio: 'Проверить магазин до следующего выпуска',
 };
 
@@ -29,7 +29,8 @@ test('проверки со Службой порядка повышают от�
   for (const [cardId, text] of Object.entries(POLICE_CHECKS)) {
     const card = ALTERNATE_EVENTS.find(event => event.id === cardId)!;
     const option = card.choices.find(choice => choice.text === text)!;
-    assert.ok(option, `${cardId}: текст варианта не меняется — по нему привязаны эхо и сохранения`);
+    // Текст варианта меняется только вместе с переносом прежнего текста в сохранениях (legacy-case-text.ts, #260).
+    assert.ok(option, `${cardId}: нет варианта «${text}»`);
     assert.deepEqual(option.tags, ['anticorruption', 'security']);
     // Армия у недовольных силовиков — ресурс для переворота (COUP_MILITARY), поэтому вариант её не поднимает.
     assert.equal(option.policyEffect?.military, undefined);
