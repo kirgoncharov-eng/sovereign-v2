@@ -115,7 +115,7 @@ test('legacy dates, mechanics and non-newspaper text stay byte-identical to base
     assert.equal(dailyCaseForDate('2026-11-15').country, ALTERNATE_COUNTRY);
 });
 test('historical narratives contain no digital-era props across courses and first terms', async () => {
-    const anachronism = /соцсет|интернет|смартфон|мессендж|скриншот|VPN|блогер|дрон|на сайте|телефон с фотограф|экран к вам/i;
+    const anachronism = /соцсет|интернет|смартфон|мессендж|скриншот|VPN|блогер|дрон|на сайте|сайты|хакер|вирусн|телефон с фотограф|экран к вам/i;
     for (const ideology of IDEOLOGIES)
         for (const seed of [3, 11, 21, 29, 41, 57]) {
             let state = createInitialState(ALTERNATE_COUNTRY, 'debut', ideology.id, await classicApi.setup(ALTERNATE_COUNTRY, 'debut', ideology.id, seed), seededRandom(seed));

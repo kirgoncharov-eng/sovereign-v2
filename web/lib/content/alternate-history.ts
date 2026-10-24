@@ -1,6 +1,6 @@
 // Authorial cases for the independent republic of the alternate twentieth century.
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
-import type { EventCard } from './events.ts';
+import type { EventCard, RandomCard } from './events.ts';
 import type { LawDef } from './laws.ts';
 import type { Arc } from './arcs.ts';
 const HISTORICAL_EVENTS: EventCard[] = [
@@ -1489,6 +1489,23 @@ export const ALTERNATE_EVENTS = HISTORICAL_EVENTS.map(card => ({
     ...card,
     countries: [ALTERNATE_COUNTRY]
 }));
+// #260: внешний фон квартала в 1978 году вместо общих «случайных событий» с хакерами и роликами. Эффекты и порядок —
+// как в RANDOM_EVENTS, поэтому баланс не меняется. Событие не связано с подписью президента: это то, что случилось само.
+// Название попадает в разбор хода строчными буквами — без имён собственных.
+export const ALTERNATE_RANDOM_EVENTS: RandomCard[] = [
+    { title: 'Протокол заседания в печати', description: 'Оппозиционный еженедельник напечатал протокол закрытого заседания правительства. Ничего незаконного, но звучит скверно.', effect: { politicalCapital: -3 } },
+    { title: 'Паводок на южных реках', description: 'Реки Полесья вышли из берегов; из прибрежных деревень вывозят людей и скот.', effect: { economy: -4 } },
+    { title: 'Хороший квартал на таможне', description: 'Таможенная ведомость показала лучший квартал по вывозу за десять лет.', effect: { economy: 4 } },
+    { title: 'Сборная выиграла кубок', description: 'Футбольная сборная республики выиграла турнир. Вечером на проспекте флаги и автомобильные гудки.', effect: { internalLegitimacy: 3 } },
+    { title: 'Резкая статья в иностранной газете', description: 'Крупная иностранная газета назвала правительство республики «нестабильным». Статью цитируют в посольствах.', effect: { externalReputation: -3 } },
+    { title: 'Продлённая кредитная линия', description: 'Европейский банк продлил республике кредитную линию без новых условий.', effect: { externalReputation: 4 } },
+    { title: 'Бессонная неделя', description: 'Графики сорваны, президент спит по три часа.', effect: { personalResource: -4 } },
+    { title: 'Бунт в колонии', description: 'Заключённые захватили корпус исправительной колонии; Служба порядка подавила бунт.', effect: { military: -3, internalLegitimacy: -2 } },
+    { title: 'Удачные учения армии', description: 'Учения прошли без сбоев, генералы довольны.', effect: { military: 3 } },
+    { title: 'Сюжет в кинохронике', description: 'Кинохроника показала, как президент помогает пенсионерке донести сумки. Сюжет крутят перед каждым сеансом.', effect: { internalLegitimacy: 3, personalResource: 2 } },
+    { title: 'Пожар на узле связи', description: 'Сгорел узел правительственной связи; министерства двое суток передают распоряжения курьерами.', effect: { politicalCapital: -2, military: -2 } },
+    { title: 'Наплыв туристов', description: 'Туристов из соседних стран вдвое больше, чем в прошлом году; гостиницы переполнены.', effect: { economy: 3 } },
+];
 export const ALTERNATE_LAWS: LawDef[] = [
     {
         id: 'alt_export_guarantee',
