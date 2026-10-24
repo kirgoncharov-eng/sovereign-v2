@@ -171,20 +171,16 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
     }
   }
   if (standardsChamberCard && completed?.title === standardsChamberCard.title) {
-    if (completed.choice === standardsChamberCard.choices[0].text) {
-      return completed.success ? HISTORICAL_OUTCOME_ART.standardsEastern : HISTORICAL_SCENE_ART.standards;
-    }
+    // The chamber's irrigation order and the split line do not confirm an eastern export or a contest winner.
     if (completed.choice === standardsChamberCard.choices[1].text) {
-      return completed.success ? HISTORICAL_OUTCOME_ART.standardsTesting : HISTORICAL_OUTCOME_ART.standardsDefect;
+      // Success only sends samples to testing; failure explicitly confirms that they failed the tests.
+      return completed.success ? HISTORICAL_SCENE_ART.standards : HISTORICAL_OUTCOME_ART.standardsDefect;
     }
-    if (completed.choice === standardsChamberCard.choices[2].text) {
-      return completed.success ? HISTORICAL_OUTCOME_ART.standardsContest : HISTORICAL_SCENE_ART.standards;
-    }
+    return HISTORICAL_SCENE_ART.standards;
   }
   if (standardsPatriotsCard && completed?.title === standardsPatriotsCard.title) {
-    if (completed.choice === standardsPatriotsCard.choices[0].text) {
-      return completed.success ? HISTORICAL_OUTCOME_ART.standardsTesting : HISTORICAL_OUTCOME_ART.standardsDefect;
-    }
+    // Samples leave the factory, possibly under guard. Neither outcome confirms testing or a first order.
+    return HISTORICAL_SCENE_ART.standards;
   }
   if (completed?.title === railCard.title) {
     if (completed.choice === railCard.choices[0].text) {
@@ -199,15 +195,17 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
   }
   if (railBlockadeCard && completed?.title === railBlockadeCard.title) {
     if (completed.choice === railBlockadeCard.choices[0].text) {
-      return HISTORICAL_OUTCOME_ART.railGrain;
+      return completed.success ? HISTORICAL_OUTCOME_ART.railGrain : HISTORICAL_SCENE_ART.rail;
     }
     if (completed.choice === railBlockadeCard.choices[1].text) {
-      return completed.success ? HISTORICAL_OUTCOME_ART.railExport : HISTORICAL_OUTCOME_ART.railJam;
+      // The failed export is held by customs, not by a technical inspection of the switches.
+      return completed.success ? HISTORICAL_OUTCOME_ART.railExport : HISTORICAL_SCENE_ART.rail;
     }
   }
   if (railChamberCard && completed?.title === railChamberCard.title) {
     if (completed.choice === railChamberCard.choices[0].text) {
-      return completed.success ? HISTORICAL_OUTCOME_ART.railDispatch : HISTORICAL_OUTCOME_ART.railJam;
+      // On failure the chamber deliberately releases wagons slowly; no switch fault is established.
+      return completed.success ? HISTORICAL_OUTCOME_ART.railDispatch : HISTORICAL_SCENE_ART.rail;
     }
   }
   const title = completed?.title;
