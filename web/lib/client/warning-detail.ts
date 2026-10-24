@@ -1,5 +1,6 @@
 import { RES_CONFIG } from '../game/data.ts';
 import { leaderRating, securityRelation, warningSignals } from '../game/engine.ts';
+import { sourceLabel } from '../game/turn-report.ts';
 import type { GameState, ResourceKey } from '../game/types.ts';
 
 const EFFECT: Record<ResourceKey, string> = {
@@ -17,7 +18,8 @@ export function warningDetails(gs: GameState) {
     const previous = resource ? gs.prevResources?.[resource.key]
       : s.id === 'security' ? gs.prevFactions && securityRelation(gs.prevFactions)
       : gs.prevFactions && gs.prevResources && leaderRating(gs.prevFactions, gs.prevResources);
-    const sources = resource ? gs.lastTurn?.sources?.[resource.key]?.filter(([, d]) => d < 0) ?? [] : [];
+    const sources = resource ? (gs.lastTurn?.sources?.[resource.key]?.filter(([, d]) => d < 0) ?? [])
+      .map(([source, d]) => [sourceLabel(gs, gs.lastTurn, source), d] as [string, number]) : [];
     return { ...s, label: resource?.prompt ?? (s.id === 'rating' ? 'Рейтинг вашей партии' : 'Отношение силового лагеря'),
       unit: s.id === 'rating' ? '%' : resource ? '/100' : '',
       explanation: resource ? EFFECT[resource.key] : s.id === 'rating' ? 'Низкая поддержка увеличивает угрозу потери власти.' : 'Силовики настроены против вас: растёт риск переворота.',
