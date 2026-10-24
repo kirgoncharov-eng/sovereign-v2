@@ -56,8 +56,8 @@ try {
       await page.getByRole('dialog').getByRole('button', { name: 'ПРОДОЛЖИТЬ', exact: true }).click();
       await page.locator('[data-quarter-secretary]').waitFor();
     };
-    const open = async key => width > 760 ? page.locator(`[data-quarter-document="${key}"]`).click()
-      : page.locator('#quarter-document').selectOption(key);
+    // #279: на телефоне папка тоже список карточек, а не выпадающий список.
+    const open = async key => page.locator(`[data-quarter-document="${key}"]`).click();
     const read = () => page.evaluate(() => JSON.parse(localStorage.getItem('sovereign.save')).state);
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     await resume();
@@ -141,7 +141,7 @@ try {
   await protectionPage.reload({ waitUntil: 'domcontentloaded' });
   await protectionResume();
   assert.deepEqual((await protectionRead()).world.secretary.gossip, protectedSave.world.secretary.gossip);
-  await protectionPage.locator('#quarter-document').selectOption('main');
+  await protectionPage.locator('[data-quarter-document="main"]').click();
   await protectionPage.locator('#opt-1').click();
   await protectionPage.locator('.sv-quarter-prepare button').first().click();
   await protectionPage.locator('[data-finish-quarter]').click();

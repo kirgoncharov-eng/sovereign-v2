@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useRef } from 'react';
 import { presidentialMessages, messageUnread } from '@/lib/client/presidential-inbox.ts';
 import { personProfiles } from '@/lib/client/people-text.ts';
 import { quarterResolution } from '@/lib/client/quarter-inbox.ts';
@@ -21,25 +22,31 @@ function folderEntries(gs) {
     ...(gs.world ? [{ key:'secretary', title:'Опись папки', sender:gs.world.secretary?.present ? gs.world.secretary.name : 'Канцелярия',
       status:'Что сверху и что подождёт' }] : []),
     ...(gs.currentEvent ? [{ key:'main', title:gs.currentEvent.title, sender:gs.currentEvent.source, prepared:!!prepared,
-      status:prepared ? 'Резолюция готова к подписи' : 'Ждёт вашей резолюции' }] : []),
+      status:prepared ? 'Резолюция готова к подписи' : 'Ждёт вашей резолюции', urgent:!prepared }] : []),
     ...presidentialMessages(gs).map(message => ({ key:message.key, title:message.title,
       sender:profiles.find(person => person.id === message.person)?.name ?? 'Канцелярия',
-      status:message.needsReply ? 'Ждёт ответа' : messageUnread(gs, message) ? 'Новый доклад' : 'Для сведения' })),
+      status:message.needsReply ? 'Ждёт ответа' : messageUnread(gs, message) ? 'Новый доклад' : 'Для сведения',
+      urgent:!!message.needsReply })),
   ];
 }
 
 export default function QuarterInbox({ gs, page, onOpen }) {
   const entries = folderEntries(gs);
+  const strip = useRef(null);
+  // Лента на телефоне держит открытый документ в начале видимой части, не двигая саму страницу.
+  useEffect(() => {
+    const current = strip.current?.querySelector('[aria-current]');
+    if (current && strip.current.scrollWidth > strip.current.clientWidth) strip.current.scrollLeft = current.offsetLeft - strip.current.offsetLeft - 4;
+  }, [page]);
   if (!gs.currentEvent || entries.length < 2) return null;
+  const waiting = entries.filter(entry => entry.urgent).length;
+  // На телефоне — та же папка лентой карточек вместо системного выпадающего списка (#279): статус виден сразу.
   return <nav className="sv-quarter-folder" aria-label="Папка входящих">
-    <div className="sv-quarter-folder-heading">НА РАССМОТРЕНИЕ</div>
-    <label className="sv-quarter-mobile" htmlFor="quarter-document">Документы в папке</label>
-    <select className="sv-quarter-mobile" id="quarter-document" value={entries.some(entry => entry.key === page) ? page : 'secretary'}
-      onChange={event => onOpen(event.target.value)}>
-      {entries.map(entry => <option key={entry.key} value={entry.key}>{entry.title} · {entry.status}</option>)}
-    </select>
-    <div className="sv-quarter-letters">{entries.map(entry => <button type="button" key={entry.key}
-      data-quarter-document={entry.key} aria-current={page === entry.key ? 'page' : undefined} onClick={() => onOpen(entry.key)}>
+    <div className="sv-quarter-folder-heading"><span className="sv-quarter-title">НА РАССМОТРЕНИЕ</span>
+      <span className="sv-quarter-count">{`В ПАПКЕ ${entries.length}${waiting ? ` · ЖДУТ ВАС ${waiting}` : ''}`}</span></div>
+    <div className="sv-quarter-letters" ref={strip}>{entries.map(entry => <button type="button" key={entry.key}
+      data-quarter-document={entry.key} data-urgent={entry.urgent || undefined}
+      aria-current={page === entry.key ? 'page' : undefined} onClick={() => onOpen(entry.key)}>
       <small>{entry.sender}</small><strong>{entry.title}</strong><span>{entry.status}</span>
     </button>)}</div>
   </nav>;

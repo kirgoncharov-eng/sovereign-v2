@@ -112,8 +112,8 @@ const timeline = [];
 let firstDecisionMs = null, deskOnTurn1 = false, stuck = false, ended = false;
 for (let t = 1; t <= TURNS; t++) {
   // The inbox preserves free reading; the bot explicitly opens the required document.
-  const folder = page.locator('#quarter-document');
-  if (await folder.isVisible()) await folder.selectOption('main');
+  const folder = page.locator('[data-quarter-document="main"]');
+  if (await folder.isVisible()) await folder.tap();
   try { await page.locator("#opt-1").waitFor({ timeout: 8000 }); } catch { ended = true; break; }
   await wait(300);
   const kind = await kindOf(page);

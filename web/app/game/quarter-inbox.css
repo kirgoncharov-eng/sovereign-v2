@@ -6,7 +6,8 @@
 .sv-quarter-letters button[aria-current] {background:var(--bg3);border-left-color:var(--red);}
 .sv-quarter-letters small,.sv-quarter-letters span {display:block;font:14px/1.4 var(--font-narrow);color:var(--tx3);}
 .sv-quarter-letters strong {display:block;font:17px/1.35 var(--font-serif);margin:6px 0;}
-.sv-quarter-mobile {display:none;}
+.sv-quarter-letters button[data-urgent] span {color:var(--amb);}
+.sv-quarter-count {display:none;}
 .sv-inbox-reference {margin-top:14px;}
 .sv-inbox-reference>summary {padding:12px 0;font:16px var(--font-narrow);color:var(--tx3);}
 .sv-reference-plain>summary {display:none;}
@@ -42,11 +43,16 @@
  .sv-game-grid.is-inbox {display:flex!important;flex-direction:column;}
  .sv-game-grid.is-inbox .sv-sidebar {order:0;}
  .sv-game-grid.is-inbox .sv-main {order:1;}
- .sv-quarter-letters {display:none;}
- .sv-quarter-mobile {display:block;width:100%;font:16px var(--font-narrow);}
- select.sv-quarter-mobile {padding:11px 8px;background:var(--bg);color:var(--txt);border:1px solid var(--bdr2);margin-top:8px;}
- .sv-quarter-folder {padding:12px;}
- .sv-quarter-folder-heading {display:none;}
+ /* #279: папка лентой карточек; текущий документ отмечен красной чертой, срочные — янтарным статусом. */
+ .sv-quarter-letters {flex-direction:row;overflow-x:auto;gap:8px;scroll-snap-type:x proximity;padding-bottom:4px;}
+ .sv-quarter-letters button {flex:0 0 auto;width:min(68vw,240px);min-height:64px;padding:9px 10px;scroll-snap-align:start;}
+ .sv-quarter-letters small {display:none;}
+ .sv-quarter-letters strong {font-size:16px;margin:0 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+ .sv-quarter-folder {padding:10px 12px;}
+ .sv-quarter-folder-heading {margin-bottom:8px;}
+ .sv-quarter-count {display:inline;}
+ .sv-quarter-title {display:none;}
+ .sv-quarter-letters {position:relative;}
  .sv-incoming-project {padding:20px 16px;}
  .sv-quarter-close {padding:16px;}
  .sv-quarter-close button {width:100%;}
