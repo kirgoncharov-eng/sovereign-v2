@@ -1697,7 +1697,7 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange, onSheet, sheetAlerts }
               </div>
             </button>
             <div style={{ display:"flex", gap:6 }}>
-              <button onClick={onHelp} title="Как играть" aria-label="Как играть"
+              <button onClick={onHelp} title="Как играть" aria-label="Как играть" className="sv-hud-help"
                 style={{ background:"transparent", border:`2px solid ${G.bdr2}`, color:G.tx2, minWidth:44, minHeight:44, borderRadius:0, fontSize:18, display:"inline-flex", alignItems:"center", justifyContent:"center" }}>?</button>
               <div ref={menuRef} style={{ position:"relative" }}>
                 <button onClick={() => setMenu(open => !open)} aria-expanded={menu} aria-haspopup="menu" aria-label="Меню партии" className="sv-hud-menu"

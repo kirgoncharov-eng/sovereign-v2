@@ -398,7 +398,9 @@ button:focus-visible {
   .sv-mandate { display: none; }
   .sv-inbox-reference > summary { display: none; }
   .sv-main-case-label { margin-top: 4px; }
-  .sv-hud > div { padding: 4px 10px !important; }
+  .sv-hud > div { padding: 4px 6px !important; }
+  /* «Как играть» на телефоне — в меню партии: место в строке отдано опорам, чтобы каждая была шире (#276). */
+  .sv-hud-help { display: none !important; }
   .sv-hud-menu-list { position: fixed; left: 8px; right: 8px; top: calc(env(safe-area-inset-top, 0px) + 60px); min-width: 0; }
 }
 
