@@ -15,7 +15,7 @@
   display:flex;
   justify-content:space-between;
   gap:16px;
-  font:12px var(--font-ptmono),monospace;
+  font:13px var(--font-ptmono),monospace;
   letter-spacing:.06em;
   padding:0 0 16px;
   flex-wrap:wrap
@@ -49,7 +49,7 @@
 
 .sceneBadge {
   font-family:var(--font-pixel, monospace);
-  font-size:11px;
+  font-size:13px;
   color:var(--gold, #c6b58b);
   letter-spacing:.04em;
   flex-shrink:0
@@ -70,7 +70,7 @@
   align-items:center;
   gap:8px;
   flex-wrap:wrap;
-  font:11px var(--font-ptmono), monospace;
+  font:13px var(--font-ptmono), monospace;
   letter-spacing:.06em;
   color:#5c503a;
   padding-bottom:10px;
@@ -113,7 +113,7 @@
   bottom:-4px;
   right:-4px;
   font-family:var(--font-pixel, monospace);
-  font-size:10px;
+  font-size:13px;
   background:#2a241d;
   color:#e2dac0;
   padding:1px 5px;
@@ -160,8 +160,8 @@
 }
 
 .credentialsRole {
-  font:12px var(--font-ptmono), monospace;
-  color:#685d47;
+  font:13px var(--font-ptmono), monospace;
+  color:#574d3b;
   text-transform:uppercase;
   letter-spacing:.04em;
   margin-bottom:6px
@@ -174,7 +174,7 @@
 }
 
 .credentialsBonus {
-  font:12px/1.35 var(--font-ptmono), monospace;
+  font:13px/1.35 var(--font-ptmono), monospace;
   color:#3b4d37;
   background:rgba(48, 70, 59, 0.08);
   border-left:2px solid #30463b;
@@ -195,7 +195,7 @@
 }
 
 .selectorLabel {
-  font:11px var(--font-ptmono), monospace;
+  font:13px var(--font-ptmono), monospace;
   letter-spacing:.05em;
   color:#554933
 }
@@ -250,12 +250,12 @@
 }
 
 .pillSub {
-  font:11px/1.2 var(--font-ptmono), monospace;
+  font:13px/1.2 var(--font-ptmono), monospace;
   opacity:.78
 }
 
 .selectorNote {
-  font:11px/1.4 var(--font-ptmono), monospace;
+  font:13px/1.4 var(--font-ptmono), monospace;
   color:#5c503a;
   margin-top:2px
 }
@@ -269,7 +269,7 @@
 }
 
 .promisesTitle {
-  font:12px var(--font-ptmono), monospace;
+  font:13px var(--font-ptmono), monospace;
   letter-spacing:.06em;
   color:#554933;
   margin-bottom:10px
@@ -287,7 +287,7 @@
 }
 
 .promiseBadge {
-  font:11px var(--font-pixel, monospace);
+  font:13px var(--font-pixel, monospace);
   background:#c3b491;
   color:#2b251a;
   padding:2px 6px;
@@ -301,8 +301,8 @@
 }
 
 .promisesHint {
-  font:italic 12px/1.45 var(--font-serif), Georgia, serif;
-  color:#695e49;
+  font:italic 13px/1.45 var(--font-serif), Georgia, serif;
+  color:#574d3b;
   margin-top:10px;
   padding-top:8px;
   border-top:1px dashed #b9aa88
@@ -317,7 +317,7 @@
 }
 
 .eyebrow {
-  font:12px var(--font-ptmono),monospace;
+  font:13px var(--font-ptmono),monospace;
   text-transform:uppercase;
   letter-spacing:.06em;
   line-height:1.6;
@@ -544,7 +544,7 @@
     height:83px
   }
   .runningHead {
-    font-size:10px;
+    font-size:13px;
     gap:8px
   }
   .line:nth-child(2) {
@@ -574,7 +574,7 @@
 
 .prologueStamp {
   display: inline-block;
-  font: 11px var(--font-ptmono), monospace;
+  font: 13px var(--font-ptmono), monospace;
   letter-spacing: .08em;
   color: var(--gold, #c6b58b);
   border: 1px solid rgba(198, 181, 139, 0.4);
@@ -713,18 +713,19 @@
 }
 
 .titleStamp {
-  font: 700 10px var(--font-ptmono), monospace;
+  font: 700 13px var(--font-ptmono), monospace;
   letter-spacing: 0.14em;
-  color: #b83428;
-  border: 1.5px solid #b83428;
+  color: #e0705f;
+  border: 1.5px solid #e0705f;
   padding: 2px 7px;
   text-transform: uppercase;
   transform: rotate(-2deg);
 }
 
 .titleTopMeta {
-  font: 11px var(--font-ptmono), monospace;
-  letter-spacing: 0.08em;
+  font: 13px var(--font-ptmono), monospace;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
   color: #8e836a;
   text-transform: uppercase;
   display: flex;
@@ -736,7 +737,7 @@
   background: rgba(18, 26, 22, 0.75);
   border: 1px solid rgba(198, 181, 139, 0.25);
   color: #c6b58b;
-  font: 11px var(--font-ptmono), monospace;
+  font: 13px var(--font-ptmono), monospace;
   min-height: 44px;
   padding: 8px 12px;
   cursor: pointer;
@@ -744,6 +745,7 @@
   align-items: center;
   gap: 6px;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .titleAudioToggle:hover {
@@ -758,7 +760,7 @@
 }
 
 .titleSub {
-  font: 11px var(--font-ptmono), monospace;
+  font: 13px var(--font-ptmono), monospace;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #c6b58b;
@@ -824,7 +826,7 @@
 }
 
 .titleDiffLabel {
-  font: 11px var(--font-ptmono), monospace;
+  font: 13px var(--font-ptmono), monospace;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #8c8169;
@@ -846,7 +848,7 @@
   text-align: center;
   cursor: pointer;
   transition: all 0.15s ease;
-  font: 700 12px var(--font-narrow), sans-serif;
+  font: 700 13px var(--font-narrow), sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -859,7 +861,7 @@
 }
 
 .titleDiffNote {
-  font: 12px/1.4 var(--font-serif), Georgia, serif;
+  font: 13px/1.4 var(--font-serif), Georgia, serif;
   color: #9c9077;
   min-height: 20px;
 }
@@ -908,7 +910,7 @@
   background: rgba(16, 23, 20, 0.7);
   border: 1px solid #2b3b33;
   color: #b3a78d;
-  font: 12px var(--font-ptmono), monospace;
+  font: 13px var(--font-ptmono), monospace;
   letter-spacing: 0.05em;
   padding: 9px 6px;
   text-align: center;
@@ -928,8 +930,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font: 11px var(--font-ptmono), monospace;
-  color: #6e6552;
+  font: 13px var(--font-ptmono), monospace;
+  color: #a39a85;
   border-top: 1px solid rgba(198, 181, 139, 0.1);
   flex-wrap: wrap;
   gap: 8px;
@@ -1003,3 +1005,8 @@
 }
 
 
+
+/* #277: на узком телефоне в верхней строке титула не помещаются штамп, пометка и звук при кегле 13 px. */
+@media (max-width: 420px) {
+  .titleTopMeta { display: none; }
+}

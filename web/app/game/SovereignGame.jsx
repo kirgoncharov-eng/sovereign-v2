@@ -327,10 +327,10 @@ function PollWidget({ gs, bare = false }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
         <span style={{ fontFamily:narrow, fontSize:15, letterSpacing:".05em", color:G.tx3 }}>ОПРОС</span>
         <button onClick={()=>setInfo(v=>!v)} aria-expanded={info} title="Как считается рейтинг"
-          style={{ background:"transparent", border:`1px solid ${G.bdr}`, color:G.tx3, borderRadius:0, width:18, height:18, fontSize:10, lineHeight:"16px", padding:0 }}>?</button>
+          style={{ background:"transparent", border:`1px solid ${G.bdr}`, color:G.tx3, borderRadius:0, width:18, height:18, fontSize:13, lineHeight:"16px", padding:0 }}>?</button>
       </div>
       {info && (
-        <div style={{ fontFamily:serif, fontSize:12, color:G.tx2, lineHeight:1.5, marginBottom:10, padding:"8px 10px", background:G.bg3, borderRadius:0 }}>
+        <div style={{ fontFamily:serif, fontSize:13, color:G.tx2, lineHeight:1.5, marginBottom:10, padding:"8px 10px", background:G.bg3, borderRadius:0 }}>
           Голосуют группы общества — по своему весу. Группа поддерживает вас тем сильнее, чем лучше её отношение к вам и чем выше легитимность и экономика. Недовольные уходят к партии-конкуренту своего лагеря. Внешние партнёры не голосуют. Рейтинг ≤ {LIMITS.endRating}% — революция.
         </div>
       )}
@@ -396,7 +396,7 @@ function ChoicePreview({ gs, c, debated = false }) {
       )}
       <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:exact ? 8 : 0 }}>
-        {c.deal?.pure ? <i style={{ fontFamily:serif }}>{c.hint}</i> : <><ChanceBadge p={successChance(gs, c)} exact={exact}/> · <i style={{ fontFamily:serif }}>{c.hint}</i></>}
+        {c.deal?.pure ? <span style={{ fontFamily:serif }}>{c.hint}</span> : <><ChanceBadge p={successChance(gs, c)} exact={exact}/> · <span style={{ fontFamily:serif }}>{c.hint}</span></>}
       </div>
       {exact && <ResourceChips delta={fx.resources}/>}
       {(exact || !debated) && <CostReasons gs={gs} c={c} fx={fx}/>}
@@ -641,7 +641,7 @@ function PactSlips({ gs }) {
           <div key={p.faction} className="sv-paper" style={{ flex:"1 1 220px", padding:"9px 14px", borderRadius:0, borderLeft:"3px solid var(--blue)" }}>
             <div style={{ display:"flex", justifyContent:"space-between", gap:8, alignItems:"baseline" }}>
               <span style={{ fontFamily:serif, fontSize:15, fontWeight:700 }}>Договор с «{f?.name}»</span>
-              <span style={{ fontFamily:mono, fontSize:12, color:G.tx3, whiteSpace:"nowrap" }}>ещё {plural(left, "ход", "хода", "ходов")}</span>
+              <span style={{ fontFamily:mono, fontSize:13, color:G.tx3, whiteSpace:"nowrap" }}>ещё {plural(left, "ход", "хода", "ходов")}</span>
             </div>
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>
               нельзя: {p.ban.map(t => ACTIONS[t].label.toLowerCase()).join(", ")}
@@ -725,7 +725,7 @@ function BudgetPanel({ gs, onFinish, onSkip, stamping }) {
         </span>
       </label>
       <div style={{ padding:"10px 20px 0", borderTop:`2px solid ${G.txt}` }}>
-        <div style={{ fontFamily:pixel, fontSize:12, color:G.tx3, marginBottom:6 }}>ЧТО ИЗМЕНИТСЯ</div>
+        <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>ЧТО ИЗМЕНИТСЯ</div>
         <ResourceChips delta={plan.deal.res}/>
         <div style={{ display:"flex", flexWrap:"wrap", gap:"0 12px", fontFamily:narrow, fontSize:15, lineHeight:1.5, marginTop:4 }}>
           {Object.entries(plan.deal.factionRel ?? {}).map(([fid, d]) => (
@@ -815,7 +815,7 @@ function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
         />
         <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(14, 12, 10, 0.92))", padding:"12px 10px 4px", display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
           <span style={{ fontFamily:narrow, fontSize:13, color:"#f1e9d2" }}>{HISTORICAL_SCENE_ART.phone.caption}</span>
-          <span style={{ fontFamily:pixel, fontSize:11, color:"var(--gold)" }}>АППАРАТ СПЕЦСВЯЗИ</span>
+          <span style={{ fontFamily:pixel, fontSize:13, color:"var(--gold)" }}>АППАРАТ СПЕЦСВЯЗИ</span>
         </div>
       </figure>
 
@@ -920,7 +920,7 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
                 <span style={{ position:"absolute", left:20, top:12, fontFamily:serif, fontWeight:700, fontSize:17, color:G.tx3 }}>{i + 1}.</span>
                 <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.4, marginBottom:4 }}>{a.text}</div>
                 <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-                  <span style={{ fontFamily:pixel, fontSize:12, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
+                  <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
                   <ResourceChips delta={a.res} exact={false}/>
                 </div>
               </button>
@@ -965,7 +965,7 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
         />
         <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(14, 12, 10, 0.92))", padding:"12px 10px 4px", display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
           <span style={{ fontFamily:narrow, fontSize:13, color:"#f1e9d2" }}>{HISTORICAL_SCENE_ART.press.caption}</span>
-          <span style={{ fontFamily:pixel, fontSize:11, color:live ? G.red : "var(--gold)" }}>
+          <span style={{ fontFamily:pixel, fontSize:13, color:live ? G.red : "var(--gold)" }}>
             {live ? "ПРЯМОЙ ЭФИР" : "ПРЕСС-ЦЕНТР"}
           </span>
         </div>
@@ -1002,7 +1002,7 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
               <span style={{ position:"absolute", left:20, top:12, fontFamily:serif, fontWeight:700, fontSize:17, color:G.tx3 }}>{i + 1}.</span>
               <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.4, marginBottom:4 }}>{a.text}</div>
               <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-                <span style={{ fontFamily:pixel, fontSize:12, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
+                <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
                 <ResourceChips delta={a.res} exact={false}/>
               </div>
             </button>
@@ -1250,7 +1250,7 @@ function ElectionNight({ e, party, onDone }) {
           <span style={{ fontFamily: narrow, fontSize: 13, color: "#f1e9d2", textShadow: "0 1px 2px #000" }}>
             {activeArt.caption}
           </span>
-          <span style={{ fontFamily: pixel, fontSize: 11, color: "var(--gold)", letterSpacing: ".04em", flexShrink: 0 }}>
+          <span style={{ fontFamily: pixel, fontSize:13, color: "var(--gold)", letterSpacing: ".04em", flexShrink: 0 }}>
             {e.turn === 20 ? "ФИНАЛ 1-ГО СРОКА" : (e.turn % 20 === 0 ? "ФИНАЛ СРОКА" : `ХОД ${e.turn}`)}
           </span>
         </div>
@@ -1332,7 +1332,8 @@ function SpecialHeader({ gs, event }) {
 const chanceWord = pct => (pct >= 85 ? "низкий риск" : pct >= 70 ? "умеренный риск" : pct >= 55 ? "высокий риск" : "очень высокий риск");
 function ChanceBadge({ p, exact = true }) {
   const pct = Math.round(p * 100);
-  const c = pct >= 75 ? G.grn : pct >= 55 ? G.amb : G.red;
+  // Цвет совпадает со словом (#277): «низкий» — зелёный, «умеренный» — янтарный, «высокий» и выше — красный.
+  const c = pct >= 85 ? G.grn : pct >= 70 ? G.amb : G.red;
   return <span title="Вероятность благоприятного исхода. Зависит от советника, отношений и ресурсов; решение может состояться и обернуться скандалом." style={{ color:c, fontWeight:700 }}>{exact ? `шанс успеха ${pct}%` : chanceWord(pct)}</span>;
 }
 
@@ -1431,7 +1432,7 @@ function Prose({ text, paragraphs, start = 0 }) {
   return (
     <div>
       {paras.map((p, i) => DATELINE.test(p)
-        ? <div key={i} className="sv-dateline" style={{ fontFamily:mono, fontSize:12.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}><PeopleText>{p}</PeopleText></div>
+        ? <div key={i} className="sv-dateline" style={{ fontFamily:mono, fontSize:13.5, color:G.tx2, lineHeight:1.65, marginBottom:14 }}><PeopleText>{p}</PeopleText></div>
         : <p key={i} className="sv-prose-line" style={{ fontFamily:serif, fontSize:17, lineHeight:1.7, color:i + start === 1 ? G.txt : G.tx2, marginBottom:12, maxWidth:"68ch",
             whiteSpace:"pre-line", animationDelay:`${Math.min(i * 0.05, 0.25)}s` }}><PeopleText>{p}</PeopleText></p>)}
     </div>
@@ -1826,7 +1827,7 @@ function Recap({ gs, onClose }) {
         <div style={{ borderTop:`2px solid ${G.txt}`, paddingTop:8, marginBottom:12 }}>
           {gs.history.slice(-3).map((h, i) => (
             <div key={i} style={{ display:"flex", gap:10, padding:"6px 0", borderBottom:`1px dashed ${G.bdr2}` }}>
-              <span style={{ fontFamily:mono, fontSize:12, color:G.tx3, paddingTop:4 }}>{h.year}</span>
+              <span style={{ fontFamily:mono, fontSize:13, color:G.tx3, paddingTop:4 }}>{h.year}</span>
               <div>
                 <div style={{ fontFamily:narrow, fontWeight:700, fontSize:19, lineHeight:1.15 }}>{h.headline}</div>
                 <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>ваша резолюция: {h.choice}</div>
@@ -1879,14 +1880,14 @@ function HowToPlay({ gs, onClose }) {
       <div onClick={e => e.stopPropagation()} className="sv-fade sv-paper" style={{ maxWidth:560, width:"100%", maxHeight:"90vh", overflowY:"auto", borderRadius:0, padding:"22px 24px 20px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10, paddingBottom:12, marginBottom:16, borderBottom:`2px solid ${G.bdr2}` }}>
           <div>
-            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:G.tx3, lineHeight:1.4 }}>
+            <div style={{ fontFamily:mono, fontSize:13, letterSpacing:".08em", textTransform:"uppercase", color:G.tx3, lineHeight:1.4 }}>
               СОВЕТ МИНИСТРОВ НЕМАНСКОЙ РЕСПУБЛИКИ
             </div>
-            <div style={{ fontFamily:mono, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>
+            <div style={{ fontFamily:mono, fontSize:13, letterSpacing:".06em", textTransform:"uppercase", color:G.tx3 }}>
               СЛУЖЕБНАЯ ПАМЯТКА · КАНЦЕЛЯРИЯ
             </div>
           </div>
-          <span className="sv-stamp is-red" style={{ fontSize:12, padding:"3px 8px", flexShrink:0 }}>
+          <span className="sv-stamp is-red" style={{ fontSize:13, padding:"3px 8px", flexShrink:0 }}>
             ДСП · ЭКЗ. № 1
           </span>
         </div>
@@ -2003,7 +2004,7 @@ function VersionLabel() {
     setNote(on ? "Тестовое устройство: партии не попадают в статистику" : "Статистика снова считает это устройство");
   };
   return (
-    <div onClick={tap} style={{ fontFamily:mono, fontSize:11, color:G.tx3, textAlign:"center", marginTop:18, userSelect:"none" }}>
+    <div onClick={tap} style={{ fontFamily:mono, fontSize:13, color:G.tx3, textAlign:"center", marginTop:18, userSelect:"none" }}>
       v{APP_VERSION}{tester ? " · тест" : ""}{note && <div style={{ marginTop:4 }}>{note}</div>}
       {process.env.NEXT_PUBLIC_ANALYTICS !== "off" && <div style={{ marginTop:6 }}><a href="/privacy" target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ color:G.tx3 }}>Данные и условия</a></div>}
     </div>
@@ -2076,7 +2077,7 @@ function PrologueCutscene({ state, onComplete }) {
       }}
     >
       <div className={styles.prologueInner} style={{ maxWidth: 540, width: "100%", textAlign: "center" }}>
-        <div className={styles.prologueStamp} style={{ display: "inline-block", fontFamily: mono, fontSize: 11, letterSpacing: ".1em", color: "#e8d6a7", border: "1px solid rgba(232, 214, 167, 0.4)", padding: "5px 12px", marginBottom: 22, textTransform: "uppercase", background: "rgba(0,0,0,0.3)" }}>
+        <div className={styles.prologueStamp} style={{ display: "inline-block", fontFamily: mono, fontSize:13, letterSpacing: ".1em", color: "#e8d6a7", border: "1px solid rgba(232, 214, 167, 0.4)", padding: "5px 12px", marginBottom: 22, textTransform: "uppercase", background: "rgba(0,0,0,0.3)" }}>
           ДЕЛО № 1 · РЕСПУБЛИКА
         </div>
         <div
@@ -2103,7 +2104,7 @@ function PrologueCutscene({ state, onComplete }) {
           type="button"
           className={styles.prologueSkip}
           onClick={e => { e.stopPropagation(); complete(); }}
-          style={{ fontFamily: mono, fontSize: 12, letterSpacing: ".08em", color: "#d8cbb0", background: "rgba(48, 70, 59, 0.35)", border: "1px solid rgba(216, 203, 176, 0.4)", padding: "10px 22px", cursor: "pointer", textTransform: "uppercase" }}
+          style={{ fontFamily: mono, fontSize:13, letterSpacing: ".08em", color: "#d8cbb0", background: "rgba(48, 70, 59, 0.35)", border: "1px solid rgba(216, 203, 176, 0.4)", padding: "10px 22px", cursor: "pointer", textTransform: "uppercase" }}
         >
           ПРОПУСТИТЬ [ENTER] →
         </button>
@@ -2609,7 +2610,7 @@ function Setup({ onStart, saved, onResume }) {
                 type="button"
                 className={styles.titleAudioToggle}
                 onClick={toggleSound}
-                style={{ padding: "6px 12px", fontSize: 12 }}
+                style={{ padding: "6px 12px", fontSize:13 }}
               >
                 {soundEnabled ? "ВКЛЮЧЕНО" : "ВЫКЛЮЧЕНО"}
               </button>
@@ -2640,7 +2641,7 @@ function BriefCard({ gs }) {
     <div className="sv-paper sv-fade" style={{ marginBottom:10, padding:"12px 16px", display:"flex", gap:12, alignItems:"center" }}>
       <Portrait name={gs.leader.name} size={44}/>
       <div style={{ minWidth:0 }}>
-        <div style={{ fontFamily:pixel, fontSize:12, color:G.tx3, marginBottom:3 }}>ПЕРВЫЙ ДЕНЬ В КАБИНЕТЕ</div>
+        <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:3 }}>ПЕРВЫЙ ДЕНЬ В КАБИНЕТЕ</div>
         <div style={{ fontFamily:serif, fontSize:15, color:G.txt, lineHeight:1.5 }}>
           Вы — <b>{gs.leader.name}</b>, президент. <Flag country={gs.country}/> {countryName(gs.country)}, курс — {ci?.label.toLowerCase()}.
           {titles.length > 0 && <> Вы обещали избирателям: {titles.map(t => `«${t}»`).join(", ")}.</>}
@@ -2669,7 +2670,7 @@ function PromisePicker({ gs, offered, picked, setPicked }) {
             <span style={{ minWidth:0 }}>
               <span style={{ display:"block", fontFamily:narrow, fontSize:17, fontWeight:700 }}>{def.title}</span>
               <span style={{ display:"block", fontFamily:serif, fontSize:15, fontStyle:"italic", color:G.tx2, lineHeight:1.45 }}>«{def.pitch}»</span>
-              <span style={{ display:"block", fontFamily:mono, fontSize:12, color:G.tx3, lineHeight:1.5, marginTop:3 }}>условие: {promiseGoalText(def, def.goal.kind === "resource" ? Math.min(95, gs.resources[def.goal.key] + def.goal.rise) : undefined)}{to ? ` · обещано: ${to}` : ""}</span>
+              <span style={{ display:"block", fontFamily:mono, fontSize:13, color:G.tx3, lineHeight:1.5, marginTop:3 }}>условие: {promiseGoalText(def, def.goal.kind === "resource" ? Math.min(95, gs.resources[def.goal.key] + def.goal.rise) : undefined)}{to ? ` · обещано: ${to}` : ""}</span>
             </span>
           </button>
         );
@@ -2737,7 +2738,7 @@ function Intro({ gs, onGo }) {
           <Divider/>
         </div>
         <Card style={{ marginBottom:12 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", gap:12, fontFamily:mono, fontSize:12, color:G.tx3, marginBottom:12, flexWrap:"wrap" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", gap:12, fontFamily:mono, fontSize:13, color:G.tx3, marginBottom:12, flexWrap:"wrap" }}>
             <span>Личное дело № {docNumber(gs)}</span><span>{COUNTRIES[country].startYear}</span>
           </div>
           <Portrait name={leader.name} size={100} style={{ float:"right", margin:"0 0 10px 16px", transform:"rotate(2deg)" }}/>
@@ -3313,7 +3314,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                         <span className="sv-sheet-emblem" aria-hidden="true" style={{ fontFamily: mono, fontSize: 13, fontWeight: 700 }}>§</span>
                       )
                     ) : (
-                      <span className="sv-sheet-emblem" aria-hidden="true" style={{ fontFamily: pixel, fontSize: 12 }}>
+                      <span className="sv-sheet-emblem" aria-hidden="true" style={{ fontFamily: pixel, fontSize:13 }}>
                         {COUNTRIES[gs.country]?.flag || "≋"}
                       </span>
                     )}
@@ -3448,7 +3449,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               )}
               <Card style={{ marginBottom:14, padding:"20px 24px 22px" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"8px 12px", marginBottom:14, flexWrap:"wrap" }}>
-                  <div style={{ fontFamily:mono, fontSize:12, color:G.tx3, lineHeight:1.6, whiteSpace:"nowrap" }}>
+                  <div style={{ fontFamily:mono, fontSize:13, color:G.tx3, lineHeight:1.6, whiteSpace:"nowrap" }}>
                     <div>{event.source || "Служебная записка"}</div>
                     <div>Экз. № 1 · вх. № {docNumber(gs)}</div>
                   </div>
@@ -3639,7 +3640,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                         })}
                         {press.length > 0 && (
                           <div style={{ margin:"10px 0 4px", padding:"10px 12px", border:`1px solid ${G.bdr2}`, background:G.bg2 }}>
-                            <div style={{ fontFamily:narrow, fontWeight:700, fontSize:12, letterSpacing:".1em", textTransform:"uppercase",
+                            <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".1em", textTransform:"uppercase",
                               color:G.tx3, marginBottom:6 }}>
                               Что пишут другие
                             </div>
@@ -3682,7 +3683,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   {lastTurn.chance < 1 && (
                     <div><span>Расчёт исполнения: </span><span>
                       {lastTurn.success === false ? "Неблагоприятный исход" : "Благоприятный исход"}
-                      <span style={{ display:"block", fontSize:11, fontWeight:400, letterSpacing:0, textTransform:"none", lineHeight:1.3, marginTop:4 }}>вероятность успеха была {Math.round(lastTurn.chance * 100)}%</span>
+                      <span style={{ display:"block", fontSize:13, fontWeight:400, letterSpacing:0, textTransform:"none", lineHeight:1.3, marginTop:4 }}>вероятность успеха была {Math.round(lastTurn.chance * 100)}%</span>
                     </span></div>
                   )}
                 </div>
