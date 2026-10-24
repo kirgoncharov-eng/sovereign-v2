@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ALTERNATE_RANDOM_EVENTS } from '../content/alternate-history.ts';
-import { classicApi } from './classic.ts';
+import { classicApi, fill } from './classic.ts';
+import { INSIDER_LINES, MOLE_LINES } from '../content/people.ts';
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
 import { createInitialState, resolveTurn, seededRandom, startEvent } from './engine.ts';
 import { QUARTER_MARK, sourceLabel, splitQuarter } from './turn-report.ts';
@@ -61,5 +62,29 @@ test('1978: эхо прежних решений и выборы — тольк�
 test('архивные кампании не получают разделителя', async () => {
   for (const state of await term('Беларусь', 4, 10)) {
     assert.ok(!state.lastTurn!.narrative.split('\n\n').includes(QUARTER_MARK), `${state.turn}`);
+  }
+});
+
+test('1978: строка тайного союзника или «червоточины» — не следствие резолюции, а жизнь квартала', async () => {
+  for (const [bond, personal, faction, pool] of [['insider', 60, -25, INSIDER_LINES], ['mole', -60, 25, MOLE_LINES]] as const) {
+    const intro = await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', 7);
+    let state = createInitialState(ALTERNATE_COUNTRY, 'debut', 'pragmatist', intro, seededRandom(7));
+    while (state.turn < 2) {
+      state = startEvent(state, await classicApi.event(state));
+      state = resolveTurn(state, state.currentEvent!.choices[0].id, await classicApi.consequence(state, state.currentEvent!.choices[0].id));
+    }
+    // Связь задана состоянием: личное отношение и отношение лагеря, как у bondOf; ход 3 (turn % 3 === 2) — её черёд.
+    const recent = new Set(state.history.slice(-2).flatMap(entry => entry.cast ?? []));
+    const figure = state.keyFigures.find(f => f.name !== state.arc?.target && !recent.has(f.name))!;
+    state = { ...state,
+      keyFigures: state.keyFigures.map(f => (f.id === figure.id ? { ...f, relation: personal } : f)),
+      factions: state.factions.map(f => (f.id === figure.faction ? { ...f, relation: faction } : f)) };
+    state = startEvent(state, await classicApi.event(state));
+    const choice = state.currentEvent!.choices[0].id;
+    const { own, other } = splitQuarter((await classicApi.consequence(state, choice)).narrative);
+    const camp = state.factions.find(f => f.id === figure.faction)!.name;
+    const lines = pool.map(line => fill(line, state, { name: figure.name, camp }));
+    assert.ok(lines.some(line => other.includes(line)), `${bond}: строка связи должна быть в «В том же квартале»`);
+    assert.ok(!lines.some(line => own.includes(line)), `${bond}: строка связи попала в часть о резолюции`);
   }
 });

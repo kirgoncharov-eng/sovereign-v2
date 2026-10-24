@@ -1241,12 +1241,13 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // законы и обещания (#147); первый абзац виден без «Читать полностью». Особые развязки «вопроса о сроках» пишут свой финал.
   const night = !finale && plan.election?.kind === "president" && state.country === ALTERNATE_COUNTRY
     ? termFinale(state, plan.election, reignOf(state).term + 1, { laws: plan.laws, promises: plan.promises }) : null;
-  // Кампания 1978 (#260): сначала сцена и то, что вызвала подпись; реакция задетого человека — тоже её следствие,
-  // кроме ночи выборов, где говорят о результате. Эхо прежних решений, жизнь ведомств, опросы, выборы и предвестия
-  // интриги — под разделителем. Архив и развязки срока — в прежнем порядке.
+  // Кампания 1978 (#260): сначала сцена и то, что вызвала подпись; реакция человека, которого задело решение (moved), —
+  // тоже её следствие. Строка тайного союзника или «червоточины» (bonded) выбирается по прежним отношениям и ходу, а
+  // реплика ночи выборов — по результату: это жизнь квартала, как эхо прежних решений, опросы, выборы и предвестия
+  // интриги, — под разделителем. Архив и развязки срока — в прежнем порядке.
   // Первый ход — без нового блока (AGENTS.md): газета первого решения остаётся прежней.
   const quarter = state.country === ALTERNATE_COUNTRY && state.turn > 0 && !night && !finale;
-  const ownIntercut = quarter && !electionLine ? intercut : null;
+  const ownIntercut = quarter && !closest && !bonded && moved ? intercut : null;
   const other = quarter ? [...after.filter(line => !ownLines.has(line)), electionLine, ownIntercut ? null : intercut, hook].filter(Boolean) : [];
   const parts = night
     ? [night.lead, scene, ...after, ...night.after, intercut, hook]
