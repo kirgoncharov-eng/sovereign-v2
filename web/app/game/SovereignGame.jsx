@@ -1580,8 +1580,9 @@ function SquareView({ gs, scene, sceneKey, partner, art, height = 48, mono = fal
   );
 }
 
-// Что изменилось за ход: три самые заметные перемены, вся ведомость — по нажатию.
-// Строки с отточиями — как вечерний расчёт в Papers, Please.
+// Что изменилось за ход: все перемены опор и самые заметные перемены лагерей, вся ведомость — по нажатию.
+// Строки с отточиями — как вечерний расчёт в Papers, Please. У лагеря одно число со знаком: отношение подписано
+// словами, перемена — стрелкой (#284), чтобы «+25 +4» не читалось как две перемены.
 function Ledger({ rows: all, extra }) {
   const [full, setFull] = useState(false);
   if (!all.length) return null;
@@ -1590,12 +1591,19 @@ function Ledger({ rows: all, extra }) {
     <div style={{ marginTop:16, paddingTop:10, borderTop:`2px solid ${G.txt}` }}>
       <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>ЧТО ИЗМЕНИЛОСЬ</div>
       <div className="sv-ledger">
-        {rows.map(r => (
-          <div key={r.k} style={{ display:"flex", alignItems:"baseline", gap:6, fontFamily:narrow, fontSize:16, lineHeight:1.5 }}>
-            <span style={{ color:r.rel ? G.tx2 : G.txt, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"60%" }}>{r.label}</span>
-            <span style={{ flex:1, borderBottom:`2px dotted ${G.bdr2}`, transform:"translateY(-4px)" }}/>
-            <span style={{ fontWeight:700, color:G.tx2 }}>{r.rel ? signed(r.value) : r.value}</span>
-            <span style={{ fontWeight:700, minWidth:34, textAlign:"right", color:r.delta > 0 ? G.grn : G.red }}>{signed(r.delta)}</span>
+        {rows.map((r, i) => (
+          <div key={r.k} data-ledger-row={r.rel ? "group" : "resource"}
+            style={{ display:"flex", alignItems:"baseline", gap:6, fontFamily:narrow, fontSize:16, lineHeight:1.5,
+              marginTop:r.rel && i > 0 && !rows[i - 1].rel ? 6 : 0 }}>
+            {/* Название лагеря на узком телефоне переносится, а не обрезается многоточием. */}
+            <span style={{ color:r.rel ? G.tx2 : G.txt, minWidth:0, ...(r.rel ? { lineHeight:1.25 } : { whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }) }}>{r.label}</span>
+            <span style={{ flex:1, minWidth:12, borderBottom:`2px dotted ${G.bdr2}`, transform:"translateY(-4px)" }}/>
+            {r.rel
+              ? <span style={{ color:G.tx2, whiteSpace:"nowrap" }}>к вам <b>{r.value < 0 ? `−${-r.value}` : r.value}</b></span>
+              : <span style={{ fontWeight:700, color:G.tx2 }}>{r.value}</span>}
+            <span style={{ fontWeight:700, minWidth:34, textAlign:"right", whiteSpace:"nowrap", color:r.delta > 0 ? G.grn : G.red }}>
+              {r.rel ? `${r.delta > 0 ? "↑" : "↓"}${Math.abs(r.delta)}` : signed(r.delta)}
+            </span>
           </div>
         )).flatMap((row, i) => {
           // Из чего сложилась перемена — если источников больше одного или он не очевиден.
@@ -3708,7 +3716,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     ...(turnDelta ? RES_CONFIG.filter(r => turnDelta[r.key]).map(r => ({ k:r.key, label:SHORT[r.key], value:resources[r.key], delta:turnDelta[r.key], sources:lastTurn.sources?.[r.key]?.map(([label, d]) => [sourceLabel(gs, lastTurn, label), d]) })) : []),
                     ...Object.entries(lastTurn.factionRelChanges||{}).flatMap(([fid, v]) => {
                       const f = factions.find(x => x.id === fid);
-                      return f ? [{ k:fid, label:f.name, value:f.relation, delta:v, rel:true }] : [];
+                      return f && v ? [{ k:fid, label:f.name, value:f.relation, delta:v, rel:true }] : [];
                     }),
                   ]} extra={lastTurn.forecasts?.length > 0 && (
                     <div style={{ marginTop:12 }}>

@@ -5,7 +5,7 @@
 export const CASE_LEAD = { limit: 90, least: 40 };     // дело: завязка до 90 слов, но не меньше 40, если текст длиннее
 export const NEWS_LEAD = { limit: 30, least: 12 };     // газета: первый абзац, второй — только если первый совсем короткий
 export const TAIL_LEAST = 20;                          // хвост короче этого не прячем: «Подробнее» ради одной фразы не нужно
-export const TOP_CHANGES = 3;                          // «Что изменилось»: три самые заметные перемены
+export const TOP_CHANGES = 3;                          // «Что изменилось»: строк в свёрнутой ведомости, если опор мало
 
 export const wordCount = (text: string) => (text.match(/[\p{L}\d]+(?:[-‐][\p{L}\d]+)*/gu) ?? []).length;
 
@@ -50,15 +50,14 @@ export interface LedgerRow {
   rel?: boolean;
 }
 
-// Свёрнутая ведомость: три самых заметных перемены — ресурсы и группы вместе, по величине сдвига.
-// Развёрнутая — всё: сначала ресурсы в обычном порядке, затем группы по величине.
+// #284: свёрнутая ведомость показывает все изменившиеся опоры — это цена подписи — и самые заметные перемены лагерей:
+// столько, чтобы вместе вышло три строки, но хотя бы один лагерь, если они менялись. Развёрнутая — всё:
+// сначала опоры в обычном порядке, затем лагеря по величине сдвига.
 export function ledgerRows<Row extends LedgerRow>(rows: Row[], full: boolean): { shown: Row[]; hidden: number } {
-  const byDelta = (a: Row, b: Row) => Math.abs(b.delta) - Math.abs(a.delta);
   const resources = rows.filter(row => !row.rel);
-  const groups = rows.filter(row => row.rel).sort(byDelta);
+  const groups = rows.filter(row => row.rel).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
   if (full) return { shown: [...resources, ...groups], hidden: 0 };
-  // Ресурс важнее группы при равном сдвиге: от ресурсов зависит, удержится ли власть.
-  const top = [...resources, ...groups].sort(byDelta).slice(0, TOP_CHANGES);
-  const shown = [...resources.filter(row => top.includes(row)), ...groups.filter(row => top.includes(row))];
+  const groupCount = Math.min(groups.length, Math.max(1, TOP_CHANGES - resources.length));
+  const shown = [...resources, ...groups.slice(0, groupCount)];
   return { shown, hidden: rows.length - shown.length };
 }
