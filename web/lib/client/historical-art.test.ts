@@ -239,6 +239,52 @@ test('first crisis and election night resolve authorial outcome scenes', async (
   assert.equal(historicalResultArt(lostState, 'ballot'), HISTORICAL_SCENE_ART.electionDefeat);
 });
 
+test('standards and rail variants show only outcomes confirmed by their own resolution, also after reload', async () => {
+  const base = await fresh();
+  const art = HISTORICAL_OUTCOME_ART;
+  const standards = HISTORICAL_SCENE_ART.standards;
+  const rail = HISTORICAL_SCENE_ART.rail;
+  // Each row lists failure/success for each of the three choices. Neutral photos deliberately make no
+  // claim about a completed order, technical defect or delivery when the scene only confirms negotiations.
+  const outcomes = [
+    { id: 'alt_standards', choices: [
+      [art.standardsDefect, art.standardsTesting], [standards, art.standardsEastern], [standards, art.standardsContest],
+    ] },
+    { id: 'alt_standards_chamber', choices: [
+      [standards, standards], [art.standardsDefect, standards], [standards, standards],
+    ] },
+    { id: 'alt_standards_patriots', choices: [
+      [standards, standards], [standards, standards], [standards, standards],
+    ] },
+    { id: 'alt_rail', choices: [
+      [art.railJam, art.railGrain], [rail, art.railExport], [art.railJam, art.railDispatch],
+    ] },
+    { id: 'alt_rail_blockade', choices: [
+      [rail, art.railGrain], [rail, art.railExport], [rail, rail],
+    ] },
+    { id: 'alt_rail_chamber', choices: [
+      [rail, art.railDispatch], [rail, rail], [rail, rail],
+    ] },
+  ];
+  for (const outcome of outcomes) {
+    const card = ALTERNATE_EVENTS.find(entry => entry.id === outcome.id)!;
+    assert.equal(card.choices.length, outcome.choices.length, outcome.id);
+    for (const [index, choice] of card.choices.entries()) {
+      for (const success of [false, true]) {
+        const state: GameState = { ...base, history: [{ year: 1978, title: card.title, choice: choice.text,
+          headline: '', historianNote: '', success }] };
+        const expected = outcome.choices[index][Number(success)];
+        const context = `${outcome.id}/${index}/${success}: ${success ? choice.scene : choice.fail}`;
+        assert.deepEqual(historicalResultArt(state, 'factory'), expected, context);
+        assert.deepEqual(historicalResultArt(JSON.parse(JSON.stringify(state)), 'factory'), expected, `reload: ${context}`);
+        for (const country of LEGACY_COUNTRIES) {
+          assert.equal(historicalResultArt({ ...state, country }, 'factory'), null, `${country}: ${context}`);
+        }
+      }
+    }
+  }
+});
+
 test('ending dossier resolves dramatic pixel-art scene by outcome', async () => {
   const base = await fresh();
   assert.equal(historicalEndingArt({ ...base, endType: 'reelected' }), HISTORICAL_SCENE_ART.electionNight);
