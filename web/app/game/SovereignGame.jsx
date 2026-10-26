@@ -63,6 +63,8 @@ import Letters from "./Letters.jsx";
 import { replyToLetter } from "@/lib/game/stories.ts";
 import { firstOrderLesson } from "@/lib/client/first-order.ts";
 import ResourceInfo from "./ResourceInfo.jsx";
+import { confirmInitiative, initiativeOptions } from '@/lib/game/initiatives.ts';
+import { initiativeBlockReason } from '@/lib/client/initiative-note.ts';
 import { healthHasContinuation, healthNeedsAttention } from "@/lib/game/health-aftermath.ts";
 import { projectFinished } from "@/lib/game/living-health.ts";
 import { openLivingWorld, interveneWorld } from "@/lib/game/living-world.ts";
@@ -1641,7 +1643,7 @@ const HUD_LABEL = { politicalCapital:"Влияние", economy:"Экономик
 const SHORT = { politicalCapital:"Политкапитал", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимность", personalResource:"Личный ресурс" };
 
 // Постоянная панель статуса. При наведении на вариант показывает итог хода, посчитанный движком.
-function Hud({ gs, preview, onMenu, onHelp, onInfoChange, onSheet, sheetAlerts }) {
+function Hud({ gs, preview, onMenu, onHelp, onInfoChange, onSheet, sheetAlerts, onInitiative, onWorldAction, canAct }) {
   const [info, setInfo] = useState(null);
   // Меню партии (#275): разделы, мандат и выход — вместо кнопки, которая сразу выводила на титул.
   const [menu, setMenu] = useState(false);
@@ -1673,7 +1675,8 @@ function Hud({ gs, preview, onMenu, onHelp, onInfoChange, onSheet, sheetAlerts }
     <header className="sv-hud">
       <div style={{ maxWidth:1080, margin:"0 auto", padding:"8px 14px 6px" }}>
         <div className="sv-hud-row" style={{ position:"relative" }}>
-          {info && <ResourceInfo gs={gs} kind={info} onClose={() => setInfo(null)}/>}
+          {info && <ResourceInfo key={info} gs={gs} kind={info} onClose={() => setInfo(null)}
+            onInitiative={onInitiative} onWorldAction={onWorldAction} canAct={canAct}/>}
           <div className="sv-hud-who" style={{ minWidth:0 }}>
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx2, whiteSpace:"normal", lineHeight:1.15 }}>{countryName(gs.country)} · {termNo ? `срок ${ROMAN[termNo] ?? termNo + 1}` : ci.label.toLowerCase()}<span className="sv-hud-turn"> · {gs.country === ALTERNATE_COUNTRY ? `${gs.year} · ход ${gs.turn + 1}` : `ход ${local}/${TERM}`}</span></div>
             <div style={{ fontFamily:pixel, fontSize:15, color:G.gold, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", textTransform:"uppercase" }}>{gs.leader.name}</div>
@@ -3141,6 +3144,20 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     stampFx();
   };
 
+  const signInitiative = id => {
+    if (inFlight.current || busy || recap) throw new Error('Дождитесь завершения текущего решения');
+    const state = gsRef.current;
+    const option = initiativeOptions(state).find(entry => entry.id === id);
+    if (!option) throw new Error('Это распоряжение больше недоступно');
+    const blocked = initiativeBlockReason(state, option);
+    if (blocked) throw new Error(blocked);
+    const next = confirmInitiative(state, id);
+    prefetch.current = null;
+    setPreview(null);
+    commit(next);
+    stampFx();
+  };
+
   const finishQuarter = () => {
     const choice = quarterResolution(gsRef.current);
     if (choice) { setInboxPage('main'); resolveChoice(choice, gsRef.current.quarterDraft.move); }
@@ -3287,6 +3304,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
       {/* На телефоне площадь не занимает экран, пока на столе дело (#275): её видно в газете итога. */}
       <div className={`sv-window${event ? " is-deciding" : ""}`}><SquareView gs={gs} height={64} describe/></div>
       <Hud gs={gs} onInfoChange={setResourceOpen} preview={busy ? null : preview} onMenu={onMenu} onHelp={() => { setHelp(true); track("help"); }}
+        onInitiative={signInitiative} onWorldAction={incomingAction} canAct={!busy && !recap}
         onSheet={id => { setSideTab(id); if (window.matchMedia?.(PHONE_SHEET).matches) setDossier(true); }} sheetAlerts={alerts}/>
       {help && <HowToPlay gs={gs} onClose={() => setHelp(false)}/>}
       {recap && <Recap gs={gs} onClose={onRecapDone}/>}
