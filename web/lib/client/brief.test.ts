@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CASE_LEAD, NEWS_LEAD, TAIL_LEAST, TOP_CHANGES, ledgerRows, splitLead, withoutHeadline, wordCount } from "./brief.ts";
+import { CASE_LEAD, NEWS_LEAD, TAIL_LEAST, ledgerRows, splitLead, withoutHeadline, wordCount } from "./brief.ts";
 import { classicApi } from "../game/classic.ts";
 import { COUNTRIES } from "../game/data.ts";
 import { createInitialState, resolveTurn, seededRandom, startEvent } from "../game/engine.ts";
@@ -38,20 +38,22 @@ test("газета: первый абзац, остальное — по «Чи�
   assert.equal(rest.length, 2);
 });
 
-test("ведомость: свёрнутой — три самые заметные перемены, развёрнутой — всё", () => {
+test("ведомость: свёрнутой — все опоры и самые заметные лагеря, развёрнутой — всё", () => {
   const rows = [
     { k: "economy", delta: -5 }, { k: "military", delta: 1 }, { k: "internalLegitimacy", delta: -4 }, { k: "personalResource", delta: -4 },
     { k: "business", delta: 8, rel: true }, { k: "west", delta: -6, rel: true },
   ];
   const short = ledgerRows(rows, false);
-  assert.deepEqual(short.shown.map(row => row.k), ["economy", "business", "west"], "ресурсы идут первыми, группы — за ними");
-  assert.equal(short.hidden, rows.length - TOP_CHANGES);
+  assert.deepEqual(short.shown.map(row => row.k), ["economy", "military", "internalLegitimacy", "personalResource", "business"],
+    "все изменившиеся опоры видны — это цена подписи; лагерь хотя бы один");
+  assert.equal(short.hidden, 1);
   const full = ledgerRows(rows, true);
   assert.equal(full.shown.length, rows.length);
   assert.equal(full.hidden, 0);
-  const equal = [{ k: "west", delta: 4, rel: true }, { k: "economy", delta: -4 }, { k: "military", delta: 4 }, { k: "church", delta: 4, rel: true }];
-  const tie = ledgerRows(equal, false);
-  assert.deepEqual(tie.shown.map(row => row.k), ["economy", "military", "west"], "при равном сдвиге ресурс важнее группы");
+  const few = [{ k: "west", delta: 2, rel: true }, { k: "economy", delta: -4 }, { k: "church", delta: 7, rel: true }, { k: "army", delta: -1, rel: true }];
+  assert.deepEqual(ledgerRows(few, false).shown.map(row => row.k), ["economy", "church", "west"], "мало опор — лагеря добирают до трёх строк");
+  const groupsOnly = [{ k: "west", delta: 2, rel: true }];
+  assert.deepEqual(ledgerRows(groupsOnly, false), { shown: groupsOnly, hidden: 0 });
 });
 
 // Критерий #97: завязка дела не длиннее ~90 слов во всех странах, а газета до «Читать полностью» — ~45.
