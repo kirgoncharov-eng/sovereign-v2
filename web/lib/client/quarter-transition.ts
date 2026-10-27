@@ -6,7 +6,7 @@ import type { SquareState } from './square.ts';
 import { factoryOutcome, type FactoryOutcome } from './factory-scene.ts';
 
 export interface QuarterTransition {
-  kind: 'country' | 'hospital' | 'factory';
+  kind: 'hospital' | 'factory';
   factory?: FactoryOutcome;
   duration: number;
   from: string;
@@ -32,13 +32,13 @@ export function quarterTransition(before: GameState, after: GameState): QuarterT
     title: factory.headline, detail: factory.detail,
     before: beforeScene, after: afterScene, staffing: 0,
   };
+  // #288: сцена без новых данных — лишняя пауза перед газетой; после подписи сразу итог хода.
+  if (!hospital) return null;
   return {
-    kind: hospital ? 'hospital' : 'country', duration: hospital ? 1600 : 1000,
+    kind: 'hospital', duration: 1600,
     from: monthYear(date(before.turn)), to: monthYear(date(after.turn)),
-    title: hospital ? 'Квартал в районных больницах' : 'Страна проживает квартал',
-    detail: hospital
-      ? `Укомплектованность ставок: ${previous!.progress}% → ${health!.progress}%. Причины — в докладе.`
-      : 'Ваше решение принято. Вечерняя газета сообщит, что произошло за это время.',
-    before: beforeScene, after: afterScene, staffing: hospital ? health!.progress : 0,
+    title: 'Квартал в районных больницах',
+    detail: `Укомплектованность ставок: ${previous!.progress}% → ${health!.progress}%. Причины — в докладе.`,
+    before: beforeScene, after: afterScene, staffing: health!.progress,
   };
 }
