@@ -428,6 +428,21 @@ button:focus-visible {
 .sv-ledger { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; }
 @media (max-width: 620px) { .sv-ledger { grid-template-columns: minmax(0, 1fr); } }
 
+/* На широком столе обычное дело и резолюция лежат рядом. Специальные сцены сохраняют свой порядок. */
+@media (min-width: 1100px) {
+  .sv-game-grid.is-inbox:has(.sv-main #sv-resolution) { max-width: 1280px !important; }
+  .sv-game-grid.is-inbox .sv-main div:has(> .sv-paper > h2):has(> .sv-paper + .sv-paper > #sv-resolution):not(:has(> :not(.sv-paper):not(.sv-quarter-prepare))) {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 0 14px;
+    align-items: start;
+    > * { grid-column: 1 / -1; min-width: 0; }
+    > .sv-paper:has(> h2) { grid-column: 1; grid-row: 1 / span 2; }
+    > .sv-paper:has(> #sv-resolution) { grid-column: 2; grid-row: 1; }
+    > .sv-quarter-prepare { grid-column: 2; grid-row: 2; }
+  }
+}
+
 /* Нижняя панель действий и досье: только на телефоне */
 .sv-actionbar { display: none; }
 @media (max-width: 760px) {
