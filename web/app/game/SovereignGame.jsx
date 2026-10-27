@@ -1593,8 +1593,12 @@ function Ledger({ rows: all, extra }) {
     <div style={{ marginTop:16, paddingTop:10, borderTop:`2px solid ${G.txt}` }}>
       <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:6 }}>ЧТО ИЗМЕНИЛОСЬ</div>
       <div className="sv-ledger">
-        {rows.map((r, i) => (
-          <div key={r.k} data-ledger-row={r.rel ? "group" : "resource"}
+        {rows.map((r, i) => {
+          // Из чего сложилась перемена — если источников больше одного или он не очевиден.
+          const src = r.sources?.filter(([, d]) => Math.round(d)).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+          const showSources = src?.length && !(src.length === 1 && ["решение", "ваша резолюция"].includes(src[0][0]));
+          return <div key={r.k}>
+          <div data-ledger-row={r.rel ? "group" : "resource"}
             style={{ display:"flex", alignItems:"baseline", gap:6, fontFamily:narrow, fontSize:16, lineHeight:1.5,
               marginTop:r.rel && i > 0 && !rows[i - 1].rel ? 6 : 0 }}>
             {/* Название лагеря на узком телефоне переносится, а не обрезается многоточием. */}
@@ -1607,15 +1611,12 @@ function Ledger({ rows: all, extra }) {
               {r.rel ? `${r.delta > 0 ? "↑" : "↓"}${Math.abs(r.delta)}` : signed(r.delta)}
             </span>
           </div>
-        )).flatMap((row, i) => {
-          // Из чего сложилась перемена — если источников больше одного или он не очевиден.
-          const src = rows[i].sources?.filter(([, d]) => Math.round(d)).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
-          if (!src?.length || (src.length === 1 && ["решение", "ваша резолюция"].includes(src[0][0]))) return [row];
-          return [row, (
-            <div key={`${rows[i].k}-src`} style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.35, margin:"-2px 0 4px 10px" }}>
+          {showSources && (
+            <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.35, margin:"-2px 0 4px 10px" }}>
               {src.slice(0, full ? 4 : 2).map(([label, d]) => `${label} ${signed(Math.round(d))}`).join(" · ")}{src.length > (full ? 4 : 2) ? " · …" : ""}
             </div>
-          )];
+          )}
+          </div>;
         })}
       </div>
       {full && extra}
