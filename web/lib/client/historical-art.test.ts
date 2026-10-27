@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, statSync } from 'node:fs';
 import { HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, historicalEventArt, historicalResultArt,
   historicalPortraitArt, HISTORICAL_OUTCOME_ART, HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART,
-  HISTORICAL_LEADER_ART, LEADER_PORTRAIT_IDS, historicalEndingArt, HISTORICAL_SECRETARY_ART } from './historical-art.ts';
+  HISTORICAL_LEADER_ART, LEADER_PORTRAIT_IDS, historicalEndingArt, HISTORICAL_SECRETARY_ART, documentIllustration } from './historical-art.ts';
 import { MANAGEMENT_DOSSIERS } from '../content/management.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { sceneOf } from '../content/scene-map.ts';
@@ -354,3 +354,15 @@ test('secretary portrait resolves by current secretary name in Neman 1978 and st
   }
 });
 
+
+test('#291: в 1978 году дело и газета показывают только нарисованную иллюстрацию, архив не меняется', () => {
+  const budget = documentIllustration(ALTERNATE_COUNTRY, 'cabinet', null);
+  assert.deepEqual(budget, { show: false, art: null });
+  assert.equal(documentIllustration(ALTERNATE_COUNTRY, 'square', null, { photo: true }).show, false);
+  assert.deepEqual(documentIllustration(ALTERNATE_COUNTRY, 'press', HISTORICAL_SCENE_ART.press),
+    { show: true, art: HISTORICAL_SCENE_ART.press });
+  const archive = LEGACY_COUNTRIES[0];
+  assert.equal(documentIllustration(archive, 'cabinet', null).show, true);
+  assert.equal(documentIllustration(archive, 'square', null).show, false);
+  assert.equal(documentIllustration(archive, 'square', null, { photo: true }).show, true);
+});

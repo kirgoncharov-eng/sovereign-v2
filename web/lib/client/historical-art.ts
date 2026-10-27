@@ -98,6 +98,13 @@ const TITLE_ART: Record<string, HistoricalArt> = Object.fromEntries([
   ['Мосты после паводка', HISTORICAL_SCENE_ART.bridge],
 ]);
 
+// Иллюстрация в деле или газете. В 1978 году — только нарисованная: процедурная сцена по типу места
+// спорила с текстом (бюджет в библиотеке показывался «заседанием кабинета»). Архивные страны не меняются.
+export function documentIllustration(country: string, scene: SceneKey, art: HistoricalArt | null, { photo = false } = {}) {
+  if (country === ALTERNATE_COUNTRY) return { show: !!art, art };
+  return { show: photo || scene !== 'square', art };
+}
+
 export function historicalEventArt(country: string, event: GameEvent, scene: SceneKey): HistoricalArt | null {
   if (country !== ALTERNATE_COUNTRY) return null;
   if (event.beat?.arcId === 'alt_contracts') return HISTORICAL_SCENE_ART.archive;

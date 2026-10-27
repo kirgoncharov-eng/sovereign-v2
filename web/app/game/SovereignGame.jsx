@@ -75,7 +75,7 @@ import { CASE_LEAD, NEWS_LEAD, ledgerRows, splitLead, withoutHeadline } from "@/
 import { QUARTER_MARK, sourceLabel, splitQuarter } from "@/lib/game/turn-report.ts";
 import { quarterTransition } from "@/lib/client/quarter-transition.ts";
 import { drawScene } from "@/lib/client/scenes.ts";
-import { artSource, historicalEventArt, historicalResultArt, historicalPortraitArt, historicalEndingArt, HISTORICAL_SCENE_ART } from "@/lib/client/historical-art.ts";
+import { artSource, documentIllustration, historicalEventArt, historicalResultArt, historicalPortraitArt, historicalEndingArt, HISTORICAL_SCENE_ART } from "@/lib/client/historical-art.ts";
 import dossierStyles from "./archive-dossier.module.css";
 import styles from "./presidential.module.css";
 const HistoricalArtContext = createContext(null);
@@ -3231,6 +3231,9 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
   const orderLesson = firstOrderLesson(gs);
   const agendaFinished = gs.world && projectFinished(gs.world.project) && (!gs.world.health || projectFinished(gs.world.health) && !healthHasContinuation(gs.world.health));
   const { resources, prevResources, factions, turn, activeCrises, currentEvent: event, lastTurn } = gs;
+  // #291: в деле и газете — только нарисованная иллюстрация; процедурная заглушка спорила с текстом.
+  const caseArt = event ? documentIllustration(gs.country, sceneOf(event), historicalEventArt(gs.country, event, sceneOf(event))) : null;
+  const paperArt = lastTurn ? documentIllustration(gs.country, lastTurn.scene, historicalResultArt(gs, lastTurn.scene), { photo: true }) : null;
   // Видна ли резолюция на экране — для запуска таймера срочных дел.
   // Проверяем при прокрутке: резолюция уже на экране или проскроллена выше.
   useEffect(() => {
@@ -3476,13 +3479,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </div>
                 )}
                 <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
-                {isFactoryOpening(gs) ? <FactoryLive/> : sceneOf(event) !== "square" && (
+                {isFactoryOpening(gs) ? <FactoryLive/> : caseArt.show && (
                   <figure className={`sv-scene${inboxMode && !event.call && !event.press ? ' sv-case-attachment' : ''}`}
                     style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
-                    <SquareView gs={gs} art={historicalEventArt(gs.country, event, sceneOf(event))} sceneKey={sceneOf(event)}
+                    <SquareView gs={gs} art={caseArt.art} sceneKey={sceneOf(event)}
                       partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60} still/>
                     {inboxMode && !event.call && !event.press && <figcaption>
-                      Приложение к делу · {historicalEventArt(gs.country, event, sceneOf(event))?.caption ?? SCENE_CAPTION[sceneOf(event)]}
+                      Приложение к делу · {caseArt.art?.caption ?? SCENE_CAPTION[sceneOf(event)]}
                     </figcaption>}
                   </figure>
                 )}
@@ -3611,13 +3614,13 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 </div>
                 <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>
                 <h2 id="sv-turn-result" className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.1, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}><PeopleText>{lastTurn.headline}</PeopleText></h2>
-                <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
-                  <SquareView gs={gs} art={historicalResultArt(gs, lastTurn.scene)}
+                {paperArt.show && <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
+                  <SquareView gs={gs} art={paperArt.art}
                     sceneKey={lastTurn.scene} height={36} mono still/>
                   <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>
-                    {historicalResultArt(gs, lastTurn.scene)?.caption ?? SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции
+                    {paperArt.art?.caption ?? SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции
                   </figcaption>
-                </figure>
+                </figure>}
                 {(() => {
                   // #260: первый абзац — всегда о резолюции; эхо прежних решений и прочее в квартале — отдельным блоком.
                   const quarter = splitQuarter(withoutHeadline(lastTurn.narrative, lastTurn.headline));
