@@ -1596,7 +1596,7 @@ function Ledger({ rows: all, extra }) {
         {rows.map((r, i) => {
           // Из чего сложилась перемена — если источников больше одного или он не очевиден.
           const src = r.sources?.filter(([, d]) => Math.round(d)).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
-          const showSources = src?.length && !(src.length === 1 && ["решение", "ваша резолюция"].includes(src[0][0]));
+          const showSources = Boolean(src?.length) && !(src.length === 1 && ["решение", "ваша резолюция"].includes(src[0][0]));
           return <div key={r.k}>
           <div data-ledger-row={r.rel ? "group" : "resource"}
             style={{ display:"flex", alignItems:"baseline", gap:6, fontFamily:narrow, fontSize:16, lineHeight:1.5,
