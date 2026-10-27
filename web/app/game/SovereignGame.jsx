@@ -3632,20 +3632,38 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                           {lead.map((p, i) => <p key={i} style={{ marginBottom:i < lead.length - 1 ? 12 : 0 }}><PeopleText>{p}</PeopleText></p>)}
                         </div>
                       : <Typewriter key={`t${turn}`} text={lead.join("\n\n")} onDone={() => setTypedTurn(turn)}/>}
-                    {typed && (rest.length > 0 || reactions.length > 0 || press.length > 0 || quarter.other.length > 0 || historian) && (
+                    {/* #288: реакции людей и отклики прежних решений — ядро газеты, их видно без раскрытия. */}
+                    {typed && (
+                      <>
+                        {reactions.length > 0 && <div data-reactions style={{ marginBottom:12, borderBottom:`1px solid ${G.bdr}` }}>
+                          {reactions.map((r, i) => {
+                            const who = speakerOf(gs, r);
+                            return (
+                              <div key={i} style={{ display:"flex", gap:12, alignItems:"center", padding:"9px 0", borderTop:`1px solid ${G.bdr}` }}>
+                                {who && <Portrait name={who.name} size={36}/>}
+                                <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic" }}><PeopleText>{r}</PeopleText></div>
+                              </div>
+                            );
+                          })}
+                        </div>}
+                        {quarter.other.length > 0 && (
+                          <div data-quarter style={{ marginTop:12, marginBottom:12, paddingTop:10, borderTop:`2px solid ${G.txt}` }}>
+                            <div style={{ fontFamily:narrow, fontWeight:700, fontSize:12, letterSpacing:".1em", textTransform:"uppercase",
+                              color:G.tx3, marginBottom:6 }}>
+                              {QUARTER_MARK}
+                            </div>
+                            {quarter.other.map((p, i) => (
+                              <p key={i} style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:12 }}><PeopleText>{p}</PeopleText></p>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {typed && (rest.length > 0 || press.length > 0 || historian) && (
                       <More key={`news${turn}`} label="Читать полностью">
                         {rest.map((p, i) => (
                           <p key={i} style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:12 }}><PeopleText>{p}</PeopleText></p>
                         ))}
-                        {reactions.map((r, i) => {
-                          const who = speakerOf(gs, r);
-                          return (
-                            <div key={i} style={{ display:"flex", gap:12, alignItems:"center", padding:"9px 0", borderTop:`1px solid ${G.bdr}` }}>
-                              {who && <Portrait name={who.name} size={36}/>}
-                              <div style={{ fontFamily:serif, fontSize:15, color:G.tx2, fontStyle:"italic" }}><PeopleText>{r}</PeopleText></div>
-                            </div>
-                          );
-                        })}
                         {press.length > 0 && (
                           <div style={{ margin:"10px 0 4px", padding:"10px 12px", border:`1px solid ${G.bdr2}`, background:G.bg2 }}>
                             <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".1em", textTransform:"uppercase",
@@ -3659,17 +3677,6 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                                   <PeopleText>{p.headline}</PeopleText>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                        {quarter.other.length > 0 && (
-                          <div data-quarter style={{ marginTop:12, paddingTop:10, borderTop:`2px solid ${G.txt}` }}>
-                            <div style={{ fontFamily:narrow, fontWeight:700, fontSize:12, letterSpacing:".1em", textTransform:"uppercase",
-                              color:G.tx3, marginBottom:6 }}>
-                              {QUARTER_MARK}
-                            </div>
-                            {quarter.other.map((p, i) => (
-                              <p key={i} style={{ fontFamily:serif, fontSize:16, lineHeight:1.8, color:G.txt, marginBottom:12 }}><PeopleText>{p}</PeopleText></p>
                             ))}
                           </div>
                         )}

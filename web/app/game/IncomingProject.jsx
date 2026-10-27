@@ -10,7 +10,7 @@ import ProjectActions from './ProjectActions.jsx';
 import { PeopleText } from './PeopleText.jsx';
 import { LetterText } from './LetterText.jsx';
 
-export default function IncomingProject({ gs, projectId, onAction, Scene }) {
+export default function IncomingProject({ gs, projectId, onAction }) {
   const [pendingId, setPendingId] = useState(null);
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState(null);
@@ -56,11 +56,6 @@ export default function IncomingProject({ gs, projectId, onAction, Scene }) {
       {project.secured ? ' · резерв обеспечен' : ''}</p>}
     {health && project.followupTurn != null && !continuation && <p>Обязательства программы сохраняются.
       Следующий доклад через {Math.max(0, project.followupTurn - gs.turn)} кв.</p>}
-    <details className="sv-incoming-attachment"><summary>Приложение · вид с места</summary>
-      <Scene gs={gs} sceneKey={health ? 'hospital' : project.status === 'completed' ? 'factory' : 'energy'}
-        partner={`${projectId}:${project.progress}`} height={60} still/>
-      <p>Иллюстрация места работ · {health ? 'районная больница' : 'промышленный район'}</p>
-    </details>
     {continuation && <section className="sv-incoming-continuation" data-health-aftermath>
       <h3>{AFTERMATH_TITLE[continuation.branch]}</h3><p><PeopleText>{continuation.cause}</PeopleText></p>
       <p>{continuation.phase === 'open' ? `Требуется ответ. До срока ${Math.max(0, continuation.deadline - gs.turn)} кв.`
