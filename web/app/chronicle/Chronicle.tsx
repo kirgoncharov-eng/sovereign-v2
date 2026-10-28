@@ -10,6 +10,7 @@ import {
 import { EMPTY_PERSONAL, type PersonalMemory } from "@/lib/client/chronicle-personal.ts";
 import { contemporaries, type Rival } from "@/lib/client/chronicle-rivals.ts";
 import { MONTHS } from "@/lib/game/calendar.ts";
+import { CHRONICLE_SAVE_KEY, encodeChronicle, parseChronicle } from "@/lib/client/chronicle-save.ts";
 import type { Approach } from "@/lib/content/calls.ts";
 import type { DifficultyId, GameState, ResourceKey } from "@/lib/game/types.ts";
 import styles from "./chronicle.module.css";
@@ -56,15 +57,47 @@ export default function Chronicle() {
   const [page, setPage] = useState<Memoir | null>(null);
   const [rivals, setRivals] = useState<Rival[] | null>(null);
   const [over, setOver] = useState(false);
+  const [visibleResources, setVisibleResources] = useState<GameState["resources"] | null>(null);
+  const [ready, setReady] = useState(false);
+  const [storageAvailable, setStorageAvailable] = useState(true);
+  const [saveBlocked, setSaveBlocked] = useState(false);
   const memory = useRef<PersonalMemory>(EMPTY_PERSONAL);
+  const pendingResources = useRef<GameState["resources"] | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const caseRef = useRef<HTMLElement>(null);
   const following = useRef(true);
 
   // Старт: биография и взгляды выпадают по зерну; первое дело готовится, пока идут строки начала.
   useEffect(() => {
-    const begin = readStart();
     (async () => {
+      const params = new URLSearchParams(window.location.search);
+      let restored = null;
+      try {
+        const raw = localStorage.getItem(CHRONICLE_SAVE_KEY);
+        restored = parseChronicle(raw);
+        if (raw && !restored) { setSaveBlocked(true); setStorageAvailable(false); }
+      } catch { setStorageAvailable(false); }
+      const requestedSeed = params.get("seed");
+      const requestedDiff = params.get("diff");
+      if (restored && (!requestedSeed || Number(requestedSeed) === restored.start.seed)
+        && (!requestedDiff || requestedDiff === restored.start.diff)) {
+        setStart(restored.start);
+        setGame(restored.game);
+        setShown(restored.shown);
+        setQueue(restored.queue);
+        setStep(restored.step);
+        setPicks(restored.picks);
+        setVisibleResources(restored.visibleResources);
+        pendingResources.current = restored.game.resources;
+        setPage(restored.page);
+        setRivals(restored.rivals);
+        setOver(restored.over);
+        memory.current = restored.memory;
+        setSpeed(readSpeed());
+        setReady(true);
+        return;
+      }
+      const begin = readStart();
       const state = await newTerm(begin);
       const pace = readSpeed();
       setStart(begin);
@@ -72,9 +105,26 @@ export default function Chronicle() {
       if (pace === "all") setShown(openingLines(state)); else setQueue(openingLines(state));
       const withCase = await nextCase(state);
       setGame(withCase);
+      setVisibleResources(withCase.resources);
+      pendingResources.current = withCase.resources;
       setStep(firstStep(withCase));
+      setReady(true);
     })();
   }, []);
+
+  useEffect(() => {
+    if (!ready || busy || saveBlocked || !start || !game || !visibleResources) return;
+    let cancelled = false;
+    const data = encodeChronicle({
+      start, game, shown, queue, step, picks, memory: memory.current, visibleResources, page, rivals, over,
+    });
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      try { localStorage.setItem(CHRONICLE_SAVE_KEY, data); setStorageAvailable(true); }
+      catch { setStorageAvailable(false); }
+    });
+    return () => { cancelled = true; };
+  }, [ready, busy, saveBlocked, start, game, shown, queue, step, picks, visibleResources, page, rivals, over]);
 
   useEffect(() => {
     const onVisibility = () => setHidden(document.hidden);
@@ -93,6 +143,7 @@ export default function Chronicle() {
 
   const revealNext = useCallback(() => {
     if (!queue.length) return;
+    if (queue[0].kind === "ledger" && pendingResources.current) setVisibleResources(pendingResources.current);
     setShown(lines => [...lines, queue[0]]);
     setQueue(queue.slice(1));
   }, [queue]);
@@ -115,6 +166,7 @@ export default function Chronicle() {
     setSpeed(next);
     setPaused(false);
     if (next === "all" && queue.length) {
+      if (queue.some(line => line.kind === "ledger") && pendingResources.current) setVisibleResources(pendingResources.current);
       setShown(lines => [...lines, ...queue]);
       setQueue([]);
     }
@@ -123,9 +175,13 @@ export default function Chronicle() {
 
   // Подпись: хроника квартала встаёт в очередь, следующее дело готовится сразу, а показывается, когда строки дочитаны.
   const settle = async (before: GameState, after: GameState) => {
+    pendingResources.current = after.resources;
     const quarter = quarterLines(before, after, memory.current);
     memory.current = quarter.memory;
-    if (speed === "all") setShown(lines => [...lines, ...quarter.lines]);
+    if (speed === "all") {
+      setVisibleResources(after.resources);
+      setShown(lines => [...lines, ...quarter.lines]);
+    }
     else setQueue(rest => [...rest, ...quarter.lines]);
     setPicks([]);
     following.current = true;
@@ -185,8 +241,8 @@ export default function Chronicle() {
             <button aria-pressed={paused} aria-label={paused ? "Продолжить" : "Пауза"} onClick={() => setPaused(p => !p)}>{paused ? "▶" : "❚❚"}</button>
           </div>
         </div>
-        {game && <div className={styles.hud} aria-label="Опоры власти">
-          {HUD.map(h => <span key={h.key}><small>{h.label}</small>{game.resources[h.key]}</span>)}
+        {visibleResources && <div className={styles.hud} aria-label="Опоры власти">
+          {HUD.map(h => <span key={h.key}><small>{h.label}</small>{visibleResources[h.key]}</span>)}
         </div>}
       </header>
 
@@ -194,6 +250,7 @@ export default function Chronicle() {
         <div className={styles.masthead}>
           <h1>Хроника срока</h1>
           <p>Неманская республика · {start ? `зерно ${start.seed}` : ""}</p>
+          {!storageAvailable && <p>Сохранение недоступно или повреждено: после закрытия страницы срок начнётся заново.</p>}
         </div>
         {shown.map((line, i) => {
           const previous = shown[i - 1];
@@ -242,8 +299,9 @@ export default function Chronicle() {
             </div>
           ))}
           <div className={styles.again}>
-            <a href={`?diff=${start?.diff ?? "debut"}`}>Прожить другой срок</a>
-            <a href={`?seed=${start?.seed}&diff=${start?.diff ?? "debut"}`}>Тот же январь, другие решения</a>
+            <a href={`?diff=${start?.diff ?? "debut"}`} onClick={() => { try { localStorage.removeItem(CHRONICLE_SAVE_KEY); } catch {} }}>Прожить другой срок</a>
+            <a href={`?seed=${start?.seed}&diff=${start?.diff ?? "debut"}`}
+              onClick={() => { try { localStorage.removeItem(CHRONICLE_SAVE_KEY); } catch {} }}>Тот же январь, другие решения</a>
           </div>
         </section>}
         <div ref={bottom} />
