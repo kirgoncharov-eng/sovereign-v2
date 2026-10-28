@@ -214,27 +214,34 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
   return MODE_ART[scene] ?? (scene === 'archive' ? HISTORICAL_SCENE_ART.archive : null);
 }
 
+export const HISTORICAL_ENDING_ART = {
+  coup: { src: '/art/gemini-next/ending-coup.webp', caption: 'Военный переворот: бронетехника оцепила Дом правительства' },
+  revolution: { src: '/art/gemini-next/ending-revolution.webp', caption: 'Народная революция: толпа прорвала оцепление у резиденции' },
+  collapse: { src: '/art/gemini-next/ending-collapse.webp', caption: 'Крах государства: подписание отставки в тёмном кабинете' },
+  impeachment: { src: '/art/gemini-next/ending-impeachment.webp', caption: 'Импичмент: опустевшее кресло президента в зале парламента' },
+  triumph: { src: '/art/gemini-next/ending-triumph.webp', caption: 'Утро триумфа: победа на выборах и начало второго срока' },
+  defeat: HISTORICAL_SCENE_ART.electionDefeat,
+} as const;
+
 export function historicalEndingArt(state: GameState): HistoricalArt | null {
   if (state.country !== ALTERNATE_COUNTRY) return null;
-  if (state.endType === 'revolution') {
-    return { src: HISTORICAL_SCENE_ART.protest.src, caption: 'Народные волнения на улицах столицы' };
+  if (state.endType === 'coup') return HISTORICAL_ENDING_ART.coup;
+  if (state.endType === 'revolution') return HISTORICAL_ENDING_ART.revolution;
+  if (state.endType === 'collapse' || state.endType === 'died' || state.endType === 'betrayed') {
+    return HISTORICAL_ENDING_ART.collapse;
   }
-  if (state.endType === 'mandate' || state.endType === 'impeachment') {
-    return HISTORICAL_SCENE_ART.electionDefeat;
-  }
+  if (state.endType === 'impeachment') return HISTORICAL_ENDING_ART.impeachment;
   if (state.endType === 'reelected' || state.endType === 'zeroed' || state.endType === 'premier') {
-    return HISTORICAL_SCENE_ART.electionNight;
+    return HISTORICAL_ENDING_ART.triumph;
   }
-  if (state.endType === 'died') {
-    return null;
-  }
+  if (state.endType === 'mandate') return HISTORICAL_ENDING_ART.defeat;
   if (state.endType === 'emergency_rule' || state.endType === 'dictator') {
     return { src: HISTORICAL_SCENE_ART.electionNight.src, caption: 'Огни столицы за окном кабинета правителя' };
   }
   if (isSurvival(state.endType)) {
-    return HISTORICAL_SCENE_ART.electionNight;
+    return HISTORICAL_ENDING_ART.triumph;
   }
-  return HISTORICAL_SCENE_ART.electionDefeat;
+  return HISTORICAL_ENDING_ART.defeat;
 }
 
 export const HISTORICAL_FIGURE_ART: Record<string, { src: string; female: boolean }> = Object.fromEntries(

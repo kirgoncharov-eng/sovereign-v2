@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { existsSync, statSync } from 'node:fs';
 import { HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, historicalEventArt, historicalResultArt,
   historicalPortraitArt, HISTORICAL_OUTCOME_ART, HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART,
-  HISTORICAL_LEADER_ART, LEADER_PORTRAIT_IDS, historicalEndingArt, HISTORICAL_SECRETARY_ART } from './historical-art.ts';
+  HISTORICAL_LEADER_ART, LEADER_PORTRAIT_IDS, historicalEndingArt, HISTORICAL_SECRETARY_ART,
+  HISTORICAL_ENDING_ART } from './historical-art.ts';
 import { MANAGEMENT_DOSSIERS } from '../content/management.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { sceneOf } from '../content/scene-map.ts';
@@ -22,9 +23,9 @@ async function fresh() {
 test('all mapped WebP files exist within the image budgets', () => {
   const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
     HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART,
-    HISTORICAL_SECRETARY_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 71);
-  assert.equal(new Set(paths).size, 70); // wages and wagesGate share wages-gate.webp
+    HISTORICAL_SECRETARY_ART, HISTORICAL_ENDING_ART].flatMap(group => Object.values(group).map(art => art.src));
+  assert.equal(paths.length, 77);
+  assert.equal(new Set(paths).size, 75); // wages and wagesGate share wages-gate.webp; defeat and electionDefeat share election-defeat.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
@@ -35,7 +36,7 @@ test('all mapped WebP files exist within the image budgets', () => {
       assert.ok(statSync(file).size <= (isPortrait ? 10_000 : 100_000), src);
     }
   }
-  assert.ok(bytes < 2_800_000);
+  assert.ok(bytes < 3_200_000);
 });
 
 test('hospital photos distinguish failed repair, ongoing works and a finished roof after reload', async () => {
@@ -287,20 +288,18 @@ test('standards and rail variants show only outcomes confirmed by their own reso
 
 test('ending dossier resolves dramatic pixel-art scene by outcome', async () => {
   const base = await fresh();
-  assert.equal(historicalEndingArt({ ...base, endType: 'reelected' }), HISTORICAL_SCENE_ART.electionNight);
-  assert.equal(historicalEndingArt({ ...base, endType: 'retired' }), HISTORICAL_SCENE_ART.electionNight);
-  assert.equal(historicalEndingArt({ ...base, endType: 'mandate' }), HISTORICAL_SCENE_ART.electionDefeat);
-  assert.equal(historicalEndingArt({ ...base, endType: 'coup' }), HISTORICAL_SCENE_ART.electionDefeat);
-  assert.equal(historicalEndingArt({ ...base, endType: 'collapse' }), HISTORICAL_SCENE_ART.electionDefeat);
-  assert.equal(historicalEndingArt({ ...base, endType: 'died' }), null);
+  assert.equal(historicalEndingArt({ ...base, endType: 'reelected' }), HISTORICAL_ENDING_ART.triumph);
+  assert.equal(historicalEndingArt({ ...base, endType: 'retired' }), HISTORICAL_ENDING_ART.triumph);
+  assert.equal(historicalEndingArt({ ...base, endType: 'mandate' }), HISTORICAL_ENDING_ART.defeat);
+  assert.equal(historicalEndingArt({ ...base, endType: 'coup' }), HISTORICAL_ENDING_ART.coup);
+  assert.equal(historicalEndingArt({ ...base, endType: 'collapse' }), HISTORICAL_ENDING_ART.collapse);
+  assert.equal(historicalEndingArt({ ...base, endType: 'died' }), HISTORICAL_ENDING_ART.collapse);
+  assert.equal(historicalEndingArt({ ...base, endType: 'impeachment' }), HISTORICAL_ENDING_ART.impeachment);
   assert.deepEqual(historicalEndingArt({ ...base, endType: 'dictator' }), {
     src: HISTORICAL_SCENE_ART.electionNight.src,
     caption: 'Огни столицы за окном кабинета правителя',
   });
-  assert.deepEqual(historicalEndingArt({ ...base, endType: 'revolution' }), {
-    src: HISTORICAL_SCENE_ART.protest.src,
-    caption: 'Народные волнения на улицах столицы',
-  });
+  assert.equal(historicalEndingArt({ ...base, endType: 'revolution' }), HISTORICAL_ENDING_ART.revolution);
   for (const country of LEGACY_COUNTRIES) {
     assert.equal(historicalEndingArt({ ...base, country, endType: 'reelected' }), null);
   }
