@@ -20,7 +20,6 @@
 .sv-incoming-project .sv-incoming-status,.sv-incoming-project .sv-incoming-sender {font:15px/1.5 var(--font-narrow);color:var(--tx3);}
 .sv-incoming-project details {padding:12px 0;border-top:1px solid var(--bdr);margin:12px 0;}
 .sv-incoming-project summary {font:16px var(--font-narrow);}
-.sv-incoming-attachment {padding:10px;border:1px solid var(--bdr);}
 .sv-incoming-continuation {border-left:3px solid var(--red);padding-left:16px;}
 .sv-quarter-close {padding:18px 20px;border-top:2px solid var(--bdr2);margin-top:16px;display:flex;align-items:center;
   justify-content:space-between;gap:14px;flex-wrap:wrap;background:var(--bg2);}

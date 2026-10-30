@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from 'react';
 import { drawQuarter } from '@/lib/client/quarter-pixels.ts';
+import { tgButtons } from '@/lib/client/telegram.ts';
 
 export default function QuarterTransition({ scene, onDone }) {
   const canvas = useRef(null), skip = useRef(null);
@@ -22,11 +23,11 @@ export default function QuarterTransition({ scene, onDone }) {
       <h2>{scene.title}</h2>
       <canvas ref={canvas} width={240} height={92} className="sv-px" role="img"
         aria-label={scene.kind === 'factory' ? `Распоряжение доставлено на завод. ${scene.title}`
-          : scene.kind === 'hospital' ? 'Посыльный покидает резиденцию. У районной больницы продолжается работа.'
-            : 'Посыльный с документами пересекает площадь. Наступает новый квартал.'}/>
+          : 'Посыльный покидает резиденцию. У районной больницы продолжается работа.'}/>
       <p>{scene.detail}</p>
       <div className="sv-quarter-time" aria-hidden="true"><span style={{animationDuration:`${scene.duration}ms`}}/></div>
-      <button ref={skip} onClick={onDone}>К итогам решения →</button>
+      {/* В Telegram та же кнопка уже стоит внизу экрана — вторая на карточке её дублировала (#288). */}
+      {!tgButtons() && <button ref={skip} onClick={onDone}>К итогам решения →</button>}
     </div>
   </section>;
 }

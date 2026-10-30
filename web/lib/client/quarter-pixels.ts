@@ -2,15 +2,14 @@ import { drawScene } from './scenes.ts';
 import { drawSquare } from './square.ts';
 import type { QuarterTransition } from './quarter-transition.ts';
 
-// Посыльный пересекает площадь; затем камера показывает жизнь у больницы или новый сезон.
+// Посыльный пересекает площадь; затем камера показывает жизнь у больницы или на заводе.
 export function drawQuarter(ctx: CanvasRenderingContext2D, width: number, height: number, scene: QuarterTransition, elapsed: number) {
   const progress = Math.max(0, Math.min(1, elapsed / scene.duration));
   const frame = Math.floor(elapsed / 120);
   const delivery = progress < .36;
   if (delivery) drawSquare(ctx, width, height, scene.before, frame);
   else if (scene.kind === 'factory') drawScene(ctx, width, height, 'factory', scene.after, frame);
-  else if (scene.kind === 'hospital') drawScene(ctx, width, height, 'hospital', scene.after, frame, `clinic:${scene.staffing}`);
-  else drawSquare(ctx, width, height, scene.after, frame);
+  else drawScene(ctx, width, height, 'hospital', scene.after, frame, `clinic:${scene.staffing}`);
   const px = (x: number, y: number, w: number, h: number, color: string) => {
     ctx.fillStyle = color; ctx.fillRect(Math.round(x), Math.round(y), w, h);
   };

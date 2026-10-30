@@ -68,7 +68,7 @@ export function IncomingLetter({ gs, page, onAction, onOpen, Scene }) {
   </article>;
   if (message.action === 'secretary') return <SecretaryLetter gs={gs} onAction={onAction}/>;
   if (message.action === 'energy' || message.action === 'health') return <IncomingProject key={message.action}
-    gs={gs} projectId={message.action} onAction={onAction} Scene={Scene}/>;
+    gs={gs} projectId={message.action} onAction={onAction}/>;
   const props = { gs, onAction, Scene, onClose:() => onOpen('secretary') };
   return <article className="sv-paper sv-incoming-project" data-incoming-letter={message.key}>
     <header><small>{personProfiles(gs).find(person => person.id === message.person)?.name ?? 'Канцелярия'}</small>
