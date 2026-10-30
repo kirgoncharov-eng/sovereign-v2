@@ -81,7 +81,7 @@ import { artSource, historicalEventArt, historicalResultArt, historicalPortraitA
 import dossierStyles from "./archive-dossier.module.css";
 import styles from "./presidential.module.css";
 const HistoricalArtContext = createContext(null);
-function HistoricalArtProvider({ state, children }) {
+export function HistoricalArtProvider({ state, children }) {
   const runKey = state?.country === ALTERNATE_COUNTRY ? `sovereign.art-roster.${state.seed}` : null;
   const [bound, setBound] = useState(null);
   const rosterText = JSON.stringify([
@@ -175,7 +175,7 @@ function photoCanvas(name) {
   photoCache.set(name, c);
   return c;
 }
-function Portrait({ name, size = 44, style }) {
+export function Portrait({ name, size = 44, style }) {
   const { state, roster } = useContext(HistoricalArtContext) ?? {};
   const src = roster ? historicalPortraitArt(state, name, roster) : null;
   const [failed, setFailed] = useState(null);
@@ -224,7 +224,7 @@ function IconDelta({ k, value, exact = true }) {
     </span>
   );
 }
-function ResourceChips({ delta, exact = true }) {
+export function ResourceChips({ delta, exact = true }) {
   const items = RES_CONFIG.filter(r => delta?.[r.key]);
   if (!items.length) return null;
   return (
@@ -1538,7 +1538,7 @@ function rubricOf(t) {
   return RUBRICS[tag] || "Политика";
 }
 
-function SquareView({ gs, scene, sceneKey, partner, art, height = 48, mono = false, still = false, describe = false, style }) {
+export function SquareView({ gs, scene, sceneKey, partner, art, height = 48, mono = false, still = false, describe = false, style }) {
   const wrap = useRef(null), ref = useRef(null);
   const [w, setW] = useState(0);
   const [failed, setFailed] = useState(null);
