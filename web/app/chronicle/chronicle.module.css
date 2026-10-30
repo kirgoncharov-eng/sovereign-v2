@@ -1,0 +1,86 @@
+/* «Хроника срока» (#298): тёмный стол, один бумажный лист на весь срок. У каждого вида строки свой голос. */
+.desk { min-height: 100vh; background: var(--bg-deep); color: #2f2a22; padding: 0 0 72px; }
+.desk button { cursor: pointer; font: inherit; color: inherit; }
+.desk button:focus-visible, .desk a:focus-visible { outline: 3px solid #b08a4a; outline-offset: 2px; }
+
+.bar { position: sticky; top: 0; z-index: 5; background: #1c1a17f2; border-bottom: 2px solid #000;
+  color: var(--txt); padding: 8px 16px 6px; backdrop-filter: blur(2px); }
+.barTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; max-width: 680px; margin: 0 auto; }
+.now { font: 18px var(--font-pixel); color: var(--gold); text-transform: lowercase; white-space: nowrap; }
+.speeds { display: flex; gap: 4px; }
+.speeds button { background: transparent; border: 1px solid var(--bdr2); padding: 4px 8px; min-height: 32px;
+  font: 15px var(--font-narrow); color: var(--tx2); }
+.speeds button[aria-pressed="true"] { background: var(--gold); color: var(--on-gold); border-color: var(--gold); }
+.hud { display: flex; justify-content: space-between; gap: 6px; max-width: 680px; margin: 6px auto 0;
+  font: 16px var(--font-pixel); color: var(--txt); }
+.hud span { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.hud small { font: 11px var(--font-narrow); color: var(--tx3); letter-spacing: .04em; text-transform: uppercase; }
+
+.paper { max-width: 680px; margin: 18px auto 0; background: #dfd5b6; border: 2px solid #8d8166;
+  box-shadow: 5px 5px 0 #0f0e0b; padding: clamp(20px, 5vw, 38px) clamp(18px, 5vw, 40px) 40px; min-height: 70vh; }
+@media (max-width: 712px) { .paper { margin: 12px 16px 0; } }
+
+.masthead { border-bottom: 3px double #6f6550; margin-bottom: 22px; padding-bottom: 12px; text-align: center; }
+.masthead h1 { font: 700 clamp(32px, 8vw, 46px)/1 var(--font-narrow); letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+.masthead p { font: 15px var(--font-narrow); color: #6a604c; margin: 6px 0 0; letter-spacing: .06em; }
+
+.entry { animation: appear .6s ease both; }
+@keyframes appear { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .entry { animation: none; } }
+
+.date { display: block; font: 700 14px var(--font-narrow); letter-spacing: .1em; text-transform: uppercase;
+  color: #7a6f57; margin: 22px 0 6px; }
+
+.opening, .scene { font: 17px/1.75 var(--font-serif); margin: 0 0 14px; }
+.opening:first-of-type { font-size: 19px; }
+.speech { margin: 8px 0 18px; padding: 0 0 0 16px; border-left: 3px solid #6f6550;
+  font: italic 18px/1.7 var(--font-serif); }
+.speech cite { display: block; font: normal 14px var(--font-narrow); color: #6a604c; margin-top: 6px; letter-spacing: .04em; }
+
+.signed { margin: 20px 0 8px; padding-top: 10px; border-top: 1px solid #b3a685;
+  font: 26px/1.25 var(--font-hand); color: #23356e; }
+.signed small { display: block; font: 700 12px var(--font-narrow); letter-spacing: .14em; text-transform: uppercase; color: #8b3a2b; }
+
+.voice { margin: 0 0 14px; padding-left: 14px; border-left: 3px solid #5b6a52; font: italic 16px/1.65 var(--font-serif); color: #3c372c; }
+.paperLine { margin: 6px 0 12px; font: 700 22px/1.2 var(--font-narrow); }
+.paperLine small, .press small, .letter small, .echo small, .question small, .caseHead {
+  display: block; font: 700 12px var(--font-narrow); letter-spacing: .14em; text-transform: uppercase; color: #7a6f57; margin-bottom: 3px; }
+.press { margin: 0 0 10px; font: 16px/1.4 var(--font-serif); }
+.press small { display: inline; letter-spacing: .06em; text-transform: none; font-size: 14px; }
+.letter { margin: 6px 0 16px; padding: 10px 12px; background: #e9e0c4; border: 1px solid #b3a685; font: 16px/1.6 var(--font-serif); }
+.echo { margin: 6px 0 14px; padding-left: 14px; border-left: 3px solid #a07a2c; font: 16px/1.65 var(--font-serif); }
+.echo small { color: #8a6417; }
+.personal { margin: 18px 6% 18px; font: italic 16px/1.7 var(--font-serif); color: #4f483a; text-align: center; }
+.personal::before, .personal::after { content: "—"; color: #9a8e72; margin: 0 8px; font-style: normal; }
+.fall { margin: 18px 0 10px; padding: 14px 14px; background: #2f2a22; color: #eee5ca; font: 17px/1.7 var(--font-serif); }
+.ledger strong { display: block; color: #a02f24; font-weight: 700; }
+.ledger { margin: 4px 0 6px; font: 15px var(--font-narrow); color: #6a604c; letter-spacing: .02em; }
+
+.more { text-align: center; font: 18px var(--font-narrow); color: #7a6f57; margin: 14px 0; letter-spacing: .3em; }
+
+.case { scroll-margin-top: 104px; margin: 26px -6px 6px; padding: 18px 16px 16px; background: #ebe3c9; border: 2px solid #2f2a22; box-shadow: 4px 4px 0 #2f2a22;
+  animation: appear .6s ease both; }
+.case h2, .memoir h2 { font: 700 clamp(26px, 6vw, 32px)/1.15 var(--font-serif); margin: 6px 0 12px; }
+.case p { font: 16px/1.7 var(--font-serif); margin: 0 0 12px; }
+.question { padding: 10px 12px; background: #dcd1b0; border-left: 3px solid #2f2a22; font-style: italic; }
+.question small { font-style: normal; }
+.options { display: grid; gap: 8px; margin-top: 14px; }
+.options button { text-align: left; background: #f3ecd6; border: 2px solid #2f2a22; padding: 11px 12px; min-height: 48px; }
+.options button:hover:not(:disabled) { background: #fff8e2; }
+.options button:disabled { opacity: .55; cursor: default; }
+.options strong { display: block; font: 700 17px/1.35 var(--font-serif); }
+.options span { display: block; font: 15px/1.45 var(--font-narrow); color: #5e5446; margin-top: 4px; }
+
+.memoir { margin-top: 30px; padding-top: 18px; border-top: 3px double #6f6550; }
+.memoir p { font: 16px/1.7 var(--font-serif); margin: 0 0 12px; }
+.outcome { font: 700 20px var(--font-narrow) !important; letter-spacing: .04em; color: #8b3a2b; }
+.epitaph { font: italic 20px/1.6 var(--font-serif) !important; text-align: center; padding: 10px 6%; color: #3c372c; }
+.memoir h3 { font: 700 22px var(--font-narrow); letter-spacing: .06em; text-transform: uppercase; margin: 26px 0 4px; }
+.note { color: #5e5446; font-style: italic; }
+.rival { padding: 10px 0; border-top: 1px dashed #a89b7c; display: grid; gap: 2px; }
+.rival strong { font: 700 17px var(--font-serif); }
+.rival span { font: 15px/1.45 var(--font-narrow); color: #4f483a; }
+.again { display: grid; gap: 8px; margin-top: 22px; }
+.again a { display: block; text-align: center; padding: 13px; border: 2px solid #2f2a22; background: #2f2a22; color: #eee5ca;
+  font: 700 18px var(--font-narrow); text-decoration: none; letter-spacing: .04em; }
+.again a + a { background: transparent; color: #2f2a22; }
