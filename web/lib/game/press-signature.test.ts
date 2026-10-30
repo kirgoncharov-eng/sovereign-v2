@@ -25,7 +25,7 @@ test("вопрос о подписи строится из истории пар
   const question = signatureQuestion(state)!;
   const camp = state.factions.find(group => group.id === "gossektor")!;
   assert.equal(question.id, "sign_gossektor");
-  assert.ok(question.text.includes("Закупочная цена") && question.text.includes("Повысить цену и защитить дешёвый хлеб субсидией"), question.text);
+  assert.ok(question.text.startsWith("Вы распорядились повысить цену и защитить дешёвый хлеб субсидией."), question.text);
   assert.ok(question.text.includes(camp.name), question.text);
   assert.equal(question.answers.length, 3);
   assert.equal(new Set(question.answers.map(a => a.tone)).size, 3);
@@ -52,7 +52,7 @@ test("накопленное недовольство меняет цену: ч�
   const base = await newGame();
   const once = signatureQuestion(at(base, [entry()]))!;
   const often = signatureQuestion(at(base, [entry(), entry({ title: "Опись" }), entry({ title: "Нефтебаза" })]))!;
-  assert.ok(once.text.includes("С тех пор") && often.text.includes("Это уже 3-е решение"), often.text);
+  assert.ok(once.text.includes("ударом по своим людям") && often.text.includes("считает это уже третьим ударом по своим людям"), often.text);
   const [concedeOnce, standOnce] = once.answers, [concedeOften, standOften] = often.answers;
   const bloc = base.factions.find(group => group.id === "gossektor")!.bloc;
   assert.ok((standOften.rel[bloc] ?? 0) < (standOnce.rel[bloc] ?? 0));
@@ -92,7 +92,7 @@ test("ответы доходят до итога хода: цена из отв
     return pressChoice(state, picks);
   };
   assert.ok(Object.keys(answer(0).deal!.factionRel!).includes("gossektor"), "лагерь получает отношение за ответ");
-  assert.ok(answer(2).scene!.includes("выставили виноватыми"));
+  assert.ok(answer(2).scene!.includes("виноватыми выставили"));
   assert.ok((answer(0).deal!.res!.politicalCapital ?? 0) < (answer(1).deal!.res!.politicalCapital ?? 0));
 });
 
@@ -115,8 +115,21 @@ test("текст вопроса о подписи на настоящих пар
       }
       assert.ok(!/«[^»]*«/.test(question.text), question.text);
       assert.ok(!/\.\.|[.!?]“\./.test(question.text), question.text);
-      assert.ok(/вы подписали решение: „[^“]{8,}“/.test(question.text), question.text);
+      assert.ok(/^Вы распорядились [а-яё]/.test(question.text), question.text);
     }
   }
   assert.ok(checked >= 4, `вопрос должен находиться в живых партиях, найдено ${checked}`);
+});
+
+test("журналист говорит по-человечески: число лагеря, счёт решений и запасная цитата", async () => {
+  const base = await newGame();
+  const plural = { ...at(base, [entry(), entry({ title: "Второе" })]), factions: base.factions.map(group =>
+    group.id === "gossektor" ? { ...group, name: "Областные советы", relation: -25 } : group) };
+  assert.ok(signatureQuestion(plural)!.text.includes("Областные советы считают это уже вторым ударом"), signatureQuestion(plural)!.text);
+  const five = at(base, Array.from({ length: 5 }, (_, i) => entry({ title: `Дело ${i}` })));
+  assert.ok(signatureQuestion(five)!.text.includes("считает это уже пятым ударом"), signatureQuestion(five)!.text);
+  const quoted = signatureQuestion(at(base, [entry({ choice: "Срочная проверка складов" })]))!;
+  assert.ok(quoted.text.startsWith("Вы подписали: „Срочная проверка складов“."), quoted.text);
+  const many = at(base, Array.from({ length: 12 }, (_, i) => entry({ title: `Дело ${i}` })));
+  assert.ok(signatureQuestion(many)!.text.includes("уже очередным ударом"), signatureQuestion(many)!.text);
 });
