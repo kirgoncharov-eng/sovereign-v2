@@ -6,10 +6,18 @@
 .bar { position: sticky; top: 0; z-index: 5; background: #1c1a17f2; border-bottom: 2px solid #000;
   color: var(--txt); padding: 8px 16px 6px; backdrop-filter: blur(2px); }
 .barTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; max-width: 680px; margin: 0 auto; }
-.now { font: 18px var(--font-pixel); color: var(--gold); text-transform: lowercase; white-space: nowrap; }
-.speeds { display: flex; gap: 4px; }
+.now { font: 18px var(--font-pixel); color: var(--gold); text-transform: lowercase; white-space: nowrap;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.speeds { display: flex; gap: 4px; flex-shrink: 0; }
 .speeds button { background: transparent; border: 1px solid var(--bdr2); padding: 4px 8px; min-height: 32px;
   font: 15px var(--font-narrow); color: var(--tx2); }
+/* Телефон: дата и четыре кнопки темпа помещаются в 358 px без выхода за экран и при «сентябрь 1979». */
+@media (max-width: 420px) {
+  .barTop { gap: 6px; }
+  .now { font-size: 15px; }
+  .speeds { gap: 3px; }
+  .speeds button { padding: 4px 6px; font-size: 14px; }
+}
 .speeds button[aria-pressed="true"] { background: var(--gold); color: var(--on-gold); border-color: var(--gold); }
 .hud { display: flex; justify-content: space-between; gap: 6px; max-width: 680px; margin: 6px auto 0;
   font: 16px var(--font-pixel); color: var(--txt); }
@@ -58,7 +66,7 @@
 
 .more { text-align: center; font: 18px var(--font-narrow); color: #7a6f57; margin: 14px 0; letter-spacing: .3em; }
 
-.case { scroll-margin-top: 104px; margin: 26px -6px 6px; padding: 18px 16px 16px; background: #ebe3c9; border: 2px solid #2f2a22; box-shadow: 4px 4px 0 #2f2a22;
+.case { scroll-margin-top: calc(var(--chronicle-bar, 128px) + 10px); margin: 26px -6px 6px; padding: 18px 16px 16px; background: #ebe3c9; border: 2px solid #2f2a22; box-shadow: 4px 4px 0 #2f2a22;
   animation: appear .6s ease both; }
 .case h2, .memoir h2 { font: 700 clamp(26px, 6vw, 32px)/1.15 var(--font-serif); margin: 6px 0 12px; }
 .case p { font: 16px/1.7 var(--font-serif); margin: 0 0 12px; }

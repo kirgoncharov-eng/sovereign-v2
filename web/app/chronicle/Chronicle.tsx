@@ -93,6 +93,7 @@ export default function Chronicle() {
   const pendingResources = useRef<GameState["resources"] | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const caseRef = useRef<HTMLElement>(null);
+  const bar = useRef<HTMLElement>(null);
   const following = useRef(true);
   const speedRef = useRef<Speed>("calm");
   useEffect(() => { speedRef.current = speed; }, [speed]);
@@ -196,12 +197,36 @@ export default function Chronicle() {
   }, [queue, paused, hidden, speed, revealNext]);
 
   const deciding = !queue.length && !busy && !over && !!(step || stop || form);
-  // Новое дело или обращение показываем с заголовка; строки хроники — следуя за последней.
+  // Что сейчас ждёт ответа: новое дело, обращение, письмо внутри него или шаг анкеты.
+  const decision = !deciding ? null : form ? `form:${form.field}` : stop ? `stop:${stop.key}:${stop.token}:${view ?? ""}`
+    : step ? `case:${game?.turn}:${picks.length}` : null;
+  const shownDecision = useRef<string | null>(null);
+  // Новое дело или обращение всегда открываем с заголовка, даже если прежнее дочитывали вниз;
+  // строки хроники — следуя за последней, только если игрок сам не прокрутил ленту назад.
   useEffect(() => {
-    if (!following.current) return;
-    if (deciding) caseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    else bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [shown.length, deciding, page, rivals, stop, view]);
+    if (decision && decision !== shownDecision.current) {
+      shownDecision.current = decision;
+      caseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Шапка могла вырасти во время прокрутки (появилась «Ждут ответа»): заголовок не должен остаться под ней.
+      const settle = setTimeout(() => {
+        const top = caseRef.current?.getBoundingClientRect().top, under = bar.current?.getBoundingClientRect().bottom;
+        if (top !== undefined && under !== undefined && top < under) caseRef.current?.scrollIntoView({ block: "start" });
+      }, 700);
+      return () => clearTimeout(settle);
+    }
+    if (!following.current || deciding) return;
+    bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [shown.length, deciding, decision, page, rivals]);
+
+  // Высота шапки меняется с кнопкой «Ждут ответа» и раскрытым списком: по ней дело встаёт под шапку, а не за неё.
+  useEffect(() => {
+    const element = bar.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() =>
+      document.documentElement.style.setProperty("--chronicle-bar", `${Math.ceil(element.getBoundingClientRect().height)}px`));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   const chooseSpeed = (next: Speed) => {
     setSpeed(next);
@@ -350,7 +375,7 @@ export default function Chronicle() {
     <HistoricalArtProvider state={game}>
     <PeopleProvider gs={game} Portrait={Portrait}>
     <main className={styles.desk}>
-      <header className={styles.bar}>
+      <header ref={bar} className={styles.bar}>
         <div className={styles.barTop}>
           <span className={styles.now}>{current ? `${MONTHS[current.month]} ${current.year}` : "1978"}</span>
           <div className={styles.speeds} role="group" aria-label="Темп хроники">
