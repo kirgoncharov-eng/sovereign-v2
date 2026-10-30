@@ -56,7 +56,8 @@ export function pledgeQuestion(state: GameState): PressQuestion | null {
   if (!item) return null;
   const { def, broken, proved, promise } = item;
   const bloc = def.bloc;
-  const quoted = `На митинге вы пообещали: «${def.pitch}»`;
+  // Цитата внутри реплики журналиста — в «лапках»: «…„…“…».
+  const quoted = `На митинге вы пообещали: „${def.pitch.replace(/\.$/, "")}“.`;
   const text = broken
     ? `${quoted} Это обещание нарушено. Что вы скажете тем, кому оно давалось?`
     : `${quoted} Сейчас: ${item.status}. Обещание ещё в силе?`;
@@ -72,7 +73,7 @@ export function pledgeQuestion(state: GameState): PressQuestion | null {
     ? { tone: "hard", text: "«Вот что уже сделано. Протоколы открыты, проверяйте каждое решение»",
         res: { politicalCapital: 2, internalLegitimacy: 1 }, rel: { [bloc]: 2 },
         stake: "Есть что предъявить: выигрываете в политкапитале и у тех, кому обещано." }
-    : { tone: "hard", text: "«Работа идёт. Протоколы открыты, проверяйте каждое решение»",
+    : { tone: "hard", text: broken ? "«Часть работы сделана. Протоколы открыты, проверяйте каждое решение»" : "«Работа идёт. Протоколы открыты, проверяйте каждое решение»",
         res: { internalLegitimacy: -2 }, rel: { [bloc]: -2 },
         stake: "Показывать почти нечего: журналист сверит слова с протоколами, и расхождение заметят.",
         after: "Журналист открывает протоколы: решений, о которых говорит президент, в них нет. Слова расходятся с бумагой." };

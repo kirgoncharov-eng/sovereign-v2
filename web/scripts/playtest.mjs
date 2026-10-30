@@ -23,6 +23,7 @@ const FIRST_DECISION_LIMIT_MS = 15_000;
 
 mkdirSync(OUT, { recursive: true });
 const shot = name => join(OUT, `${name}.png`);
+const pressQuestions = [];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 async function openGame(page) {
@@ -62,7 +63,13 @@ async function decide(page, kind) {
   if (kind === "call") { await opt(1).tap(); await wait(300); return opt(1).tap(); }
   if (kind === "press") {
     await opt(1).tap();
-    for (let i = 0; i < 3; i++) { await wait(400); await opt(1 + (i % 3)).tap(); }
+    for (let i = 0; i < 3; i++) {
+      await wait(400);
+      // Кадр и текст каждого вопроса: читаемость и время на ответ проверяют по ним глазами.
+      pressQuestions.push(await page.evaluate(() => document.querySelector("#sv-resolution")?.parentElement?.innerText ?? ""));
+      await page.screenshot({ path: shot(`press-${pressQuestions.length}`) });
+      await opt(1 + (i % 3)).tap();
+    }
     return opt(1).tap();
   }
   if (kind === "inspect" && await page.locator(".sv-docline").count() > 1) await page.locator(".sv-docline").nth(1).tap();
@@ -76,7 +83,7 @@ async function decide(page, kind) {
   return opt(1).tap();
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const page = await browser.newPage({ viewport: { width: 400, height: 860 }, hasTouch: true, isMobile: true });
 const errors = [];
 const layoutProblems = new Set();
@@ -170,7 +177,7 @@ const problems = [
   ...(!firstCaseMatchesPrologue ? ["дата пролога не совпадает с датой первого дела"] : []),
   ...(firstDecisionMs !== null && firstDecisionMs > FIRST_DECISION_LIMIT_MS ? [`первое решение через ${Math.round(firstDecisionMs / 1000)} с`] : []),
 ];
-const summary = { turns: timeline.length, ended, firstDecisionMs, deskOnTurn1, documentMode, problems, timeline };
+const summary = { pressQuestions, turns: timeline.length, ended, firstDecisionMs, deskOnTurn1, documentMode, problems, timeline };
 writeFileSync(join(OUT, "summary.json"), JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));
 process.exit(problems.length ? 1 : 0);
