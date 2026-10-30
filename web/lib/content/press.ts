@@ -3,8 +3,16 @@
 // Ответы — прямая речь президента; эффекты небольшие, но складываются за три вопроса.
 import type { PressQuestion } from "../game/types.ts";
 
-export type PressWhen = "always" | "crisis" | "lowEcon" | "lowLegit" | "elect" | "pact" | "highMil" | "highRating" | "lowRep" | "betrayal" | "arc";
+export type PressWhen = "always" | "crisis" | "lowEcon" | "lowLegit" | "elect" | "pact" | "highMil" | "highRating" | "pledge" | "lowRep" | "betrayal" | "arc";
 export const PRESS_QUESTIONS: (PressQuestion & { when: PressWhen })[] = [
+  // Текст и ответы подменяет pledgeQuestion по обещанию из партии; здесь — только место в пуле.
+  { id: "pledge", when: "pledge", who: "Корреспондентка независимого издания", topic: "данном слове",
+    text: "Вы обещали больше, чем сделали. Обещание ещё в силе?",
+    answers: [
+      { tone: "honest", text: "«Пока сделано меньше, чем нужно. Спрашивайте с меня к сроку»", res: {}, rel: {} },
+      { tone: "hard", text: "«Протоколы открыты, проверяйте»", res: {}, rel: {} },
+      { tone: "evasive", text: "«Условия изменились»", res: {}, rel: {} },
+    ] },
   { id: "promises", when: "always", who: "Корреспондент оппозиционного канала", topic: "невыполненных обещаниях",
     text: "Ваши оппоненты говорят, что вы обещали больше, чем сделали. Что вы им ответите?",
     answers: [

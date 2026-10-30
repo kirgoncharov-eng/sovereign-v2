@@ -889,7 +889,7 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
       <Card style={{ padding:"18px 0 14px" }}>
         <div id="sv-resolution" style={{ padding:"0 22px", display:"flex", justifyContent:"space-between", gap:10 }}>
           <Label>{done ? "Пресс-конференция окончена" : live ? `Вопрос ${step + 1} из ${press.questions.length}` : "Пресс-конференция"}</Label>
-          {!done && <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{PRESS_SECONDS} СЕК НА ОТВЕТ</span>}
+          {!done && <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{live && q ? (q.seconds ?? PRESS_SECONDS) : PRESS_SECONDS} СЕК НА ОТВЕТ</span>}
         </div>
         {!live && (
           <div style={{ padding:"0 22px" }}>
@@ -907,7 +907,7 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
         {live && !done && (
           <div key={step} className="sv-fade">
             <div style={{ height:6, margin:"0 22px 14px", background:G.bdr }}>
-              <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${PRESS_SECONDS}s` }} onAnimationEnd={() => answer(-1)}/>
+              <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${q.seconds ?? PRESS_SECONDS}s` }} onAnimationEnd={() => answer(-1)}/>
             </div>
             <div style={{ display:"flex", gap:12, padding:"0 22px 12px" }}>
               <Portrait name={q.who} size={44}/>
@@ -922,8 +922,12 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
                 <span style={{ position:"absolute", left:20, top:12, fontFamily:serif, fontWeight:700, fontSize:17, color:G.tx3 }}>{i + 1}.</span>
                 <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.4, marginBottom:4 }}>{a.text}</div>
                 <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-                  <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
-                  <ResourceChips delta={a.res} exact={false}/>
+                  {a.stake
+                    ? <span style={{ fontFamily:narrow, fontSize:14, color:G.tx2, lineHeight:1.35 }}>{a.stake}</span>
+                    : <>
+                      <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
+                      <ResourceChips delta={a.res} exact={false}/>
+                    </>}
                 </div>
               </button>
             ))}
@@ -954,7 +958,7 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
           {live && !done && <span className="sv-sheet-pulse-dot" aria-hidden="true" />}
           {done ? "Пресс-конференция окончена" : live ? `Вопрос ${step + 1} из ${press.questions.length}` : "Пресс-конференция"}
         </Label>
-        {!done && <span style={{ fontFamily:pixel, fontSize:13, color:live ? G.red : G.tx3 }}>{PRESS_SECONDS} СЕК НА ОТВЕТ</span>}
+        {!done && <span style={{ fontFamily:pixel, fontSize:13, color:live ? G.red : G.tx3 }}>{live && q ? (q.seconds ?? PRESS_SECONDS) : PRESS_SECONDS} СЕК НА ОТВЕТ</span>}
       </div>
 
       <figure className="sv-scene" style={{ margin:"0 22px 14px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)", position:"relative", overflow:"hidden" }}>
@@ -989,7 +993,7 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
       {live && !done && (
         <div key={step} className="sv-fade">
           <div style={{ height:6, margin:"0 22px 14px", background:G.bdr }}>
-            <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${PRESS_SECONDS}s` }} onAnimationEnd={() => answer(-1)}/>
+            <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${q.seconds ?? PRESS_SECONDS}s` }} onAnimationEnd={() => answer(-1)}/>
           </div>
           <div style={{ display:"flex", gap:12, padding:"0 22px 12px" }}>
             <Portrait name={q.who} size={48}/>
@@ -1004,8 +1008,12 @@ function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
               <span style={{ position:"absolute", left:20, top:12, fontFamily:serif, fontWeight:700, fontSize:17, color:G.tx3 }}>{i + 1}.</span>
               <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.4, marginBottom:4 }}>{a.text}</div>
               <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-                <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
-                <ResourceChips delta={a.res} exact={false}/>
+                {a.stake
+                  ? <span style={{ fontFamily:narrow, fontSize:14, color:G.tx2, lineHeight:1.35 }}>{a.stake}</span>
+                  : <>
+                    <span style={{ fontFamily:pixel, fontSize:13, color:G.tx3 }}>{TONE_LABEL[a.tone].toUpperCase()}</span>
+                    <ResourceChips delta={a.res} exact={false}/>
+                  </>}
               </div>
             </button>
           ))}
