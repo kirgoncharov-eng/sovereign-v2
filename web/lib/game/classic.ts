@@ -11,6 +11,7 @@ import { calendarEpisode, calendarSlot } from './political-calendar.ts';
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
 import { promisesBroken, promisesKept } from "./promises.ts";
 import { PLEDGE_QUESTION_ID, askedPledges, pledgeQuestion } from "./press-pledge.ts";
+import { SIGNATURE_QUESTION_ID, askedSignatures, signatureQuestion } from "./press-signature.ts";
 import { ARCS } from "../content/arcs.ts";
 import { EARLY_THREADS } from "../content/early-threads.ts";
 import { COUNCIL_A } from "../content/council-a.ts";
@@ -625,6 +626,7 @@ export function pressEvent(state: GameState): SpecialEvent | null {
   const asked = new Set((state.usedEvents ?? []).filter(u => u.startsWith("prs:")).flatMap(u => u.split(":")[2].split(",")));
   const r = state.resources;
   const pledge = pledgeQuestion(state, askedPledges(asked));
+  const signature = signatureQuestion(state, askedSignatures(asked));
   // После «вопроса о сроках» выборов может и не быть: тогда о них не спрашивают.
   // Пресс-конференция стоит перед выборами — если они будут: в середине срока парламентские, в конце — главные.
   const ahead = turn - localTurn(turn) + (k === 0 ? 10 : TERM);
@@ -632,20 +634,25 @@ export function pressEvent(state: GameState): SpecialEvent | null {
   const fits: Record<PressWhen, boolean> = {
     always: true, crisis: state.activeCrises.length > 0, lowEcon: r.economy < 40, lowLegit: r.internalLegitimacy < 40,
     elect: !noVote, pact: (state.pacts ?? []).length > 0, highMil: r.military > 60,
-    highRating: computePolls(state.country, state.factions, r).leader >= 45, pledge: !!pledge, lowRep: r.externalReputation < 40,
+    highRating: computePolls(state.country, state.factions, r).leader >= 45, pledge: !!pledge, signature: !!signature, lowRep: r.externalReputation < 40,
     betrayal: (state.betrayals ?? 0) > 0, arc: !!state.arc && !state.arc.epilogue && state.arc.done.length >= 2,
   };
   const order = (q: { id: string }) => hashSeed(state.seed, "press", turn, q.id);
   const pool = PRESS_QUESTIONS.filter(q => fits[q.when] && !asked.has(q.id));
   // Один вопрос — про то, что происходит в стране сейчас; два других — из всего, что подходит.
-  // Вопрос об обещании идёт первым, когда есть что спрашивать: он про конкретное слово, а не про настроение.
-  const topical = pool.filter(q => q.when !== "always").sort((a, b) => (a.when === "pledge" ? -1 : b.when === "pledge" ? 1 : order(a) - order(b)));
-  const rest = pool.filter(q => q !== topical[0]).sort((a, b) => order(a) - order(b));
-  const picked = [...topical.slice(0, 1), ...rest].slice(0, 3);
+  // Вопросы о собственных делах (обещание, подпись) идут первыми, когда есть что спрашивать: они про конкретное
+  // слово и решение, а не про настроение. Без них — один вопрос о том, что происходит в стране сейчас.
+  const personal = (q: { when: PressWhen }) => q.when === "pledge" || q.when === "signature";
+  const lead = pool.filter(personal).sort((a, b) => (a.when === "pledge" ? -1 : b.when === "pledge" ? 1 : 0));
+  const topical = pool.filter(q => q.when !== "always" && !personal(q)).sort((a, b) => order(a) - order(b));
+  const first = lead.length ? lead : topical.slice(0, 1);
+  const rest = pool.filter(q => !first.includes(q)).sort((a, b) => order(a) - order(b));
+  const picked = [...first, ...rest].slice(0, 3);
   if (picked.length < 3) return null;
   const pactName = state.factions.find(f => f.id === state.pacts?.[0]?.faction)?.name ?? "";
   const questions = picked.map(q => {
     if (q.id === PLEDGE_QUESTION_ID) return pledge!;
+    if (q.id === SIGNATURE_QUESTION_ID) return signature!;
     const pensionRepealed = [...state.history].reverse().find(h => h.law?.id === 'pension_reform' && h.law.passed)?.law?.act === 'repeal' && !state.laws?.some(l => l.id === 'pension_reform');
     const transition = state.laws?.find(l => l.id === 'pension_reform')?.transition;
     const enactedPension = q.id === 'pension' && state.laws?.some(l => l.id === 'pension_reform');

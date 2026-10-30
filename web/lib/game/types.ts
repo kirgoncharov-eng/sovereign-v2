@@ -200,7 +200,7 @@ export interface GameEvent {
   choices: Choice[];
   council?: Choice[] | null; // предложения советников, если совет собирали
   card?: string;        // авторская карточка, из которой собрано событие
-  special?: { kind: "overture" | "insider" | "mole" | "pact" | "inspect" | "press" | "call" | "budget" | "terms"; figure: string | null; faction: string } | null; // особое дело
+  special?: { kind: SpecialKind; figure: string | null; faction: string } | null; // особое дело
   doc?: { facts: string[]; lines: string[]; author: string; key: number | null } | null;  // проверка документа: справка и строки доклада
   press?: { outlet: string; questions: PressQuestion[] } | null;       // пресс-конференция
   call?: {
@@ -306,6 +306,8 @@ export interface Pending {
   story?: string;       // авторская сцена, когда последствие сработает
 }
 
+export type SpecialKind = "overture" | "insider" | "mole" | "pact" | "inspect" | "press" | "call" | "budget" | "terms";
+
 export interface HistoryEntry {
   law?: TurnReport["law"];
   year: number;
@@ -318,6 +320,7 @@ export interface HistoryEntry {
   heard?: string[];       // уже прозвучавшие реплики и заголовки
   cast?: string[];        // кто появлялся в главе
   hurt?: string[];        // лагеря, которых решение заметно задело (#221)
+  special?: SpecialKind;  // вид особого дела, если глава была им (партия 1978 года, #142)
 }
 
 export interface GameStats {
