@@ -22,7 +22,7 @@ test("вопрос об обещании строится из обещания 
   assert.equal(new Set(question.answers.map(a => a.tone)).size, 3);
   assert.ok(question.answers.every(a => a.stake), "цена названа словами");
   const event = pressEvent(state)!;
-  assert.equal(event.press!.questions[0].id, PLEDGE_QUESTION_ID);
+  assert.equal(event.press!.questions[0].id, `${PLEDGE_QUESTION_ID}_dialogue`);
   assert.equal(event.press!.questions[0].seconds, 30);
 });
 
@@ -67,4 +67,20 @@ test("публичный отказ закрывает обещание как �
   assert.equal(after(2).status, "broken");
   const choice = pressChoice(state, [2, -1, -1]);
   assert.ok(choice.scene!.includes("дословную фразу"), "реакция лагеря в тексте хода");
+});
+
+test("вторая конференция спрашивает о другом обещании и не повторяет первое", async () => {
+  const promises: PromiseState[] = [OPEN, { id: "no_batons", progress: 0, status: "broken", turn: 4 }];
+  const base = at(await newGame(), PRESS_TURNS[0], promises);
+  const first = pressEvent(base)!;
+  const firstId = first.press!.questions.find(q => q.id.startsWith("pledge_"))!.id;
+  assert.equal(firstId, "pledge_no_batons", "нарушенное — первым");
+  const afterFirst = { ...at(base, PRESS_TURNS[1], promises), usedEvents: [first.cardId] };
+  const second = pressEvent(afterFirst)!;
+  const secondIds = second.press!.questions.map(q => q.id).filter(id => id.startsWith("pledge_"));
+  assert.deepEqual(secondIds, ["pledge_dialogue"]);
+  const afterSecond = { ...afterFirst, usedEvents: [first.cardId, second.cardId] };
+  assert.equal(pledgeQuestion(afterSecond, new Set(["no_batons", "dialogue"])), null, "спрашивать больше не о чем");
+  const third = pressEvent(afterSecond);
+  assert.ok(!third || !third.press!.questions.some(q => q.id.startsWith("pledge_")));
 });

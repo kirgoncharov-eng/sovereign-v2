@@ -7,7 +7,12 @@ import { promiseDef } from "./promises.ts";
 import type { PressAnswer, PressQuestion, PromiseState, GameState } from "./types.ts";
 import type { PromiseDef } from "../content/promises.ts";
 
+// Базовый вопрос в пуле называется так; в событии он получает id «pledge_<обещание>», чтобы на второй
+// конференции спросили о другом слове, а не повторили первое.
 export const PLEDGE_QUESTION_ID = "pledge";
+const PLEDGE_PREFIX = `${PLEDGE_QUESTION_ID}_`;
+export const askedPledges = (askedIds: Iterable<string>): Set<string> =>
+  new Set([...askedIds].filter(id => id.startsWith(PLEDGE_PREFIX)).map(id => id.slice(PLEDGE_PREFIX.length)));
 // Вопрос длиннее обычных: на чтение цитаты митинга и три ответа нужно больше стандартных 15 секунд.
 export const PLEDGE_SECONDS = 30;
 
@@ -36,12 +41,12 @@ function describeProgress(promise: PromiseState, def: PromiseDef, state: GameSta
 
 // Какое обещание спросят: самое свежее нарушенное, иначе открытое, от которого дальше всего до исполнения.
 // Только партия 1978 года: у архивных стран набор вопросов не меняется.
-export function pledgeCase(state: GameState): PledgeCase | null {
+export function pledgeCase(state: GameState, skip: ReadonlySet<string> = new Set()): PledgeCase | null {
   if (state.country !== ALTERNATE_COUNTRY || state.daily) return null;
   const cases: PledgeCase[] = [];
   for (const promise of state.promises ?? []) {
     const def = promiseDef(promise.id, state.country);
-    if (!def || promise.status === "kept") continue;
+    if (!def || promise.status === "kept" || skip.has(promise.id)) continue;
     if (promise.status === "open" && def.goal.kind === "never") continue; // держится само, пока не нарушено
     cases.push({ promise, def, broken: promise.status === "broken", ...describeProgress(promise, def, state) });
   }
@@ -51,8 +56,8 @@ export function pledgeCase(state: GameState): PledgeCase | null {
   return [...cases].sort((a, b) => gap(b) - gap(a))[0] ?? null;
 }
 
-export function pledgeQuestion(state: GameState): PressQuestion | null {
-  const item = pledgeCase(state);
+export function pledgeQuestion(state: GameState, skip: ReadonlySet<string> = new Set()): PressQuestion | null {
+  const item = pledgeCase(state, skip);
   if (!item) return null;
   const { def, broken, proved, promise } = item;
   const bloc = def.bloc;
@@ -85,6 +90,6 @@ export function pledgeQuestion(state: GameState): PressQuestion | null {
     rel: { [bloc]: broken ? 3 : 2 },
     stake: broken ? "Признание стоит политкапитала, зато ему поверят." : "Признание стоит немного политкапитала; спрос к сроку остаётся на вас.",
   };
-  return { id: PLEDGE_QUESTION_ID, who: "Корреспондентка независимого издания", topic: "данном слове", text, seconds: PLEDGE_SECONDS,
+  return { id: PLEDGE_PREFIX + promise.id, who: "Корреспондентка независимого издания", topic: "данном слове", text, seconds: PLEDGE_SECONDS,
     answers: [admit, prove, renounce] };
 }
