@@ -4,6 +4,7 @@ import { classicApi, pressChoice, pressEvent, PRESS_TURNS } from "./classic.ts";
 import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
 import { createInitialState, planTurn, seededRandom, startEvent } from "./engine.ts";
 import { pledgeCase, pledgeQuestion, PLEDGE_QUESTION_ID } from "./press-pledge.ts";
+import { PROMISES } from "../content/promises.ts";
 import type { GameState, PromiseState } from "./types.ts";
 
 const newGame = async (seed = 7): Promise<GameState> => {
@@ -83,4 +84,25 @@ test("вторая конференция спрашивает о другом �
   assert.equal(pledgeQuestion(afterSecond, new Set(["no_batons", "dialogue"])), null, "спрашивать больше не о чем");
   const third = pressEvent(afterSecond);
   assert.ok(!third || !third.press!.questions.some(q => q.id.startsWith("pledge_")));
+});
+
+// Вычитка (text-review): текст читается у каждого обещания кампании в каждом состоянии.
+test("текст вопроса об обещании: без пустых слотов, без рода, без вложенных «ёлочек» и повторов", async () => {
+  const base = await newGame();
+  for (const def of PROMISES) {
+    const variants: PromiseState[] = [{ id: def.id, progress: 0, status: "broken", turn: 5 }];
+    if (def.goal.kind !== "never") variants.push({ id: def.id, progress: 0, status: "open", target: 70 }, { id: def.id, progress: 2, status: "open", target: 40 });
+    for (const promise of variants) {
+      const question = pledgeQuestion(at(base, PRESS_TURNS[0], [promise]))!;
+      assert.ok(question, `${def.id}/${promise.status}`);
+      const lines = [question.text, ...question.answers.flatMap(a => [a.text, a.stake ?? "", a.after ?? ""])];
+      for (const line of lines) {
+        assert.ok(!/\{\w+\}|undefined|NaN/.test(line), line);
+        assert.ok(!/(^|[^а-яё])(сделал|обещал|нарушил|признал|выполнил)(?![а-яё])/i.test(line), `род в первом лице: ${line}`);
+      }
+      assert.ok(!/«[^»]*«/.test(question.text), "вложенные «ёлочки»: " + question.text);
+      assert.ok(!/сейчас[^.]*сейчас/i.test(question.text), question.text);
+      assert.ok(!question.text.includes("..") && !/[.!?]“\./.test(question.text), question.text);
+    }
+  }
 });

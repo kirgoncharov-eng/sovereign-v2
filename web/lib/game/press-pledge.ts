@@ -34,7 +34,7 @@ function describeProgress(promise: PromiseState, def: PromiseDef, state: GameSta
   }
   if (goal.kind === "resource") {
     const now = state.resources[goal.key], target = promise.target ?? now;
-    return { proved: now >= target - 2, status: `${resourceName(goal.key)} сейчас ${now}, нужно ${target}` };
+    return { proved: now >= target - 2, status: `${resourceName(goal.key)} — ${now}, нужно ${target}` };
   }
   return { proved: false, status: "обещание нарушено" };
 }
@@ -74,14 +74,19 @@ export function pledgeQuestion(state: GameState, skip: ReadonlySet<string> = new
       : "Обещание закрывается без исполнения: вы выигрываете в политкапитале, теряете доверие тех, кому оно давалось.",
     after: "Представитель лагеря с места напоминает дословную фразу митинга. В зале её уже записали.",
   };
+  const forbidden = def.goal.kind === "never"; // обещание «никогда»: нарушено подписью, а не нехваткой работы
+  const proveText = proved ? "«Вот что уже сделано. Протоколы открыты, проверяйте каждое решение»"
+    : forbidden ? "«Это было вынужденное решение, а не курс. Протоколы открыты, проверяйте»"
+    : broken ? "«Сделано всё, что позволяли обстоятельства. Протоколы открыты, проверяйте каждое решение»"
+    : "«Работа идёт по плану. Протоколы открыты, проверяйте каждое решение»";
   const prove: PressAnswer = proved
-    ? { tone: "hard", text: "«Вот что уже сделано. Протоколы открыты, проверяйте каждое решение»",
-        res: { politicalCapital: 2, internalLegitimacy: 1 }, rel: { [bloc]: 2 },
+    ? { tone: "hard", text: proveText, res: { politicalCapital: 2, internalLegitimacy: 1 }, rel: { [bloc]: 2 },
         stake: "Есть что предъявить: выигрываете в политкапитале и у тех, кому обещано." }
-    : { tone: "hard", text: broken ? "«Часть работы сделана. Протоколы открыты, проверяйте каждое решение»" : "«Работа идёт. Протоколы открыты, проверяйте каждое решение»",
-        res: { internalLegitimacy: -2 }, rel: { [bloc]: -2 },
-        stake: "Показывать почти нечего: журналист сверит слова с протоколами, и расхождение заметят.",
-        after: "Журналист открывает протоколы: решений, о которых говорит президент, в них нет. Слова расходятся с бумагой." };
+    : { tone: "hard", text: proveText, res: { internalLegitimacy: -2 }, rel: { [bloc]: -2 },
+        stake: forbidden ? "Оправдание вынужденностью слова не вернёт: корреспондентка назовёт дату подписи."
+          : "Показывать почти нечего: корреспондентка сверит слова с протоколами, и расхождение заметят.",
+        after: forbidden ? "Корреспондентка называет дату подписи: решение в протоколе есть, и «вынужденным» его в зале не считают."
+          : "Корреспондентка открывает протоколы: решений, о которых говорит президент, в них нет. Слова расходятся с бумагой." };
   const admit: PressAnswer = {
     tone: "honest",
     text: broken ? "«Слово не удержано. Это на мне, и оправдываться я не буду»"
