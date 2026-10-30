@@ -106,3 +106,21 @@ test("текст вопроса об обещании: без пустых сл�
     }
   }
 });
+
+test("отказ на перенесённой конференции (ход 10 и 20): обещание закрыто как нарушенное, новость совпадает", async () => {
+  for (const turn of [10, 20]) {
+    const promises: PromiseState[] = [{ id: "dialogue", progress: 1, status: "open" }];
+    const base = { ...at(await newGame(), turn, promises), turn: turn - 1 };
+    const event = pressEvent(base);
+    assert.ok(event, `конференция на ходу ${turn}`);
+    const state = startEvent(base, event);
+    const index = event.press!.questions.findIndex(q => q.id === "pledge_dialogue");
+    const picks = [-1, -1, -1];
+    picks[index] = 2;
+    const choice = pressChoice(state, picks);
+    const plan = planTurn({ ...state, currentEvent: { ...state.currentEvent!, choices: [choice] } }, choice.id);
+    assert.equal(plan.promises[0].status, "broken", `ход ${turn}`);
+    assert.deepEqual(plan.promiseNews.broken, ["Говорить с каждым"]);
+    assert.equal(plan.promiseNews.kept.length, 0);
+  }
+});

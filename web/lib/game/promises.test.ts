@@ -81,3 +81,34 @@ test("обещания в партии: planTurn применяет наград
   const old = startEvent({ ...s0, promises: undefined }, ev);
   assert.deepEqual(planTurn(old, "a").promises, []);
 });
+
+// #142: публичный отказ от обещания на пресс-конференции, в том числе перенесённой на ход 10/20, где обычно считается срок.
+test("отказ от обещания закрывает его как нарушенное без награды и штрафа исполнения — в любой день срока", () => {
+  const resources = { ...START_RES.coalition, internalLegitimacy: 70 };
+  const cases: [string, number, { progress: number; target?: number }][] = [
+    ["dialogue", 19, { progress: 1 }], ["dialogue", 20, { progress: 1 }],
+    ["fair_vote", 10, { progress: 0, target: 50 }], ["fair_vote", 9, { progress: 0, target: 50 }],
+  ];
+  for (const [id, turn, state] of cases) {
+    const open = [{ id, status: "open" as const, ...state }];
+    const step = stepPromises(open, [], true, turn, resources, factions, id);
+    assert.equal(step.promises[0].status, "broken", `${id}/${turn}`);
+    assert.equal(step.promises[0].turn, turn);
+    assert.deepEqual(step.res, {}, `${id}/${turn}: цену назвал ответ, штрафа и награды исполнения нет`);
+    assert.deepEqual(step.rel, {}, `${id}/${turn}`);
+    assert.deepEqual(step.news.broken, [PROMISES.find(p => p.id === id)!.title], "новость совпадает со статусом");
+    assert.equal(step.news.kept.length + step.news.advanced.length, 0);
+  }
+});
+
+test("отказ от одного обещания не меняет расчёт остальных", () => {
+  const resources = { ...START_RES.coalition, internalLegitimacy: 70 };
+  const open = [{ id: "dialogue", status: "open" as const, progress: 1 }, { id: "fair_vote", status: "open" as const, progress: 0, target: 50 }];
+  const alone = stepPromises(open.slice(1), [], true, 10, resources, factions);
+  const both = stepPromises(open, [], true, 10, resources, factions, "dialogue");
+  assert.equal(both.promises[1].status, alone.promises[0].status);
+  assert.deepEqual(both.res, alone.res);
+  assert.deepEqual(both.rel, alone.rel);
+  const failed = stepPromises(open, [], false, 10, resources, factions, undefined);
+  assert.equal(failed.promises[0].status, "open", "без отказа dialogue на 10-м ходу ещё жив");
+});

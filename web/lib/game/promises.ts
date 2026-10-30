@@ -62,9 +62,11 @@ export interface PromiseStep {
 
 // Ход: исполненное решение продвигает обещание, запретное — нарушает его сразу (важен умысел,
 // даже если решение сорвали), а в срок проверяются пороги и всё, что так и не исполнено.
+// `released` — обещание, публично снятое на пресс-конференции (#142): оно закрывается как нарушенное сразу,
+// без обычных наград и штрафов исполнения/срока — цену назвал сам ответ.
 export function stepPromises(
   promises: PromiseState[] | undefined, tags: ActionTag[], success: boolean, turn: number,
-  resources: Resources, factions: Faction[],
+  resources: Resources, factions: Faction[], released?: string,
 ): PromiseStep {
   const res: Record<string, number> = {}, rel: Record<string, number> = {};
   const news: PromiseNews = { kept: [], broken: [], advanced: [] };
@@ -78,6 +80,10 @@ export function stepPromises(
   const out = (promises ?? []).map(p => {
     const def = promiseDef(p.id);
     if (!def || p.status !== "open") return p;
+    if (p.id === released) {
+      news.broken.push(def.title);
+      return { ...p, status: "broken" as const, turn };
+    }
     const g = def.goal;
     if (g.kind === "never" && g.tags.some(t => tags.includes(t))) return settle(p, def, false);
     let next = p;

@@ -672,10 +672,8 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   factions = applyFactionChanges(factions, lawStep.rel, {});
 
   // Обещания: решение продвигает или нарушает их; в срок проверяется всё остальное.
-  const promiseStep = stepPromises(state.promises, commitmentTags(choice), success, turn, resources, factions);
-  // Публично снятое на пресс-конференции обещание закрыто как нарушенное; цену уже назвал сам ответ.
-  const renounced = success ? choice.deal?.renounce : undefined;
-  if (renounced) promiseStep.promises = promiseStep.promises.map(p => p.id === renounced && p.status === "open" ? { ...p, status: "broken", turn } : p);
+  // Публично снятое на пресс-конференции обещание закрывается как нарушенное; цену уже назвал сам ответ.
+  const promiseStep = stepPromises(state.promises, commitmentTags(choice), success, turn, resources, factions, success ? choice.deal?.renounce : undefined);
   add("обещания", promiseStep.res);
   factions = applyFactionChanges(factions, promiseStep.rel, {});
 
