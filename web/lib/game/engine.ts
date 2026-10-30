@@ -775,7 +775,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
       ...(plan.lawNews ? { law: plan.lawNews } : {}),
       ...(narration.heard?.length ? { heard: narration.heard } : {}),
       ...(narration.cast?.length ? { cast: narration.cast } : {}),
-      ...(state.country === ALTERNATE_COUNTRY ? hurtBy(plan.effects.factionRel) : {}),
+      ...(state.country === ALTERNATE_COUNTRY ? { ...hurtBy(plan.effects.factionRel), ...(event.special ? { special: event.special.kind } : {}) } : {}),
     }],
     currentEvent: null,
     lastTurn: {

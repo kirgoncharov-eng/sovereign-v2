@@ -4,7 +4,7 @@
 import { CALL_TEXT } from "../content/calls.ts";
 import { PRESS_TEXT } from "../content/press.ts";
 import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
-import type { Faction, GameState, HistoryEntry, PressAnswer, PressQuestion } from "./types.ts";
+import type { Faction, GameState, HistoryEntry, PressAnswer, PressQuestion, SpecialKind } from "./types.ts";
 
 // Базовый вопрос в пуле называется так; в событии он получает id «sign_<лагерь>»: о каждом лагере спрашивают раз.
 export const SIGNATURE_QUESTION_ID = "sign";
@@ -17,9 +17,15 @@ export const SIGNATURE_SECONDS = 25;
 const DISCONTENT_AT_MOST = 10;
 // С такого числа задевших решений недовольство считается накопившимся: цена ответов меняется.
 const REPEAT_FROM = 3;
-// Записи особых дел (пресс-конференция, звонок, бюджет) — не подписи под делом.
-const SPECIAL_CHOICES = new Set(["Ответить на вопросы журналистов", "Утвердить бюджет на год", "Разговор по защищённой линии",
+// Особые дела — не подписи под делом: пресс-конференция, звонок, бюджет, вопрос о сроках. Движок отмечает их в истории
+// (`special`); у записей из сохранений до этой отметки остаются известные тексты выбора, включая бюджет «Хроники».
+const NOT_SIGNATURES = new Set<SpecialKind>(["press", "call", "budget", "terms"]);
+const LEGACY_SPECIAL_CHOICES = new Set(["Ответить на вопросы журналистов", "Утвердить бюджет на год", "Разговор по защищённой линии",
   PRESS_TEXT.skip.text, CALL_TEXT.hangup.text]);
+const CHRONICLE_BUDGET = "Бюджет года:";
+const isSpecial = (entry: HistoryEntry) => entry.special
+  ? NOT_SIGNATURES.has(entry.special)
+  : LEGACY_SPECIAL_CHOICES.has(entry.choice) || entry.choice.startsWith(CHRONICLE_BUDGET);
 
 export interface SignatureCase {
   entry: HistoryEntry;
@@ -27,7 +33,7 @@ export interface SignatureCase {
   hurtCount: number;
 }
 
-const isSignature = (entry: HistoryEntry) => entry.success !== false && !!entry.hurt?.length && !SPECIAL_CHOICES.has(entry.choice);
+const isSignature = (entry: HistoryEntry) => entry.success !== false && !!entry.hurt?.length && !isSpecial(entry);
 
 // Самая свежая подпись, задевшая лагерь, который сейчас недоволен. Только партия 1978 года: у архивных стран набор
 // вопросов не меняется.

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classicApi, pressChoice, pressEvent, PRESS_TURNS } from "./classic.ts";
+import { budgetEvent, BUDGET_TURN, classicApi, pressChoice, pressEvent, PRESS_TURNS } from "./classic.ts";
+import { signOption } from "../client/chronicle.ts";
 import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
 import { createInitialState, resolveTurn, seededRandom, startEvent } from "./engine.ts";
 import { askedSignatures, signatureCase, signatureQuestion, SIGNATURE_QUESTION_ID } from "./press-signature.ts";
@@ -132,4 +133,33 @@ test("журналист говорит по-человечески: число 
   assert.ok(quoted.text.startsWith("Вы подписали: „Срочная проверка складов“."), quoted.text);
   const many = at(base, Array.from({ length: 12 }, (_, i) => entry({ title: `Дело ${i}` })));
   assert.ok(signatureQuestion(many)!.text.includes("уже очередным ударом"), signatureQuestion(many)!.text);
+});
+
+// Ревью GPT/Codex: бюджет «Хроники» пишет в историю «Бюджет года: …» и задевает лагеря — это не подпись.
+test("особые дела не считаются подписью: бюджет «Хроники», отметка движка и старые сохранения", async () => {
+  const base = await newGame();
+  const ready = { ...base, turn: BUDGET_TURN - 1, arc: null };
+  const event = budgetEvent(ready)!;
+  assert.ok(event, "бюджет на своём ходу");
+  const after = await signOption(startEvent(ready, event), "budget:build");
+  const budget = after.history.at(-1)!;
+  assert.equal(budget.special, "budget", "движок отмечает особое дело");
+  assert.ok(budget.choice.startsWith("Бюджет года:"), budget.choice);
+  assert.ok(budget.hurt?.length, "бюджет «по минимуму» задевает лагеря — иначе проверка пустая");
+  const displeased = { ...after, factions: after.factions.map(group => budget.hurt!.includes(group.id) ? { ...group, relation: -30 } : group) };
+  assert.notEqual(signatureCase(displeased)?.entry, budget);
+  assert.equal(signatureCase(at(base, [entry({ choice: "Бюджет года: дороги и заказы заводам, остальным — по минимуму" })])), null, "старое сохранение без отметки");
+  assert.equal(signatureCase(at(base, [entry({ special: "press" })])), null);
+  assert.ok(signatureCase(at(base, [entry({ special: "inspect" })])), "доклад на подпись — настоящая подпись");
+});
+
+test("отметка особого дела пишется только в партии 1978 года", async () => {
+  const intro = await classicApi.setup("Украина", "coalition", "pragmatist", 7);
+  let state = createInitialState("Украина", "coalition", "pragmatist", intro, seededRandom(7));
+  for (let turn = 0; turn < 10 && !state.ended; turn++) {
+    const event = await classicApi.event(state);
+    state = startEvent(state, event);
+    state = resolveTurn(state, event.choices[0].id, await classicApi.consequence(state, event.choices[0].id));
+  }
+  assert.ok(state.history.length > 0 && state.history.every(item => !("special" in item)), "архивная история не меняется");
 });
