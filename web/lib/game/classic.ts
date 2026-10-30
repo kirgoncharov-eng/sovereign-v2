@@ -10,6 +10,7 @@ import { calendarEpisode, calendarSlot } from './political-calendar.ts';
 // Режим «Сценарии»: та же игра без обращения к модели. Событие выбирается из библиотеки
 // карточек по состоянию страны, текст итога собирается из фрагментов. Всё мгновенно и офлайн.
 import { promisesBroken, promisesKept } from "./promises.ts";
+import { PLEDGE_QUESTION_ID, askedPledges, pledgeQuestion } from "./press-pledge.ts";
 import { ARCS } from "../content/arcs.ts";
 import { EARLY_THREADS } from "../content/early-threads.ts";
 import { COUNCIL_A } from "../content/council-a.ts";
@@ -623,6 +624,7 @@ export function pressEvent(state: GameState): SpecialEvent | null {
   if (k < 0 || dueBeat(state)) return null;
   const asked = new Set((state.usedEvents ?? []).filter(u => u.startsWith("prs:")).flatMap(u => u.split(":")[2].split(",")));
   const r = state.resources;
+  const pledge = pledgeQuestion(state, askedPledges(asked));
   // После «вопроса о сроках» выборов может и не быть: тогда о них не спрашивают.
   // Пресс-конференция стоит перед выборами — если они будут: в середине срока парламентские, в конце — главные.
   const ahead = turn - localTurn(turn) + (k === 0 ? 10 : TERM);
@@ -630,18 +632,20 @@ export function pressEvent(state: GameState): SpecialEvent | null {
   const fits: Record<PressWhen, boolean> = {
     always: true, crisis: state.activeCrises.length > 0, lowEcon: r.economy < 40, lowLegit: r.internalLegitimacy < 40,
     elect: !noVote, pact: (state.pacts ?? []).length > 0, highMil: r.military > 60,
-    highRating: computePolls(state.country, state.factions, r).leader >= 45, lowRep: r.externalReputation < 40,
+    highRating: computePolls(state.country, state.factions, r).leader >= 45, pledge: !!pledge, lowRep: r.externalReputation < 40,
     betrayal: (state.betrayals ?? 0) > 0, arc: !!state.arc && !state.arc.epilogue && state.arc.done.length >= 2,
   };
   const order = (q: { id: string }) => hashSeed(state.seed, "press", turn, q.id);
   const pool = PRESS_QUESTIONS.filter(q => fits[q.when] && !asked.has(q.id));
   // Один вопрос — про то, что происходит в стране сейчас; два других — из всего, что подходит.
-  const topical = pool.filter(q => q.when !== "always").sort((a, b) => order(a) - order(b));
+  // Вопрос об обещании идёт первым, когда есть что спрашивать: он про конкретное слово, а не про настроение.
+  const topical = pool.filter(q => q.when !== "always").sort((a, b) => (a.when === "pledge" ? -1 : b.when === "pledge" ? 1 : order(a) - order(b)));
   const rest = pool.filter(q => q !== topical[0]).sort((a, b) => order(a) - order(b));
   const picked = [...topical.slice(0, 1), ...rest].slice(0, 3);
   if (picked.length < 3) return null;
   const pactName = state.factions.find(f => f.id === state.pacts?.[0]?.faction)?.name ?? "";
   const questions = picked.map(q => {
+    if (q.id === PLEDGE_QUESTION_ID) return pledge!;
     const pensionRepealed = [...state.history].reverse().find(h => h.law?.id === 'pension_reform' && h.law.passed)?.law?.act === 'repeal' && !state.laws?.some(l => l.id === 'pension_reform');
     const transition = state.laws?.find(l => l.id === 'pension_reform')?.transition;
     const enactedPension = q.id === 'pension' && state.laws?.some(l => l.id === 'pension_reform');
@@ -656,7 +660,7 @@ export function pressEvent(state: GameState): SpecialEvent | null {
     scene: PRESS_TEXT.skip.scene, sceneFail: PRESS_TEXT.skip.scene, headline: PRESS_TEXT.skip.head, headlineFail: PRESS_TEXT.skip.head,
   };
   return {
-    cardId: `prs:${slot}:${picked.map(q => q.id).join(",")}`,
+    cardId: `prs:${slot}:${questions.map(q => q.id).join(",")}`,
     title: noVote ? PRESS_TEXT.titleNoVote[state.path?.id ?? reignOf(state).how ?? ""] ?? PRESS_TEXT.titleNoVote.none : PRESS_TEXT.title[k],
     source: "Пресс-служба",
     description: chapter(dateline(state, "press"), PRESS_TEXT.intro),
@@ -678,7 +682,7 @@ export function pressChoice(state: GameState, picks: number[]): Choice {
   const res: Record<string, number> = {}, relBloc: Record<string, number> = {};
   const tones: string[] = [];
   const lines: string[] = [PRESS_TEXT.open];
-  let quote = "", strongest = -1;
+  let quote = "", strongest = -1, renounce: string | undefined;
   qs.forEach((q, i) => {
     const about = `${/^[аеиоуэ]/i.test(q.topic) ? "об" : "о"} ${q.topic}`;
     const a = q.answers[picks[i]];
@@ -692,6 +696,8 @@ export function pressChoice(state: GameState, picks: number[]): Choice {
     for (const [k, v] of Object.entries(a.res)) res[k] = (res[k] ?? 0) + (v ?? 0);
     for (const [b, v] of Object.entries(a.rel)) relBloc[b] = (relBloc[b] ?? 0) + (v ?? 0);
     lines.push(fill(PRESS_TEXT.answer, state, { about, text: a.text }));
+    if (a.after) lines.push(a.after);
+    if (a.renounce) renounce = a.renounce;
     const weight = Object.values(a.res).reduce((x, y) => x + Math.abs(y ?? 0), 0);
     if (weight > strongest) { strongest = weight; quote = a.text; }
   });
@@ -706,7 +712,7 @@ export function pressChoice(state: GameState, picks: number[]): Choice {
   return {
     id: "p", text: "Ответить на вопросы журналистов", hint: "", resolvesCrisis: null,
     tags: [tone === "hard" ? "propaganda" : tone === "evasive" ? "delay" : "dialogue"],
-    deal: { pure: true, res, factionRel },
+    deal: { pure: true, res, factionRel, ...(renounce ? { renounce } : {}) },
     scene, sceneFail: scene, headline, headlineFail: headline,
   };
 }

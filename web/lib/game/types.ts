@@ -109,13 +109,19 @@ export interface Deal {
   factionAppr?: Record<string, number>;
   replace?: string;       // имя преемника: человек уходит с поста
   res?: ResourceDelta;    // цена или выгода самой сделки
+  renounce?: string;      // id обещания, публично снятого на пресс-конференции: оно закрывается как нарушенное
   pure?: boolean;         // эффект задаёт только сделка: теги лишь подписывают решение, исполнение гарантировано
   later?: { turns: number; label: string; res: ResourceDelta; story?: string }; // аукнется позже, если исполнят
   pact?: { faction: string; turns: number; ban: ActionTag[]; against?: string | null };
 }
 
-export interface PressAnswer { text: string; tone: "honest" | "hard" | "evasive"; res: ResourceDelta; rel: Partial<Record<Bloc, number>> }
-export interface PressQuestion { id: string; who: string; topic: string; text: string; answers: PressAnswer[] }
+export interface PressAnswer {
+  text: string; tone: "honest" | "hard" | "evasive"; res: ResourceDelta; rel: Partial<Record<Bloc, number>>;
+  stake?: string;    // цена словами вместо ярлыка тона и цифр (вопрос об обещании, #142)
+  after?: string;    // что замечают журналист или лагерь после этого ответа
+  renounce?: string; // id предвыборного обещания, которое ответ снимает публично
+}
+export interface PressQuestion { id: string; who: string; topic: string; text: string; answers: PressAnswer[]; seconds?: number }
 
 export interface Pact {
   faction: string;
