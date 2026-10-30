@@ -3,9 +3,17 @@
 // Ответы — прямая речь президента; эффекты небольшие, но складываются за три вопроса.
 import type { PressQuestion } from "../game/types.ts";
 
-export type PressWhen = "always" | "crisis" | "lowEcon" | "lowLegit" | "elect" | "pact" | "highMil" | "highRating" | "pledge" | "lowRep" | "betrayal" | "arc";
+export type PressWhen = "always" | "crisis" | "lowEcon" | "lowLegit" | "elect" | "pact" | "highMil" | "highRating" | "pledge" | "signature" | "lowRep" | "betrayal" | "arc";
 export const PRESS_QUESTIONS: (PressQuestion & { when: PressWhen })[] = [
   // Текст и ответы подменяет pledgeQuestion по обещанию из партии; здесь — только место в пуле.
+  // Вопрос о подписи: текст и ответы подменяет signatureQuestion по истории партии.
+  { id: "sign", when: "signature", who: "Корреспондент делового издания", topic: "вашей подписи",
+    text: "Лагерь считает, что ваше решение ударило по нему. Вы стоите на своём?",
+    answers: [
+      { tone: "honest", text: "«Упрёк справедлив. Я встречусь с ними»", res: {}, rel: {} },
+      { tone: "hard", text: "«Решение подписано сознательно»", res: {}, rel: {} },
+      { tone: "evasive", text: "«Подробности вам дадут министры»", res: {}, rel: {} },
+    ] },
   { id: "pledge", when: "pledge", who: "Корреспондентка независимого издания", topic: "данном слове",
     text: "Вы обещали больше, чем сделали. Обещание ещё в силе?",
     answers: [
