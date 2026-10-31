@@ -2,10 +2,13 @@
 // Между решениями время течёт само: исполнение подписи, голоса людей, пресса, отклики прежних решений.
 // На решении история стоит и ждёт. Здесь только представление уже разрешённых ходов: ни тиков, ни скрытых факторов.
 import { budgetChoice, callChoice, callReply, approachWorks, classicApi, customizeLeader, freshLeaderName, pressChoice } from '../game/classic.ts';
-import { createInitialState, hashSeed, resolveTurn, seededRandom, startEvent } from '../game/engine.ts';
+import { conveneCouncil, createInitialState, hashSeed, resolveTurn, seededRandom, startEvent } from '../game/engine.ts';
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { openDeskWhenDue } from '../game/desk-timing.ts';
 import { interveneWorld } from '../game/living-world.ts';
+import { confirmInitiative, initiativeOptions, type InitiativeId } from '../game/initiatives.ts';
+import { applyDossier, hireAdvisor, type DossierAction } from '../game/staffing.ts';
+import { initiativeBlockReason } from './initiative-note.ts';
 import { initPromises, offeredPromises } from '../game/promises.ts';
 import { secretaryInventory } from '../game/secretary.ts';
 import { replyToLetter } from '../game/stories.ts';
@@ -68,19 +71,19 @@ export const programOf = (state: GameState) => offeredPromises(state.seed, state
 
 const daysBefore = (state: GameState, days: number) => fromDayNumber(dayNumber(plain(dateOf(state, 0))) - days);
 
-/** Выдвижение: ЦИК принимает документы кандидата. Первая строка ленты перед анкетой. */
+/** Выдвижение: ЦИК принимает документы кандидата за шесть недель до выборов; выборы — за три недели до вступления. */
 export const candidacyLines = (state: GameState): ChronicleLine[] => [
-  { id: 'cik-open', kind: 'opening', date: daysBefore(state, 42),
+  { id: 'cik-open', kind: 'opening', date: daysBefore(state, 63),
     text: 'Центральная избирательная комиссия Неманской республики принимает документы кандидатов в президенты. До выборов шесть недель.' },
 ];
 
 /** Кампания и ночь подсчёта — подача, а не расчёт: партия начинается с того же состояния, что в `/game`. */
 export const electionLines = (state: GameState): ChronicleLine[] => [
-  { id: 'cik-campaign', kind: 'scene', date: daysBefore(state, 40),
+  { id: 'cik-campaign', kind: 'scene', date: daysBefore(state, 61),
     text: 'Документы приняты. Шесть недель агитации: районные дома культуры, заводские проходные, вечерний эфир республиканского радио.' },
-  { id: 'cik-night', kind: 'scene', date: daysBefore(state, 7),
+  { id: 'cik-night', kind: 'scene', date: daysBefore(state, 21),
     text: `Ночь подсчёта вы проводите в штабе партии «${state.leader.party}». Сводки из областей приходят до утра.` },
-  { id: 'cik-result', kind: 'paper', date: daysBefore(state, 6), who: newspaperName(state.country, state.seed, 0),
+  { id: 'cik-result', kind: 'paper', date: daysBefore(state, 20), who: newspaperName(state.country, state.seed, 0),
     text: `ЦИК объявил итоги выборов: президент республики — ${state.leader.name}` },
 ];
 
@@ -256,6 +259,15 @@ export async function signOption(state: GameState, key: string): Promise<GameSta
   return preset ? sign(state, budgetOf(state, preset), '') : sign(state, null, key);
 }
 
+/** Вариант дела по id — обычный, предложенный советом или выбранный в разговоре: как `choose` в `/game`. */
+export const signChoice = (state: GameState, id: string) => sign(state, null, id);
+
+/** Бюджет, собранный по статьям и с долгом или без, — тем же `budgetChoice`, что экран бюджета в `/game`. */
+export const signBudget = (state: GameState, alloc: Record<string, number>, debt: boolean) => sign(state, budgetChoice(state, alloc, debt), '');
+
+/** Совет по делу: предложения советников ложатся на стол рядом с вариантами, как в `/game`. */
+export const convene = (state: GameState, proposals: Choice[]) => conveneCouncil(state, proposals);
+
 export const signPress = (state: GameState, picks: number[]) => sign(state, pressChoice(state, picks), '');
 export const signCall = (state: GameState, approach: Approach, ending: (typeof CALL_ENDINGS)[number]['id']) =>
   sign(state, callChoice(state, approach, ending), '');
@@ -279,6 +291,21 @@ export function secretaryLine(state: GameState): ChronicleLine | null {
   return { id: `q${state.turn}-secretary`, kind: 'secretary', who: state.world?.secretary?.present ? state.world.secretary.name : 'Канцелярия',
     date: plain(dateOf(state, state.turn)), text };
 }
+
+// ── Справка: распоряжения в любой момент ─────────────────────────────────────
+// Те же действия, что из шапки и разделов `/game`: инициатива опоры, назначение из резерва, досье советника.
+
+/** Инициатива из окна опоры — с той же проверкой, что `signInitiative` в `/game`. */
+export function signInitiative(state: GameState, id: string): GameState {
+  const option = initiativeOptions(state).find(entry => entry.id === id);
+  if (!option) throw new Error('Это распоряжение больше недоступно');
+  const blocked = initiativeBlockReason(state, option);
+  if (blocked) throw new Error(blocked);
+  return confirmInitiative(state, id as InitiativeId);
+}
+
+export const hire = (state: GameState, candidateId: string) => hireAdvisor(state, candidateId);
+export const actOnDossier = (state: GameState, advisorId: string, action: DossierAction) => applyDossier(state, advisorId, action);
 
 // ── Конец срока ──────────────────────────────────────────────────────────────
 

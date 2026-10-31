@@ -1,20 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  actOnLetter, answerStory, firstStep, newTerm, nextCase, openLetter, programOf, signCall, signOption, signPress, startFromSeed,
+  actOnLetter, answerStory, convene, hire, newTerm, nextCase, openLetter, programOf, signBudget, signCall, signChoice, signPress, startFromSeed,
   takeOffice, termOver,
 } from './chronicle.ts';
 import { DANGER, EMPTY_STOPS, EXTRA_STOPS, dueStops, openStops, rememberStop, stillWaiting, storyStops, type Stop, type StopMemory } from './chronicle-stops.ts';
 import { presidentialMessages, presidentialReplyActions, type PresidentialMessage } from './presidential-inbox.ts';
 import { prepareQuarterResolution, withoutQuarterDraft } from './quarter-inbox.ts';
-import { classicApi } from '../game/classic.ts';
+import { budgetChoice, callChoice, classicApi, pressChoice } from '../game/classic.ts';
 import { openDeskWhenDue } from '../game/desk-timing.ts';
-import { resolveTurn, startEvent } from '../game/engine.ts';
+import { conveneCouncil, resolveTurn, startEvent } from '../game/engine.ts';
+import { isPresidentialDiscussion } from '../game/presidential-story.ts';
 import { initPromises } from '../game/promises.ts';
 import { livingActions, interveneWorld } from '../game/living-world.ts';
 import { secretaryActions } from '../game/secretary.ts';
+import { candidatePool, hireAdvisor, staffingBlocked } from '../game/staffing.ts';
 import { replyToLetter } from '../game/stories.ts';
-import type { DifficultyId, GameState } from '../game/types.ts';
+import type { Choice, DifficultyId, GameState } from '../game/types.ts';
+
+// Кандидат из резерва, которого можно назначить сейчас: первый без запрета.
+const hireable = (state: GameState) => candidatePool(state).find(candidate => !staffingBlocked(state, candidate))?.id ?? null;
 
 // Ответ на обращение, как его дал бы игрок в папке `/game`: первое доступное действие этого письма.
 function replyAction(state: GameState, message: PresidentialMessage): string | null {
@@ -24,12 +29,45 @@ function replyAction(state: GameState, message: PresidentialMessage): string | n
   return livingActions(state).find(action => action.id.startsWith(`${message.action}:`) && !action.blocked)?.id ?? null;
 }
 
-// Вариант дела, как в хронике: первый вариант, первые ответы пресс-конференции, звонок цифрами и сделкой.
-async function signFirst(state: GameState) {
-  const step = firstStep(state);
-  if (step.kind === 'press') return signPress(state, state.currentEvent!.press!.questions.map(() => 0));
-  if (step.kind === 'call-approach') return signCall(state, 'numbers', 'deal');
-  return signOption(state, step.options[0].key);
+// Один и тот же игрок на обоих экранах: бюджет «больше на соцсферу, в долг», первые ответы пресс-конференции,
+// звонок цифрами и сделкой, в разговоре и обычном деле — первый вариант; на чётных ходах — первое предложение совета.
+const ALLOC = { army: 2, social: 4, economy: 2, apparatus: 1, culture: 1 };
+const councilTurn = (state: GameState) => {
+  const event = state.currentEvent!;
+  return state.turn % 2 === 0 && !event.budget && !event.call && !event.press && !event.beat && !event.special
+    && (state.councilCharges > 0 || isPresidentialDiscussion(state));
+};
+
+/** Подпись в хронике — как блок дела 2b: экраны бюджета, звонка и пресс-конференции, совет, вариант. */
+async function chronicleSign(state: GameState) {
+  const event = state.currentEvent!;
+  if (event.budget) return signBudget(state, ALLOC, true);
+  if (event.press) return signPress(state, event.press.questions.map(() => 0));
+  if (event.call && !event.call.negotiation) return signCall(state, 'numbers', 'deal');
+  if (councilTurn(state)) {
+    const advised = convene(state, await classicApi.council(state));
+    const proposal = advised.currentEvent!.council?.[0];
+    if (proposal) return signChoice(advised, proposal.id);
+    state = advised;
+  }
+  return signChoice(state, state.currentEvent!.choices[0].id);
+}
+
+/** Подпись в `/game`: собранный экраном вариант встаёт первым, резолюция готовится в папке и подписывается. */
+async function deskSign(state: GameState) {
+  const event = state.currentEvent!;
+  const built = (final: Choice) => ({ ...state, currentEvent: { ...event, choices: [final, event.choices[1]] } });
+  let ready = state, choice: Choice = event.choices[0];
+  if (event.budget) { choice = budgetChoice(state, ALLOC, true); ready = built(choice); }
+  else if (event.press) { choice = pressChoice(state, event.press.questions.map(() => 0)); ready = built(choice); }
+  else if (event.call && !event.call.negotiation) { choice = callChoice(state, 'numbers', 'deal'); ready = built(choice); }
+  else if (councilTurn(state)) {
+    ready = conveneCouncil(state, await classicApi.council(state));
+    choice = ready.currentEvent!.council?.[0] ?? ready.currentEvent!.choices[0];
+  }
+  const drafted = prepareQuarterResolution(ready, choice.id);
+  const consequence = await classicApi.consequence(drafted, choice.id);
+  return openDeskWhenDue(resolveTurn(withoutQuarterDraft(drafted), choice.id, consequence));
 }
 
 /** Срок в хронике: на каждой остановке — первый ответ, письмо человека — первый вариант резолюции. */
@@ -55,12 +93,13 @@ async function chronicleTerm(seed: number, diff: DifficultyId, answer = true) {
       const stop = due[0];
       shown.push(stop);
       memory = rememberStop(state, stop, memory);
+      if (stop.kind === 'staff' && answer) { const id = hireable(state); if (id) state = hire(state, id); }
       if (stop.message) state = openLetter(state, stop.message.person, stop.message.key);
       const action = answer && stop.message && stop.kind === 'letter' ? replyAction(state, stop.message) : null;
       if (action) state = actOnLetter(state, action);
     }
     log.push({ turn: state.turn, stops: shown });
-    state = await signFirst(state);
+    state = await chronicleSign(state);
   }
   return { state, log, open, memory };
 }
@@ -81,25 +120,21 @@ async function deskTerm(seed: number, diff: DifficultyId) {
     for (let due = dueStops(state, openStops(state), memory); due.length; due = dueStops(state, openStops(state), memory)) {
       const stop = due[0];
       memory = rememberStop(state, stop, memory);
+      // Резерв кадров в `/game` — раздел «Люди»: тот же кандидат назначается тем же `hireAdvisor`.
+      if (stop.kind === 'staff') { const id = hireable(state); if (id) state = hireAdvisor(state, id); continue; }
       const message = presidentialMessages(state).find(item => item.key === stop.key)!;
       state = openLetter(state, message.person, message.key);
       const action = stop.kind === 'letter' ? replyAction(state, message) : null;
       if (action) state = interveneWorld(state, action);
     }
-    const step = firstStep(state);
-    const event = state.currentEvent!;
-    if (step.kind !== 'choice' || event.budget) { state = await signFirst(state); continue; }
-    const choiceId = step.options[0].key;
-    const drafted = prepareQuarterResolution(state, choiceId);
-    const consequence = await classicApi.consequence(drafted, choiceId);
-    state = openDeskWhenDue(resolveTurn(withoutQuarterDraft(drafted), choiceId, consequence));
+    state = await deskSign(state);
   }
   return state;
 }
 
 const SEEDS: [number, DifficultyId][] = [[21, 'debut'], [5, 'crisis'], [9, 'coalition'], [33, 'debut'], [14, 'ruins']];
 
-test('логика та же: срок через хронику и через стол `/game` с теми же ответами дают одно состояние', async () => {
+test('логика та же: срок через хронику и через стол `/game` с теми же ответами, экранами дела и советом дают одно состояние', async () => {
   for (const [seed, diff] of SEEDS) {
     const chronicle = (await chronicleTerm(seed, diff)).state;
     const desk = await deskTerm(seed, diff);
@@ -107,12 +142,12 @@ test('логика та же: срок через хронику и через �
   }
 });
 
-test('в хронике живёт страна: стол открывается, обещания взяты, письма и предложения доходят до остановок', async () => {
+test('в хронике живёт страна: стол открывается, обещания взяты, письма, предложения и резерв кадров доходят до остановок', async () => {
   const { state, log } = await chronicleTerm(21, 'debut');
   assert.ok(state.world, 'живой мир открыт');
   assert.equal(state.promises?.length, 3, 'три обещания программы');
   const kinds = new Set(log.flatMap(quarter => quarter.stops.map(stop => stop.kind)));
-  assert.ok(kinds.has('letter') && kinds.has('proposal'), [...kinds].join(','));
+  assert.ok(kinds.has('letter') && kinds.has('proposal') && kinds.has('staff'), [...kinds].join(','));
   assert.ok(log.slice(0, 2).every(quarter => !quarter.stops.length), 'первые два хода — только дело (desk-timing)');
 });
 
@@ -155,7 +190,7 @@ test('письмо человека: остановка до следующег�
   for (const [seed, diff] of SEEDS) {
     const candidate = await newTerm(startFromSeed(seed, diff));
     let state = takeOffice(candidate, programOf(candidate).suggested);
-    while (!termOver(state) && !storyStops(state).length) state = await signFirst(await nextCase(state));
+    while (!termOver(state) && !storyStops(state).length) state = await chronicleSign(await nextCase(state));
     if (termOver(state)) continue;
     const [stop] = storyStops(state);
     assert.ok(stillWaiting(state, stop));

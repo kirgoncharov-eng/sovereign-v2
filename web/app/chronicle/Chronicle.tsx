@@ -5,29 +5,39 @@
 // Ответы — те же панели и функции, что в папке `/game`; логика игры не меняется. Скрытая вкладка ставит хронику на паузу.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  actOnLetter, answerStory, callEndingStep, candidacyLines, dateLabel, electionLines, fillForm, firstStep, memoir, newTerm, nextCase,
-  openLetter, openingLines, pressStep, programOf, quarterLines, renameCandidate, secretaryLine, signCall, signOption, signPress,
+  actOnDossier, actOnLetter, answerStory, candidacyLines, convene, hire, signInitiative, dateLabel, electionLines, fillForm, firstStep, memoir, newTerm, nextCase,
+  openLetter, openingLines, programOf, quarterLines, renameCandidate, secretaryLine, signBudget, signCall, signChoice, signPress,
   startFromSeed, takeOffice, termOver, type ChronicleLine, type ChronicleStart, type Step,
 } from "@/lib/client/chronicle.ts";
 import { EMPTY_PERSONAL, type PersonalMemory } from "@/lib/client/chronicle-personal.ts";
 import { contemporaries, type Rival } from "@/lib/client/chronicle-rivals.ts";
 import {
-  EMPTY_STOPS, dueStops, openStops, rememberStop, stillWaiting, storyStops, type Stop, type StopMemory,
+  EMPTY_STOPS, dueStops, letterStop, openStops, rememberStop, stillWaiting, storyStops, type Stop, type StopMemory,
 } from "@/lib/client/chronicle-stops.ts";
 import { governmentBriefs } from "@/lib/client/government-brief.ts";
 import { personProfiles } from "@/lib/client/people-text.ts";
+import { presidentialMessages } from "@/lib/client/presidential-inbox.ts";
 import { MONTHS } from "@/lib/game/calendar.ts";
 import { BIOGRAPHIES, IDEOLOGIES } from "@/lib/game/data.ts";
 import { promiseDef } from "@/lib/game/promises.ts";
+import { debate } from "@/lib/game/forecasts.ts";
+import { hasPresidentialCouncil, isPresidentialDiscussion } from "@/lib/game/presidential-story.ts";
+import { hasInvestigationDebate } from "@/lib/content/investigation-debates.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { CHRONICLE_SAVE_KEY, encodeChronicle, parseChronicle, type ChronicleForm } from "@/lib/client/chronicle-save.ts";
-import type { Approach } from "@/lib/content/calls.ts";
-import type { DifficultyId, GameState, IdeologyId, ResourceKey } from "@/lib/game/types.ts";
-import { HistoricalArtProvider, Portrait, ResourceChips, SquareView } from "@/app/game/SovereignGame.jsx";
+import type { Choice, DifficultyId, GameEvent, GameState, IdeologyId, ResourceKey } from "@/lib/game/types.ts";
+import {
+  AdvisorDebate, BudgetPanel, CallPanel, ChoicePreview, CountrySheet, CouncilPanel, HistoricalArtProvider, PeopleSheet, InspectDoc, PactSlips, Portrait, PressPanel,
+  PromiseLines, ResourceChips, SpecialHeader, SquareView,
+} from "@/app/game/SovereignGame.jsx";
+import JournalistCall from "@/app/game/JournalistCall.jsx";
+import ResourceInfo from "@/app/game/ResourceInfo.jsx";
+import NegotiationCall from "@/app/game/NegotiationCall.jsx";
 import { PeopleProvider } from "@/app/game/PeopleText.jsx";
 import { IncomingLetter } from "@/app/game/QuarterInbox.jsx";
 import GovernmentPanel from "@/app/game/GovernmentPanel.jsx";
 import Letters from "@/app/game/Letters.jsx";
+import StaffPanel from "@/app/game/StaffPanel.jsx";
 import { LetterText } from "@/app/game/LetterText.jsx";
 import styles from "./chronicle.module.css";
 
@@ -78,6 +88,8 @@ export default function Chronicle() {
   const [view, setView] = useState<string | null>(null);
   const [stops, setStops] = useState<StopMemory>(EMPTY_STOPS);
   const [waitingOpen, setWaitingOpen] = useState(false);
+  // Справка из шапки: окно опоры, «Страна» или «Люди». Пока она открыта, лента стоит.
+  const [sheet, setSheet] = useState<ResourceKey | "country" | "people" | null>(null);
   const [busy, setBusy] = useState(false);
   const [speed, setSpeed] = useState<Speed>("calm");
   const [paused, setPaused] = useState(false);
@@ -93,6 +105,7 @@ export default function Chronicle() {
   const pendingResources = useRef<GameState["resources"] | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const caseRef = useRef<HTMLElement>(null);
+  const deskRef = useRef<HTMLElement>(null);
   const bar = useRef<HTMLElement>(null);
   const following = useRef(true);
   const speedRef = useRef<Speed>("calm");
@@ -191,32 +204,33 @@ export default function Chronicle() {
   }, [queue]);
 
   useEffect(() => {
-    if (!queue.length || paused || hidden || speed === "all") return;
+    if (!queue.length || paused || hidden || sheet || speed === "all") return;
     const timer = setTimeout(revealNext, delayFor(queue[0], speed));
     return () => clearTimeout(timer);
-  }, [queue, paused, hidden, speed, revealNext]);
+  }, [queue, paused, hidden, sheet, speed, revealNext]);
 
   const deciding = !queue.length && !busy && !over && !!(step || stop || form);
   // Что сейчас ждёт ответа: новое дело, обращение, письмо внутри него или шаг анкеты.
   const decision = !deciding ? null : form ? `form:${form.field}` : stop ? `stop:${stop.key}:${stop.token}:${view ?? ""}`
-    : step ? `case:${game?.turn}:${picks.length}` : null;
+    : step ? `case:${game?.turn}` : null;
   const shownDecision = useRef<string | null>(null);
   // Новое дело или обращение всегда открываем с заголовка, даже если прежнее дочитывали вниз;
   // строки хроники — следуя за последней, только если игрок сам не прокрутил ленту назад.
   useEffect(() => {
     if (decision && decision !== shownDecision.current) {
       shownDecision.current = decision;
-      caseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const section = () => (form || stop ? caseRef : deskRef).current;
+      section()?.scrollIntoView({ behavior: "smooth", block: "start" });
       // Шапка могла вырасти во время прокрутки (появилась «Ждут ответа»): заголовок не должен остаться под ней.
       const settle = setTimeout(() => {
-        const top = caseRef.current?.getBoundingClientRect().top, under = bar.current?.getBoundingClientRect().bottom;
-        if (top !== undefined && under !== undefined && top < under) caseRef.current?.scrollIntoView({ block: "start" });
+        const top = section()?.getBoundingClientRect().top, under = bar.current?.getBoundingClientRect().bottom;
+        if (top !== undefined && under !== undefined && top < under) section()?.scrollIntoView({ block: "start" });
       }, 700);
       return () => clearTimeout(settle);
     }
     if (!following.current || deciding) return;
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [shown.length, deciding, decision, page, rivals]);
+  }, [shown.length, deciding, decision, form, stop, page, rivals]);
 
   // Высота шапки меняется с кнопкой «Ждут ответа» и раскрытым списком: по ней дело встаёт под шапку, а не за неё.
   useEffect(() => {
@@ -254,9 +268,9 @@ export default function Chronicle() {
     const [next] = dueStops(state, openStops(state), memo);
     setView(null);
     if (!next) { setStop(null); setStep(firstStep(state)); setGame(state); return; }
+    // Если дело уже на столе (обращение открыто из «Ждут ответа»), оно остаётся под обращением, не сбрасываясь.
     const opened = next.message ? openLetter(state, next.message.person, next.message.key) : state;
     setGame(opened);
-    setStep(null);
     setStop(next);
     setStops(rememberStop(opened, next, memo));
   };
@@ -296,12 +310,11 @@ export default function Chronicle() {
   };
 
   // Игрок сам открывает отложенное из «Ждут ответа»: та же остановка, как письмо из папки в `/game`.
-  // Начатую пресс-конференцию не прерываем: её ответы ещё не подписаны.
+  // Дело под обращением остаётся смонтированным: начатая пресс-конференция или бюджет продолжатся с того же места.
   const openWaiting = (item: Stop) => {
-    if (!game || busy || picks.length) return;
+    if (!game || busy) return;
     const opened = item.message ? openLetter(game, item.message.person, item.message.key) : game;
     setGame(opened);
-    setStep(null);
     setStop(item);
     setView(null);
     setWaitingOpen(false);
@@ -345,27 +358,26 @@ export default function Chronicle() {
     await toStories(after, stops);
   };
 
-  const answer = async (key: string, index: number) => {
+  // Подпись дела: вариант, собранный экраном дела, — теми же функциями движка, что в `/game`.
+  const signCase = async (signing: (state: GameState) => Promise<GameState>) => {
     if (!game || !step || busy) return;
     setBusy(true);
-    try {
-      if (step.kind === "press") {
-        const next = [...picks, index];
-        if (next.length < game.currentEvent!.press!.questions.length) {
-          setPicks(next);
-          setStep(pressStep(game, next));
-        } else await settle(game, await signPress(game, next));
-      } else if (step.kind === "call-approach") {
-        setStep(callEndingStep(game, key as Approach));
-      } else if (step.kind === "call-ending") {
-        await settle(game, await signCall(game, step.approach, key as "deal" | "refuse" | "later"));
-      } else {
-        await settle(game, await signOption(game, key));
-      }
-    } finally {
-      setBusy(false);
-    }
+    try { await settle(game, await signing(game)); }
+    finally { setBusy(false); }
   };
+
+  // Совет собирается с паузой: если за это время дело сменилось, его предложения не ложатся на новое.
+  const onConvene = (proposals: Choice[], discussed: GameEvent) =>
+    setGame(current => current && current.currentEvent === discussed ? convene(current, proposals) : current);
+
+  // Из справки — к письму папки: поручения и доклады, программы правительства, письма человека. Нужен стол с делом.
+  const openFromSheet = (key: string | undefined) => {
+    const item = game?.currentEvent && key ? letterStop(game, key) : null;
+    if (!item) return;
+    setSheet(null);
+    openWaiting(item);
+  };
+  const canAct = !!game && !busy && !over && !form;
 
   const event = game?.currentEvent;
   const current = shown.at(-1)?.date;
@@ -374,7 +386,9 @@ export default function Chronicle() {
   return (
     <HistoricalArtProvider state={game}>
     <PeopleProvider gs={game} Portrait={Portrait}>
-    <main className={styles.desk}>
+    {/* Таймер ответа на пресс-конференции стоит, пока поверх дела открыта справка, список «Ждут ответа» или пауза:
+        игрок не теряет вопрос, пока смотрит страну или людей. */}
+    <main className={`${styles.desk}${sheet || waitingOpen || paused ? ` ${styles.timersPaused}` : ""}`}>
       <header ref={bar} className={styles.bar}>
         <div className={styles.barTop}>
           <span className={styles.now}>{current ? `${MONTHS[current.month]} ${current.year}` : "1978"}</span>
@@ -386,20 +400,45 @@ export default function Chronicle() {
           </div>
         </div>
         {visibleResources && <div className={styles.hud} aria-label="Опоры власти">
-          {HUD.map(h => <span key={h.key}><small>{h.label}</small>{visibleResources[h.key]}</span>)}
+          {/* data-res — как у опор в шапке `/game`: окно опоры не закрывается касанием по самой опоре, его закрывает переключатель. */}
+          {HUD.map(h => <button key={h.key} data-res={h.key} aria-expanded={sheet === h.key} disabled={!game || !!form}
+            onClick={() => setSheet(open => open === h.key ? null : h.key)}><small>{h.label}</small>{visibleResources[h.key]}</button>)}
         </div>}
-        {waiting.length > 0 && <div className={styles.waiting}>
-          <button aria-expanded={waitingOpen} onClick={() => setWaitingOpen(open => !open)} disabled={busy}>
-            Ждут ответа · {waiting.length}
-          </button>
-          {waitingOpen && <ul>{waiting.map(item => <li key={item.key}>
+        {game && !form && <div className={styles.sheets} role="group" aria-label="Справка">
+          <button aria-expanded={sheet === "country"} onClick={() => setSheet(open => open === "country" ? null : "country")}>Страна</button>
+          <button aria-expanded={sheet === "people"} onClick={() => setSheet(open => open === "people" ? null : "people")}>Люди</button>
+          {waiting.length > 0 && <button className={styles.waitingButton} aria-expanded={waitingOpen} onClick={() => setWaitingOpen(open => !open)}
+            disabled={busy}>Ждут ответа · {waiting.length}</button>}
+        </div>}
+        {game && sheet && sheet !== "country" && sheet !== "people" && <ResourceInfo key={sheet} gs={game} kind={sheet} canAct={canAct}
+          onClose={() => setSheet(null)} onInitiative={(id: string) => commit(signInitiative(game, id))}
+          onWorldAction={(id: string) => commit(actOnLetter(game, id))} />}
+        {waiting.length > 0 && waitingOpen && <div className={styles.waiting}>
+          <ul>{waiting.map(item => <li key={item.key}>
             <button onClick={() => openWaiting(item)} aria-current={stop?.key === item.key || undefined}>
               <small>{senderOf(game!, item)}{item.deadline !== undefined ? ` · ответ до конца квартала ${item.deadline}` : ""}</small>
               {item.title}
             </button>
-          </li>)}</ul>}
+          </li>)}</ul>
         </div>}
       </header>
+
+      {game && (sheet === "country" || sheet === "people") && <aside className={styles.sheet} aria-label={sheet === "country" ? "Страна" : "Люди"}>
+        <div className={`sv-paper ${styles.sheetPaper}`}>
+          <div className={styles.sheetHead}>
+            <strong>{sheet === "country" ? "Страна" : "Люди"}</strong>
+            <button onClick={() => setSheet(null)} aria-label="Закрыть справку и вернуться к ленте">×</button>
+          </div>
+          {sheet === "country"
+            ? <CountrySheet gs={game} onGovernment={() => openFromSheet(presidentialMessages(game).find(message => message.action === "government")?.key)}
+              onReports={() => openFromSheet("energy")} />
+            : <PeopleSheet gs={game}
+              onInbox={(id: string) => id === "people" ? (setSheet(null), setWaitingOpen(true))
+                : openFromSheet(presidentialMessages(game).find(message => message.person === id)?.key)}
+              onDossier={(id: string, action: "collect" | "press") => { if (!canAct) throw new Error("Дождитесь завершения текущего решения"); commit(actOnDossier(game, id, action)); }}
+              onHire={(id: string) => { if (!canAct) throw new Error("Дождитесь завершения текущего решения"); commit(hire(game, id)); }} />}
+        </div>
+      </aside>}
 
       <article className={styles.paper} aria-live="polite" onClick={() => { if (queue.length) revealNext(); }}>
         <div className={styles.masthead}>
@@ -435,7 +474,7 @@ export default function Chronicle() {
         {deciding && stop && game && <section ref={caseRef} className={styles.case} aria-label="Ждёт ответа" onClick={e => e.stopPropagation()}>
           <div className={styles.caseHead}>{stillWaiting(game, stop) ? "Ждёт ответа" : "Ответ подписан"} · {senderOf(game, stop)}</div>
           <StopBody game={game} stop={stop} view={view} onView={setView} onAct={id => commit(actOnLetter(game, id))}
-            onStory={(story, reply) => commit(answerStory(game, story, reply))} onDone={finishStop} />
+            onStory={(story, reply) => commit(answerStory(game, story, reply))} onHire={id => commit(hire(game, id))} onDone={finishStop} />
           <div className={styles.options}>
             <button disabled={busy} onClick={finishStop}>
               <strong>{stillWaiting(game, stop) ? "Отложить" : "Дальше"}</strong>
@@ -444,19 +483,13 @@ export default function Chronicle() {
           </div>
         </section>}
 
-        {deciding && step && event && <section ref={caseRef} className={styles.case} aria-label="Дело на столе" onClick={e => e.stopPropagation()}>
+        {/* Дело остаётся смонтированным, пока открыто обращение: начатая пресс-конференция или бюджет не сбрасываются. */}
+        {step && event && game && <section ref={deskRef} className={styles.case} aria-label="Дело на столе" hidden={!deciding || !!stop}
+          onClick={e => e.stopPropagation()}>
           <div className={styles.caseHead}>На столе · {event.source}</div>
           <h2>{event.title}</h2>
           {event.description.split(/\n\n+/).map((p, i) => <p key={i}>{p}</p>)}
-          <Ask step={step} />
-          <div className={styles.options}>
-            {step.options.map((option, i) => (
-              <button key={option.key} disabled={busy} onClick={() => answer(option.key, i)}>
-                <strong>{option.text}</strong>
-                {option.hint && <span>{option.hint}</span>}
-              </button>
-            ))}
-          </div>
+          <CaseDesk key={`${game.turn}:${event.title}`} game={game} busy={busy} onSign={signCase} onConvene={onConvene} />
         </section>}
         {busy && <p className={styles.more}>Секретарь уносит папку…</p>}
 
@@ -490,7 +523,7 @@ export default function Chronicle() {
   );
 }
 
-const senderOf = (game: GameState, stop: Stop) => stop.kind === "story" ? stop.title
+const senderOf = (game: GameState, stop: Stop) => stop.kind === "story" ? stop.title : stop.kind === "staff" ? "Отдел кадров"
   : personProfiles(game).find(person => person.id === stop.person)?.name ?? "Канцелярия";
 
 // Цена молчания — та, что уже назначил движок: срок ответа или то, что без ответа работа не начнётся.
@@ -501,6 +534,7 @@ function silenceNote(game: GameState, stop: Stop) {
     return left <= 1 ? "Это последний квартал для ответа." : `Ответ нужен до конца квартала ${stop.deadline}; лента напомнит в последний квартал.`;
   }
   if (stop.kind === "proposal") return "Без запуска программа не начнётся; лента вернётся к ней, когда опора окажется у порога.";
+  if (stop.kind === "staff") return "Кресла остаются за прежними людьми; резерв до конца года открыт в разделе «Люди».";
   return "Ответ можно дать позже: обращение остаётся в «Ждут ответа».";
 }
 
@@ -544,11 +578,12 @@ function CandidateForm({ game, form, onGame, onForm }: {
 }
 
 // Тело остановки — те же панели, что у письма в папке `/game`: поручения, секретарь, спонсор, министр, правительство.
-function StopBody({ game, stop, view, onView, onAct, onStory, onDone }: {
+function StopBody({ game, stop, view, onView, onAct, onStory, onHire, onDone }: {
   game: GameState; stop: Stop; view: string | null; onView: (key: string | null) => void;
-  onAct: (id: string) => void; onStory: (story: string, reply: string) => void; onDone: () => void;
+  onAct: (id: string) => void; onStory: (story: string, reply: string) => void; onHire: (id: string) => void; onDone: () => void;
 }) {
   if (stop.kind === "story") return <Letters letters={[stop.letter]} answers={game.storyReplies} onReply={onStory} Chips={ResourceChips} open />;
+  if (stop.kind === "staff") return <div className="sv-paper sv-incoming-project"><StaffPanel gs={game} onHire={onHire} /></div>;
   // Из письма можно перейти к связанному поручению; «к главному делу» — закончить остановку.
   const onOpen = (key: string) => key === "secretary" ? onDone() : onView(key);
   if (stop.key === "government-proposals" && !view) {
@@ -563,11 +598,57 @@ function StopBody({ game, stop, view, onView, onAct, onStory, onDone }: {
   return <IncomingLetter gs={game} page={view ?? stop.key} onAction={onAct} onOpen={onOpen} Scene={SquareView} />;
 }
 
-function Ask({ step }: { step: Step }) {
-  if (step.kind === "press") return <p className={styles.question}><small>{step.who} · вопрос {step.question + 1} из 3</small>{step.asked}</p>;
-  if (step.kind === "call-approach") return <p className={styles.question}><small>На линии</small>{step.demand}</p>;
-  if (step.kind === "call-ending") return <p className={styles.question}><small>Ответ</small>{step.reply}</p>;
-  return null;
+type Signing = (state: GameState) => Promise<GameState>;
+
+// Дело на столе — те же части, что резолюция в `/game`: цена варианта, спор советников, совет, документ на проверку,
+// экраны бюджета, звонка, переговоров и пресс-конференции. Вариант выбирают касанием, подписывают отдельной кнопкой.
+function CaseDesk({ game, busy, onSign, onConvene }: {
+  game: GameState; busy: boolean; onSign: (signing: Signing) => void; onConvene: (proposals: Choice[], discussed: GameEvent) => void;
+}) {
+  const [armed, setArmed] = useState<string | null>(null);
+  const event = game.currentEvent!;
+  const refuse = (state: GameState) => signChoice(state, event.choices[1].id);
+  const promises = (choice: Choice) => <PromiseLines gs={game} c={choice} />;
+  let body;
+  if (event.budget) body = <BudgetPanel gs={game} stamping={null} onSkip={() => onSign(refuse)}
+    onFinish={(alloc: Record<string, number>, debt: boolean) => onSign(state => signBudget(state, alloc, debt))} />;
+  else if (event.call?.negotiation === "journalist") body = <JournalistCall gs={game} stamping={null} renderPromises={promises} Portrait={Portrait}
+    onFinish={(choice: Choice) => onSign(state => signChoice(state, choice.id))} />;
+  else if (event.call?.negotiation) body = <NegotiationCall gs={game} stamping={null} renderPromises={promises} Portrait={Portrait}
+    onFinish={(choice: Choice) => onSign(state => signChoice(state, choice.id))} />;
+  else if (event.call) body = <CallPanel gs={game} call={event.call} seed={game.seed} stamping={null} onHang={() => onSign(refuse)}
+    onFinish={(approach: Parameters<typeof signCall>[1], ending: Parameters<typeof signCall>[2]) => onSign(state => signCall(state, approach, ending))} />;
+  else if (event.press) body = <PressPanel gs={game} press={event.press} stamping={null} onSkip={() => onSign(refuse)}
+    onFinish={(picks: number[]) => onSign(state => signPress(state, picks))} />;
+  else {
+    const takes = debate(game);
+    const councilOnly = hasPresidentialCouncil(game) || hasInvestigationDebate(game);
+    const optProps = (choice: Choice, n: number) => ({
+      id: `opt-${n}`, className: `sv-opt sv-choice-row${armed === choice.id ? " is-armed" : ""}`, "data-armed": armed === choice.id || undefined,
+      "aria-pressed": armed === choice.id, disabled: busy, onClick: () => setArmed(choice.id),
+    });
+    const chosen = armed ? [...event.choices, ...(event.council ?? [])].find(choice => choice.id === armed) : null;
+    body = <>
+      {!councilOnly && !isPresidentialDiscussion(game) && <AdvisorDebate gs={game} takes={takes} />}
+      <div className={styles.resolution}>
+        {(councilOnly ? [] : event.choices).map((choice, i) => <button key={choice.id} {...optProps(choice, i + 1)}>
+          <ChoicePreview gs={game} c={choice} debated={!!takes} />
+        </button>)}
+      </div>
+      <CouncilPanel gs={game} stamping={null} debated={!!takes} onConvened={onConvene}
+        optProps={(choice: Choice, index: number) => optProps(choice, councilOnly ? index + 1 : event.choices.length + index + 1)} />
+      {chosen && <div className={styles.sign}>
+        <button disabled={busy} onClick={() => onSign(state => signChoice(state, chosen.id))}><strong>Подписать</strong><span>{chosen.text}</span></button>
+        <button disabled={busy} onClick={() => setArmed(null)}>Отменить выбор</button>
+      </div>}
+    </>;
+  }
+  return <div className={`sv-paper ${styles.deskPaper}`}>
+    <PactSlips gs={game} />
+    {event.special && <SpecialHeader gs={game} event={event} />}
+    {event.doc && <InspectDoc doc={event.doc} />}
+    {body}
+  </div>;
 }
 
 function Line({ line, dated }: { line: ChronicleLine; dated: string }) {
