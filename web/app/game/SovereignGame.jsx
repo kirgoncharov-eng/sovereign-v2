@@ -4500,7 +4500,7 @@ export default function App() {
   const [chronicle, setChronicle] = useState(null);
   const resume = () => { if (saved?.screen === "chronicle") {
     setRunContext(saved.state.analyticsRun); track("resume", { turn: saved.state.turn });
-    setGs(saved.state); setChronicle({ seed: saved.state.seed, diff: saved.state.diff, resume: true }); setScreen("chronicle");
+    setGs(saved.state); setChronicle({ seed: saved.state.seed, diff: saved.state.diff, resume: saved.state }); setScreen("chronicle");
   } else if (saved) { setRunContext(saved.state.analyticsRun); track("resume", { turn: saved.state.turn }); setGs(openDeskWhenDue(saved.state)); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
   const restart = () => { setRunContext(undefined); clearSave(); setGs(null); setScreen("setup"); };
 
@@ -4528,7 +4528,13 @@ export default function App() {
       {/* Хроника: своё сохранение ленты; состояние партии — в общем сохранении, итоги — на общем экране итогов. */}
       {screen==="chronicle" && chronicle && <Chronicle key={`${chronicle.seed}:${chronicle.resume ? "resume" : "new"}`} entry={chronicle}
         onState={setGs} onFinish={state => { setGs(state); setScreen("ending"); }} onMenu={() => setScreen("setup")}
-        onFallback={() => { setGs(openDeskWhenDue(saved.state)); setScreen("game"); }}/>}
+        onFallback={() => {
+          // Снимок ленты не от этой партии или не читается: сохранённая партия не теряется и не подменяется.
+          // До первой подписи — та же партия заново в хронике (то же зерно и та же партия в аналитике), иначе — на столе.
+          const state = chronicle.resume;
+          if (state && state.turn === 0 && !state.history.length) setChronicle({ seed: state.seed, diff: state.diff, analyticsRun: state.analyticsRun });
+          else if (state) { setGs(openDeskWhenDue(state)); setScreen("game"); }
+        }}/>}
     </PeopleProvider>
     </HistoricalArtProvider>
   );

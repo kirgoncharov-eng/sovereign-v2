@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeChronicle, parseChronicle, type ChronicleSnapshot } from './chronicle-save.ts';
+import { chronicleBelongsTo, encodeChronicle, parseChronicle, type ChronicleSnapshot } from './chronicle-save.ts';
 import { firstStep, newTerm, nextCase, openingLines, startFromSeed } from './chronicle.ts';
 import { EMPTY_PERSONAL } from './chronicle-personal.ts';
 
@@ -43,4 +43,18 @@ test('анкета ЦИК и остановка на обращении пере
   const broken = JSON.parse(encodeChronicle(snapshot));
   broken.snapshot.form.field = 'age';
   assert.equal(parseChronicle(JSON.stringify(broken)), null);
+});
+
+test('«Продолжить»: снимок ленты принадлежит партии из общего сохранения только с тем же идентификатором партии', async () => {
+  const run = (id: string) => ({ id, startedAt: 1, version: 'test', source: 'web' as const, mode: 'ordinary' as const });
+  const snapshot = await example();
+  const mine = { ...snapshot, game: { ...snapshot.game, analyticsRun: run('a'.repeat(24)) } };
+  const restored = parseChronicle(encodeChronicle(mine))!;
+  // Та же партия: ход и зерно могли измениться — принадлежность по идентификатору партии.
+  assert.ok(chronicleBelongsTo(restored, { ...mine.game, turn: mine.game.turn + 3, seed: mine.game.seed + 1 }));
+  // Две корректные, но разные партии: чужая лента не подхватывается.
+  assert.ok(!chronicleBelongsTo(restored, { ...mine.game, analyticsRun: run('b'.repeat(24)) }));
+  // Без идентификатора принадлежность не доказана — ни со стороны сохранения, ни со стороны ленты.
+  assert.ok(!chronicleBelongsTo(restored, { ...mine.game, analyticsRun: undefined }));
+  assert.ok(!chronicleBelongsTo(parseChronicle(encodeChronicle(snapshot))!, mine.game));
 });

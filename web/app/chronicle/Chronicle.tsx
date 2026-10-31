@@ -25,7 +25,9 @@ import { debate } from "@/lib/game/forecasts.ts";
 import { hasPresidentialCouncil, isPresidentialDiscussion } from "@/lib/game/presidential-story.ts";
 import { hasInvestigationDebate } from "@/lib/content/investigation-debates.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
-import { CHRONICLE_SAVE_KEY, encodeChronicle, parseChronicle, type ChronicleForm } from "@/lib/client/chronicle-save.ts";
+import {
+  CHRONICLE_GAME_KEY, CHRONICLE_SAVE_KEY, chronicleBelongsTo, encodeChronicle, parseChronicle, type ChronicleForm,
+} from "@/lib/client/chronicle-save.ts";
 import type { Choice, DifficultyId, GameEvent, GameState, IdeologyId, ResourceKey } from "@/lib/game/types.ts";
 import {
   AdvisorDebate, BudgetPanel, CallPanel, ChoicePreview, CountrySheet, CouncilPanel, HistoricalArtProvider, PeopleSheet, PrologueCutscene, InspectDoc, PactSlips, Portrait, PressPanel,
@@ -87,7 +89,8 @@ type Memoir = Awaited<ReturnType<typeof memoir>>;
 export interface ChronicleEntry {
   seed: number;
   diff: DifficultyId;
-  resume?: boolean;
+  /** Продолжение: состояние из общего сохранения — снимок ленты должен принадлежать именно этой партии. */
+  resume?: GameState;
   analyticsRun?: GameState["analyticsRun"];
 }
 
@@ -143,6 +146,8 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   useEffect(() => { speedRef.current = speed; }, [speed]);
   // Хроника внутри игры шлёт те же события аналитики, что `/game`; отдельная страница прототипа — нет.
   const embedded = !!entry;
+  // Снимок ленты: у хроники внутри игры свой ключ, у страницы-прототипа — свой.
+  const saveKey = embedded ? CHRONICLE_GAME_KEY : CHRONICLE_SAVE_KEY;
   const firstCaseAt = useRef(0);
   const started = useRef(entry);
   useEffect(() => { if (game && onState) onState(game); }, [game, onState]);
@@ -166,15 +171,16 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
       const params = new URLSearchParams(window.location.search);
       let restored = null;
       try {
-        const raw = localStorage.getItem(CHRONICLE_SAVE_KEY);
+        const raw = localStorage.getItem(saveKey);
         restored = parseChronicle(raw);
         if (raw && !restored) { setSaveBlocked(true); setStorageAvailable(false); }
       } catch { setStorageAvailable(false); }
       const requestedSeed = params.get("seed");
       const requestedDiff = params.get("diff");
       const from = started.current;
-      // Внутри игры: новая партия с титула не подхватывает старую хронику; продолжение без неё уходит на стол.
-      if (from?.resume && !restored) { onFallback?.(); return; }
+      // Внутри игры: новая партия с титула не подхватывает старую хронику. Продолжение берёт снимок, только если он
+      // той же партии; иначе чужая лента не открывается и не перезаписывает сохранение — решает onFallback.
+      if (from?.resume && (!restored || !chronicleBelongsTo(restored, from.resume))) { onFallback?.(); return; }
       const restoring = from ? !!from.resume : !!restored && (!requestedSeed || Number(requestedSeed) === restored.start.seed)
         && (!requestedDiff || requestedDiff === restored.start.diff);
       if (restored && restoring) {
@@ -222,11 +228,11 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     });
     Promise.resolve().then(() => {
       if (cancelled) return;
-      try { localStorage.setItem(CHRONICLE_SAVE_KEY, data); setStorageAvailable(true); }
+      try { localStorage.setItem(saveKey, data); setStorageAvailable(true); }
       catch { setStorageAvailable(false); }
     });
     return () => { cancelled = true; };
-  }, [ready, busy, saveBlocked, start, game, shown, queue, step, picks, form, stop, stops, visibleResources, page, rivals, over]);
+  }, [ready, busy, saveBlocked, saveKey, start, game, shown, queue, step, picks, form, stop, stops, visibleResources, page, rivals, over]);
 
   useEffect(() => {
     const onVisibility = () => setHidden(document.hidden);
@@ -269,12 +275,17 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
       shownDecision.current = decision;
       const section = () => (form || stop ? caseRef : deskRef).current;
       section()?.scrollIntoView({ behavior: "smooth", block: "start" });
-      // Шапка могла вырасти во время прокрутки (появилась «Ждут ответа»): заголовок не должен остаться под ней.
-      const settle = setTimeout(() => {
+      // Шапка могла вырасти во время прокрутки (появилась «Ждут ответа»), а текст над делом — перестроиться, когда
+      // догрузились шрифты (после «Продолжить» с перезагрузкой): заголовок не должен остаться под шапкой.
+      let cancelled = false;
+      const realign = () => {
+        if (cancelled) return;
         const top = section()?.getBoundingClientRect().top, under = bar.current?.getBoundingClientRect().bottom;
         if (top !== undefined && under !== undefined && top < under) section()?.scrollIntoView({ block: "start" });
-      }, 700);
-      return () => clearTimeout(settle);
+      };
+      const timers = [700, 1600].map(delay => setTimeout(realign, delay));
+      document.fonts?.ready.then(realign);
+      return () => { cancelled = true; timers.forEach(clearTimeout); };
     }
     if (!following.current || deciding) return;
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });

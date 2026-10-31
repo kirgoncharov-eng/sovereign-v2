@@ -54,7 +54,46 @@ await page.screenshot({ path: shot("0-form") });
 
 const timeline = [];
 const problems = [];
-let prologueAfterElection = false, firstDecisionMs = null, stuck = false, memoir = false;
+let prologueAfterElection = false, firstDecisionMs = null, stuck = false, memoir = false, resumeChecked = false;
+const resume = { sameRun: null, foreignSnapshotKept: null };
+const mainSave = () => page.evaluate(() => {
+  try { const save = JSON.parse(localStorage.getItem("sovereign.save") ?? "null"); return save && { screen: save.screen, run: save.state.analyticsRun?.id, turn: save.state.turn }; }
+  catch { return null; }
+});
+
+// «Меню игры» → «Продолжить» возвращает ту же партию в хронику. Чужой корректный снимок ленты не открывается
+// и не перезаписывает сохранение: партия продолжается на столе. Затем снимок возвращается, и игра идёт дальше.
+async function checkResume() {
+  await wait(1200);
+  const before = await mainSave();
+  await page.getByRole("button", { name: "Меню игры" }).tap();
+  await page.getByRole("button", { name: /Продолжить сохранённую игру/ }).tap();
+  await chronicle.waitFor({ timeout: 10_000 });
+  await wait(1200);
+  const after = await mainSave();
+  resume.sameRun = !!before?.run && after?.run === before.run && after?.screen === "chronicle" && after.turn === before.turn;
+  const own = await page.evaluate(() => localStorage.getItem("sovereign.chronicle.game"));
+  await page.getByRole("button", { name: "Меню игры" }).tap();
+  await page.evaluate(raw => {
+    const foreign = JSON.parse(raw);
+    foreign.snapshot.game.analyticsRun = { ...foreign.snapshot.game.analyticsRun, id: "f".repeat(24) };
+    localStorage.setItem("sovereign.chronicle.game", JSON.stringify(foreign));
+  }, own);
+  await page.getByRole("button", { name: /Продолжить сохранённую игру/ }).tap();
+  await wait(2500);
+  const fallback = await mainSave();
+  resume.foreignSnapshotKept = fallback?.run === before?.run && fallback?.turn === before?.turn && fallback?.screen === "game";
+  // Вернуть свою ленту и продолжить партию в хронике.
+  await page.evaluate(({ raw, save }) => {
+    localStorage.setItem("sovereign.chronicle.game", raw);
+    const main = JSON.parse(localStorage.getItem("sovereign.save"));
+    localStorage.setItem("sovereign.save", JSON.stringify({ ...main, screen: save }));
+  }, { raw: own, save: "chronicle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: /Продолжить сохранённую игру/ }).tap();
+  await chronicle.waitFor({ timeout: 10_000 });
+  await wait(1200);
+}
 const geometry = { checks: 0, underHeader: 0, wide: 0 };
 
 async function measure() {
@@ -85,6 +124,8 @@ if (opened) {
 
   let decisions = 0;
   for (let step = 0; step < DECISIONS * 4 && decisions < DECISIONS; step++) {
+    // После трёх решений — продолжение с титула той же партии и защита от чужого снимка ленты (ниже).
+    if (decisions === 3 && !resumeChecked) { resumeChecked = true; await checkResume(); }
     const desk = page.locator('section[aria-label="Дело на столе"]:not([hidden])');
     const letter = page.locator('section[aria-label="Ждёт ответа"]');
     const end = page.locator("text=Мемуары");
@@ -153,9 +194,11 @@ problems.push(
   ...(geometry.wide ? [`страница шире экрана: ${geometry.wide} из ${geometry.checks}`] : []),
   ...(firstDecisionMs !== null && firstDecisionMs > FIRST_DECISION_LIMIT_MS ? [`первое решение через ${Math.round(firstDecisionMs / 1000)} с`] : []),
   ...(opened && save?.screen !== "chronicle" && save?.screen !== "ending" ? ["партия хроники не попала в общее сохранение"] : []),
+  ...(resume.sameRun === false ? ["«Продолжить» не вернуло ту же партию в хронику"] : []),
+  ...(resume.foreignSnapshotKept === false ? ["чужой снимок ленты подменил сохранённую партию"] : []),
 );
 const summary = { decisions: timeline.filter(line => /^\d/.test(line)).length, memoir, firstDecisionMs, prologueAfterElection, geometry,
-  saved: save?.screen ?? null, problems, timeline };
+  saved: save?.screen ?? null, resume, problems, timeline };
 writeFileSync(join(OUT, "summary.json"), JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));
 process.exit(problems.length ? 1 : 0);
