@@ -386,7 +386,9 @@ export default function Chronicle() {
   return (
     <HistoricalArtProvider state={game}>
     <PeopleProvider gs={game} Portrait={Portrait}>
-    <main className={styles.desk}>
+    {/* Таймер ответа на пресс-конференции стоит, пока поверх дела открыта справка, список «Ждут ответа» или пауза:
+        игрок не теряет вопрос, пока смотрит страну или людей. */}
+    <main className={`${styles.desk}${sheet || waitingOpen || paused ? ` ${styles.timersPaused}` : ""}`}>
       <header ref={bar} className={styles.bar}>
         <div className={styles.barTop}>
           <span className={styles.now}>{current ? `${MONTHS[current.month]} ${current.year}` : "1978"}</span>
@@ -398,7 +400,8 @@ export default function Chronicle() {
           </div>
         </div>
         {visibleResources && <div className={styles.hud} aria-label="Опоры власти">
-          {HUD.map(h => <button key={h.key} aria-expanded={sheet === h.key} disabled={!game || !!form}
+          {/* data-res — как у опор в шапке `/game`: окно опоры не закрывается касанием по самой опоре, его закрывает переключатель. */}
+          {HUD.map(h => <button key={h.key} data-res={h.key} aria-expanded={sheet === h.key} disabled={!game || !!form}
             onClick={() => setSheet(open => open === h.key ? null : h.key)}><small>{h.label}</small>{visibleResources[h.key]}</button>)}
         </div>}
         {game && !form && <div className={styles.sheets} role="group" aria-label="Справка">

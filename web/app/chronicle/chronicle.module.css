@@ -145,3 +145,6 @@
 /* «Ждут ответа» — в одном ряду со справкой: шапка на телефоне не съедает экран. */
 .sheets .waitingButton { flex: 1.4; border-color: var(--gold); color: var(--gold); }
 .sheets .waitingButton[aria-expanded="true"] { background: var(--gold); color: var(--on-gold); }
+
+/* Справка или список поверх дела: таймер ответа пресс-конференции (.sv-timer из /game) стоит, а не отвечает за игрока. */
+.timersPaused :global(.sv-timer) { animation-play-state: paused !important; }
