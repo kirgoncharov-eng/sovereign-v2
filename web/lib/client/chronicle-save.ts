@@ -6,7 +6,19 @@ import type { Stop, StopMemory } from './chronicle-stops.ts';
 import type { Rival } from './chronicle-rivals.ts';
 import type { GameState, ResourceKey } from '../game/types.ts';
 
+// Отдельная страница-прототип /chronicle — свой снимок; хроника внутри игры (#302, этап 4) — свой: страница
+// с тем же сайтом не должна подменять ленту партии, которую игрок продолжит с титула.
 export const CHRONICLE_SAVE_KEY = 'sovereign.chronicle.v1';
+export const CHRONICLE_GAME_KEY = 'sovereign.chronicle.game';
+
+/**
+ * Снимок ленты принадлежит партии из общего сохранения: у обоих один идентификатор партии (analyticsRun.id).
+ * Зерно для этого не годится — движок меняет его по ходу. Без идентификатора принадлежность не доказана.
+ */
+export function chronicleBelongsTo(snapshot: ChronicleSnapshot, state: GameState): boolean {
+  const run = state.analyticsRun?.id;
+  return !!run && snapshot.game.analyticsRun?.id === run;
+}
 // v2 (#302): анкета ЦИК, остановка на обращении и память показанных остановок. Сохранение v1 читается с пустыми.
 const CHRONICLE_VERSION = 2;
 

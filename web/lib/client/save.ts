@@ -12,7 +12,8 @@ import { migrateLegacyCaseText } from '../game/legacy-case-text.ts';
 import type { GameState } from "../game/types.ts";
 
 const KEY = "sovereign.save";
-export type Screen = "setup" | "intro" | "game" | "ending";
+// «chronicle» — партия 1978 года в «Хронике срока» (#302): её снимок ленты хранится отдельно, здесь — само состояние.
+export type Screen = "setup" | "intro" | "game" | "ending" | "chronicle";
 export interface SaveData { version: number; screen: Exclude<Screen, "setup">; state: GameState }
 
 const listeners = new Set<() => void>();
@@ -142,7 +143,7 @@ export function parseSave(raw: string | null): SaveData | null {
   try {
     const d = JSON.parse(raw);
     if (!isObj(d) || d.version !== SAVE_VERSION) return null;
-    if (d.screen !== "intro" && d.screen !== "game" && d.screen !== "ending") return null;
+    if (d.screen !== "intro" && d.screen !== "game" && d.screen !== "ending" && d.screen !== "chronicle") return null;
     const s = d.state;
     // A damaged optional character must not discard the rest of a pre-existing campaign.
     if (isObj(s) && isObj(s.world) && s.world.secretary !== undefined

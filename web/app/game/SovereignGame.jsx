@@ -73,6 +73,7 @@ import { PeopleProvider, PeopleText } from "./PeopleText.jsx";
 import { warningDetails } from "@/lib/client/warning-detail.ts";
 import { squareStateOf } from "@/lib/client/square-state.ts";
 import QuarterTransition from "./QuarterTransition.jsx";
+import Chronicle from "../chronicle/Chronicle";
 import { CASE_LEAD, NEWS_LEAD, ledgerRows, splitLead, withoutHeadline } from "@/lib/client/brief.ts";
 import { QUARTER_MARK, sourceLabel, splitQuarter } from "@/lib/game/turn-report.ts";
 import { quarterTransition } from "@/lib/client/quarter-transition.ts";
@@ -2032,7 +2033,7 @@ function VersionLabel() {
 }
 
 // ── КИНЕМАТОГРАФИЧЕСКИЙ ПРОЛОГ ───────────────────────────────────────────────
-function PrologueCutscene({ state, onComplete }) {
+export function PrologueCutscene({ state, onComplete }) {
   const [step, setStep] = useState(0);
   const completed = useRef(false);
   const onCompleteRef = useRef(onComplete);
@@ -2344,7 +2345,8 @@ function TitleModal({ id, title, onClose, triggerRef, children }) {
   );
 }
 
-function Setup({ onStart, saved, onResume }) {
+// chronicle — партия 1978 года пойдёт в «Хронику срока»: там пролог — утро вступления после выборов, а не до анкеты.
+function Setup({ onStart, saved, onResume, chronicle = false }) {
   const country = NEW_GAME_COUNTRY;
   const [diff, setDiff]       = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2395,7 +2397,7 @@ function Setup({ onStart, saved, onResume }) {
         : baseState;
       const payload = { st: daily ? { ...st, daily: daily.date, dailyMoves: [] } : st, quick: quick || !!daily };
 
-      if (!daily && c === ALTERNATE_COUNTRY) {
+      if (!daily && c === ALTERNATE_COUNTRY && !chronicle) {
         setLoading(false);
         setPrologue(payload);
       } else {
@@ -4493,16 +4495,27 @@ export default function App() {
   }, [gs, screen]);
 
   const [recap, setRecap] = useState(false); // «Ранее в Суверене» — после возвращения к сохранённой партии
-  const resume = () => { if (saved) { setRunContext(saved.state.analyticsRun); track("resume", { turn: saved.state.turn }); setGs(openDeskWhenDue(saved.state)); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
+  // Новая партия 1978 года идёт в «Хронике срока» (#302); классический стол — по ?desk=1, для сравнения и скриптов.
+  const [desk] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("desk"));
+  const [chronicle, setChronicle] = useState(null);
+  const resume = () => { if (saved?.screen === "chronicle") {
+    setRunContext(saved.state.analyticsRun); track("resume", { turn: saved.state.turn });
+    setGs(saved.state); setChronicle({ seed: saved.state.seed, diff: saved.state.diff, resume: saved.state }); setScreen("chronicle");
+  } else if (saved) { setRunContext(saved.state.analyticsRun); track("resume", { turn: saved.state.turn }); setGs(openDeskWhenDue(saved.state)); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
   const restart = () => { setRunContext(undefined); clearSave(); setGs(null); setScreen("setup"); };
 
   return (
     <HistoricalArtProvider state={gs}>
     <PeopleProvider gs={gs} Portrait={Portrait}>
-      {screen==="setup"  && <Setup  saved={saved} onResume={resume} onStart={(d, quick)=>{
+      {screen==="setup"  && <Setup  saved={saved} onResume={resume} chronicle={!desk} onStart={(d, quick)=>{
         d = { ...d, analyticsRun: newAnalyticsRun(APP_VERSION, inTelegram() ? "tg" : "web", !!d.daily) };
         setRunContext(d.analyticsRun);
-        track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily, quick:!!quick });
+        const inChronicle = !d.daily && d.country === ALTERNATE_COUNTRY && !desk;
+        track("start", { country:d.country, diff:d.diff, ideo:d.ideo, bio:d.bio ?? "", daily:!!d.daily, quick:!!quick, chronicle:inChronicle });
+        if (inChronicle) {
+          setGs(d); setChronicle({ seed: d.seed, diff: d.diff, analyticsRun: d.analyticsRun }); setScreen("chronicle"); track("intro");
+          return;
+        }
         // У исторической обычной партии есть первое утро. Дело дня открывается сразу.
         if (quick && (d.daily || d.country !== ALTERNATE_COUNTRY)) { setGs(openDeskWhenDue({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) })); setScreen("game"); }
         else { setGs(d); setScreen("intro"); track("intro"); }
@@ -4512,6 +4525,16 @@ export default function App() {
         : <Intro gs={gs} onGo={picks=>{ setGs(g => openDeskWhenDue({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>) }
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
+      {/* Хроника: своё сохранение ленты; состояние партии — в общем сохранении, итоги — на общем экране итогов. */}
+      {screen==="chronicle" && chronicle && <Chronicle key={`${chronicle.seed}:${chronicle.resume ? "resume" : "new"}`} entry={chronicle}
+        onState={setGs} onFinish={state => { setGs(state); setScreen("ending"); }} onMenu={() => setScreen("setup")}
+        onFallback={() => {
+          // Снимок ленты не от этой партии или не читается: сохранённая партия не теряется и не подменяется.
+          // До первой подписи — та же партия в хронике с тем же кандидатом и анкетой из сохранения, иначе — на столе.
+          const state = chronicle.resume;
+          if (state && state.turn === 0 && !state.history.length) setChronicle({ seed: state.seed, diff: state.diff, analyticsRun: state.analyticsRun, from: state });
+          else if (state) { setGs(openDeskWhenDue(state)); setScreen("game"); }
+        }}/>}
     </PeopleProvider>
     </HistoricalArtProvider>
   );

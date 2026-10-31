@@ -26,14 +26,18 @@ const shot = name => join(OUT, `${name}.png`);
 const pressQuestions = [];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
+// Плейтест стола `/game`: новая партия 1978 года по умолчанию идёт в «Хронике срока» (#302), стол — по ?desk=1.
+// Хронику проверяет scripts/playtest-chronicle.mjs.
+const withDesk = url => `${url}${url.includes("?") ? "&" : "?"}desk=1`;
+
 async function openGame(page) {
-  if (URL_ARG) return page.goto(URL_ARG, { waitUntil: "domcontentloaded" });
+  if (URL_ARG) return page.goto(withDesk(URL_ARG), { waitUntil: "domcontentloaded" });
   // Проверяем настоящий документ демо: обёртка скрыла бы ошибки doctype и кодировки.
   const demo = readFileSync(resolve("demo/dist/sovereign.html"), "utf8");
   const file = join(OUT, "game.html");
   writeFileSync(file, demo);
   // Доступность игры проверяют её кнопки, а не завершение необязательных загрузок шрифтов.
-  return page.goto(`file://${file}`, { waitUntil: "domcontentloaded" });
+  return page.goto(withDesk(`file://${file}`), { waitUntil: "domcontentloaded" });
 }
 
 // Какое дело на столе: от этого зависит, как его пройти.

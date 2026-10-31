@@ -28,7 +28,8 @@ try {
     window.__FORCE_CUTSCENE__ = true;
   });
 
-  await page.goto(new URL('../demo/dist/sovereign.html', import.meta.url).href, { waitUntil: 'domcontentloaded' });
+  // Стол `/game` — по ?desk=1: новая партия 1978 года по умолчанию идёт в «Хронике срока» (#302).
+  await page.goto(`${new URL('../demo/dist/sovereign.html', import.meta.url).href}?desk=1`, { waitUntil: 'domcontentloaded' });
   await wait(800);
 
   // Начать игру

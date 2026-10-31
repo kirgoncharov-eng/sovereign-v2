@@ -16,6 +16,9 @@ description: Плейтест «Суверена» в браузере на эк
    ```
    npm run playtest -- --turns=24 --out=playtest
    ```
+   Этот скрипт проверяет стол `/game` (сам открывает его по `?desk=1`). Новая партия 1978 года по умолчанию идёт
+   в «Хронике срока» (#302) — её проверяет `node scripts/playtest-chronicle.mjs --out=playtest/chronicle`
+   (после `npm run build:demo`): анкета ЦИК, пролог вступления, дела, обращения; кадры `decision-1…3.png`.
    Для более длинной партии — `--turns=40`; для превью Vercel — `--url=<адрес превью>`.
    Для отдельного результата — `--out=<папка>`. Все команды выполняются из `web`.
    Если в среде Codex нет Node.js в PATH, получить путь через `load_workspace_dependencies`;

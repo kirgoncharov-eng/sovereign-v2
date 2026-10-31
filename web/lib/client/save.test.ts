@@ -57,3 +57,11 @@ test("метаданные партии сохраняются; повреждё
   assert.equal(parseSave(wrap(damaged))?.state.analyticsRun, undefined);
   assert.equal(parseSave(wrap(damaged))?.state.seed, s.seed);
 });
+
+test("сохранение: партия в «Хронике срока» продолжается с титула; неизвестный экран не принимается", async () => {
+  const s = await initial();
+  const saved = parseSave(wrap(s, "chronicle"));
+  assert.equal(saved?.screen, "chronicle");
+  assert.deepEqual(saved?.state.resources, s.resources);
+  assert.equal(parseSave(wrap(s, "desk")), null);
+});
