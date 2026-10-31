@@ -152,7 +152,8 @@ export function openLivingWorld(gs: GameState): GameState {
         });
     if (openHealth) world = append(world, {
         project: 'health', turn: gs.turn, kind: 'letter', title: 'Районные больницы · письмо главного врача', text: historical
-            ? letters.healthFirstLetter(people.find(person => person.id === 'doctor')!.name, people.find(person => person.id === 'healthMinister')!.name)
+            ? letters.healthFirstLetter(people.find(person => person.id === 'doctor')!.name, people.find(person => person.id === 'healthMinister')!.name,
+                world.project.status === 'running' && world.project.executor === 'governor')
             : `${people.find(person => person.id === 'doctor')!.name} просит укомплектовать районные отделения в течение ` +
                 `года. Кабинеты и койки есть, но специалистов не хватает. ` +
                 `${people.find(person => person.id === 'healthMinister')!.name} предлагает постоянный набор; местные власти ` +

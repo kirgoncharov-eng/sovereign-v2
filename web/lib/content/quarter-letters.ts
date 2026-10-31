@@ -56,9 +56,13 @@ export function energyEnding(ending: string, speaker: string, executorAssigned: 
 }
 
 // Районные больницы.
-export function healthFirstLetter(doctor: string, healthMinister: string): string {
+// Занятость местной власти — факт партии: губернатор действительно ведёт энергосеть, а не фраза для всех (#310, C04).
+export function healthFirstLetter(doctor: string, healthMinister: string, governorOnEnergy: boolean): string {
+  const local = governorOnEnergy
+    ? 'Местная власть помогла бы с назначениями, но губернатор уже ведёт энергосеть.'
+    : 'Местная власть может помочь с назначениями.';
   return signed(`Кабинеты и койки есть — врачей нет. Прошу за год укомплектовать районные отделения. ${healthMinister} предлагает `
-    + 'постоянный набор. Местная власть помогла бы с назначениями, но она уже занята энергосетью. Можно временно перевести врачей '
+    + `постоянный набор. ${local} Можно временно перевести врачей `
     + 'из области: быстро, но области останутся без своих', `${doctor}, главный врач`);
 }
 

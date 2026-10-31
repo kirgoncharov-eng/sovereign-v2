@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chancery, energyProgress, governmentProposals, programReport, reserveShortage, splitChancery } from './quarter-letters.ts';
+import { chancery, energyProgress, governmentProposals, healthFirstLetter, programReport, reserveShortage, splitChancery } from './quarter-letters.ts';
 import { classicApi } from '../game/classic.ts';
 import { createInitialState, resolveTurn, seededRandom, startEvent } from '../game/engine.ts';
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
@@ -27,6 +27,13 @@ test('в папке строка канцелярии отделяется от 
   assert.deepEqual(splitChancery('«Работа идёт по плану» — Вера Рудницкая. Канцелярия: выполнено 22%.'),
     { voice: '«Работа идёт по плану» — Вера Рудницкая.', chancery: 'Канцелярия: выполнено 22%.' });
   assert.deepEqual(splitChancery('Директор энергосети просит заменить узлы.'), { voice: 'Директор энергосети просит заменить узлы.', chancery: null });
+});
+
+test('письмо о больницах называет занятость губернатора только при его назначении на энергосеть (#310, C04)', () => {
+  const busy = healthFirstLetter('Нина Жук', 'Павел Острин', true), free = healthFirstLetter('Нина Жук', 'Павел Острин', false);
+  assert.match(busy, /губернатор уже ведёт энергосеть/);
+  assert.doesNotMatch(free, /энергосет/);
+  assert.match(free, /Местная власть может помочь с назначениями\. Можно временно перевести врачей/);
 });
 
 test('закрытое поручение называет ресурс и порог', () => {
