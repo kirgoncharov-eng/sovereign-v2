@@ -3,16 +3,17 @@
 // Правило: лента стоит, если промолчать — значит изменить игру. Опись — docs/chronicle-inventory.md.
 import { governmentBriefs } from './government-brief.ts';
 import { presidentialMessages, type PresidentialMessage } from './presidential-inbox.ts';
-import { RESOURCE_KEYS } from '../game/data.ts';
+import { CRISIS_THRESHOLD, RESOURCE_KEYS } from '../game/data.ts';
+import { initiativeOptions } from '../game/initiatives.ts';
 import { POOL_TURNS, candidatePool, staffingOpen } from '../game/staffing.ts';
-import type { GameState, Letter } from '../game/types.ts';
+import type { GameState, Letter, ResourceKey } from '../game/types.ts';
 
 /** Опора у порога: столько и меньше. То же значение, что у строки ведомости «Опасно мало». */
 export const DANGER = 15;
 /** Сколько остановок, кроме дела, лента делает за квартал. Истекающее сейчас предел не откладывает (#302, гипотеза). */
 export const EXTRA_STOPS = 2;
 
-export type StopKind = 'letter' | 'proposal' | 'story' | 'staff';
+export type StopKind = 'letter' | 'proposal' | 'story' | 'staff' | 'initiative';
 
 export interface Stop {
   key: string;      // ключ обращения: тот же, что у письма в папке `/game`
@@ -25,6 +26,8 @@ export interface Stop {
   message?: PresidentialMessage;
   /** Письмо человека из газеты квартала — на него отвечают до следующего дела. */
   letter?: Letter;
+  /** Опоры ниже порога кризиса, для которых сейчас есть доступная мера (#302, этап 3). */
+  resources?: ResourceKey[];
 }
 
 /** Что лента уже показала: ключ → версия, квартал и было ли напоминание. Хранится в сохранении хроники. */
@@ -55,7 +58,9 @@ function replyToken(state: GameState, message: PresidentialMessage): string {
 
 /** Обращения, на которые сейчас нужен ответ, пока на столе дело. В порядке, в котором их приносит секретарь. */
 export function openStops(state: GameState): Stop[] {
-  if (state.daily || state.ended || !state.world || !state.currentEvent) return [];
+  if (state.daily || state.ended || !state.currentEvent) return [];
+  // Инициативы в `/game` доступны и до того, как открылся стол: ранняя подпись живёт вне ещё не открытого мира.
+  if (!state.world) return initiatives(state);
   const messages = presidentialMessages(state);
   const replies: Stop[] = messages.filter(message => message.needsReply).map(message => ({
     key: message.key, token: replyToken(state, message), kind: 'letter', title: message.title, person: message.person,
@@ -75,7 +80,22 @@ export function openStops(state: GameState): Stop[] {
   const staff: Stop[] = staffingOpen(state) && candidatePool(state).length ? [{
     key: 'staffing', token: `year:${Math.floor(state.turn / POOL_TURNS)}`, kind: 'staff', title: 'Кадровый резерв', person: '',
   }] : [];
-  return [...replies, ...proposals, ...housing, ...staff];
+  return [...initiatives(state), ...replies, ...proposals, ...housing, ...staff];
+}
+
+// Опора ниже порога кризиса — как «Переход ниже 20 может вызвать кризис» в окне опоры `/game`.
+const yearOf = (state: GameState) => Math.floor(state.turn / POOL_TURNS);
+const initiativeToken = (year: number, resources: ResourceKey[]) => `${year}|${resources.join(',')}`;
+const initiativeResources = (token: string) => token.split('|')[1]?.split(',').filter(Boolean) ?? [];
+
+// Цель #213: от падения любой опоры можно закрыться самому. Если опора ниже порога и для неё есть мера,
+// которую можно подписать сейчас, лента встаёт — одна остановка на все такие опоры.
+function initiatives(state: GameState): Stop[] {
+  const resources = RESOURCE_KEYS.filter(key => state.resources[key] < CRISIS_THRESHOLD
+    && initiativeOptions(state, key).some(option => !option.blocked));
+  return resources.length ? [{
+    key: 'initiatives', token: initiativeToken(yearOf(state), resources), kind: 'initiative', title: 'Опоры у порога', person: '', resources,
+  }] : [];
 }
 
 /** Письма людей из газеты квартала, на которые ещё не ответили. Ответ возможен только до следующего дела. */
@@ -95,13 +115,19 @@ export function dueStops(state: GameState, stops: Stop[], memory: StopMemory): S
   const danger = pillarInDanger(state);
   const due = stops.filter(stop => {
     const seen = memory[stop.key];
+    // Меры при опоре у порога: снова — если у порога новая опора или прошёл год; опора, вернувшаяся выше, ленту не держит.
+    if (stop.kind === 'initiative' && seen) {
+      const before = initiativeResources(seen.token);
+      return seen.token.split('|')[0] !== String(yearOf(state)) || (stop.resources ?? []).some(key => !before.includes(key));
+    }
     if (!seen || seen.token !== stop.token) return true;
     if (lastCall(stop, state.turn) && !seen.reminded) return true;
     return stop.kind === 'proposal' && danger && !seen.danger;
   });
   const urgent = due.filter(stop => isUrgent(stop, state.turn));
+  // Опора у порога — первой среди спокойных: без меры власть может упасть раньше, чем истечёт любое письмо.
   const rest = due.filter(stop => !urgent.includes(stop))
-    .sort((a, b) => (a.deadline ?? Infinity) - (b.deadline ?? Infinity));
+    .sort((a, b) => Number(b.kind === 'initiative') - Number(a.kind === 'initiative') || (a.deadline ?? Infinity) - (b.deadline ?? Infinity));
   // Предел считается за квартал целиком: остановки, уже показанные в этом квартале, тоже входят.
   const shown = Object.values(memory).filter(seen => seen.turn === state.turn && !seen.urgent).length;
   const room = Math.max(0, EXTRA_STOPS - shown - urgent.length);
@@ -131,5 +157,7 @@ export function stillWaiting(state: GameState, stop: Stop): boolean {
   if (stop.kind === 'story') return storyStops(state).some(other => other.key === stop.key);
   // Одно кадровое решение за квартал: после назначения резерв ещё открыт, но ответ уже дан.
   if (stop.kind === 'staff') return state.staffing?.lastTurn !== state.turn && openStops(state).some(other => other.key === stop.key);
+  // Одна инициатива за квартал: после подписи остальные меры заблокированы, и остановка уходит из открытых.
+  if (stop.kind === 'initiative') return openStops(state).some(other => other.key === stop.key);
   return openStops(state).some(other => other.key === stop.key && other.token === stop.token);
 }
