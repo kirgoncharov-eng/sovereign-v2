@@ -268,9 +268,9 @@ export default function Chronicle() {
     const [next] = dueStops(state, openStops(state), memo);
     setView(null);
     if (!next) { setStop(null); setStep(firstStep(state)); setGame(state); return; }
+    // Если дело уже на столе (обращение открыто из «Ждут ответа»), оно остаётся под обращением, не сбрасываясь.
     const opened = next.message ? openLetter(state, next.message.person, next.message.key) : state;
     setGame(opened);
-    setStep(null);
     setStop(next);
     setStops(rememberStop(opened, next, memo));
   };
@@ -315,7 +315,6 @@ export default function Chronicle() {
     if (!game || busy) return;
     const opened = item.message ? openLetter(game, item.message.person, item.message.key) : game;
     setGame(opened);
-    setStep(null);
     setStop(item);
     setView(null);
     setWaitingOpen(false);
