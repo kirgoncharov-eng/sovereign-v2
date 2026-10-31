@@ -4,6 +4,7 @@
 import { governmentBriefs } from './government-brief.ts';
 import { presidentialMessages, type PresidentialMessage } from './presidential-inbox.ts';
 import { RESOURCE_KEYS } from '../game/data.ts';
+import { POOL_TURNS, candidatePool, staffingOpen } from '../game/staffing.ts';
 import type { GameState, Letter } from '../game/types.ts';
 
 /** Опора у порога: столько и меньше. То же значение, что у строки ведомости «Опасно мало». */
@@ -11,7 +12,7 @@ export const DANGER = 15;
 /** Сколько остановок, кроме дела, лента делает за квартал. Истекающее сейчас предел не откладывает (#302, гипотеза). */
 export const EXTRA_STOPS = 2;
 
-export type StopKind = 'letter' | 'proposal' | 'story';
+export type StopKind = 'letter' | 'proposal' | 'story' | 'staff';
 
 export interface Stop {
   key: string;      // ключ обращения: тот же, что у письма в папке `/game`
@@ -70,7 +71,11 @@ export function openStops(state: GameState): Stop[] {
   const housing = messages.filter(message => message.key === 'housing-next').map(message => ({
     key: message.key, token: message.token, kind: 'proposal' as const, title: message.title, person: message.person, message,
   }));
-  return [...replies, ...proposals, ...housing];
+  // Кадровый резерв обновляется раз в год: новый резерв — одна остановка. Без решения кресла остаются за прежними людьми.
+  const staff: Stop[] = staffingOpen(state) && candidatePool(state).length ? [{
+    key: 'staffing', token: `year:${Math.floor(state.turn / POOL_TURNS)}`, kind: 'staff', title: 'Кадровый резерв', person: '',
+  }] : [];
+  return [...replies, ...proposals, ...housing, ...staff];
 }
 
 /** Письма людей из газеты квартала, на которые ещё не ответили. Ответ возможен только до следующего дела. */
@@ -112,8 +117,19 @@ export function rememberStop(state: GameState, stop: Stop, memory: StopMemory): 
   } };
 }
 
+/** Письмо папки, открытое игроком из справки: поручения и доклады, программы правительства, письма человека. */
+export function letterStop(state: GameState, key: string): Stop | null {
+  const open = openStops(state).find(stop => stop.key === key);
+  if (open) return open;
+  const message = presidentialMessages(state).find(item => item.key === key);
+  return message ? { key, token: message.token, kind: message.action === 'government' ? 'proposal' : 'letter', title: message.title,
+    person: message.person, message } : null;
+}
+
 /** Ждёт ли обращение ответа сейчас — иначе вместо «Отложить» лента предлагает «Дальше». */
 export function stillWaiting(state: GameState, stop: Stop): boolean {
   if (stop.kind === 'story') return storyStops(state).some(other => other.key === stop.key);
+  // Одно кадровое решение за квартал: после назначения резерв ещё открыт, но ответ уже дан.
+  if (stop.kind === 'staff') return state.staffing?.lastTurn !== state.turn && openStops(state).some(other => other.key === stop.key);
   return openStops(state).some(other => other.key === stop.key && other.token === stop.token);
 }
