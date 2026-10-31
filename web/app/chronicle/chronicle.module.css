@@ -113,3 +113,35 @@
 .choices button:disabled { opacity: .5; cursor: default; }
 .choices strong { display: block; font: 700 16px/1.35 var(--font-serif); }
 .choices span { display: block; font: 14px/1.4 var(--font-narrow); color: #5e5446; margin-top: 2px; }
+
+/* #302 · 2b: дело — те же части, что резолюция в /game, на листе (sv-paper задаёт цвета листа). */
+.deskPaper { margin: 6px -4px 0; padding: 12px 12px 14px; }
+.resolution { display: grid; gap: 6px; margin: 6px 0 4px; }
+.resolution button { display: block; width: 100%; text-align: left; padding: 12px 12px; background: transparent;
+  border: 1px solid var(--bdr2); color: var(--txt); min-height: 48px; }
+.resolution button[aria-pressed="true"] { border: 2px solid var(--txt); background: var(--bg3); }
+.sign { position: sticky; bottom: 8px; display: grid; gap: 6px; margin-top: 10px; padding: 8px; background: var(--bg2); border: 2px solid var(--txt); }
+.sign button { text-align: left; min-height: 44px; padding: 8px 12px; border: 1px solid var(--bdr2); background: transparent; color: var(--txt); }
+.sign button:first-child { background: var(--txt); color: var(--bg3); border-color: var(--txt); }
+.sign strong { display: block; font: 700 17px var(--font-serif); }
+.sign span { display: block; font: 14px/1.35 var(--font-narrow); opacity: .85; }
+
+/* #302 · 2b: справка из шапки — опоры открывают своё окно, «Страна» и «Люди» — лист поверх ленты. */
+.hud button { display: flex; flex-direction: column; align-items: center; min-width: 0; min-height: 40px; padding: 2px 0;
+  background: transparent; border: 1px solid transparent; font: inherit; color: inherit; }
+.hud button[aria-expanded="true"] { border-color: var(--gold); }
+.hud button:disabled { cursor: default; }
+.sheets { display: flex; gap: 6px; max-width: 680px; margin: 6px auto 0; }
+.sheets button { flex: 1; min-height: 36px; background: transparent; border: 1px solid var(--bdr2); color: var(--tx2);
+  font: 15px var(--font-narrow); letter-spacing: .04em; }
+.sheets button[aria-expanded="true"] { background: var(--gold); color: var(--on-gold); border-color: var(--gold); }
+.sheet { position: fixed; z-index: 6; left: 0; right: 0; top: calc(var(--chronicle-bar, 128px)); bottom: 0; overflow: auto;
+  background: #000a; padding: 8px 16px 24px; }
+.sheetPaper { max-width: 680px; margin: 0 auto; padding: 12px 14px 18px; }
+.sheetHead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.sheetHead strong { font: 700 20px var(--font-narrow); letter-spacing: .06em; text-transform: uppercase; }
+.sheetHead button { min-width: 44px; min-height: 44px; font-size: 24px; background: transparent; border: 1px solid var(--bdr2); color: var(--txt); }
+
+/* «Ждут ответа» — в одном ряду со справкой: шапка на телефоне не съедает экран. */
+.sheets .waitingButton { flex: 1.4; border-color: var(--gold); color: var(--gold); }
+.sheets .waitingButton[aria-expanded="true"] { background: var(--gold); color: var(--on-gold); }

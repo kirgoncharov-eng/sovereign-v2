@@ -383,7 +383,7 @@ function choiceStampLabel(c) {
 
 // Точный расклад знает только совет: его вариант показан в цифрах. Об остальных спорят советники над вариантами,
 // а без спора под вариантом — причины цены словами. Точный итог — в ведомости после хода.
-function ChoicePreview({ gs, c, debated = false }) {
+export function ChoicePreview({ gs, c, debated = false }) {
   const exact = !!c.advisor;
   const fx = choiceEffects(gs, c);
   const crisis = c.resolvesCrisis && gs.activeCrises.find(x => x.id === c.resolvesCrisis);
@@ -448,7 +448,7 @@ function DangerLines({ gs, c, fx }) {
 }
 
 // Спор над вариантами: два советника, каждый за свой вариант и в своих интересах.
-function AdvisorDebate({ gs, takes }) {
+export function AdvisorDebate({ gs, takes }) {
   if (!takes?.length) return null;
   const speeches = takes.map(take => (
     <div key={take.id} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"8px 0", borderTop:`1px dashed ${G.bdr}` }}>
@@ -589,7 +589,7 @@ function LawsCard({ gs, final = false, style, bare = false }) {
 }
 
 // Как решение скажется на обещаниях: шаг к исполнению или прямое нарушение.
-function PromiseLines({ gs, c }) {
+export function PromiseLines({ gs, c }) {
   const { advances, breaks } = promiseImpact(gs.promises, commitmentTags(c));
   if (!advances.length && !breaks.length) return null;
   return (
@@ -632,7 +632,7 @@ function DealLines({ gs, c, exact = true }) {
 }
 
 // Действующие союзы — бумажки на краю стола.
-function PactSlips({ gs }) {
+export function PactSlips({ gs }) {
   if (!gs.pacts?.length) return null;
   return (
     <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:10 }}>
@@ -657,7 +657,7 @@ function PactSlips({ gs }) {
 
 // Проверка документа: справка и доклад, строку можно отметить как ложную — красным кругом, как в Papers, Please.
 // Материалы свёрнуты: варианты и их цена видны в резолюции, а подробности ведомства — по нажатию.
-function InspectDoc({ doc }) {
+export function InspectDoc({ doc }) {
   return <div className="sv-inspect">
     <Card style={{ padding:"4px 20px", marginBottom:14 }}>
       <More label="Материалы к совещанию: предложение ведомства и замечания аппарата">
@@ -673,7 +673,7 @@ function InspectDoc({ doc }) {
 }
 
 // Предвыборный бюджет: раскладываешь миллиарды по статьям и сразу видишь, что получится.
-function BudgetPanel({ gs, onFinish, onSkip, stamping }) {
+export function BudgetPanel({ gs, onFinish, onSkip, stamping }) {
   const [alloc, setAlloc] = useState(() => Object.fromEntries(BUDGET_ITEMS.map(i => [i.id, 2])));
   const [debt, setDebt] = useState(false);
   const limit = budgetLimit(debt);
@@ -745,7 +745,7 @@ function BudgetPanel({ gs, onFinish, onSkip, stamping }) {
 }
 
 // Звонок по защищённой линии: сначала подход, потом развязка. Как ответят — решает характер собеседника.
-function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
+export function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
   const [approach, setApproach] = useState(null);
   const [secs, setSecs] = useState(0);
   useEffect(() => { const t = setInterval(() => setSecs(x => x + 1), 1000); return () => clearInterval(t); }, []);
@@ -876,7 +876,7 @@ function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
 // Пресс-конференция: три вопроса подряд, на каждый — 15 секунд. Не успели — пауза станет заголовком.
 const TONE_LABEL = { honest:"честно", hard:"жёстко", evasive:"уклончиво" };
 const PRESS_SECONDS = 15;
-function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
+export function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
   const [picks, setPicks] = useState([]);
   const [live, setLive] = useState(false); // время идёт только после выхода к журналистам
   const step = picks.length, q = press.questions[step];
@@ -1320,7 +1320,7 @@ function ElectionNight({ e, party, onDone }) {
 }
 
 // Кто перед вами в особом деле: человек, его характер и расхождение с его лагерем.
-function SpecialHeader({ gs, event }) {
+export function SpecialHeader({ gs, event }) {
   const sp = event.special;
   const fig = gs.keyFigures.find(f => f.id === sp.figure);
   const fac = gs.factions.find(f => f.id === sp.faction);
@@ -1350,7 +1350,7 @@ function ChanceBadge({ p, exact = true }) {
 const stars = n => "★".repeat(n) + "☆".repeat(3 - n);
 
 // Совет: ограниченное число раз за мандат советники предлагают свои решения.
-function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
+export function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
   const proposals = gs.currentEvent?.council;
@@ -2877,7 +2877,7 @@ function PersonRow({ name, line, value, valueColor, warn, children }) {
   );
 }
 
-function CountrySheet({ gs, onGovernment, onReports }) {
+export function CountrySheet({ gs, onGovernment, onReports }) {
   const { resources, prevResources, turn } = gs;
   const notes = countryNotes(gs);
   const government = gs.ended ? null : governmentNote(gs);
@@ -2933,7 +2933,7 @@ function CountrySheet({ gs, onGovernment, onReports }) {
   </>;
 }
 
-function PeopleSheet({ gs, onDossier, onHire, onInbox }) {
+export function PeopleSheet({ gs, onDossier, onHire, onInbox }) {
   const { factions, prevFactions, keyFigures, prevFigures } = gs;
   const staff = staffNote(gs);
   const inbox = gs.ended ? [] : inboxRows(gs);
