@@ -18,7 +18,7 @@ import { governmentBriefs } from "@/lib/client/government-brief.ts";
 import { personProfiles } from "@/lib/client/people-text.ts";
 import { presidentialMessages } from "@/lib/client/presidential-inbox.ts";
 import { MONTHS } from "@/lib/game/calendar.ts";
-import { BIOGRAPHIES, IDEOLOGIES } from "@/lib/game/data.ts";
+import { BIOGRAPHIES, CRISIS_THRESHOLD, IDEOLOGIES, LIMITS } from "@/lib/game/data.ts";
 import { promiseDef } from "@/lib/game/promises.ts";
 import { debate } from "@/lib/game/forecasts.ts";
 import { hasPresidentialCouncil, isPresidentialDiscussion } from "@/lib/game/presidential-story.ts";
@@ -53,6 +53,12 @@ const HUD: { key: ResourceKey; label: string }[] = [
   { key: "politicalCapital", label: "Влияние" }, { key: "economy", label: "Экономика" }, { key: "military", label: "Силовики" },
   { key: "externalReputation", label: "Репутация" }, { key: "internalLegitimacy", label: "Легитимн." }, { key: "personalResource", label: "Личный" },
 ];
+
+// Полные названия опор — для остановки «Опоры у порога»; в шапке они сокращены.
+const PILLAR: Record<ResourceKey, string> = {
+  politicalCapital: "Влияние", economy: "Экономика", military: "Силовики", externalReputation: "Репутация",
+  internalLegitimacy: "Легитимность", personalResource: "Личный ресурс",
+};
 
 const DIFFS: DifficultyId[] = ["debut", "coalition", "crisis", "ruins"];
 
@@ -474,7 +480,8 @@ export default function Chronicle() {
         {deciding && stop && game && <section ref={caseRef} className={styles.case} aria-label="Ждёт ответа" onClick={e => e.stopPropagation()}>
           <div className={styles.caseHead}>{stillWaiting(game, stop) ? "Ждёт ответа" : "Ответ подписан"} · {senderOf(game, stop)}</div>
           <StopBody game={game} stop={stop} view={view} onView={setView} onAct={id => commit(actOnLetter(game, id))}
-            onStory={(story, reply) => commit(answerStory(game, story, reply))} onHire={id => commit(hire(game, id))} onDone={finishStop} />
+            onStory={(story, reply) => commit(answerStory(game, story, reply))} onHire={id => commit(hire(game, id))}
+            onPillar={key => setSheet(key)} onDone={finishStop} />
           <div className={styles.options}>
             <button disabled={busy} onClick={finishStop}>
               <strong>{stillWaiting(game, stop) ? "Отложить" : "Дальше"}</strong>
@@ -524,6 +531,7 @@ export default function Chronicle() {
 }
 
 const senderOf = (game: GameState, stop: Stop) => stop.kind === "story" ? stop.title : stop.kind === "staff" ? "Отдел кадров"
+  : stop.kind === "initiative" ? "Аппарат президента"
   : personProfiles(game).find(person => person.id === stop.person)?.name ?? "Канцелярия";
 
 // Цена молчания — та, что уже назначил движок: срок ответа или то, что без ответа работа не начнётся.
@@ -535,6 +543,7 @@ function silenceNote(game: GameState, stop: Stop) {
   }
   if (stop.kind === "proposal") return "Без запуска программа не начнётся; лента вернётся к ней, когда опора окажется у порога.";
   if (stop.kind === "staff") return "Кресла остаются за прежними людьми; резерв до конца года открыт в разделе «Люди».";
+  if (stop.kind === "initiative") return "Опора останется у порога. Меру можно подписать позже — в окне опоры в шапке.";
   return "Ответ можно дать позже: обращение остаётся в «Ждут ответа».";
 }
 
@@ -578,10 +587,21 @@ function CandidateForm({ game, form, onGame, onForm }: {
 }
 
 // Тело остановки — те же панели, что у письма в папке `/game`: поручения, секретарь, спонсор, министр, правительство.
-function StopBody({ game, stop, view, onView, onAct, onStory, onHire, onDone }: {
-  game: GameState; stop: Stop; view: string | null; onView: (key: string | null) => void;
-  onAct: (id: string) => void; onStory: (story: string, reply: string) => void; onHire: (id: string) => void; onDone: () => void;
+function StopBody({ game, stop, view, onView, onAct, onStory, onHire, onPillar, onDone }: {
+  game: GameState; stop: Stop; view: string | null; onView: (key: string | null) => void; onAct: (id: string) => void;
+  onStory: (story: string, reply: string) => void; onHire: (id: string) => void; onPillar: (key: ResourceKey) => void; onDone: () => void;
 }) {
+  // Опоры у порога (#302, этап 3): та же мера, что в окне опоры `/game`, — окно открывается из остановки.
+  if (stop.kind === "initiative") return <div className="sv-paper sv-incoming-project">
+    <h2>{stop.title}</h2>
+    <p>Ниже {CRISIS_THRESHOLD} опора может обернуться кризисом, на {LIMITS.endResource} и ниже власть падает.
+      Для этих опор сейчас есть мера. Одно личное распоряжение за квартал — вместе с поручениями стола.</p>
+    <div className={styles.choices}>
+      {(stop.resources ?? []).map(key => <button key={key} onClick={() => onPillar(key)}>
+        <strong>{PILLAR[key]} · {game.resources[key]}</strong><span>Что можно поручить →</span>
+      </button>)}
+    </div>
+  </div>;
   if (stop.kind === "story") return <Letters letters={[stop.letter]} answers={game.storyReplies} onReply={onStory} Chips={ResourceChips} open />;
   if (stop.kind === "staff") return <div className="sv-paper sv-incoming-project"><StaffPanel gs={game} onHire={onHire} /></div>;
   // Из письма можно перейти к связанному поручению; «к главному делу» — закончить остановку.

@@ -46,7 +46,7 @@ export function parseChronicle(raw: string | null): ChronicleSnapshot | null {
     const fields = ['name', 'bio', 'ideo', 'program'];
     if ((form !== null && (!fields.includes(form.field) || !Number.isInteger(form.nameStep)
         || !Array.isArray(form.promises) || !form.promises.every((id: unknown) => typeof id === 'string')))
-      || (stop !== null && (typeof stop.key !== 'string' || typeof stop.token !== 'string' || !['letter', 'proposal', 'story', 'staff'].includes(stop.kind)))
+      || (stop !== null && (typeof stop.key !== 'string' || typeof stop.token !== 'string' || !['letter', 'proposal', 'story', 'staff', 'initiative'].includes(stop.kind)))
       || typeof stops !== 'object' || Array.isArray(stops)
       || !Object.values(stops).every((seen: unknown) => !!seen && typeof (seen as { token?: unknown }).token === 'string'
         && Number.isInteger((seen as { turn?: unknown }).turn))) return null;

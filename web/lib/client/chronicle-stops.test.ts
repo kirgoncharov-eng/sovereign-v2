@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  actOnLetter, answerStory, convene, hire, newTerm, nextCase, openLetter, programOf, signBudget, signCall, signChoice, signPress, startFromSeed,
+  actOnLetter, answerStory, convene, hire, signInitiative, newTerm, nextCase, openLetter, programOf, signBudget, signCall, signChoice, signPress, startFromSeed,
   takeOffice, termOver,
 } from './chronicle.ts';
 import { DANGER, EMPTY_STOPS, EXTRA_STOPS, dueStops, openStops, rememberStop, stillWaiting, storyStops, type Stop, type StopMemory } from './chronicle-stops.ts';
@@ -15,8 +15,14 @@ import { initPromises } from '../game/promises.ts';
 import { livingActions, interveneWorld } from '../game/living-world.ts';
 import { secretaryActions } from '../game/secretary.ts';
 import { candidatePool, hireAdvisor, staffingBlocked } from '../game/staffing.ts';
+import { confirmInitiative, initiativeOptions, type InitiativeId } from '../game/initiatives.ts';
 import { replyToLetter } from '../game/stories.ts';
+import { CRISIS_THRESHOLD } from '../game/data.ts';
 import type { Choice, DifficultyId, GameState } from '../game/types.ts';
+
+// Мера, которую игрок подписал бы в окне первой опоры у порога: первая без запрета.
+const measure = (state: GameState, stop: Stop) =>
+  stop.resources!.flatMap(key => initiativeOptions(state, key)).find(option => !option.blocked)!.id;
 
 // Кандидат из резерва, которого можно назначить сейчас: первый без запрета.
 const hireable = (state: GameState) => candidatePool(state).find(candidate => !staffingBlocked(state, candidate))?.id ?? null;
@@ -94,6 +100,7 @@ async function chronicleTerm(seed: number, diff: DifficultyId, answer = true) {
       shown.push(stop);
       memory = rememberStop(state, stop, memory);
       if (stop.kind === 'staff' && answer) { const id = hireable(state); if (id) state = hire(state, id); }
+      if (stop.kind === 'initiative' && answer) state = signInitiative(state, measure(state, stop));
       if (stop.message) state = openLetter(state, stop.message.person, stop.message.key);
       const action = answer && stop.message && stop.kind === 'letter' ? replyAction(state, stop.message) : null;
       if (action) state = actOnLetter(state, action);
@@ -122,6 +129,8 @@ async function deskTerm(seed: number, diff: DifficultyId) {
       memory = rememberStop(state, stop, memory);
       // Резерв кадров в `/game` — раздел «Люди»: тот же кандидат назначается тем же `hireAdvisor`.
       if (stop.kind === 'staff') { const id = hireable(state); if (id) state = hireAdvisor(state, id); continue; }
+      // Мера при опоре у порога в `/game` — окно опоры в шапке: та же инициатива тем же `confirmInitiative`.
+      if (stop.kind === 'initiative') { state = confirmInitiative(state, measure(state, stop) as InitiativeId); continue; }
       const message = presidentialMessages(state).find(item => item.key === stop.key)!;
       state = openLetter(state, message.person, message.key);
       const action = stop.kind === 'letter' ? replyAction(state, message) : null;
@@ -200,4 +209,40 @@ test('письмо человека: остановка до следующег�
     return;
   }
   assert.fail('ни на одном зерне не пришло письмо с ответом');
+});
+
+test('опора у порога: остановка с мерой, ответ в квартал, повтор — только при новой опоре или через год', async () => {
+  let checked = 0;
+  for (const [seed, diff] of SEEDS) {
+    const candidate = await newTerm(startFromSeed(seed, diff));
+    let state = takeOffice(candidate, programOf(candidate).suggested);
+    while (!termOver(state)) {
+      state = await nextCase(state);
+      const [stop] = openStops(state).filter(item => item.kind === 'initiative');
+      if (stop) {
+        checked++;
+        // Только опоры ниже порога кризиса, и для каждой есть мера без запрета.
+        for (const key of stop.resources!) {
+          assert.ok(state.resources[key] < CRISIS_THRESHOLD, `${key} = ${state.resources[key]}`);
+          assert.ok(initiativeOptions(state, key).some(option => !option.blocked), key);
+        }
+        // Впереди спокойных остановок квартала, даже если ждут письма.
+        assert.equal(dueStops(state, openStops(state), EMPTY_STOPS)[0].kind, 'initiative');
+        const memory = rememberStop(state, stop, EMPTY_STOPS);
+        assert.ok(!dueStops(state, openStops(state), memory).some(item => item.kind === 'initiative'), 'показанное не повторяется');
+        const signed = signInitiative(state, measure(state, stop));
+        assert.ok(!stillWaiting(signed, stop), 'после подписи — «Дальше»');
+        // Новая опора у порога в тот же год — снова; та же опора через год — снова; опора вернулась выше — не держит.
+        const extra: Stop = { ...stop, resources: [...stop.resources!, 'personalResource'], token: `${stop.token},personalResource` };
+        const nextYear: Stop = { ...stop, token: `${Number(stop.token.split('|')[0]) + 1}|${stop.resources!.join(',')}` };
+        assert.ok(dueStops(state, [extra], memory).length === 1, 'новая опора');
+        assert.ok(dueStops({ ...state, turn: state.turn + 4 }, [nextYear], memory).length === 1, 'через год');
+        const fewer: Stop = { ...stop, resources: stop.resources!.slice(1), token: `${stop.token.split('|')[0]}|${stop.resources!.slice(1).join(',')}` };
+        if (fewer.resources!.length) assert.equal(dueStops(state, [fewer], memory).length, 0, 'опора вернулась выше');
+        break;
+      }
+      state = await chronicleSign(state);
+    }
+  }
+  assert.ok(checked >= 2, `остановка «Опоры у порога» должна встречаться в живых партиях, найдено ${checked}`);
 });
