@@ -17,7 +17,7 @@ import { secretaryActions } from '../game/secretary.ts';
 import { candidatePool, hireAdvisor, staffingBlocked } from '../game/staffing.ts';
 import { confirmInitiative, initiativeOptions, type InitiativeId } from '../game/initiatives.ts';
 import { replyToLetter } from '../game/stories.ts';
-import { CRISIS_THRESHOLD } from '../game/data.ts';
+import { CRISIS_THRESHOLD, RESOURCE_KEYS } from '../game/data.ts';
 import type { Choice, DifficultyId, GameState } from '../game/types.ts';
 
 // Мера, которую игрок подписал бы в окне первой опоры у порога: первая без запрета.
@@ -233,7 +233,8 @@ test('опора у порога: остановка с мерой, ответ �
         const signed = signInitiative(state, measure(state, stop));
         assert.ok(!stillWaiting(signed, stop), 'после подписи — «Дальше»');
         // Новая опора у порога в тот же год — снова; та же опора через год — снова; опора вернулась выше — не держит.
-        const extra: Stop = { ...stop, resources: [...stop.resources!, 'personalResource'], token: `${stop.token},personalResource` };
+        const another = RESOURCE_KEYS.find(key => !stop.resources!.includes(key))!;
+        const extra: Stop = { ...stop, resources: [...stop.resources!, another], token: `${stop.token},${another}` };
         const nextYear: Stop = { ...stop, token: `${Number(stop.token.split('|')[0]) + 1}|${stop.resources!.join(',')}` };
         assert.ok(dueStops(state, [extra], memory).length === 1, 'новая опора');
         assert.ok(dueStops({ ...state, turn: state.turn + 4 }, [nextYear], memory).length === 1, 'через год');

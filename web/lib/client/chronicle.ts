@@ -309,8 +309,11 @@ export const actOnDossier = (state: GameState, advisorId: string, action: Dossie
 
 // ── Конец срока ──────────────────────────────────────────────────────────────
 
-/** Хроника кончается с падением власти или после выборов в конце первого срока. */
-export const termOver = (state: GameState) => !!state.ended || state.turn >= TERM;
+/** Хроника кончается вместе с властью, как партия в `/game`: после переизбрания идёт второй срок. */
+export const termOver = (state: GameState) => !!state.ended;
+
+/** Первый срок прожит: для сравнения с другими президентами того же января. */
+export const firstTermOver = (state: GameState) => !!state.ended || state.turn >= TERM;
 
 export async function memoir(state: GameState) {
   const lastVote = state.elections.at(-1);

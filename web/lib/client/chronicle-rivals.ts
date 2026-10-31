@@ -4,7 +4,7 @@ import { approachWorks, budgetChoice, callChoice, classicApi, pressChoice } from
 import { computePolls, planTurn, resolveTurn } from '../game/engine.ts';
 import { COUNTRIES, END_TYPES } from '../game/data.ts';
 import { APPROACHES } from '../content/calls.ts';
-import { newTerm, nextCase, termOver, type ChronicleStart } from './chronicle.ts';
+import { firstTermOver, newTerm, nextCase, type ChronicleStart } from './chronicle.ts';
 import type { Choice, GameState, ResourceKey, Resources } from '../game/types.ts';
 
 interface Temper {
@@ -55,7 +55,7 @@ export interface Rival {
 
 export async function liveRival(start: ChronicleStart, temper: Temper): Promise<Rival> {
   let state = await newTerm(start);
-  while (!termOver(state)) {
+  while (!firstTermOver(state)) {
     state = await nextCase(state);
     const choice = bestChoice(state, temper);
     const ready = { ...state, currentEvent: { ...state.currentEvent!, choices: [choice, ...state.currentEvent!.choices.slice(1)] } };

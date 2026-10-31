@@ -148,3 +148,9 @@
 
 /* Справка или список поверх дела: таймер ответа пресс-конференции (.sv-timer из /game) стоит, а не отвечает за игрока. */
 .timersPaused :global(.sv-timer) { animation-play-state: paused !important; }
+
+/* #302 · этап 4: хроника внутри игры — выход в меню и итоги на общем экране. */
+.menu { margin-top: 8px; min-height: 36px; padding: 4px 12px; background: transparent; border: 1px solid #8d8166;
+  font: 14px var(--font-narrow); color: #4f483a; letter-spacing: .04em; }
+.again button { display: block; width: 100%; text-align: center; padding: 13px; border: 2px solid #2f2a22; background: #2f2a22;
+  color: #eee5ca; font: 700 18px var(--font-narrow); letter-spacing: .04em; }

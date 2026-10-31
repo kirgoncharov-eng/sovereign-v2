@@ -18,6 +18,7 @@ import { governmentBriefs } from "@/lib/client/government-brief.ts";
 import { personProfiles } from "@/lib/client/people-text.ts";
 import { presidentialMessages } from "@/lib/client/presidential-inbox.ts";
 import { MONTHS } from "@/lib/game/calendar.ts";
+import { track } from "@/lib/client/analytics.ts";
 import { BIOGRAPHIES, CRISIS_THRESHOLD, IDEOLOGIES, LIMITS } from "@/lib/game/data.ts";
 import { promiseDef } from "@/lib/game/promises.ts";
 import { debate } from "@/lib/game/forecasts.ts";
@@ -27,7 +28,7 @@ import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { CHRONICLE_SAVE_KEY, encodeChronicle, parseChronicle, type ChronicleForm } from "@/lib/client/chronicle-save.ts";
 import type { Choice, DifficultyId, GameEvent, GameState, IdeologyId, ResourceKey } from "@/lib/game/types.ts";
 import {
-  AdvisorDebate, BudgetPanel, CallPanel, ChoicePreview, CountrySheet, CouncilPanel, HistoricalArtProvider, PeopleSheet, InspectDoc, PactSlips, Portrait, PressPanel,
+  AdvisorDebate, BudgetPanel, CallPanel, ChoicePreview, CountrySheet, CouncilPanel, HistoricalArtProvider, PeopleSheet, PrologueCutscene, InspectDoc, PactSlips, Portrait, PressPanel,
   PromiseLines, ResourceChips, SpecialHeader, SquareView,
 } from "@/app/game/SovereignGame.jsx";
 import JournalistCall from "@/app/game/JournalistCall.jsx";
@@ -82,7 +83,29 @@ function readSpeed(): Speed {
 
 type Memoir = Awaited<ReturnType<typeof memoir>>;
 
-export default function Chronicle() {
+/** Хроника внутри игры (#302, этап 4): новая партия 1978 года с титула или продолжение сохранённой. */
+export interface ChronicleEntry {
+  seed: number;
+  diff: DifficultyId;
+  resume?: boolean;
+  analyticsRun?: GameState["analyticsRun"];
+}
+
+interface ChronicleProps {
+  entry?: ChronicleEntry;
+  /** Состояние партии для общего сохранения игры: «Продолжить» на титуле. */
+  onState?: (state: GameState) => void;
+  /** Власть кончилась: итоги, архив, достижения и «поделиться» — общий экран итогов игры. */
+  onFinish?: (state: GameState) => void;
+  onMenu?: () => void;
+  /** Сохранение хроники не читается — партия продолжается на столе `/game`, а не теряется. */
+  onFallback?: () => void;
+}
+
+// Время до первого решения — те же корзины, что в `/game`.
+const firstBucket = (sec: number) => sec < 30 ? "до 30 с" : sec < 60 ? "30-60 с" : sec < 120 ? "1-2 мин" : sec < 300 ? "2-5 мин" : "больше 5 мин";
+
+export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback }: ChronicleProps = {}) {
   const [start, setStart] = useState<ChronicleStart | null>(null);
   const [game, setGame] = useState<GameState | null>(null);
   const [shown, setShown] = useState<ChronicleLine[]>([]);
@@ -96,6 +119,8 @@ export default function Chronicle() {
   const [waitingOpen, setWaitingOpen] = useState(false);
   // Справка из шапки: окно опоры, «Страна» или «Люди». Пока она открыта, лента стоит.
   const [sheet, setSheet] = useState<ResourceKey | "country" | "people" | null>(null);
+  // Пролог игры — утро вступления в должность: после победы на выборах, перед речью. Пока он идёт, лента стоит.
+  const [inauguration, setInauguration] = useState<GameState | null>(null);
   const [busy, setBusy] = useState(false);
   const [speed, setSpeed] = useState<Speed>("calm");
   const [paused, setPaused] = useState(false);
@@ -116,6 +141,11 @@ export default function Chronicle() {
   const following = useRef(true);
   const speedRef = useRef<Speed>("calm");
   useEffect(() => { speedRef.current = speed; }, [speed]);
+  // Хроника внутри игры шлёт те же события аналитики, что `/game`; отдельная страница прототипа — нет.
+  const embedded = !!entry;
+  const firstCaseAt = useRef(0);
+  const started = useRef(entry);
+  useEffect(() => { if (game && onState) onState(game); }, [game, onState]);
 
   // Строки встают в очередь; на «Сразу» — сразу в хронику.
   const enqueue = useCallback((lines: ChronicleLine[]) => {
@@ -127,7 +157,11 @@ export default function Chronicle() {
   }, []);
 
   // Старт: зерно даёт готовые ответы анкеты; игрок меняет их в анкете ЦИК.
+  // Один раз на экран: повторный запуск эффекта (строгий режим React) не должен начинать срок второй раз.
+  const booted = useRef(false);
   useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
     (async () => {
       const params = new URLSearchParams(window.location.search);
       let restored = null;
@@ -138,8 +172,12 @@ export default function Chronicle() {
       } catch { setStorageAvailable(false); }
       const requestedSeed = params.get("seed");
       const requestedDiff = params.get("diff");
-      if (restored && (!requestedSeed || Number(requestedSeed) === restored.start.seed)
-        && (!requestedDiff || requestedDiff === restored.start.diff)) {
+      const from = started.current;
+      // Внутри игры: новая партия с титула не подхватывает старую хронику; продолжение без неё уходит на стол.
+      if (from?.resume && !restored) { onFallback?.(); return; }
+      const restoring = from ? !!from.resume : !!restored && (!requestedSeed || Number(requestedSeed) === restored.start.seed)
+        && (!requestedDiff || requestedDiff === restored.start.diff);
+      if (restored && restoring) {
         setStart(restored.start);
         setGame(restored.game);
         setShown(restored.shown);
@@ -159,8 +197,9 @@ export default function Chronicle() {
         setReady(true);
         return;
       }
-      const begin = readStart();
-      const candidate = await newTerm(begin);
+      const begin = from ? startFromSeed(from.seed, from.diff) : readStart();
+      const fresh = await newTerm(begin);
+      const candidate = from?.analyticsRun ? { ...fresh, analyticsRun: from.analyticsRun } : fresh;
       speedRef.current = readSpeed();
       setStart(begin);
       setSpeed(speedRef.current);
@@ -171,6 +210,8 @@ export default function Chronicle() {
       setForm({ field: "name", nameStep: 1, promises: programOf(candidate).suggested });
       setReady(true);
     })();
+    // Старт один раз: вход из игры не меняется, а onFallback — обработчик экрана, а не повод начать заново.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enqueue]);
 
   useEffect(() => {
@@ -210,10 +251,11 @@ export default function Chronicle() {
   }, [queue]);
 
   useEffect(() => {
-    if (!queue.length || paused || hidden || sheet || speed === "all") return;
-    const timer = setTimeout(revealNext, delayFor(queue[0], speed));
+    if (!queue.length || paused || hidden || sheet || inauguration || speed === "all") return;
+    // Первая строка хроники — почти сразу: пустой лист с точками на первом экране не должен ждать паузы на чтение.
+    const timer = setTimeout(revealNext, shown.length ? delayFor(queue[0], speed) : 300);
     return () => clearTimeout(timer);
-  }, [queue, paused, hidden, sheet, speed, revealNext]);
+  }, [queue, paused, hidden, sheet, inauguration, speed, revealNext, shown.length]);
 
   const deciding = !queue.length && !busy && !over && !!(step || stop || form);
   // Что сейчас ждёт ответа: новое дело, обращение, письмо внутри него или шаг анкеты.
@@ -273,7 +315,10 @@ export default function Chronicle() {
   const toLetters = (state: GameState, memo: StopMemory) => {
     const [next] = dueStops(state, openStops(state), memo);
     setView(null);
-    if (!next) { setStop(null); setStep(firstStep(state)); setGame(state); return; }
+    if (!next) {
+      if (state.turn === 0 && !firstCaseAt.current) firstCaseAt.current = Date.now();
+      setStop(null); setStep(firstStep(state)); setGame(state); return;
+    }
     // Если дело уже на столе (обращение открыто из «Ждут ответа»), оно остаётся под обращением, не сбрасываясь.
     const opened = next.message ? openLetter(state, next.message.person, next.message.key) : state;
     setGame(opened);
@@ -336,7 +381,9 @@ export default function Chronicle() {
       const office = takeOffice(game, form.promises);
       setForm(null);
       commit(office);
-      enqueue([...electionLines(office), ...openingLines(office)]);
+      enqueue(electionLines(office));
+      setInauguration(office);
+      enqueue(openingLines(office));
       await toCase(office, stops);
     } finally { setBusy(false); }
   };
@@ -349,6 +396,10 @@ export default function Chronicle() {
     enqueue(quarter.lines);
     setPicks([]);
     following.current = true;
+    if (embedded) {
+      track("turn", { n: after.turn });
+      if (after.turn === 1 && firstCaseAt.current) track("first", { sec: firstBucket((Date.now() - firstCaseAt.current) / 1000) });
+    }
     if (termOver(after)) {
       setGame(after);
       setStep(null);
@@ -392,6 +443,7 @@ export default function Chronicle() {
   return (
     <HistoricalArtProvider state={game}>
     <PeopleProvider gs={game} Portrait={Portrait}>
+    {inauguration && <PrologueCutscene state={inauguration} onComplete={() => setInauguration(null)} />}
     {/* Таймер ответа на пресс-конференции стоит, пока поверх дела открыта справка, список «Ждут ответа» или пауза:
         игрок не теряет вопрос, пока смотрит страну или людей. */}
     <main className={`${styles.desk}${sheet || waitingOpen || paused ? ` ${styles.timersPaused}` : ""}`}>
@@ -449,7 +501,8 @@ export default function Chronicle() {
       <article className={styles.paper} aria-live="polite" onClick={() => { if (queue.length) revealNext(); }}>
         <div className={styles.masthead}>
           <h1>Хроника срока</h1>
-          <p>Неманская республика · {start ? `зерно ${start.seed}` : ""}</p>
+          <p>Неманская республика{start && !embedded ? ` · зерно ${start.seed}` : ""}</p>
+          {onMenu && <button className={styles.menu} onClick={e => { e.stopPropagation(); onMenu(); }}>Меню игры</button>}
           {!storageAvailable && <p>Сохранение недоступно или повреждено: после закрытия страницы срок начнётся заново.</p>}
         </div>
         {shown.map((line, i) => {
@@ -516,11 +569,14 @@ export default function Chronicle() {
               <span>Начал с решения: «{rival.firstChoice}»</span>
             </div>
           ))}
-          <div className={styles.again}>
+          {/* Внутри игры итоги, архив, достижения и «поделиться» — на общем экране итогов. */}
+          {onFinish && game ? <div className={styles.again}>
+            <button onClick={() => onFinish(game)}>Подвести итоги</button>
+          </div> : <div className={styles.again}>
             <a href={`?diff=${start?.diff ?? "debut"}`} onClick={() => { try { localStorage.removeItem(CHRONICLE_SAVE_KEY); } catch {} }}>Прожить другой срок</a>
             <a href={`?seed=${start?.seed}&diff=${start?.diff ?? "debut"}`}
               onClick={() => { try { localStorage.removeItem(CHRONICLE_SAVE_KEY); } catch {} }}>Тот же январь, другие решения</a>
-          </div>
+          </div>}
         </section>}
         <div ref={bottom} />
       </article>
