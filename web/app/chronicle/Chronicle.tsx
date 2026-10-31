@@ -91,6 +91,8 @@ export interface ChronicleEntry {
   diff: DifficultyId;
   /** Продолжение: состояние из общего сохранения — снимок ленты должен принадлежать именно этой партии. */
   resume?: GameState;
+  /** Та же партия до первого решения без снимка ленты: кандидат и анкета из общего сохранения, не новый кандидат. */
+  from?: GameState;
   analyticsRun?: GameState["analyticsRun"];
 }
 
@@ -161,64 +163,6 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     } else setQueue(rest => [...rest, ...lines]);
   }, []);
 
-  // Старт: зерно даёт готовые ответы анкеты; игрок меняет их в анкете ЦИК.
-  // Один раз на экран: повторный запуск эффекта (строгий режим React) не должен начинать срок второй раз.
-  const booted = useRef(false);
-  useEffect(() => {
-    if (booted.current) return;
-    booted.current = true;
-    (async () => {
-      const params = new URLSearchParams(window.location.search);
-      let restored = null;
-      try {
-        const raw = localStorage.getItem(saveKey);
-        restored = parseChronicle(raw);
-        if (raw && !restored) { setSaveBlocked(true); setStorageAvailable(false); }
-      } catch { setStorageAvailable(false); }
-      const requestedSeed = params.get("seed");
-      const requestedDiff = params.get("diff");
-      const from = started.current;
-      // Внутри игры: новая партия с титула не подхватывает старую хронику. Продолжение берёт снимок, только если он
-      // той же партии; иначе чужая лента не открывается и не перезаписывает сохранение — решает onFallback.
-      if (from?.resume && (!restored || !chronicleBelongsTo(restored, from.resume))) { onFallback?.(); return; }
-      const restoring = from ? !!from.resume : !!restored && (!requestedSeed || Number(requestedSeed) === restored.start.seed)
-        && (!requestedDiff || requestedDiff === restored.start.diff);
-      if (restored && restoring) {
-        setStart(restored.start);
-        setGame(restored.game);
-        setShown(restored.shown);
-        setQueue(restored.queue);
-        setStep(restored.step);
-        setPicks(restored.picks);
-        setForm(restored.form);
-        setStop(restored.stop);
-        setStops(restored.stops);
-        setVisibleResources(restored.visibleResources);
-        pendingResources.current = restored.game.resources;
-        setPage(restored.page);
-        setRivals(restored.rivals);
-        setOver(restored.over);
-        memory.current = restored.memory;
-        setSpeed(readSpeed());
-        setReady(true);
-        return;
-      }
-      const begin = from ? startFromSeed(from.seed, from.diff) : readStart();
-      const fresh = await newTerm(begin);
-      const candidate = from?.analyticsRun ? { ...fresh, analyticsRun: from.analyticsRun } : fresh;
-      speedRef.current = readSpeed();
-      setStart(begin);
-      setSpeed(speedRef.current);
-      setGame(candidate);
-      setVisibleResources(candidate.resources);
-      pendingResources.current = candidate.resources;
-      enqueue(candidacyLines(candidate));
-      setForm({ field: "name", nameStep: 1, promises: programOf(candidate).suggested });
-      setReady(true);
-    })();
-    // Старт один раз: вход из игры не меняется, а onFallback — обработчик экрана, а не повод начать заново.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enqueue]);
 
   useEffect(() => {
     if (!ready || busy || saveBlocked || !start || !game || !visibleResources) return;
@@ -358,6 +302,73 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     }
     await toCase(state, memo);
   };
+
+  // Старт: зерно даёт готовые ответы анкеты; игрок меняет их в анкете ЦИК.
+  // Один раз на экран: повторный запуск эффекта (строгий режим React) не должен начинать срок второй раз.
+  const booted = useRef(false);
+  useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const from = started.current;
+      let restored = null;
+      // Новая партия внутри игры прежний снимок не читает: общее сохранение уже новое, и повреждённая старая лента
+      // не должна мешать записать новую. Продолжение повреждённый снимок не блокирует — решает onFallback.
+      if (!from || from.resume) try {
+        const raw = localStorage.getItem(saveKey);
+        restored = parseChronicle(raw);
+        if (raw && !restored && !from) { setSaveBlocked(true); setStorageAvailable(false); }
+      } catch { setStorageAvailable(false); }
+      const requestedSeed = params.get("seed");
+      const requestedDiff = params.get("diff");
+      // Внутри игры: новая партия с титула не подхватывает старую хронику. Продолжение берёт снимок, только если он
+      // той же партии; иначе чужая лента не открывается и не перезаписывает сохранение — решает onFallback.
+      if (from?.resume && (!restored || !chronicleBelongsTo(restored, from.resume))) { onFallback?.(); return; }
+      const restoring = from ? !!from.resume : !!restored && (!requestedSeed || Number(requestedSeed) === restored.start.seed)
+        && (!requestedDiff || requestedDiff === restored.start.diff);
+      if (restored && restoring) {
+        setStart(restored.start);
+        setGame(restored.game);
+        setShown(restored.shown);
+        setQueue(restored.queue);
+        setStep(restored.step);
+        setPicks(restored.picks);
+        setForm(restored.form);
+        setStop(restored.stop);
+        setStops(restored.stops);
+        setVisibleResources(restored.visibleResources);
+        pendingResources.current = restored.game.resources;
+        setPage(restored.page);
+        setRivals(restored.rivals);
+        setOver(restored.over);
+        memory.current = restored.memory;
+        setSpeed(readSpeed());
+        setReady(true);
+        return;
+      }
+      const begin = from ? startFromSeed(from.seed, from.diff) : readStart();
+      const fresh = from?.from ?? await newTerm(begin);
+      const candidate = from?.analyticsRun ? { ...fresh, analyticsRun: from.analyticsRun } : fresh;
+      speedRef.current = readSpeed();
+      setStart(begin);
+      setSpeed(speedRef.current);
+      setGame(candidate);
+      setVisibleResources(candidate.resources);
+      pendingResources.current = candidate.resources;
+      setReady(true);
+      // Без снимка, но после анкеты: тот же президент вступает в должность и получает первое дело.
+      if (from?.from && candidate.promises?.length) {
+        enqueue(openingLines(candidate));
+        await toCase(candidate, EMPTY_STOPS);
+        return;
+      }
+      enqueue(candidacyLines(candidate));
+      setForm({ field: "name", nameStep: 1, promises: programOf(candidate).suggested });
+    })();
+    // Старт один раз: вход из игры не меняется, а onFallback — обработчик экрана, а не повод начать заново.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enqueue]);
 
   const finishStop = async () => {
     if (!game || !stop || busy) return;

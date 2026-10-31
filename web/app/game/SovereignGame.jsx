@@ -4530,9 +4530,9 @@ export default function App() {
         onState={setGs} onFinish={state => { setGs(state); setScreen("ending"); }} onMenu={() => setScreen("setup")}
         onFallback={() => {
           // Снимок ленты не от этой партии или не читается: сохранённая партия не теряется и не подменяется.
-          // До первой подписи — та же партия заново в хронике (то же зерно и та же партия в аналитике), иначе — на столе.
+          // До первой подписи — та же партия в хронике с тем же кандидатом и анкетой из сохранения, иначе — на столе.
           const state = chronicle.resume;
-          if (state && state.turn === 0 && !state.history.length) setChronicle({ seed: state.seed, diff: state.diff, analyticsRun: state.analyticsRun });
+          if (state && state.turn === 0 && !state.history.length) setChronicle({ seed: state.seed, diff: state.diff, analyticsRun: state.analyticsRun, from: state });
           else if (state) { setGs(openDeskWhenDue(state)); setScreen("game"); }
         }}/>}
     </PeopleProvider>

@@ -36,7 +36,8 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const errors = [];
 page.on("pageerror", e => errors.push(String(e)));
-page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
+// Сетевые ошибки внешних ресурсов (шрифты в демо) — не ошибки игры, как в scripts/playtest.mjs.
+page.on("console", m => { if (m.type() === "error" && !/ERR_CERT|net::|Failed to load resource/.test(m.text())) errors.push(m.text()); });
 // Пролог вступления показываем и в безголовом браузере: он часть пути игрока.
 await page.addInitScript(() => { window.__FORCE_CUTSCENE__ = true; });
 await openGame(page);
@@ -55,7 +56,34 @@ await page.screenshot({ path: shot("0-form") });
 const timeline = [];
 const problems = [];
 let prologueAfterElection = false, firstDecisionMs = null, stuck = false, memoir = false, resumeChecked = false;
-const resume = { sameRun: null, foreignSnapshotKept: null };
+const resume = { sameRun: null, foreignSnapshotKept: null, formKeptWithoutSnapshot: null, formKeptWithForeign: null };
+const leader = () => page.evaluate(() => {
+  try { return JSON.parse(localStorage.getItem("sovereign.save") ?? "null")?.state?.leader?.name ?? null; } catch { return null; }
+});
+
+// До первого решения: изменения анкеты переживают пропавший и чужой снимок ленты — тот же кандидат, а не новый.
+async function checkFormResume() {
+  await page.getByRole("button", { name: "Другое имя" }).tap();
+  await wait(1200);
+  const name = await leader();
+  const reopen = async () => {
+    await page.getByRole("button", { name: "Меню игры" }).tap();
+    await page.getByRole("button", { name: /Продолжить сохранённую игру/ }).tap();
+    await chronicle.waitFor({ timeout: 10_000 });
+    await wait(1500);
+  };
+  await page.evaluate(() => localStorage.removeItem("sovereign.chronicle.game"));
+  await reopen();
+  resume.formKeptWithoutSnapshot = !!name && await leader() === name && await page.getByText(name).count() > 0;
+  await page.evaluate(() => {
+    const own = JSON.parse(localStorage.getItem("sovereign.chronicle.game"));
+    own.snapshot.game.analyticsRun = { ...own.snapshot.game.analyticsRun, id: "f".repeat(24) };
+    own.snapshot.game.leader = { ...own.snapshot.game.leader, name: "Чужой Кандидат" };
+    localStorage.setItem("sovereign.chronicle.game", JSON.stringify(own));
+  });
+  await reopen();
+  resume.formKeptWithForeign = await leader() === name && await page.getByText("Чужой Кандидат").count() === 0;
+}
 const mainSave = () => page.evaluate(() => {
   try { const save = JSON.parse(localStorage.getItem("sovereign.save") ?? "null"); return save && { screen: save.screen, run: save.state.analyticsRun?.id, turn: save.state.turn }; }
   catch { return null; }
@@ -111,6 +139,7 @@ async function measure() {
 
 if (opened) {
   await page.getByRole("button", { name: "Сразу" }).tap();
+  await checkFormResume();
   for (const name of ["Дальше", "Дальше", "Дальше", "Подать документы в ЦИК"]) await page.getByRole("button", { name }).tap();
   const prologue = page.getByRole("dialog");
   try {
@@ -196,6 +225,8 @@ problems.push(
   ...(opened && save?.screen !== "chronicle" && save?.screen !== "ending" ? ["партия хроники не попала в общее сохранение"] : []),
   ...(resume.sameRun === false ? ["«Продолжить» не вернуло ту же партию в хронику"] : []),
   ...(resume.foreignSnapshotKept === false ? ["чужой снимок ленты подменил сохранённую партию"] : []),
+  ...(resume.formKeptWithoutSnapshot === false ? ["без снимка ленты анкета началась с другим кандидатом"] : []),
+  ...(resume.formKeptWithForeign === false ? ["чужой снимок ленты подменил кандидата в анкете"] : []),
 );
 const summary = { decisions: timeline.filter(line => /^\d/.test(line)).length, memoir, firstDecisionMs, prologueAfterElection, geometry,
   saved: save?.screen ?? null, resume, problems, timeline };
