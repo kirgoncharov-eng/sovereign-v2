@@ -121,3 +121,19 @@ test('падение власти рассказано последней стр
   const ledgers = quarters.slice(0, -1).flatMap(q => q.lines).filter(line => line.kind === 'ledger');
   assert.ok(ledgers.some(line => line.text.includes('Опасно мало')), 'до падения итог квартала предупреждал');
 });
+
+test('сцена квартала начинается своим предложением, а совпавший заголовок не повторяется газетной строкой (#310, C02)', async () => {
+  const words = (text: string) => (text.toLowerCase().match(/[\p{L}\d]+/gu) ?? []).join(' ');
+  let told = 0;
+  for (const seed of [1, 5, 7, 21]) {
+    const { quarters } = await liveTerm(seed);
+    for (const { lines } of quarters) {
+      const scenes = lines.filter(line => line.kind === 'scene'), papers = lines.filter(line => line.kind === 'paper');
+      assert.ok(scenes.every(line => !/^(На ней|В ней|Вместо него|Взамен)\b/u.test(line.text)), scenes[0]?.text);
+      const opening = scenes[0] ? words(scenes[0].text.split(/(?<=[.!?…])\s+/)[0]) : '';
+      if (papers.length === 0 && scenes.length) told++;
+      assert.ok(papers.every(line => words(line.text) !== opening), `заголовок дублирует сцену: ${opening}`);
+    }
+  }
+  assert.ok(told > 0, 'на настоящих партиях сцены начинаются с заголовка — проверка не пустая');
+});
