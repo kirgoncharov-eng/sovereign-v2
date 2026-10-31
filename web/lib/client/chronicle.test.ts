@@ -68,32 +68,36 @@ test('начало срока — из движка: имя, биография,
 });
 
 test('бюджет, пресс-конференция и звонок собираются функциями движка, без заглушек', async () => {
-  let state = await newTerm(startFromSeed(3));
   const seen = new Set<string>();
-  while (!termOver(state) && seen.size < 3) {
-    state = await nextCase(state);
-    const event = state.currentEvent!, step = firstStep(state);
-    if (event.budget) {
-      seen.add('budget');
-      assert.equal(step.kind, 'choice');
-      assert.equal(step.kind === 'choice' && step.options.length, BUDGET_PRESETS.length + 1);
-      assert.ok(step.kind === 'choice' && step.options.every(option => option.hint));
+  // Президент «всегда первый вариант» может не дожить до звонка: тогда тот же разбор на следующем зерне.
+  for (const seed of [3, 1, 2]) {
+    if (seen.size === 3) break;
+    let state = await newTerm(startFromSeed(seed));
+    while (!termOver(state) && seen.size < 3) {
+      state = await nextCase(state);
+      const event = state.currentEvent!, step = firstStep(state);
+      if (event.budget) {
+        seen.add('budget');
+        assert.equal(step.kind, 'choice');
+        assert.equal(step.kind === 'choice' && step.options.length, BUDGET_PRESETS.length + 1);
+        assert.ok(step.kind === 'choice' && step.options.every(option => option.hint));
+      }
+      if (event.press) {
+        seen.add('press');
+        assert.equal(step.kind, 'press');
+        const second = pressStep(state, [0]);
+        assert.ok(second.kind === 'press' && second.question === 1 && second.options.length > 1);
+      }
+      if (event.call && !event.call.negotiation) {
+        seen.add('call');
+        assert.equal(step.kind, 'call-approach');
+        const ending = callEndingStep(state, 'numbers');
+        assert.ok(ending.kind === 'call-ending' && ending.reply && ending.options.length === 3);
+      }
+      if (step.kind === 'press') state = await signPress(state, event.press!.questions.map(() => 0));
+      else if (step.kind === 'call-approach') state = await signCall(state, 'numbers', 'deal');
+      else state = await signOption(state, step.options[0].key);
     }
-    if (event.press) {
-      seen.add('press');
-      assert.equal(step.kind, 'press');
-      const second = pressStep(state, [0]);
-      assert.ok(second.kind === 'press' && second.question === 1 && second.options.length > 1);
-    }
-    if (event.call && !event.call.negotiation) {
-      seen.add('call');
-      assert.equal(step.kind, 'call-approach');
-      const ending = callEndingStep(state, 'numbers');
-      assert.ok(ending.kind === 'call-ending' && ending.reply && ending.options.length === 3);
-    }
-    if (step.kind === 'press') state = await signPress(state, event.press!.questions.map(() => 0));
-    else if (step.kind === 'call-approach') state = await signCall(state, 'numbers', 'deal');
-    else state = await signOption(state, step.options[0].key);
   }
   assert.deepEqual([...seen].sort(), ['budget', 'call', 'press']);
 });

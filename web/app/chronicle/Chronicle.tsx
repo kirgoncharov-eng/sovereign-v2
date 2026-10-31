@@ -1,18 +1,34 @@
 "use client";
 
-// «Хроника срока» (#298). Между решениями строки идут сами, в темпе чтения; касание — следующая строка сразу.
-// На решении история стоит без таймера. Скрытая вкладка ставит хронику на паузу.
+// «Хроника срока» (#298, #302). Между решениями строки идут сами, в темпе чтения; касание — следующая строка сразу.
+// Лента стоит, когда нужен ответ: анкета ЦИК, письмо со сроком, предложение правительства, письмо человека, дело.
+// Ответы — те же панели и функции, что в папке `/game`; логика игры не меняется. Скрытая вкладка ставит хронику на паузу.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  callEndingStep, dateLabel, firstStep, memoir, newTerm, nextCase, openingLines, pressStep, quarterLines,
-  signCall, signOption, signPress, startFromSeed, termOver, type ChronicleLine, type ChronicleStart, type Step,
+  actOnLetter, answerStory, callEndingStep, candidacyLines, dateLabel, electionLines, fillForm, firstStep, memoir, newTerm, nextCase,
+  openLetter, openingLines, pressStep, programOf, quarterLines, renameCandidate, secretaryLine, signCall, signOption, signPress,
+  startFromSeed, takeOffice, termOver, type ChronicleLine, type ChronicleStart, type Step,
 } from "@/lib/client/chronicle.ts";
 import { EMPTY_PERSONAL, type PersonalMemory } from "@/lib/client/chronicle-personal.ts";
 import { contemporaries, type Rival } from "@/lib/client/chronicle-rivals.ts";
+import {
+  EMPTY_STOPS, dueStops, openStops, rememberStop, stillWaiting, storyStops, type Stop, type StopMemory,
+} from "@/lib/client/chronicle-stops.ts";
+import { governmentBriefs } from "@/lib/client/government-brief.ts";
+import { personProfiles } from "@/lib/client/people-text.ts";
 import { MONTHS } from "@/lib/game/calendar.ts";
-import { CHRONICLE_SAVE_KEY, encodeChronicle, parseChronicle } from "@/lib/client/chronicle-save.ts";
+import { BIOGRAPHIES, IDEOLOGIES } from "@/lib/game/data.ts";
+import { promiseDef } from "@/lib/game/promises.ts";
+import { PROMISE_PICK } from "@/lib/content/promises.ts";
+import { CHRONICLE_SAVE_KEY, encodeChronicle, parseChronicle, type ChronicleForm } from "@/lib/client/chronicle-save.ts";
 import type { Approach } from "@/lib/content/calls.ts";
-import type { DifficultyId, GameState, ResourceKey } from "@/lib/game/types.ts";
+import type { DifficultyId, GameState, IdeologyId, ResourceKey } from "@/lib/game/types.ts";
+import { HistoricalArtProvider, Portrait, ResourceChips, SquareView } from "@/app/game/SovereignGame.jsx";
+import { PeopleProvider } from "@/app/game/PeopleText.jsx";
+import { IncomingLetter } from "@/app/game/QuarterInbox.jsx";
+import GovernmentPanel from "@/app/game/GovernmentPanel.jsx";
+import Letters from "@/app/game/Letters.jsx";
+import { LetterText } from "@/app/game/LetterText.jsx";
 import styles from "./chronicle.module.css";
 
 type Speed = "calm" | "quick" | "all";
@@ -29,6 +45,13 @@ const HUD: { key: ResourceKey; label: string }[] = [
 ];
 
 const DIFFS: DifficultyId[] = ["debut", "coalition", "crisis", "ruins"];
+
+// Анкета ЦИК: те же поля, что на экране вступления `/game`, по одному шагу ленты.
+const FORM_FIELDS: ChronicleForm["field"][] = ["name", "bio", "ideo", "program"];
+const FORM_TITLE: Record<ChronicleForm["field"], string> = {
+  name: "Фамилия и имя кандидата", bio: "Род занятий до выдвижения", ideo: "Политические взгляды",
+  program: `Предвыборная программа: ${PROMISE_PICK} обещания`,
+};
 
 function readStart(): ChronicleStart {
   const params = new URLSearchParams(window.location.search);
@@ -50,6 +73,11 @@ export default function Chronicle() {
   const [queue, setQueue] = useState<ChronicleLine[]>([]);
   const [step, setStep] = useState<Step | null>(null);
   const [picks, setPicks] = useState<number[]>([]);
+  const [form, setForm] = useState<ChronicleForm | null>(null);
+  const [stop, setStop] = useState<Stop | null>(null);
+  const [view, setView] = useState<string | null>(null);
+  const [stops, setStops] = useState<StopMemory>(EMPTY_STOPS);
+  const [waitingOpen, setWaitingOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [speed, setSpeed] = useState<Speed>("calm");
   const [paused, setPaused] = useState(false);
@@ -65,9 +93,21 @@ export default function Chronicle() {
   const pendingResources = useRef<GameState["resources"] | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const caseRef = useRef<HTMLElement>(null);
+  const bar = useRef<HTMLElement>(null);
   const following = useRef(true);
+  const speedRef = useRef<Speed>("calm");
+  useEffect(() => { speedRef.current = speed; }, [speed]);
 
-  // Старт: биография и взгляды выпадают по зерну; первое дело готовится, пока идут строки начала.
+  // Строки встают в очередь; на «Сразу» — сразу в хронику.
+  const enqueue = useCallback((lines: ChronicleLine[]) => {
+    if (!lines.length) return;
+    if (speedRef.current === "all") {
+      if (lines.some(line => line.kind === "ledger") && pendingResources.current) setVisibleResources(pendingResources.current);
+      setShown(rest => [...rest, ...lines]);
+    } else setQueue(rest => [...rest, ...lines]);
+  }, []);
+
+  // Старт: зерно даёт готовые ответы анкеты; игрок меняет их в анкете ЦИК.
   useEffect(() => {
     (async () => {
       const params = new URLSearchParams(window.location.search);
@@ -87,6 +127,9 @@ export default function Chronicle() {
         setQueue(restored.queue);
         setStep(restored.step);
         setPicks(restored.picks);
+        setForm(restored.form);
+        setStop(restored.stop);
+        setStops(restored.stops);
         setVisibleResources(restored.visibleResources);
         pendingResources.current = restored.game.resources;
         setPage(restored.page);
@@ -98,25 +141,24 @@ export default function Chronicle() {
         return;
       }
       const begin = readStart();
-      const state = await newTerm(begin);
-      const pace = readSpeed();
+      const candidate = await newTerm(begin);
+      speedRef.current = readSpeed();
       setStart(begin);
-      setSpeed(pace);
-      if (pace === "all") setShown(openingLines(state)); else setQueue(openingLines(state));
-      const withCase = await nextCase(state);
-      setGame(withCase);
-      setVisibleResources(withCase.resources);
-      pendingResources.current = withCase.resources;
-      setStep(firstStep(withCase));
+      setSpeed(speedRef.current);
+      setGame(candidate);
+      setVisibleResources(candidate.resources);
+      pendingResources.current = candidate.resources;
+      enqueue(candidacyLines(candidate));
+      setForm({ field: "name", nameStep: 1, promises: programOf(candidate).suggested });
       setReady(true);
     })();
-  }, []);
+  }, [enqueue]);
 
   useEffect(() => {
     if (!ready || busy || saveBlocked || !start || !game || !visibleResources) return;
     let cancelled = false;
     const data = encodeChronicle({
-      start, game, shown, queue, step, picks, memory: memory.current, visibleResources, page, rivals, over,
+      start, game, shown, queue, step, picks, form, stop, stops, memory: memory.current, visibleResources, page, rivals, over,
     });
     Promise.resolve().then(() => {
       if (cancelled) return;
@@ -124,7 +166,7 @@ export default function Chronicle() {
       catch { setStorageAvailable(false); }
     });
     return () => { cancelled = true; };
-  }, [ready, busy, saveBlocked, start, game, shown, queue, step, picks, visibleResources, page, rivals, over]);
+  }, [ready, busy, saveBlocked, start, game, shown, queue, step, picks, form, stop, stops, visibleResources, page, rivals, over]);
 
   useEffect(() => {
     const onVisibility = () => setHidden(document.hidden);
@@ -154,16 +196,41 @@ export default function Chronicle() {
     return () => clearTimeout(timer);
   }, [queue, paused, hidden, speed, revealNext]);
 
-  const deciding = !queue.length && !!step && !busy && !over;
-  // Новое дело показываем с заголовка; строки хроники — следуя за последней.
+  const deciding = !queue.length && !busy && !over && !!(step || stop || form);
+  // Что сейчас ждёт ответа: новое дело, обращение, письмо внутри него или шаг анкеты.
+  const decision = !deciding ? null : form ? `form:${form.field}` : stop ? `stop:${stop.key}:${stop.token}:${view ?? ""}`
+    : step ? `case:${game?.turn}:${picks.length}` : null;
+  const shownDecision = useRef<string | null>(null);
+  // Новое дело или обращение всегда открываем с заголовка, даже если прежнее дочитывали вниз;
+  // строки хроники — следуя за последней, только если игрок сам не прокрутил ленту назад.
   useEffect(() => {
-    if (!following.current) return;
-    if (deciding) caseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    else bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [shown.length, deciding, page, rivals]);
+    if (decision && decision !== shownDecision.current) {
+      shownDecision.current = decision;
+      caseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Шапка могла вырасти во время прокрутки (появилась «Ждут ответа»): заголовок не должен остаться под ней.
+      const settle = setTimeout(() => {
+        const top = caseRef.current?.getBoundingClientRect().top, under = bar.current?.getBoundingClientRect().bottom;
+        if (top !== undefined && under !== undefined && top < under) caseRef.current?.scrollIntoView({ block: "start" });
+      }, 700);
+      return () => clearTimeout(settle);
+    }
+    if (!following.current || deciding) return;
+    bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [shown.length, deciding, decision, page, rivals]);
+
+  // Высота шапки меняется с кнопкой «Ждут ответа» и раскрытым списком: по ней дело встаёт под шапку, а не за неё.
+  useEffect(() => {
+    const element = bar.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() =>
+      document.documentElement.style.setProperty("--chronicle-bar", `${Math.ceil(element.getBoundingClientRect().height)}px`));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   const chooseSpeed = (next: Speed) => {
     setSpeed(next);
+    speedRef.current = next;
     setPaused(false);
     if (next === "all" && queue.length) {
       if (queue.some(line => line.kind === "ledger") && pendingResources.current) setVisibleResources(pendingResources.current);
@@ -173,16 +240,94 @@ export default function Chronicle() {
     try { localStorage.setItem("chronicle.speed", next); } catch {}
   };
 
-  // Подпись: хроника квартала встаёт в очередь, следующее дело готовится сразу, а показывается, когда строки дочитаны.
+  // Ответ на обращение меняет опоры сразу, как печать на письме в папке.
+  const commit = (next: GameState) => {
+    setGame(next);
+    pendingResources.current = next.resources;
+    setVisibleResources(next.resources);
+  };
+
+  // ── Порядок квартала, как в `/game`: письма людей из газеты → новое дело → обращения → дело ──
+
+  // Обращения, пока на столе дело. Секретарь приносит их строкой; нечего приносить — дело.
+  const toLetters = (state: GameState, memo: StopMemory) => {
+    const [next] = dueStops(state, openStops(state), memo);
+    setView(null);
+    if (!next) { setStop(null); setStep(firstStep(state)); setGame(state); return; }
+    const opened = next.message ? openLetter(state, next.message.person, next.message.key) : state;
+    setGame(opened);
+    setStep(null);
+    setStop(next);
+    setStops(rememberStop(opened, next, memo));
+  };
+
+  const toCase = async (state: GameState, memo: StopMemory) => {
+    const withCase = await nextCase(state);
+    if (dueStops(withCase, openStops(withCase), memo).length) {
+      const line = secretaryLine(withCase);
+      if (line) enqueue([line]);
+    }
+    toLetters(withCase, memo);
+  };
+
+  // После подписи: письма людей из газеты квартала — ответить можно только до следующего дела.
+  const toStories = async (state: GameState, memo: StopMemory) => {
+    const [story] = dueStops(state, storyStops(state), memo);
+    if (story) {
+      setGame(state);
+      setStep(null);
+      setStop(story);
+      setStops(rememberStop(state, story, memo));
+      return;
+    }
+    await toCase(state, memo);
+  };
+
+  const finishStop = async () => {
+    if (!game || !stop || busy) return;
+    setBusy(true);
+    setWaitingOpen(false);
+    try {
+      setStop(null);
+      setView(null);
+      if (stop.kind === "story") await toStories(game, stops);
+      else toLetters(game, stops);
+    } finally { setBusy(false); }
+  };
+
+  // Игрок сам открывает отложенное из «Ждут ответа»: та же остановка, как письмо из папки в `/game`.
+  // Начатую пресс-конференцию не прерываем: её ответы ещё не подписаны.
+  const openWaiting = (item: Stop) => {
+    if (!game || busy || picks.length) return;
+    const opened = item.message ? openLetter(game, item.message.person, item.message.key) : game;
+    setGame(opened);
+    setStep(null);
+    setStop(item);
+    setView(null);
+    setWaitingOpen(false);
+    setStops(rememberStop(opened, item, stops));
+  };
+
+  const submitForm = async () => {
+    if (!game || !form || busy) return;
+    const at = FORM_FIELDS.indexOf(form.field);
+    if (at < FORM_FIELDS.length - 1) { setForm({ ...form, field: FORM_FIELDS[at + 1] }); return; }
+    setBusy(true);
+    try {
+      const office = takeOffice(game, form.promises);
+      setForm(null);
+      commit(office);
+      enqueue([...electionLines(office), ...openingLines(office)]);
+      await toCase(office, stops);
+    } finally { setBusy(false); }
+  };
+
+  // Подпись: хроника квартала встаёт в очередь; дальше — письма людей, новое дело и обращения, когда строки дочитаны.
   const settle = async (before: GameState, after: GameState) => {
     pendingResources.current = after.resources;
     const quarter = quarterLines(before, after, memory.current);
     memory.current = quarter.memory;
-    if (speed === "all") {
-      setVisibleResources(after.resources);
-      setShown(lines => [...lines, ...quarter.lines]);
-    }
-    else setQueue(rest => [...rest, ...quarter.lines]);
+    enqueue(quarter.lines);
     setPicks([]);
     following.current = true;
     if (termOver(after)) {
@@ -191,17 +336,13 @@ export default function Chronicle() {
       setOver(true);
       const ending = await memoir(after);
       // Падение власти — последней строкой хроники, а не только словом в мемуарах.
-      if (ending.fall) {
-        const fall = ending.fall;
-        if (speed === "all") setShown(lines => [...lines, fall]); else setQueue(rest => [...rest, fall]);
-      }
+      if (ending.fall) enqueue([ending.fall]);
       setPage(ending);
       if (start) setRivals(await contemporaries(start));
       return;
     }
-    const withCase = await nextCase(after);
-    setGame(withCase);
-    setStep(firstStep(withCase));
+    setStep(null);
+    await toStories(after, stops);
   };
 
   const answer = async (key: string, index: number) => {
@@ -228,10 +369,13 @@ export default function Chronicle() {
 
   const event = game?.currentEvent;
   const current = shown.at(-1)?.date;
+  const waiting = game && event && !form && !over ? openStops(game) : [];
 
   return (
+    <HistoricalArtProvider state={game}>
+    <PeopleProvider gs={game} Portrait={Portrait}>
     <main className={styles.desk}>
-      <header className={styles.bar}>
+      <header ref={bar} className={styles.bar}>
         <div className={styles.barTop}>
           <span className={styles.now}>{current ? `${MONTHS[current.month]} ${current.year}` : "1978"}</span>
           <div className={styles.speeds} role="group" aria-label="Темп хроники">
@@ -243,6 +387,17 @@ export default function Chronicle() {
         </div>
         {visibleResources && <div className={styles.hud} aria-label="Опоры власти">
           {HUD.map(h => <span key={h.key}><small>{h.label}</small>{visibleResources[h.key]}</span>)}
+        </div>}
+        {waiting.length > 0 && <div className={styles.waiting}>
+          <button aria-expanded={waitingOpen} onClick={() => setWaitingOpen(open => !open)} disabled={busy}>
+            Ждут ответа · {waiting.length}
+          </button>
+          {waitingOpen && <ul>{waiting.map(item => <li key={item.key}>
+            <button onClick={() => openWaiting(item)} aria-current={stop?.key === item.key || undefined}>
+              <small>{senderOf(game!, item)}{item.deadline !== undefined ? ` · ответ до конца квартала ${item.deadline}` : ""}</small>
+              {item.title}
+            </button>
+          </li>)}</ul>}
         </div>}
       </header>
 
@@ -266,13 +421,36 @@ export default function Chronicle() {
         {queue.length > 0 && !paused && <p className={styles.more} aria-hidden="true">· · ·</p>}
         {queue.length > 0 && paused && <p className={styles.more}>Хроника на паузе</p>}
 
-        {deciding && event && <section ref={caseRef} className={styles.case} aria-label="Дело на столе" onClick={e => e.stopPropagation()}>
+        {deciding && form && game && <section ref={caseRef} className={styles.case} aria-label="Анкета кандидата" onClick={e => e.stopPropagation()}>
+          <div className={styles.caseHead}>ЦИК Неманской республики · анкета кандидата · {FORM_FIELDS.indexOf(form.field) + 1} из {FORM_FIELDS.length}</div>
+          <h2>{FORM_TITLE[form.field]}</h2>
+          <CandidateForm game={game} form={form} onGame={commit} onForm={setForm} />
+          <div className={styles.options}>
+            <button disabled={busy || (form.field === "program" && form.promises.length !== PROMISE_PICK)} onClick={submitForm}>
+              <strong>{form.field === "program" ? "Подать документы в ЦИК" : "Дальше"}</strong>
+            </button>
+          </div>
+        </section>}
+
+        {deciding && stop && game && <section ref={caseRef} className={styles.case} aria-label="Ждёт ответа" onClick={e => e.stopPropagation()}>
+          <div className={styles.caseHead}>{stillWaiting(game, stop) ? "Ждёт ответа" : "Ответ подписан"} · {senderOf(game, stop)}</div>
+          <StopBody game={game} stop={stop} view={view} onView={setView} onAct={id => commit(actOnLetter(game, id))}
+            onStory={(story, reply) => commit(answerStory(game, story, reply))} onDone={finishStop} />
+          <div className={styles.options}>
+            <button disabled={busy} onClick={finishStop}>
+              <strong>{stillWaiting(game, stop) ? "Отложить" : "Дальше"}</strong>
+              {stillWaiting(game, stop) && <span>{silenceNote(game, stop)}</span>}
+            </button>
+          </div>
+        </section>}
+
+        {deciding && step && event && <section ref={caseRef} className={styles.case} aria-label="Дело на столе" onClick={e => e.stopPropagation()}>
           <div className={styles.caseHead}>На столе · {event.source}</div>
           <h2>{event.title}</h2>
           {event.description.split(/\n\n+/).map((p, i) => <p key={i}>{p}</p>)}
-          <Ask step={step!} />
+          <Ask step={step} />
           <div className={styles.options}>
-            {step!.options.map((option, i) => (
+            {step.options.map((option, i) => (
               <button key={option.key} disabled={busy} onClick={() => answer(option.key, i)}>
                 <strong>{option.text}</strong>
                 {option.hint && <span>{option.hint}</span>}
@@ -307,7 +485,82 @@ export default function Chronicle() {
         <div ref={bottom} />
       </article>
     </main>
+    </PeopleProvider>
+    </HistoricalArtProvider>
   );
+}
+
+const senderOf = (game: GameState, stop: Stop) => stop.kind === "story" ? stop.title
+  : personProfiles(game).find(person => person.id === stop.person)?.name ?? "Канцелярия";
+
+// Цена молчания — та, что уже назначил движок: срок ответа или то, что без ответа работа не начнётся.
+function silenceNote(game: GameState, stop: Stop) {
+  if (stop.kind === "story") return "Молчание тоже ответ: со следующим делом письмо уйдёт в архив.";
+  if (stop.deadline !== undefined) {
+    const left = stop.deadline - game.turn;
+    return left <= 1 ? "Это последний квартал для ответа." : `Ответ нужен до конца квартала ${stop.deadline}; лента напомнит в последний квартал.`;
+  }
+  if (stop.kind === "proposal") return "Без запуска программа не начнётся; лента вернётся к ней, когда опора окажется у порога.";
+  return "Ответ можно дать позже: обращение остаётся в «Ждут ответа».";
+}
+
+function CandidateForm({ game, form, onGame, onForm }: {
+  game: GameState; form: ChronicleForm; onGame: (state: GameState) => void; onForm: (form: ChronicleForm) => void;
+}) {
+  if (form.field === "name") return <>
+    <p className={styles.formValue}>{game.leader.name}<small>Партия «{game.leader.party}»</small></p>
+    <div className={styles.choices}>
+      <button onClick={() => { onGame(renameCandidate(game, form.nameStep)); onForm({ ...form, nameStep: form.nameStep + 1 }); }}>Другое имя</button>
+    </div>
+  </>;
+  if (form.field === "bio") return <div className={styles.choices}>
+    {BIOGRAPHIES.map(bio => <button key={bio.id} aria-pressed={game.bio === bio.id} onClick={() => onGame(fillForm(game, { bio: bio.id }))}>
+      <strong>{bio.label}</strong><span>{bio.note}</span>
+    </button>)}
+  </div>;
+  if (form.field === "ideo") return <div className={styles.choices}>
+    {IDEOLOGIES.map(ideo => <button key={ideo.id} aria-pressed={game.ideo === ideo.id}
+      onClick={() => {
+        const next = fillForm(game, { ideo: ideo.id as IdeologyId });
+        onGame(next);
+        onForm({ ...form, promises: programOf(next).suggested });
+      }}>
+      <strong>{ideo.label}</strong><span>{ideo.desc}</span>
+    </button>)}
+  </div>;
+  const { offered } = programOf(game);
+  const toggle = (id: string) => onForm({ ...form, promises: form.promises.includes(id) ? form.promises.filter(other => other !== id)
+    : form.promises.length < PROMISE_PICK ? [...form.promises, id] : form.promises });
+  return <div className={styles.choices}>
+    {offered.map(id => {
+      const def = promiseDef(id, game.country);
+      if (!def) return null;
+      const on = form.promises.includes(id);
+      return <button key={id} aria-pressed={on} disabled={!on && form.promises.length >= PROMISE_PICK} onClick={() => toggle(id)}>
+        <strong>{def.title}</strong><span>«{def.pitch}»</span>
+      </button>;
+    })}
+  </div>;
+}
+
+// Тело остановки — те же панели, что у письма в папке `/game`: поручения, секретарь, спонсор, министр, правительство.
+function StopBody({ game, stop, view, onView, onAct, onStory, onDone }: {
+  game: GameState; stop: Stop; view: string | null; onView: (key: string | null) => void;
+  onAct: (id: string) => void; onStory: (story: string, reply: string) => void; onDone: () => void;
+}) {
+  if (stop.kind === "story") return <Letters letters={[stop.letter]} answers={game.storyReplies} onReply={onStory} Chips={ResourceChips} open />;
+  // Из письма можно перейти к связанному поручению; «к главному делу» — закончить остановку.
+  const onOpen = (key: string) => key === "secretary" ? onDone() : onView(key);
+  if (stop.key === "government-proposals" && !view) {
+    const first = governmentBriefs(game).find(brief => brief.status === "proposed")?.id ?? "energy";
+    return <article className="sv-paper sv-incoming-project">
+      <h2>{stop.title}</h2>
+      <LetterText text={stop.message!.text} />
+      <GovernmentPanel gs={game} onAction={onAct} onClose={onDone} initialProject={first}
+        onDetails={(id: string) => onView(id === "health" ? "health" : "energy")} />
+    </article>;
+  }
+  return <IncomingLetter gs={game} page={view ?? stop.key} onAction={onAct} onOpen={onOpen} Scene={SquareView} />;
 }
 
 function Ask({ step }: { step: Step }) {
@@ -327,6 +580,8 @@ function Line({ line, dated }: { line: ChronicleLine; dated: string }) {
     case "paper": return <p className={styles.paperLine}><small>{line.who}</small>{line.text}</p>;
     case "press": return <p className={styles.press}><small>{line.who}</small> {line.text}</p>;
     case "letter": return <p className={styles.letter}><small>Письмо{who ? ` · ${who}` : ""}</small>{line.text}</p>;
+    case "report": return <p className={styles.letter}><small>{line.who ?? "Доклад"}</small>{line.text}</p>;
+    case "secretary": return <p className={styles.echo}><small>Приёмная · {line.who}</small>{line.text}</p>;
     case "echo": return <p className={styles.echo}><small>Отклик прежних решений</small>{line.text}</p>;
     case "personal": return <p className={styles.personal}>{line.text}</p>;
     case "ledger": {

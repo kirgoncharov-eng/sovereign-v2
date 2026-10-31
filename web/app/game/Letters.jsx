@@ -31,13 +31,14 @@ function LetterReplies({ letter, answer, onReply, Chips }) {
   </div>;
 }
 
-export default function Letters({ letters, answers, onReply, Chips }) {
+// `open` — письмо раскрыто сразу: в «Хронике срока» оно приходит остановкой ленты (#302).
+export default function Letters({ letters, answers, onReply, Chips, open = false }) {
   if (!Array.isArray(letters) || !letters.length) return null;
   return (
     <section className="sv-letters" aria-label="Личные сообщения">
       {letters.map(letter => {
         const waiting = Array.isArray(letter.replies) && letter.replies.length > 0 && !answers?.[letter.story];
-        return <details key={`${letter.story}-${letter.kind}`} className="sv-paper sv-letter">
+        return <details key={`${letter.story}-${letter.kind}`} className="sv-paper sv-letter" open={open || undefined}>
           <summary className="sv-letter-head">
             <span>{KIND[letter.kind] ?? "СООБЩЕНИЕ"}{waiting && <em className="sv-letter-waiting"> · ждёт ответа</em>}</span>
             <strong>{letter.from}{letter.role ? `, ${letter.role.charAt(0).toLowerCase()}${letter.role.slice(1)}` : ""}</strong>
