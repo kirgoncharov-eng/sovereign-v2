@@ -56,6 +56,34 @@ const titleOf = page => page.evaluate(() =>
 const deskVisible = page => page.evaluate(() =>
   [...document.querySelectorAll("button")].some(b => /^Сообщения/.test(b.innerText.trim()) || /^Правительство/.test(b.innerText.trim())));
 
+// Раздел поверх эфира (#316): пока открыта «Страна», полоса времени стоит, вопрос не уходит молчанием.
+const PRESS_SHEET_HOLD_MS = 3000;
+const pressTimer = page => page.evaluate(() => {
+  const resolution = document.querySelector("#sv-resolution");
+  const animation = resolution?.parentElement?.querySelector(".sv-timer")?.getAnimations?.()[0];
+  return { label: resolution?.innerText.split("\n")[0] ?? "", time: animation ? Math.round(Number(animation.currentTime)) : null };
+});
+async function checkPressPausesUnderSheet(page) {
+  const menu = page.getByRole("button", { name: "Меню партии" });
+  if (!await menu.isVisible()) return;
+  await menu.tap();
+  await page.getByRole("menuitem", { name: /Страна/ }).tap();
+  await wait(300);
+  const opened = await pressTimer(page);
+  await wait(PRESS_SHEET_HOLD_MS);
+  const held = await pressTimer(page);
+  await page.getByRole("button", { name: "Закрыть и вернуться к делу" }).tap();
+  await wait(300);
+  const closed = await pressTimer(page);
+  if (held.label !== opened.label || closed.label !== opened.label) {
+    layoutProblems.add(`пресс-конференция: вопрос сменился под открытым разделом «Страна» (${opened.label} → ${closed.label})`);
+  } else if (opened.time === null || held.time === null || closed.time === null) {
+    layoutProblems.add("пресс-конференция: полоса времени пропала при открытии или закрытии раздела «Страна»");
+  } else if (held.time - opened.time > 250) {
+    layoutProblems.add(`пресс-конференция: таймер идёт под открытым разделом «Страна» (+${held.time - opened.time} мс за ${PRESS_SHEET_HOLD_MS} мс)`);
+  }
+}
+
 async function decide(page, kind) {
   const opt = n => page.locator(`#opt-${n}`);
   if (kind === "budget") return opt(1).dispatchEvent("click");
@@ -69,6 +97,7 @@ async function decide(page, kind) {
     await opt(1).tap();
     for (let i = 0; i < 3; i++) {
       await wait(400);
+      if (i === 0) await checkPressPausesUnderSheet(page);
       // Кадр и текст каждого вопроса: читаемость и время на ответ проверяют по ним глазами.
       pressQuestions.push(await page.evaluate(() => document.querySelector("#sv-resolution")?.parentElement?.innerText ?? ""));
       await page.screenshot({ path: shot(`press-${pressQuestions.length}`) });
