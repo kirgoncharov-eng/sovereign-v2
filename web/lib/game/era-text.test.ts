@@ -15,6 +15,8 @@ test('era vocabulary uses complete phrases and explicit cases instead of choppin
         ['Ваш партнёр в ЕС', 'Ваш партнёр в Торговом союзе'],
         ['ЕС выступает гарантом', 'Торговый союз выступает гарантом'],
         ['блогер-миллионник', 'популярный обозреватель'],
+        ['Михаил Климов объявил об отставке в коротком видео.', 'Михаил Климов объявил об отставке в коротком обращении по радио.'],
+        ['В сеть попало видео: министр', 'В редакции попали снимки: министр'],
     ]);
     for (const [source, expected] of examples) assert.equal(eraText(source), expected, source);
     // Unknown inflections/contexts are left for authored text, not guessed into a wrong case.
@@ -43,6 +45,8 @@ test('all static content is adaptable without replacements inside corpus words',
     for (const text of texts) {
         const adapted = eraText(text);
         assert.doesNotMatch(adapted, /радиоу|обозревательа|киноплёнкасвяз|послов Торговый союз/iu, text);
+        // #310 C07: «видео» не склоняется, поэтому каждое вхождение заменено целой фразой, а не словом с чужим родом.
+        assert.doesNotMatch(adapted, /(?<![\p{L}\p{N}_-])видео(?![\p{L}\p{N}_-])|киноплёнк/iu, text);
         for (const match of text.matchAll(/[\p{L}\p{N}_-]+/gu)) tokens.add(match[0]);
         for (const country of LEGACY_COUNTRIES) assert.equal(campaignText(text, country), text);
     }
