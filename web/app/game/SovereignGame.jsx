@@ -877,7 +877,8 @@ export function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
 // Пресс-конференция: три вопроса подряд, на каждый — 15 секунд. Не успели — пауза станет заголовком.
 const TONE_LABEL = { honest:"честно", hard:"жёстко", evasive:"уклончиво" };
 const PRESS_SECONDS = 15;
-export function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
+// paused — поверх дела открыт раздел или окно: полоса времени стоит и не отвечает молчанием за игрока.
+export function PressPanel({ gs, press, onFinish, onSkip, stamping, paused = false }) {
   const [picks, setPicks] = useState([]);
   const [live, setLive] = useState(false); // время идёт только после выхода к журналистам
   const step = picks.length, q = press.questions[step];
@@ -908,7 +909,7 @@ export function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
         {live && !done && (
           <div key={step} className="sv-fade">
             <div style={{ height:6, margin:"0 22px 14px", background:G.bdr }}>
-              <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${q.seconds ?? PRESS_SECONDS}s` }} onAnimationEnd={() => answer(-1)}/>
+              <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${q.seconds ?? PRESS_SECONDS}s`, animationPlayState:paused ? "paused" : "running" }} onAnimationEnd={() => answer(-1)}/>
             </div>
             <div style={{ display:"flex", gap:12, padding:"0 22px 12px" }}>
               <Portrait name={q.who} size={44}/>
@@ -994,7 +995,7 @@ export function PressPanel({ gs, press, onFinish, onSkip, stamping }) {
       {live && !done && (
         <div key={step} className="sv-fade">
           <div style={{ height:6, margin:"0 22px 14px", background:G.bdr }}>
-            <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${q.seconds ?? PRESS_SECONDS}s` }} onAnimationEnd={() => answer(-1)}/>
+            <div className="sv-timer" style={{ height:"100%", background:G.red, animationDuration:`${q.seconds ?? PRESS_SECONDS}s`, animationPlayState:paused ? "paused" : "running" }} onAnimationEnd={() => answer(-1)}/>
           </div>
           <div style={{ display:"flex", gap:12, padding:"0 22px 12px" }}>
             <Portrait name={q.who} size={48}/>
@@ -3304,6 +3305,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
     setSideTab(id);
     if (window.matchMedia?.(PHONE_SHEET).matches) setDossier(open => !(open && sideTab === id));
   };
+  // Раздел, окно опоры или справка поверх дела: таймеры срочного дела и пресс-конференции стоят.
+  const timersPaused = countryOpen || contactOpen || resourceOpen || help || dossier;
 
   if (transition) return <>
     <QuarterTransition scene={transition} onDone={finishTransition}/>
@@ -3562,7 +3565,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     choose(final, { call: { approach, ending } });
                   }}/>
               ) : event.press ? (
-                <PressPanel key={`press${turn}`} gs={gs} press={event.press} stamping={stamping}
+                <PressPanel key={`press${turn}`} gs={gs} press={event.press} stamping={stamping} paused={timersPaused}
                   onSkip={() => choose(event.choices[1])}
                   onFinish={picks => {
                     const final = pressChoice(gsRef.current, picks);
@@ -3585,7 +3588,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     <div style={{ height:6, background:G.bdr }}>
                       {urgentTurn === turn && <div key={`u${turn}`} className="sv-timer" onAnimationEnd={timeUp}
                         style={{ height:"100%", background:G.red, animationDuration:"25s",
-                          animationPlayState:countryOpen || contactOpen || resourceOpen || help || dossier ? "paused" : "running" }}/>}
+                          animationPlayState:timersPaused ? "paused" : "running" }}/>}
                     </div>
                   </div>
                 )}
