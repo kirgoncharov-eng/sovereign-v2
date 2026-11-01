@@ -5,7 +5,7 @@ import { budgetChoice, callChoice, callReply, approachWorks, classicApi, customi
 import { conveneCouncil, createInitialState, hashSeed, resolveTurn, seededRandom, startEvent } from '../game/engine.ts';
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { openDeskWhenDue } from '../game/desk-timing.ts';
-import { interveneWorld } from '../game/living-world.ts';
+import { interveneWorld, type WorldDispatch } from '../game/living-world.ts';
 import { confirmInitiative, initiativeOptions, type InitiativeId } from '../game/initiatives.ts';
 import { applyDossier, hireAdvisor, type DossierAction } from '../game/staffing.ts';
 import { initiativeBlockReason } from './initiative-note.ts';
@@ -149,6 +149,14 @@ function reports(before: GameState, after: GameState) {
     .filter(dispatch => dispatch.turn > before.turn && dispatch.turn <= after.turn && !waiting.has(dispatch.id));
 }
 
+function withoutReportEchoes(echoes: string[], dispatches: WorldDispatch[]): string[] {
+  // Движок сохраняет доклад и в dispatches, и в рассказе квартала. В хронике он уже есть отдельной строкой.
+  // Убираем только точные повторы его абзацев: соседние новости министра и другие отклики остаются (#313, C01).
+  // Письма, ожидающие ответа, не входят в dispatches выше, поэтому их рассказ здесь не пропадает.
+  const reported = new Set(dispatches.flatMap(dispatch => paragraphs(dispatch.text)));
+  return echoes.filter(text => !reported.has(text.replace(/^(?:Из промышленного региона\.|Районные больницы\.)\s*/, '')));
+}
+
 /**
  * Хроника квартала между решением на столе в `before` и следующим делом. Строки датированы днями между двумя решениями:
  * сначала то, что сделала подпись, затем голоса и газеты, затем отклики прежних решений — отдельно от последней подписи.
@@ -156,6 +164,7 @@ function reports(before: GameState, after: GameState) {
 export function quarterLines(before: GameState, after: GameState, memory: PersonalMemory): { lines: ChronicleLine[]; memory: PersonalMemory } {
   const report = after.lastTurn;
   if (!report) return { lines: [], memory };
+  const dispatches = reports(before, after);
   const from = dateOf(before, before.turn), to = dateOf(after, after.turn);
   // В газете заголовок стоит над текстом, а в хронике — после сцены. Поэтому сцена сохраняет своё начало, иначе следующая фраза
   // («На ней…», «Вместо него…») остаётся без опоры, а совпавший заголовок не печатается второй раз (#310, C02).
@@ -168,8 +177,8 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
     ...(report.press ?? []).map(item => ({ kind: 'press' as const, who: item.outlet, text: item.headline })),
     ...(report.letters ?? []).filter(letter => !letter.replies?.length)
       .map(letter => ({ kind: 'letter' as const, who: letter.from, text: letter.text })),
-    ...reports(before, after).map(dispatch => ({ kind: 'report' as const, who: dispatch.title, text: dispatch.text })),
-    ...quarter.other.map(text => ({ kind: 'echo' as const, text })),
+    ...dispatches.map(dispatch => ({ kind: 'report' as const, who: dispatch.title, text: dispatch.text })),
+    ...withoutReportEchoes(quarter.other, dispatches).map(text => ({ kind: 'echo' as const, text })),
   ];
   // Личная строка — среди событий квартала, а не приписка в конце; первая ночь — сразу после первой подписи.
   const personal = after.ended ? { text: null, memory } : personalBeat({ before, after, month: to.month }, memory);
