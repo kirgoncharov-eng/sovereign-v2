@@ -17,7 +17,7 @@ import { MONTHS_GEN, turnDate, type TurnDate } from '../game/calendar.ts';
 import { newspaperName } from '../game/newspaper-editions.ts';
 import { splitQuarter } from '../game/turn-report.ts';
 import { APPROACHES, CALL_ENDINGS, type Approach } from '../content/calls.ts';
-import { withoutHeadline } from './brief.ts';
+import { leadsWithHeadline } from './brief.ts';
 import { presidentialMessages, readPresidentialMessages } from './presidential-inbox.ts';
 import { personalBeat, type PersonalMemory } from './chronicle-personal.ts';
 import type { Choice, DifficultyId, GameState, IdeologyId, ResourceKey } from '../game/types.ts';
@@ -157,11 +157,14 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
   const report = after.lastTurn;
   if (!report) return { lines: [], memory };
   const from = dateOf(before, before.turn), to = dateOf(after, after.turn);
-  const quarter = splitQuarter(withoutHeadline(report.narrative, report.headline));
+  // В газете заголовок стоит над текстом, а в хронике — после сцены. Поэтому сцена сохраняет своё начало, иначе следующая фраза
+  // («На ней…», «Вместо него…») остаётся без опоры, а совпавший заголовок не печатается второй раз (#310, C02).
+  const quarter = splitQuarter(report.narrative);
+  const headlineTold = leadsWithHeadline(report.narrative, report.headline);
   const body: Omit<ChronicleLine, 'date' | 'id'>[] = [
     ...paragraphs(quarter.own).map(text => ({ kind: 'scene' as const, text })),
     ...report.reactions.map(text => ({ kind: 'voice' as const, text })),
-    { kind: 'paper', who: newspaperName(after.country, after.seed, after.turn), text: report.headline },
+    ...(headlineTold ? [] : [{ kind: 'paper' as const, who: newspaperName(after.country, after.seed, after.turn), text: report.headline }]),
     ...(report.press ?? []).map(item => ({ kind: 'press' as const, who: item.outlet, text: item.headline })),
     ...(report.letters ?? []).filter(letter => !letter.replies?.length)
       .map(letter => ({ kind: 'letter' as const, who: letter.from, text: letter.text })),

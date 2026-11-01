@@ -34,12 +34,16 @@ export function splitLead(text: string, { limit, least }: { limit: number; least
 // Сравниваются слова без регистра и знаков — «Банк выдал комплект.» и «Банк выдал комплект» совпадают.
 const normalized = (text: string) => (text.toLowerCase().match(/[\p{L}\d]+/gu) ?? []).join(" ");
 
-export function withoutHeadline(narrative: string, headline: string): string {
+export function leadsWithHeadline(narrative: string, headline: string): boolean {
   const target = normalized(headline);
-  if (!target) return narrative;
+  const first = String(narrative ?? "").split(/\n\n+/)[0].split(/(?<=[.!?…])\s+/)[0];
+  return !!target && normalized(first) === target;
+}
+
+export function withoutHeadline(narrative: string, headline: string): string {
+  if (!leadsWithHeadline(narrative, headline)) return narrative;
   const [first, ...others] = String(narrative ?? "").split(/\n\n+/);
   const sentences = first.split(/(?<=[.!?…])\s+/);
-  if (normalized(sentences[0]) !== target) return narrative;
   const remainder = sentences.slice(1).join(" ").trim();
   return [remainder, ...others].filter(Boolean).join("\n\n");
 }
