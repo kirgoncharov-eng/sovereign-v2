@@ -2984,7 +2984,7 @@ export function PeopleSheet({ gs, onDossier, onHire, onInbox }) {
           </PersonRow>
         );
       })}
-      {staff && <Fold title="Кадровый резерв" note={staff}><StaffPanel gs={gs} onHire={onHire} Portrait={Portrait}/></Fold>}
+      {staff && <Fold title="Кадровый резерв" note={staff}><StaffPanel gs={gs} onHire={onHire} Portrait={gs.country === ALTERNATE_COUNTRY ? Portrait : null}/></Fold>}
     </>}
     <div style={{ marginTop:14 }}><Label>{"ЛАГЕРИ · ОТНОШЕНИЕ К ВАМ"}</Label></div>
     {factions.map(f => {

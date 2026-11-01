@@ -306,7 +306,7 @@ export const HISTORICAL_SECRETARY_ART = {
   hospitalQueue: { src: '/art/gemini-next/secretary-scene-hospital-queue.webp', caption: 'Приёмный покой областной больницы: очередь в коридоре, секретарь с пожилой женщиной' },
 } as const;
 
-const FEMALE_PRESS_TITLE = /^(Корреспондентка|Ведущая|Журналистка)\b/i;
+const FEMALE_PRESS_TITLE = /^(Корреспондентка|Ведущая|Журналистка)(?=\s|$)/iu;
 
 export function historicalPortraitArt(
   state: GameState | null, name: string, roster?: Record<string, string> | null,

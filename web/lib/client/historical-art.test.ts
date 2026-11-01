@@ -399,13 +399,49 @@ test('living world characters, press correspondents and staffing candidates all 
       }
     }
   }
+  const explicitFemalePress = [
+    'Корреспондентка информационного агентства',
+    'Ведущая утреннего шоу',
+    'Корреспондентка независимого издания',
+    'Корреспондентка регионального радио',
+    'Корреспондентка общественного телевидения',
+    'Корреспондентка социального канала',
+    'Корреспондентка радио диаспоры',
+    'Корреспондентка утренних новостей',
+  ];
+  for (const who of explicitFemalePress) {
+    assert.equal(historicalPortraitArt(worldState, who), HISTORICAL_PRESS_ART.female.src, who);
+  }
+  const explicitMalePress = [
+    'Корреспондент делового издания',
+    'Корреспондент оппозиционного канала',
+    'Журналист деловой газеты',
+    'Корреспондент вечерних новостей',
+    'Иностранный корреспондент',
+    'Политический обозреватель',
+    'Корреспондент парламентской газеты',
+    'Журналист-расследователь',
+    'Представитель союза журналистов',
+    'Обозреватель правительственной газеты',
+    'Корреспондент оппозиционной газеты',
+    'Корреспондент иностранного агентства',
+    'Ведущий вечернего ток-шоу',
+    'Журналист экономического издания',
+    'Главный редактор сатирического журнала',
+    'Корреспондент культурного обозрения',
+    'Финансовый обозреватель',
+    'Литературный обозреватель',
+  ];
+  for (const who of explicitMalePress) {
+    assert.equal(historicalPortraitArt(worldState, who), HISTORICAL_PRESS_ART.male.src, who);
+  }
   for (const question of [
     ...PRESS_QUESTIONS,
     { who: 'Корреспондентка независимого издания' },
     { who: 'Корреспондент делового издания' },
   ]) {
     const art = historicalPortraitArt(worldState, question.who);
-    const expected = /^(Корреспондентка|Ведущая|Журналистка)\b/i.test(question.who)
+    const expected = explicitFemalePress.includes(question.who)
       ? HISTORICAL_PRESS_ART.female.src
       : HISTORICAL_PRESS_ART.male.src;
     assert.equal(art, expected, question.who);

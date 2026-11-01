@@ -6,6 +6,7 @@ import {
   DOSSIER_COST, DOSSIER_PRESS_LOYALTY, DOSSIER_SECURITY_LOYALTY, candidatePool, dismissalOf, dossierBlocked, staffingBlocked, staffingOpen,
 } from "@/lib/game/staffing.ts";
 import { RES_CONFIG } from "@/lib/game/data.ts";
+import { ALTERNATE_COUNTRY } from "@/lib/game/alternate-world.ts";
 
 const SHORT = {
   politicalCapital: "политкапитал", economy: "экономика", military: "силовики",
@@ -30,15 +31,24 @@ function Candidate({ gs, candidate, onHire, Portrait }) {
     .filter(([bloc]) => gs.factions.some(faction => faction.bloc === bloc))
     .map(([bloc, value]) => `${BLOC_NAME[bloc] ?? bloc} ${signed(value)}`);
   const price = costLine(candidate.cost);
+  const is1978 = gs.country === ALTERNATE_COUNTRY;
+  const showPortrait = Boolean(Portrait && is1978);
   return (
     <div className="sv-staff-candidate">
-      <div className="sv-staff-head" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {Portrait && <Portrait name={candidate.name} size={36}/>}
-        <div style={{ minWidth: 0 }}>
-          <div><strong>{candidate.name}</strong></div>
+      {showPortrait ? (
+        <div className="sv-staff-head" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Portrait name={candidate.name} size={36}/>
+          <div style={{ minWidth: 0 }}>
+            <div><strong>{candidate.name}</strong></div>
+            <span>{upperFirst(candidate.title)} · {stars(candidate.skill)} · лояльность {candidate.loyalty}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="sv-staff-head">
+          <strong>{candidate.name}</strong>
           <span>{upperFirst(candidate.title)} · {stars(candidate.skill)} · лояльность {candidate.loyalty}</span>
         </div>
-      </div>
+      )}
       <p className="sv-staff-bio">{candidate.bio}</p>
       <div className="sv-staff-line">На место: {current ? `${current.name}, ${current.role.toLowerCase()}` : candidate.seat}</div>
       {price && <div className="sv-staff-line">Цена назначения: {price}</div>}
