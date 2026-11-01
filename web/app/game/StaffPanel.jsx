@@ -21,7 +21,7 @@ const signed = value => (value > 0 ? `+${value}` : `−${-value}`);
 const costLine = cost => RES_CONFIG.filter(resource => cost[resource.key])
   .map(resource => `${SHORT[resource.key]} ${signed(cost[resource.key])}`).join(", ");
 
-function Candidate({ gs, candidate, onHire }) {
+function Candidate({ gs, candidate, onHire, Portrait }) {
   const [confirm, setConfirm] = useState(false);
   const current = gs.advisors.find(advisor => advisor.id === candidate.seat);
   const leaving = current ? dismissalOf(gs, current) : null;
@@ -32,9 +32,12 @@ function Candidate({ gs, candidate, onHire }) {
   const price = costLine(candidate.cost);
   return (
     <div className="sv-staff-candidate">
-      <div className="sv-staff-head">
-        <strong>{candidate.name}</strong>
-        <span>{upperFirst(candidate.title)} · {stars(candidate.skill)} · лояльность {candidate.loyalty}</span>
+      <div className="sv-staff-head" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {Portrait && <Portrait name={candidate.name} size={36}/>}
+        <div style={{ minWidth: 0 }}>
+          <div><strong>{candidate.name}</strong></div>
+          <span>{upperFirst(candidate.title)} · {stars(candidate.skill)} · лояльность {candidate.loyalty}</span>
+        </div>
       </div>
       <p className="sv-staff-bio">{candidate.bio}</p>
       <div className="sv-staff-line">На место: {current ? `${current.name}, ${current.role.toLowerCase()}` : candidate.seat}</div>
@@ -56,7 +59,7 @@ function Candidate({ gs, candidate, onHire }) {
   );
 }
 
-export default function StaffPanel({ gs, onHire }) {
+export default function StaffPanel({ gs, onHire, Portrait = null }) {
   const [error, setError] = useState(null);
   if (!staffingOpen(gs)) return null;
   const pool = candidatePool(gs);
@@ -68,7 +71,7 @@ export default function StaffPanel({ gs, onHire }) {
       <div className="sv-staff-title">КАДРОВЫЙ РЕЗЕРВ</div>
       <p className="sv-staff-note">Одно кадровое решение за квартал. Новый человек занимает кресло советника — прежний уходит. Резерв обновляется раз в год.</p>
       {gs.staffing?.receipt && gs.staffing.lastTurn === gs.turn && <p className="sv-staff-receipt">{gs.staffing.receipt}</p>}
-      {pool.length ? pool.map(candidate => <Candidate key={candidate.id} gs={gs} candidate={candidate} onHire={hire}/>)
+      {pool.length ? pool.map(candidate => <Candidate key={candidate.id} gs={gs} candidate={candidate} onHire={hire} Portrait={Portrait}/>)
         : <p className="sv-staff-note">Резерв на этот год исчерпан.</p>}
       {error && <p className="sv-staff-line sv-staff-bad">✖ {error}</p>}
     </section>

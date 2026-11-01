@@ -63,18 +63,21 @@ test('conversation uses current advisors and refers to the selected proposal acr
     assert.equal(hasAuthoredDebate(state, 20), false);
 });
 
-test('advisor portraits verify gender: initial team gets portraits, replacement of different gender does not', async () => {
+test('advisor portraits verify gender: initial team gets starting portraits, replacement of different gender gets matching male portrait', async () => {
     const state = await firstCase();
     for (const advisor of state.advisors) {
         const art = historicalPortraitArt(state, advisor.name);
         assert.ok(art, `Starting advisor ${advisor.id} (${advisor.name}) must have a portrait`);
     }
+    const femaleEconomistArt = historicalPortraitArt(state, state.advisors.find(a => a.id === 'economist')!.name);
     const maleEconomist = { ...state.advisors.find(a => a.id === 'economist')!, name: 'Виктор Ковалёв' };
     const replacedState: GameState = {
         ...state,
         advisors: state.advisors.map(a => a.id === 'economist' ? maleEconomist : a),
     };
-    assert.equal(historicalPortraitArt(replacedState, 'Виктор Ковалёв'), null);
+    const maleEconomistArt = historicalPortraitArt(replacedState, 'Виктор Ковалёв');
+    assert.equal(maleEconomistArt, '/art/gemini-next/adv-economist-male.webp');
+    assert.notEqual(maleEconomistArt, femaleEconomistArt);
 });
 
 function historicalCase(state: Awaited<ReturnType<typeof firstCase>>, card: typeof ALTERNATE_EVENTS[number]) {

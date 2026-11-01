@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { existsSync, statSync } from 'node:fs';
 import { HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, historicalEventArt, historicalResultArt,
   historicalPortraitArt, HISTORICAL_OUTCOME_ART, HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART,
-  HISTORICAL_LEADER_ART, LEADER_PORTRAIT_IDS, historicalEndingArt, HISTORICAL_SECRETARY_ART } from './historical-art.ts';
+  HISTORICAL_LEADER_ART, LEADER_PORTRAIT_IDS, historicalEndingArt, HISTORICAL_SECRETARY_ART,
+  HISTORICAL_ADVISOR_REPLACEMENT_ART, HISTORICAL_WORLD_PEOPLE_ART, HISTORICAL_PRESS_ART,
+  HISTORICAL_FIGURE_SUCCESSOR_ART } from './historical-art.ts';
+import { PRESS_QUESTIONS } from '../content/press.ts';
+import { candidatePool, hireAdvisor } from '../game/staffing.ts';
 import { MANAGEMENT_DOSSIERS } from '../content/management.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { sceneOf } from '../content/scene-map.ts';
@@ -22,16 +26,18 @@ async function fresh() {
 test('all mapped WebP files exist within the image budgets', () => {
   const paths = [HISTORICAL_SCENE_ART, HISTORICAL_FIGURE_ART, HISTORICAL_OUTCOME_ART,
     HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART,
-    HISTORICAL_SECRETARY_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 71);
-  assert.equal(new Set(paths).size, 70); // wages and wagesGate share wages-gate.webp
+    HISTORICAL_SECRETARY_ART, HISTORICAL_ADVISOR_REPLACEMENT_ART, HISTORICAL_WORLD_PEOPLE_ART,
+    HISTORICAL_PRESS_ART, HISTORICAL_FIGURE_SUCCESSOR_ART].flatMap(group => Object.values(group).map(art => art.src));
+  assert.equal(paths.length, 83);
+  assert.equal(new Set(paths).size, 82); // wages and wagesGate share wages-gate.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
     assert.ok(existsSync(file), src);
     bytes += statSync(file).size;
     if (src.includes('/gemini-next/')) {
-      const isPortrait = src.includes('male.webp') || src.includes('adv-') || src.includes('leader-') || src.includes('secretary-portrait');
+      const isPortrait = src.includes('male.webp') || src.includes('adv-') || src.includes('leader-')
+        || src.includes('secretary-portrait') || src.includes('world-') || src.includes('press-correspondent-');
       assert.ok(statSync(file).size <= (isPortrait ? 10_000 : 100_000), src);
     }
   }
@@ -84,7 +90,10 @@ test('both ambassador and editor genders have art without assigning a predecesso
     const art = HISTORICAL_ADDITIONAL_FIGURE_ART[id as keyof typeof HISTORICAL_ADDITIONAL_FIGURE_ART];
     assert.equal(historicalPortraitArt(state, name, { [id]: name }), art.src);
     assert.equal(historicalPortraitArt(JSON.parse(JSON.stringify(state)), name, { [id]: name }), art.src);
-    assert.equal(historicalPortraitArt(state, name, { [id]: 'Предшественник' }), null);
+    const successorArt = historicalPortraitArt(state, name, { [id]: 'Предшественник' });
+    assert.ok(successorArt);
+    assert.notEqual(successorArt, art.src);
+    assert.notEqual(successorArt, HISTORICAL_FIGURE_ART[id].src);
   }
 });
 
@@ -133,13 +142,25 @@ test('faces match actual role, gender and bound person without inheriting a dism
     assert.equal(historicalPortraitArt(state, figure.name, roster), HISTORICAL_FIGURE_ART[figure.id].src);
     const replacement = { ...figure, name: figure.id === 'amb_eu' ? 'Вера Ладин' : 'Павел Ладин' };
     const replaced = { ...state, keyFigures: keyFigures.map(person => person.id === figure.id ? replacement : person) };
-    assert.equal(historicalPortraitArt(replaced, replacement.name, roster), null);
+    const replacementArt = historicalPortraitArt(replaced, replacement.name, roster);
+    const expectedSuccessor = figure.id === 'amb_eu'
+      ? HISTORICAL_ADVISOR_REPLACEMENT_ART.female.src
+      : figure.id === 'journalist'
+        ? HISTORICAL_PRESS_ART.male.src
+        : HISTORICAL_FIGURE_SUCCESSOR_ART.male.src;
+    assert.equal(replacementArt, expectedSuccessor);
+    assert.notEqual(replacementArt, HISTORICAL_FIGURE_ART[figure.id].src);
   }
   for (const advisor of advisors) {
     assert.equal(historicalPortraitArt(state, advisor.name, roster), HISTORICAL_ADVISOR_ART[advisor.id].src);
     const replacement = { ...advisor, name: advisor.id === 'security' ? 'Павел Новый' : 'Ольга Новая' };
     const replaced = { ...state, advisors: advisors.map(person => person.id === advisor.id ? replacement : person) };
-    assert.equal(historicalPortraitArt(replaced, replacement.name, roster), null);
+    const replacementArt = historicalPortraitArt(replaced, replacement.name, roster);
+    const expectedReplacement = advisor.id === 'security'
+      ? HISTORICAL_ADVISOR_REPLACEMENT_ART.security.src
+      : HISTORICAL_ADVISOR_REPLACEMENT_ART.female.src;
+    assert.equal(replacementArt, expectedReplacement);
+    assert.notEqual(replacementArt, HISTORICAL_ADVISOR_ART[advisor.id].src);
   }
   const wrongSex = { ...state, keyFigures: [{ ...keyFigures[0], name: 'Нина Ладин' }] };
   assert.equal(historicalPortraitArt(wrongSex, 'Нина Ладин'), null);
@@ -351,6 +372,63 @@ test('secretary portrait resolves by current secretary name in Neman 1978 and st
   assert.equal(historicalPortraitArt(stateWithSecretary, 'Другое Имя'), null);
   for (const country of LEGACY_COUNTRIES) {
     assert.equal(historicalPortraitArt({ ...stateWithSecretary, country }, name), null);
+  }
+});
+
+test('living world characters, press correspondents and staffing candidates all resolve canonical 1978 portraits', async () => {
+  const { openLivingWorld } = await import('../game/living-world.ts');
+  const base = await fresh();
+  const fuelTitle = ALTERNATE_EVENTS.find(card => card.id === 'alt_fuel')!.title;
+  const districtTitle = ALTERNATE_EVENTS.find(card => card.id === 'alt_district')!.title;
+  const worldState = openLivingWorld({
+    ...base,
+    turn: 8,
+    history: [
+      { year: 1978, title: fuelTitle, choice: '', headline: '', historianNote: '' },
+      { year: 1978, title: districtTitle, choice: '', headline: '', historianNote: '' },
+    ],
+  });
+  assert.ok(worldState.world);
+  const peopleIds = worldState.world.people.filter(person => !person.figure).map(person => person.id);
+  assert.deepEqual(peopleIds, ['minister', 'engineer', 'healthMinister', 'doctor']);
+  for (const person of worldState.world.people) {
+    if (!person.figure) {
+      assert.equal(historicalPortraitArt(worldState, person.name), HISTORICAL_WORLD_PEOPLE_ART[person.id].src);
+      for (const country of LEGACY_COUNTRIES) {
+        assert.equal(historicalPortraitArt({ ...worldState, country }, person.name), null);
+      }
+    }
+  }
+  for (const question of [
+    ...PRESS_QUESTIONS,
+    { who: 'Корреспондентка независимого издания' },
+    { who: 'Корреспондент делового издания' },
+  ]) {
+    const art = historicalPortraitArt(worldState, question.who);
+    const expected = /^(Корреспондентка|Ведущая|Журналистка)\b/i.test(question.who)
+      ? HISTORICAL_PRESS_ART.female.src
+      : HISTORICAL_PRESS_ART.male.src;
+    assert.equal(art, expected, question.who);
+    for (const country of LEGACY_COUNTRIES) {
+      assert.equal(historicalPortraitArt({ ...worldState, country }, question.who), null);
+    }
+  }
+  const roster = Object.fromEntries(worldState.advisors.map(advisor => [`advisor:${advisor.id}`, advisor.name]));
+  const pool = candidatePool(worldState);
+  assert.ok(pool.length > 0);
+  for (const candidate of pool) {
+    const beforeHire = historicalPortraitArt(worldState, candidate.name, roster);
+    assert.ok(beforeHire, candidate.name);
+    const hired = hireAdvisor({
+      ...worldState,
+      resources: {
+        politicalCapital: 80, economy: 80, military: 80,
+        externalReputation: 80, internalLegitimacy: 80, personalResource: 80,
+      },
+    }, candidate.id);
+    const afterHire = historicalPortraitArt(hired, candidate.name, roster);
+    assert.equal(afterHire, beforeHire);
+    assert.notEqual(afterHire, HISTORICAL_ADVISOR_ART[candidate.seat].src);
   }
 });
 
