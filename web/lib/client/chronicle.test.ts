@@ -7,6 +7,7 @@ import {
 import { EMPTY_PERSONAL, PERSONAL_BEATS, type PersonalMemory } from './chronicle-personal.ts';
 import { contemporaries, TEMPERS } from './chronicle-rivals.ts';
 import type { GameState } from '../game/types.ts';
+import { presidentialMessages } from './presidential-inbox.ts';
 
 const day = (line: ChronicleLine) => Date.UTC(line.date.year, line.date.month, line.date.day);
 
@@ -14,7 +15,7 @@ const day = (line: ChronicleLine) => Date.UTC(line.date.year, line.date.month, l
 async function liveTerm(seed: number, diff: 'debut' | 'coalition' = 'debut') {
   let state = await newTerm(startFromSeed(seed, diff));
   let memory: PersonalMemory = EMPTY_PERSONAL;
-  const quarters: { before: GameState; lines: ChronicleLine[] }[] = [];
+  const quarters: { before: GameState; after: GameState; lines: ChronicleLine[] }[] = [];
   while (!termOver(state)) {
     state = await nextCase(state);
     const before = state, step = firstStep(state);
@@ -23,10 +24,68 @@ async function liveTerm(seed: number, diff: 'debut' | 'coalition' = 'debut') {
     else state = await signOption(state, step.options[0].key);
     const quarter = quarterLines(before, state, memory);
     memory = quarter.memory;
-    quarters.push({ before, lines: quarter.lines });
+    quarters.push({ before, after: state, lines: quarter.lines });
   }
   return { state, quarters, memory };
 }
+
+test('доклады энергосети и больниц не повторяются откликом в настоящих кварталах (#313, C01)', async () => {
+  const seen = new Set<string>();
+  for (const seed of [1, 5, 7, 21]) {
+    const { quarters } = await liveTerm(seed);
+    for (const { lines } of quarters) {
+      const echoes = lines.filter(line => line.kind === 'echo');
+      for (const report of lines.filter(line => line.kind === 'report')) {
+        if (/Энергосеть/.test(report.who ?? '')) seen.add('energy');
+        if (/Больницы/.test(report.who ?? '')) seen.add('health');
+        for (const paragraph of report.text.split(/\n\n+/).filter(Boolean)) {
+          assert.ok(echoes.every(echo => !echo.text.includes(paragraph)), `seed ${seed}: повтор доклада «${report.who}»: ${paragraph}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual([...seen].sort(), ['energy', 'health'], 'проверка охватывает оба проекта');
+});
+
+test('убирается только повтор показанного доклада; соседние новости и старые доклады сохраняются (#313)', async () => {
+  const { quarters } = await liveTerm(21);
+  const { before, after: original } = quarters.find(q => q.after.world?.health)!;
+  const energy = 'Щиты доставлены.\n\nСеть приняла нагрузку.';
+  const health = 'В район приехали два врача.';
+  const government = 'Семьям выдали ключи от квартир.';
+  const old = 'Подрядчик получил аванс.';
+  const news = ['Из промышленного региона. Министр открыл проверку подрядчика.',
+    `Из промышленного региона. ${energy}`, `Районные больницы. ${health}`, government, old,
+    'Сеть приняла нагрузку. Соседний район просит такую же подстанцию.'];
+  const after: GameState = { ...original,
+    world: { ...original.world!, project: { ...original.world!.project, status: 'running' },
+      health: { ...original.world!.health!, status: 'running', aftermath: undefined },
+      dispatches: [
+        { id: 'energy', project: 'energy', turn: original.turn, kind: 'report', title: 'Энергосеть · квартальный доклад', text: energy },
+        { id: 'health', project: 'health', turn: original.turn, kind: 'report', title: 'Больницы · квартальный доклад', text: health },
+        { id: 'housing', project: 'housing', turn: original.turn, kind: 'news', title: 'Жильё', text: government },
+        { id: 'old', project: 'energy', turn: before.turn, kind: 'report', title: 'Прежний доклад', text: old },
+      ] },
+    lastTurn: { ...original.lastTurn!, narrative: `Резолюция исполнена.\n\nВ том же квартале\n\n${news.join('\n\n')}` },
+  };
+  const snapshot = structuredClone(after);
+  const { lines } = quarterLines(before, after, EMPTY_PERSONAL);
+  assert.deepEqual(lines.filter(line => line.kind === 'report').map(line => line.text), [energy, health, government]);
+  assert.deepEqual(lines.filter(line => line.kind === 'echo').map(line => line.text), [news[0], old, news.at(-1)]);
+  assert.deepEqual(after, snapshot, 'представление не меняет состояние партии');
+
+  // Письмо, ожидающее назначения, не показано отдельным докладом: его текст не должен исчезнуть из рассказа,
+  // а само обращение с вариантами ответа остаётся у президента.
+  const waiting: GameState = { ...after, world: { ...after.world!,
+    health: { ...after.world!.health!, status: 'unassigned' },
+    dispatches: after.world!.dispatches.map(d => d.id === 'health' ? { ...d, kind: 'letter' } : d) } };
+  const messages = presidentialMessages(waiting);
+  assert.ok(messages.some(message => message.token === 'health' && message.needsReply), 'письмо действительно ждёт ответа');
+  const pending = quarterLines(before, waiting, EMPTY_PERSONAL).lines;
+  assert.ok(!pending.some(line => line.kind === 'report' && line.text === health));
+  assert.ok(pending.some(line => line.kind === 'echo' && line.text === `Районные больницы. ${health}`));
+  assert.deepEqual(presidentialMessages(waiting), messages, 'обращение не погашено чтением хроники');
+});
 
 test('одно зерно — одна хроника: начало, кварталы и личные строки повторяются', async () => {
   const [a, b] = [await liveTerm(21), await liveTerm(21)];
