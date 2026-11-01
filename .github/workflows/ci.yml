@@ -64,6 +64,7 @@ jobs:
       - run: node scripts/playtest-secretary.mjs --out=playtest/secretary
       # Новая партия 1978 года идёт в «Хронике срока» (#302): анкета, пролог вступления, дела и обращения.
       - run: node scripts/playtest-chronicle.mjs --out=playtest/chronicle
+      - run: node scripts/playtest-choice-price.mjs --out=playtest/choice-price
       - if: always()
         uses: actions/upload-artifact@v4
         with:
