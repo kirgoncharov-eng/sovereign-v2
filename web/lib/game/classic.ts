@@ -27,7 +27,7 @@ import { ALTERNATE_RANDOM_EVENTS } from "../content/alternate-history.ts";
 import { QUARTER_MARK } from "./turn-report.ts";
 import { SCENES } from "../content/scenes.ts";
 import { EVENT_EXT } from "../content/events-ext.ts";
-import { BEAT_EXT } from "../content/beats-ext.ts";
+import { beatExtension } from "../content/beats-ext.ts";
 import { DAY_TIMES, DAYLIGHT, NIGHT, NIGHT_TIMES, type PlaceKind, INTERCEPTS, PLACES, TIMES, WEATHER_ANY, WEATHER_BY_SEASON } from "../content/frame.ts";
 import { MONTHS_ADJ, MONTHS_GEN, turnDate } from "./calendar.ts";
 import { ECHOES } from "../content/echoes.ts";
@@ -247,10 +247,11 @@ export function beatEvent(state: GameState): GameEvent | null {
   const villain = state.keyFigures.find(f => f.name === state.arc?.target);
   const heir = villain ? successorName(state, villain) : "";
   const heirLine = heir ? ` Новый ${lower(villain!.role)} — ${heir}.` : "";
+  const extension = beatExtension(variant.title, state.arc?.flags ?? []);
   return withEvidenceChoice(state, {
     title: fill(variant.title, state),
     source: "Секретно",
-    description: chapter(dateline(state, "beat"), fill(variant.description, state), BEAT_EXT[variant.title] && fill(BEAT_EXT[variant.title], state)),
+    description: chapter(dateline(state, "beat"), fill(variant.description, state), extension && fill(extension, state)),
     isCritical: episode === total,
     affectedFactions: [],
     choices: variant.choices.map((c, i) => ({
