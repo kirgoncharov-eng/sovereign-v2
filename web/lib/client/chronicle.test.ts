@@ -122,6 +122,18 @@ test('падение власти рассказано последней стр
   assert.ok(ledgers.some(line => line.text.includes('Опасно мало')), 'до падения итог квартала предупреждал');
 });
 
+// В JavaScript `\b` не видит кириллицу: граница слова здесь — «дальше не буква и не цифра».
+const DANGLING_OPENING = /^(На ней|В ней|Вместо него|Взамен)(?![\p{L}\d])/u;
+
+test('правило висящего начала сцены само ловит повреждённые начала и не трогает целые (#310, C02)', () => {
+  for (const broken of ['На ней лежит письмо', 'В ней никого нет', 'Вместо него стоял стол', 'Взамен предложили долю', 'Взамен.']) {
+    assert.ok(DANGLING_OPENING.test(broken), `должно ловить: ${broken}`);
+  }
+  for (const whole of ['Взаменить нечем', 'На неё никто не смотрел', 'Вместо Него — другой', 'Ночью пришло письмо']) {
+    assert.ok(!DANGLING_OPENING.test(whole), `не должно ловить: ${whole}`);
+  }
+});
+
 test('сцена квартала начинается своим предложением, а совпавший заголовок не повторяется газетной строкой (#310, C02)', async () => {
   const words = (text: string) => (text.toLowerCase().match(/[\p{L}\d]+/gu) ?? []).join(' ');
   let told = 0;
@@ -129,7 +141,7 @@ test('сцена квартала начинается своим предлож
     const { quarters } = await liveTerm(seed);
     for (const { lines } of quarters) {
       const scenes = lines.filter(line => line.kind === 'scene'), papers = lines.filter(line => line.kind === 'paper');
-      assert.ok(scenes.every(line => !/^(На ней|В ней|Вместо него|Взамен)\b/u.test(line.text)), scenes[0]?.text);
+      assert.ok(scenes.every(line => !DANGLING_OPENING.test(line.text)), scenes[0]?.text);
       const opening = scenes[0] ? words(scenes[0].text.split(/(?<=[.!?…])\s+/)[0]) : '';
       if (papers.length === 0 && scenes.length) told++;
       assert.ok(papers.every(line => words(line.text) !== opening), `заголовок дублирует сцену: ${opening}`);
