@@ -93,19 +93,26 @@ try {
   await checkPrice(page, fixture.state, state.currentEvent.choices[0], 'ordinary-first');
   const selected = state.currentEvent.choices[1];
   await checkPrice(page, fixture.state, selected, 'ordinary-second');
-  await page.getByRole('button', { name: 'Собрать совет', exact: true }).tap();
+  await page.getByRole('button', { name: /^(Собрать совет|Обсудить подпись)$/ }).tap();
   await page.waitForFunction(key => JSON.parse(localStorage.getItem(key)).snapshot.game.currentEvent.council?.length > 0, CHRONICLE_GAME_KEY);
   const afterCouncil = await savedGame(page);
   assert.equal(await page.getByRole('group', { name: 'Цена выбранного решения' }).getAttribute('data-choice-id'), selected.id);
   await checkPrice(page, afterCouncil, selected, 'after-council');
   const proposal = afterCouncil.currentEvent.council[0];
-  const { sign } = await checkPrice(page, afterCouncil, proposal, 'advisor');
+  const { sign } = await checkPrice(page, afterCouncil, proposal, 'council-choice');
   await sign.tap();
   await page.waitForFunction(({ key, turn }) => JSON.parse(localStorage.getItem(key)).snapshot.game.turn > turn,
     { key: CHRONICLE_GAME_KEY, turn: state.turn });
   const signed = await savedGame(page);
   assert.equal(signed.lastTurn.choiceText, proposal.text, 'подписан именно вариант с показанной ценой');
   await fixture.context.close();
+
+  // Старое сохранение 1978 года: в совете уже лежит отдельное предложение с автором. Новые кампании их не создают.
+  const advisorChoice = { ...state.currentEvent.choices[0], id: 'saved-advisor', advisor: state.advisors[0] };
+  const savedCouncil = { ...state, currentEvent: { ...state.currentEvent, council: [advisorChoice] } };
+  const advisorFixture = await openFixture(savedCouncil, start);
+  await checkPrice(advisorFixture.page, advisorFixture.state, advisorChoice, 'saved-advisor');
+  await advisorFixture.context.close();
 
   const crisisStart = startFromSeed(7, 'crisis'), crisis = await nextCase(await newTerm(crisisStart));
   const crisisFixture = await openFixture(crisis, crisisStart);

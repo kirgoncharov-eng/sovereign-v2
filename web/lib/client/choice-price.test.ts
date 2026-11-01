@@ -24,11 +24,11 @@ function actualLosses(state: GameState, choice: Choice, assumeSuccess = false): 
   }));
 }
 
-function failingSeed(state: GameState, choice: Choice): GameState {
+function seedForOutcome(state: GameState, choice: Choice, success: boolean): GameState {
   for (let seed = 1; seed <= 1000; seed++) {
-    if (!rollSuccess({ ...state, seed }, choice)) return { ...state, seed };
+    if (rollSuccess({ ...state, seed }, choice) === success) return { ...state, seed };
   }
-  throw new Error('Не найден исход со срывом');
+  throw new Error('Не найден нужный исход');
 }
 
 test('потери обычного решения и предложения советника совпадают с ведомостью при исполнении и срыве', async () => {
@@ -40,7 +40,7 @@ test('потери обычного решения и предложения с�
     const before = structuredClone(state), choiceBefore = structuredClone(choice);
     const price = choicePrice(state, choice)!;
     assert.deepEqual(price.success, actualLosses(state, choice, true));
-    assert.deepEqual(price.failure, actualLosses(failingSeed(state, choice), choice));
+    assert.deepEqual(price.failure, actualLosses(seedForOutcome(state, choice, false), choice));
     assert.ok(Object.keys(price.success).length > 0);
     assert.deepEqual(state, before, 'просмотр цены не меняет партию');
     assert.deepEqual(choice, choiceBefore);
@@ -78,8 +78,8 @@ test('нулевая немедленная потеря и гарантиров
 test('цена не раскрывает выпавший исход, не зависит от открытия совета и не включается в архиве', async () => {
   const state = await fresh(), choice = state.currentEvent!.choices[0];
   const before = choicePrice(state, choice);
-  const failed = failingSeed(state, choice);
-  assert.deepEqual(choicePrice(failed, choice), before, 'фактический срыв не выбирает ветку прогноза');
+  const failed = seedForOutcome(state, choice, false), succeeded = seedForOutcome(state, choice, true);
+  assert.deepEqual(choicePrice(failed, choice), choicePrice(succeeded, choice), 'выпавший исход не выбирает ветку прогноза');
   assert.deepEqual(choicePrice({ ...state, currentEvent: { ...state.currentEvent!, council: [choice] } }, choice), before);
   for (const country of Object.keys(COUNTRIES).filter(country => country !== ALTERNATE_COUNTRY)) {
     assert.equal(choicePrice({ ...state, country }, choice), null);
