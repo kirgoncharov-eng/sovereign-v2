@@ -176,21 +176,34 @@ function photoCanvas(name) {
   photoCache.set(name, c);
   return c;
 }
-export function Portrait({ name, size = 44, style }) {
-  const { state, roster } = useContext(HistoricalArtContext) ?? {};
-  const src = roster ? historicalPortraitArt(state, name, roster) : null;
+export function Portrait({ name, size = 44, style, state: explicitState }) {
+  const { state: ctxState, roster } = useContext(HistoricalArtContext) ?? {};
+  const activeState = explicitState ?? ctxState;
+  const isHistorical = activeState?.country === ALTERNATE_COUNTRY;
+  const src = historicalPortraitArt(activeState, name, roster);
   const [failed, setFailed] = useState(null);
   const ref = useRef(null);
   useEffect(() => {
+    if (isHistorical) return;
     const c = ref.current;
     if (!c || !name) return;
     c.getContext("2d").drawImage(photoCanvas(name), 0, 0);
-  }, [name, src, failed]);
+  }, [name, src, failed, isHistorical]);
   // Direct images also work in the offline demo and preserve our pre-sized art.
   // eslint-disable-next-line @next/next/no-img-element
   if (src && failed !== src) return <img src={artSource(src)} onError={() => setFailed(src)} alt=""
     data-figure-art={src} className="sv-px" style={{ width:size, height:Math.round(size * 1.25), objectFit:"cover",
       objectPosition:"center top", border:"2px solid #2a241d", flexShrink:0, ...style }}/>;
+  if (isHistorical) {
+    return (
+      <svg viewBox="0 0 40 50" width={size} height={Math.round(size * 1.25)} aria-hidden="true" className="sv-px"
+        style={{ width:size, height:Math.round(size * 1.25), border:"2px solid #2a241d", background:"#e2dac0", flexShrink:0, ...style }}>
+        <rect width="40" height="50" fill="#e2dac0"/>
+        <rect x="13" y="9" width="14" height="16" fill="#857a62"/>
+        <rect x="6" y="29" width="28" height="21" fill="#544a3c"/>
+      </svg>
+    );
+  }
   return <canvas ref={ref} width={PHOTO_W} height={PHOTO_H} aria-hidden="true" className="sv-px"
     style={{ width:size, height:Math.round(size * 1.25), border:"2px solid #2a241d", flexShrink:0, ...style }}/>;
 }
@@ -2472,7 +2485,7 @@ function Setup({ onStart, saved, onResume, chronicle = false }) {
                 aria-label="Продолжить сохранённую игру"
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                  <Portrait name={saved.state.leader.name} size={42}/>
+                  <Portrait name={saved.state.leader.name} state={saved.state} size={42}/>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ font: "10px var(--font-ptmono), monospace", color: "#c6b58b", letterSpacing: ".06em", textTransform: "uppercase" }}>
                       НЕОКОНЧЕННОЕ ДЕЛО
@@ -2972,7 +2985,7 @@ export function PeopleSheet({ gs, onDossier, onHire, onInbox }) {
           </PersonRow>
         );
       })}
-      {staff && <Fold title="Кадровый резерв" note={staff}><StaffPanel gs={gs} onHire={onHire}/></Fold>}
+      {staff && <Fold title="Кадровый резерв" note={staff}><StaffPanel gs={gs} onHire={onHire} Portrait={gs.country === ALTERNATE_COUNTRY ? Portrait : null}/></Fold>}
     </>}
     <div style={{ marginTop:14 }}><Label>{"ЛАГЕРИ · ОТНОШЕНИЕ К ВАМ"}</Label></div>
     {factions.map(f => {

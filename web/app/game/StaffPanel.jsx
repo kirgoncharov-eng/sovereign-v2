@@ -6,6 +6,7 @@ import {
   DOSSIER_COST, DOSSIER_PRESS_LOYALTY, DOSSIER_SECURITY_LOYALTY, candidatePool, dismissalOf, dossierBlocked, staffingBlocked, staffingOpen,
 } from "@/lib/game/staffing.ts";
 import { RES_CONFIG } from "@/lib/game/data.ts";
+import { ALTERNATE_COUNTRY } from "@/lib/game/alternate-world.ts";
 
 const SHORT = {
   politicalCapital: "политкапитал", economy: "экономика", military: "силовики",
@@ -21,7 +22,7 @@ const signed = value => (value > 0 ? `+${value}` : `−${-value}`);
 const costLine = cost => RES_CONFIG.filter(resource => cost[resource.key])
   .map(resource => `${SHORT[resource.key]} ${signed(cost[resource.key])}`).join(", ");
 
-function Candidate({ gs, candidate, onHire }) {
+function Candidate({ gs, candidate, onHire, Portrait }) {
   const [confirm, setConfirm] = useState(false);
   const current = gs.advisors.find(advisor => advisor.id === candidate.seat);
   const leaving = current ? dismissalOf(gs, current) : null;
@@ -30,12 +31,24 @@ function Candidate({ gs, candidate, onHire }) {
     .filter(([bloc]) => gs.factions.some(faction => faction.bloc === bloc))
     .map(([bloc, value]) => `${BLOC_NAME[bloc] ?? bloc} ${signed(value)}`);
   const price = costLine(candidate.cost);
+  const is1978 = gs.country === ALTERNATE_COUNTRY;
+  const showPortrait = Boolean(Portrait && is1978);
   return (
     <div className="sv-staff-candidate">
-      <div className="sv-staff-head">
-        <strong>{candidate.name}</strong>
-        <span>{upperFirst(candidate.title)} · {stars(candidate.skill)} · лояльность {candidate.loyalty}</span>
-      </div>
+      {showPortrait ? (
+        <div className="sv-staff-head" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Portrait name={candidate.name} size={36}/>
+          <div style={{ minWidth: 0 }}>
+            <div><strong>{candidate.name}</strong></div>
+            <span>{upperFirst(candidate.title)} · {stars(candidate.skill)} · лояльность {candidate.loyalty}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="sv-staff-head">
+          <strong>{candidate.name}</strong>
+          <span>{upperFirst(candidate.title)} · {stars(candidate.skill)} · лояльность {candidate.loyalty}</span>
+        </div>
+      )}
       <p className="sv-staff-bio">{candidate.bio}</p>
       <div className="sv-staff-line">На место: {current ? `${current.name}, ${current.role.toLowerCase()}` : candidate.seat}</div>
       {price && <div className="sv-staff-line">Цена назначения: {price}</div>}
@@ -56,7 +69,7 @@ function Candidate({ gs, candidate, onHire }) {
   );
 }
 
-export default function StaffPanel({ gs, onHire }) {
+export default function StaffPanel({ gs, onHire, Portrait = null }) {
   const [error, setError] = useState(null);
   if (!staffingOpen(gs)) return null;
   const pool = candidatePool(gs);
@@ -68,7 +81,7 @@ export default function StaffPanel({ gs, onHire }) {
       <div className="sv-staff-title">КАДРОВЫЙ РЕЗЕРВ</div>
       <p className="sv-staff-note">Одно кадровое решение за квартал. Новый человек занимает кресло советника — прежний уходит. Резерв обновляется раз в год.</p>
       {gs.staffing?.receipt && gs.staffing.lastTurn === gs.turn && <p className="sv-staff-receipt">{gs.staffing.receipt}</p>}
-      {pool.length ? pool.map(candidate => <Candidate key={candidate.id} gs={gs} candidate={candidate} onHire={hire}/>)
+      {pool.length ? pool.map(candidate => <Candidate key={candidate.id} gs={gs} candidate={candidate} onHire={hire} Portrait={Portrait}/>)
         : <p className="sv-staff-note">Резерв на этот год исчерпан.</p>}
       {error && <p className="sv-staff-line sv-staff-bad">✖ {error}</p>}
     </section>

@@ -5,6 +5,8 @@ import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { FIGURE_ROLES } from '../game/data.ts';
 import { isFemaleName, isSurvival } from '../game/engine.ts';
 import { MANAGEMENT_DOSSIERS } from '../content/management.ts';
+import { PRESS_QUESTIONS } from '../content/press.ts';
+import { candidatePool, staffingOpen } from '../game/staffing.ts';
 
 export const HISTORICAL_SCENE_ART = {
   archive: { src: '/art/scenes/archive.webp', caption: 'Промышленный договор в архиве' },
@@ -253,6 +255,30 @@ export const HISTORICAL_ADVISOR_ART: Record<string, { src: string; female: boole
   diplomat: { src: '/art/gemini-next/adv-diplomat.webp', female: true },
 };
 
+export const HISTORICAL_ADVISOR_REPLACEMENT_ART = {
+  strategist: { src: '/art/gemini-next/adv-strategist-male.webp', female: false },
+  economist: { src: '/art/gemini-next/adv-economist-male.webp', female: false },
+  security: { src: '/art/gemini-next/adv-security-alt.webp', female: false },
+  diplomat: { src: '/art/gemini-next/adv-diplomat-male.webp', female: false },
+  female: { src: '/art/gemini-next/adv-replacement-female.webp', female: true },
+} as const;
+
+export const HISTORICAL_WORLD_PEOPLE_ART: Record<string, { src: string; female: boolean; caption: string }> = {
+  minister: { src: '/art/gemini-next/world-minister.webp', female: false, caption: 'Министр энергетики' },
+  engineer: { src: '/art/gemini-next/world-engineer.webp', female: false, caption: 'Главный инженер энергосети' },
+  healthMinister: { src: '/art/gemini-next/world-health-minister.webp', female: false, caption: 'Министр здравоохранения' },
+  doctor: { src: '/art/gemini-next/world-doctor.webp', female: false, caption: 'Главный врач районной больницы' },
+};
+
+export const HISTORICAL_PRESS_ART = {
+  male: { src: '/art/gemini-next/press-correspondent-male.webp', female: false },
+  female: { src: '/art/gemini-next/press-correspondent-female.webp', female: true },
+} as const;
+
+export const HISTORICAL_FIGURE_SUCCESSOR_ART = {
+  male: { src: '/art/gemini-next/figure-successor-male.webp', female: false },
+} as const;
+
 export const LEADER_PORTRAIT_IDS = ['economist', 'officer', 'mayor', 'lawyer', 'diplomat'] as const;
 
 export const BIO_TO_PORTRAIT: Record<string, (typeof LEADER_PORTRAIT_IDS)[number]> = {
@@ -280,32 +306,88 @@ export const HISTORICAL_SECRETARY_ART = {
   hospitalQueue: { src: '/art/gemini-next/secretary-scene-hospital-queue.webp', caption: 'Приёмный покой областной больницы: очередь в коридоре, секретарь с пожилой женщиной' },
 } as const;
 
+const FEMALE_PRESS_TITLE = /^(Корреспондентка|Ведущая|Журналистка)(?=\s|$)/iu;
+
 export function historicalPortraitArt(
   state: GameState | null, name: string, roster?: Record<string, string> | null,
 ): string | null {
-  if (!state || state.country !== ALTERNATE_COUNTRY) return null;
+  if (!state || state.country !== ALTERNATE_COUNTRY || !name) return null;
   if (state.leader.name === name) {
-    const p = state.leader.portrait && HISTORICAL_LEADER_ART[state.leader.portrait];
+    const portraitId = state.leader.portrait ?? (state.daily && state.bio ? BIO_TO_PORTRAIT[state.bio] : undefined);
+    const p = portraitId && HISTORICAL_LEADER_ART[portraitId];
     return p && p.female === isFemaleName(name) ? p.src : null;
   }
   if (state.world?.secretary?.name === name) {
     return HISTORICAL_SECRETARY_ART.portrait.src;
   }
+  const worldPerson = state.world?.people?.find(person => !person.figure && person.name === name);
+  if (worldPerson) {
+    const art = HISTORICAL_WORLD_PEOPLE_ART[worldPerson.id];
+    return art && art.female === isFemaleName(name) ? art.src : null;
+  }
   const figure = state.keyFigures.find(person => person.name === name);
   if (figure) {
-    if (roster && roster[figure.id] !== name) return null;
     const role = FIGURE_ROLES[ALTERNATE_COUNTRY].find(role => role.id === figure.id && role.role === figure.role);
+    if (!role) return null;
     const female = isFemaleName(name);
-    const alternative = role && HISTORICAL_ADDITIONAL_FIGURE_ART[role.id as keyof typeof HISTORICAL_ADDITIONAL_FIGURE_ART];
-    const art = alternative?.female === female ? alternative : role && HISTORICAL_FIGURE_ART[role.id];
+    if (roster && roster[figure.id] && roster[figure.id] !== name) {
+      if (role.id === 'amb_eu') {
+        return female
+          ? HISTORICAL_ADVISOR_REPLACEMENT_ART.female.src
+          : HISTORICAL_FIGURE_SUCCESSOR_ART.male.src;
+      }
+      if (role.id === 'journalist') {
+        return female ? HISTORICAL_PRESS_ART.female.src : HISTORICAL_PRESS_ART.male.src;
+      }
+      return female ? null : HISTORICAL_FIGURE_SUCCESSOR_ART.male.src;
+    }
+    const alternative = HISTORICAL_ADDITIONAL_FIGURE_ART[role.id as keyof typeof HISTORICAL_ADDITIONAL_FIGURE_ART];
+    const art = alternative?.female === female ? alternative : HISTORICAL_FIGURE_ART[role.id];
     return art && art.female === female ? art.src : null;
   }
   const advisor = state.advisors?.find(person => person.name === name);
   if (advisor) {
     const key = `advisor:${advisor.id}`;
-    if (roster && roster[key] && roster[key] !== name) return null;
-    const art = HISTORICAL_ADVISOR_ART[advisor.id];
-    return art && art.female === isFemaleName(name) ? art.src : null;
+    const female = isFemaleName(name);
+    const replaced = Boolean(roster && roster[key] && roster[key] !== name);
+    if (!replaced) {
+      const art = HISTORICAL_ADVISOR_ART[advisor.id];
+      if (art && art.female === female) return art.src;
+    }
+    if (female) return HISTORICAL_ADVISOR_REPLACEMENT_ART.female.src;
+    const maleArt = HISTORICAL_ADVISOR_REPLACEMENT_ART[advisor.id as keyof typeof HISTORICAL_ADVISOR_REPLACEMENT_ART];
+    return maleArt && !maleArt.female ? maleArt.src : null;
+  }
+  if (staffingOpen(state)) {
+    const candidate = candidatePool(state).find(person => person.name === name);
+    if (candidate) {
+      if (isFemaleName(name)) return HISTORICAL_ADVISOR_REPLACEMENT_ART.female.src;
+      const maleArt = HISTORICAL_ADVISOR_REPLACEMENT_ART[candidate.seat as keyof typeof HISTORICAL_ADVISOR_REPLACEMENT_ART];
+      return maleArt && !maleArt.female ? maleArt.src : null;
+    }
+  }
+  if (state.former?.includes(name) || state.arc?.target === name || state.world?.evidence?.name === name) {
+    const female = isFemaleName(name);
+    const boundEntry = roster && Object.entries(roster).find(([, boundName]) => boundName === name);
+    if (boundEntry) {
+      const [slotKey] = boundEntry;
+      if (slotKey.startsWith('advisor:')) {
+        const advisorId = slotKey.slice(8);
+        const art = HISTORICAL_ADVISOR_ART[advisorId];
+        if (art && art.female === female) return art.src;
+      } else {
+        const alternative = HISTORICAL_ADDITIONAL_FIGURE_ART[slotKey as keyof typeof HISTORICAL_ADDITIONAL_FIGURE_ART];
+        const art = alternative?.female === female ? alternative : HISTORICAL_FIGURE_ART[slotKey];
+        if (art && art.female === female) return art.src;
+      }
+    }
+    return female ? HISTORICAL_ADVISOR_REPLACEMENT_ART.female.src : HISTORICAL_FIGURE_SUCCESSOR_ART.male.src;
+  }
+  if (
+    PRESS_QUESTIONS.some(question => question.who === name) ||
+    state.currentEvent?.press?.questions?.some(question => question.who === name)
+  ) {
+    return FEMALE_PRESS_TITLE.test(name) ? HISTORICAL_PRESS_ART.female.src : HISTORICAL_PRESS_ART.male.src;
   }
   return null;
 }
