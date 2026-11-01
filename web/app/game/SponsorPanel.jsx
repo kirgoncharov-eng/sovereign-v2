@@ -6,7 +6,7 @@ import { PeopleText } from './PeopleText.jsx';
 
 const LABELS = { offered: 'Можно выйти на контакт', accepted: 'Вы приняли помощь', demanding: 'Он предъявил условие', confirmed: 'Условие проведено', refused: 'Вы отказались', pressuring: 'Он задерживает поставки', independent: 'Рычаг поставок утрачен', released: 'Программа завершена', departed: 'Участник лишился прежней позиции' };
 const RES = { economy: 'экономика', politicalCapital: 'политкапитал', personalResource: 'личный ресурс' };
-export default function SponsorPanel({ gs, onAction, Scene, onViewChange, embedded = false, onClose }) {
+export default function SponsorPanel({ gs, onAction, onViewChange, embedded = false, onClose }) {
   const [open, setOpen] = useState(embedded);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState('');
@@ -30,7 +30,6 @@ export default function SponsorPanel({ gs, onAction, Scene, onViewChange, embedd
     <p>{s.phase === 'offered' ? 'Спонсор кампании может помочь энергосети. Вы можете сами обсудить условия, пока в кабинете идёт другое дело.' : s.phase === 'demanding' ? `Помощь получила цену: ответьте на требование до конца квартала ${s.deadline}.` : s.phase === 'pressuring' ? 'Его компании задерживают нынешние поставки. Независимый договор уберёт этот рычаг; политическая история продолжится.' : s.phase === 'independent' ? 'Вы освободили снабжение от этого человека. Документы о кампании остаются в политической истории.' : 'Ваша договорённость и её последствия остаются частью правления.'}</p>
     <button className="sv-sponsor-open" aria-expanded={open} onClick={() => { setOpen(!open); onViewChange(!open); setSelected(null); }}>{open ? 'Свернуть контакт' : s.phase === 'offered' ? 'Назначить встречу →' : 'Открыть контакт и последствия →'}</button></>}
     {open && <div className="sv-sponsor-body">
-      <Scene gs={gs} sceneKey="office" height={48} still/>
       <div className="sv-sponsor-person">{person ? `${person.role} · отношение ${person.relation > 0 ? '+' : ''}${person.relation}` : 'Прежний участник больше не занимает эту позицию'}</div>
       <p><PeopleText>{s.lastMove}</PeopleText></p>
       <p className="sv-sponsor-help">Открытие встречи и чтение не двигают календарь. Подтверждённое поручение использует одно личное вмешательство квартала — то же, что больницы и энергосеть.</p>

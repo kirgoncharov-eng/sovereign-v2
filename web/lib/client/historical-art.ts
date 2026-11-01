@@ -28,6 +28,9 @@ export const HISTORICAL_SCENE_ART = {
   electionDefeat: { src: '/art/gemini-next/election-defeat.webp', caption: 'Штаб кампании в полночь после поражения' },
   parliamentHall: { src: '/art/gemini-next/parliament-hall.webp', caption: 'Правительственная ложа в зале парламента' },
   residenceMorning: { src: '/art/gemini-next/residence-morning.webp', caption: 'Вид из кабинета президента на площадь Независимости' },
+  budget: { src: '/art/gemini-next/budget-folders.webp', caption: 'Пять папок бюджета на столе президента' },
+  terms: { src: '/art/gemini-next/terms-folder.webp', caption: 'Папка без надписи' },
+  factoryStrike: { src: '/art/gemini-next/factory-strike.webp', caption: 'Забастовка у заводской проходной' },
 } as const;
 export type HistoricalArt = { src: string; caption: string };
 export const HISTORICAL_OUTCOME_ART = {
@@ -83,7 +86,7 @@ const CARD_ART: Record<string, HistoricalArt> = {
   alt_radio: HISTORICAL_SCENE_ART.radio, alt_harvest: HISTORICAL_SCENE_ART.harvest,
   alt_archive: HISTORICAL_SCENE_ART.archive,
   alt_region_walkers: HISTORICAL_SCENE_ART.bridge,
-  alt_region_factory_strike: HISTORICAL_SCENE_ART.protest,
+  alt_region_factory_strike: HISTORICAL_SCENE_ART.factoryStrike,
   alt_region_customs: HISTORICAL_SCENE_ART.rail,
   alt_region_governors: HISTORICAL_SCENE_ART.parliamentHall,
   alt_region_border_rift: HISTORICAL_SCENE_ART.rail,
@@ -98,15 +101,20 @@ const TITLE_ART: Record<string, HistoricalArt> = Object.fromEntries([
   ...ALTERNATE_EVENTS.filter(card => CARD_ART[card.id]).map(card => [card.title, CARD_ART[card.id]]),
   ...ALTERNATE_LAWS.map(law => [`Законопроект «${law.title}»`, CARD_ART[`law_${law.id}`]]),
   ['Мосты после паводка', HISTORICAL_SCENE_ART.bridge],
+  ['Предвыборный бюджет', HISTORICAL_SCENE_ART.budget],
+  ['Вопрос о сроках', HISTORICAL_SCENE_ART.terms],
+  ['Забастовка на крупнейшем заводе', HISTORICAL_SCENE_ART.factoryStrike],
 ]);
 
 export function historicalEventArt(country: string, event: GameEvent, scene: SceneKey): HistoricalArt | null {
   if (country !== ALTERNATE_COUNTRY) return null;
   if (event.beat?.arcId === 'alt_contracts') return HISTORICAL_SCENE_ART.archive;
+  if (event.budget) return HISTORICAL_SCENE_ART.budget;
   if (event.card && CARD_ART[event.card]) return CARD_ART[event.card];
   const bill = event.card?.match(/^law:\d+:(alt_export_guarantee|alt_open_orders)$/)?.[1];
   if (bill) return CARD_ART[`law_${bill}`];
   if (event.special?.kind === 'inspect') return event.title === 'Мосты после паводка' ? HISTORICAL_SCENE_ART.bridge : null;
+  if (TITLE_ART[event.title]) return TITLE_ART[event.title];
   return MODE_ART[scene] ?? null;
 }
 
@@ -141,13 +149,13 @@ export function historicalResultArt(state: GameState, scene: SceneKey): Historic
   }
   if (completed?.title === harvestCard.title) {
     if (completed.choice === harvestCard.choices[0].text) {
-      return completed.success ? HISTORICAL_OUTCOME_ART.harvestSubsidy : HISTORICAL_SCENE_ART.harvest;
+      return completed.success ? HISTORICAL_OUTCOME_ART.harvestSubsidy : HISTORICAL_OUTCOME_ART.harvestRot;
     }
     if (completed.choice === harvestCard.choices[1].text) {
-      return completed.success ? HISTORICAL_OUTCOME_ART.harvestDirect : HISTORICAL_SCENE_ART.harvest;
+      return completed.success ? HISTORICAL_OUTCOME_ART.harvestDirect : HISTORICAL_OUTCOME_ART.harvestRot;
     }
     if (completed.choice === harvestCard.choices[2].text) {
-      return completed.success ? HISTORICAL_OUTCOME_ART.harvestCredit : HISTORICAL_SCENE_ART.harvest;
+      return completed.success ? HISTORICAL_OUTCOME_ART.harvestCredit : HISTORICAL_OUTCOME_ART.harvestRot;
     }
   }
   if (completed?.title === fuelCard.title) {

@@ -3521,16 +3521,21 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </div>
                 )}
                 <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
-                {isFactoryOpening(gs) ? <FactoryLive/> : sceneOf(event) !== "square" && (
-                  <figure className={`sv-scene${inboxMode && !event.call && !event.press ? ' sv-case-attachment' : ''}`}
-                    style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
-                    <SquareView gs={gs} art={historicalEventArt(gs.country, event, sceneOf(event))} sceneKey={sceneOf(event)}
-                      partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60} still/>
-                    {inboxMode && !event.call && !event.press && <figcaption>
-                      Приложение к делу · {historicalEventArt(gs.country, event, sceneOf(event))?.caption ?? SCENE_CAPTION[sceneOf(event)]}
-                    </figcaption>}
-                  </figure>
-                )}
+                {(() => {
+                  const caseArt = historicalEventArt(gs.country, event, sceneOf(event));
+                  if (isFactoryOpening(gs)) return <FactoryLive/>;
+                  if (gs.country === ALTERNATE_COUNTRY ? !caseArt : sceneOf(event) === "square") return null;
+                  return (
+                    <figure className={`sv-scene${inboxMode && !event.call && !event.press ? ' sv-case-attachment' : ''}`}
+                      style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
+                      <SquareView gs={gs} art={caseArt} sceneKey={sceneOf(event)}
+                        partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60} still/>
+                      {inboxMode && !event.call && !event.press && <figcaption>
+                        Приложение к делу · {caseArt?.caption ?? SCENE_CAPTION[sceneOf(event)]}
+                      </figcaption>}
+                    </figure>
+                  );
+                })()}
                 {event.special && <SpecialHeader gs={gs} event={event}/>}
                 {(() => {
                   const { lead, rest } = splitLead(event.description, CASE_LEAD);
@@ -3656,13 +3661,19 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 </div>
                 <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>
                 <h2 id="sv-turn-result" className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.1, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}><PeopleText>{lastTurn.headline}</PeopleText></h2>
-                <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
-                  <SquareView gs={gs} art={historicalResultArt(gs, lastTurn.scene)}
-                    sceneKey={lastTurn.scene} height={36} mono still/>
-                  <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>
-                    {historicalResultArt(gs, lastTurn.scene)?.caption ?? SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции
-                  </figcaption>
-                </figure>
+                {(() => {
+                  const resultArt = historicalResultArt(gs, lastTurn.scene);
+                  if (gs.country === ALTERNATE_COUNTRY && !resultArt) return null;
+                  return (
+                    <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
+                      <SquareView gs={gs} art={resultArt}
+                        sceneKey={lastTurn.scene} height={36} mono still/>
+                      <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>
+                        {resultArt?.caption ?? SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции
+                      </figcaption>
+                    </figure>
+                  );
+                })()}
                 {(() => {
                   // #260: первый абзац — всегда о резолюции; эхо прежних решений и прочее в квартале — отдельным блоком.
                   const quarter = splitQuarter(withoutHeadline(lastTurn.narrative, lastTurn.headline));
