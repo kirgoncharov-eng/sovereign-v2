@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HISTORICAL_CALL_TOPICS } from './historical-calls.ts';
+import { SUBJECT_CALLS } from './subject-calls.ts';
 import { approachWorks, callChoice, callEvent, classicApi } from '../game/classic.ts';
 import { createInitialState, resolveTurn, seededRandom, startEvent } from '../game/engine.ts';
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES } from '../game/alternate-world.ts';
@@ -24,7 +25,7 @@ function mechanicalChoice(choice: Choice) {
   return mechanics;
 }
 
-test('исторический звонок: все собеседники и исходы называют предмет, сохраняя цены и отношения', async () => {
+test('исторический звонок без предметных вариантов: все собеседники и исходы называют предмет, сохраняя цены и отношения', async () => {
   const base = await fixture();
   for (const faction of base.factions) {
     const caller = base.keyFigures.find(figure => figure.faction === faction.id);
@@ -34,6 +35,8 @@ test('исторический звонок: все собеседники и и
     const state = { ...base, keyFigures: [caller] };
     const event = callEvent(state)!;
     assert.equal(event.call!.demand, topic.demand);
+    // Темы с предметными вариантами (#310, P05) проверяет subject-call.test.ts.
+    if (SUBJECT_CALLS[faction.bloc]) { assert.equal(event.call!.negotiation, 'subject'); continue; }
     const active = startEvent(state, event);
     const loaded = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'game', state: active }));
     assert.ok(loaded, 'новое требование загружается без изменения формата сохранений');
@@ -76,11 +79,17 @@ test('архив, Daily, другой срок и сохранённый общ�
 
 test('естественный выбор звонящего сохраняется, предметная газета и отсрочка проходят через движок', async () => {
   for (const seed of [1, 7, 12, 21]) {
-    const state = await fixture(ALTERNATE_COUNTRY, seed);
+    const natural = await fixture(ALTERNATE_COUNTRY, seed);
+    const first = await classicApi.event(natural);
+    const firstBloc = natural.factions.find(group => group.id === natural.keyFigures.find(f => f.id === first.call!.figure)!.faction)!.bloc;
+    assert.equal(first.call!.negotiation, SUBJECT_CALLS[firstBloc] ? 'subject' : undefined);
+    // Предметные темы (#310, P05) проверяет subject-call.test.ts. Здесь их лагеря довольны, и звонит лагерь прежней схемы.
+    const state = { ...natural, factions: natural.factions.map(group => SUBJECT_CALLS[group.bloc] ? { ...group, relation: 100 } : group) };
     const event = await classicApi.event(state);
     assert.ok(event.call && !event.call.negotiation);
     const caller = state.keyFigures.find(figure => figure.id === event.call!.figure)!;
     const faction = state.factions.find(group => group.id === caller.faction)!;
+    assert.ok(!SUBJECT_CALLS[faction.bloc]);
     const topic = HISTORICAL_CALL_TOPICS[faction.bloc]!;
     assert.equal(event.call.demand, topic.demand);
     const active = startEvent(state, event);
