@@ -40,9 +40,11 @@ async function openFixture(game, start) {
 
 const savedGame = page => page.evaluate(key => JSON.parse(localStorage.getItem(key)).snapshot.game, CHRONICLE_GAME_KEY);
 
-async function checkPrice(page, state, choice, name) {
-  const row = page.locator('button.sv-choice-row').filter({ has: page.getByText(choice.text, { exact: true }) });
-  await row.tap();
+async function checkPrice(page, state, choice, name, { select = true } = {}) {
+  if (select) {
+    const row = page.locator('button.sv-choice-row').filter({ has: page.getByText(choice.text, { exact: true }) });
+    await row.tap();
+  }
   const price = page.getByRole('group', { name: 'Цена выбранного решения' });
   await price.waitFor();
   assert.equal(await price.getAttribute('data-choice-id'), choice.id);
@@ -97,18 +99,20 @@ try {
   await page.waitForFunction(key => JSON.parse(localStorage.getItem(key)).snapshot.game.currentEvent.council?.length > 0, CHRONICLE_GAME_KEY);
   const afterCouncil = await savedGame(page);
   assert.equal(await page.getByRole('group', { name: 'Цена выбранного решения' }).getAttribute('data-choice-id'), selected.id);
-  await checkPrice(page, afterCouncil, selected, 'after-council');
+  await checkPrice(page, afterCouncil, selected, 'after-council', { select: false });
   const proposal = afterCouncil.currentEvent.council[0];
   const { sign } = await checkPrice(page, afterCouncil, proposal, 'council-choice');
   await sign.tap();
   await page.waitForFunction(({ key, turn }) => JSON.parse(localStorage.getItem(key)).snapshot.game.turn > turn,
     { key: CHRONICLE_GAME_KEY, turn: state.turn });
-  const signed = await savedGame(page);
-  assert.equal(signed.lastTurn.choiceText, proposal.text, 'подписан именно вариант с показанной ценой');
+  const signed = await page.evaluate(key => JSON.parse(localStorage.getItem(key)).snapshot, CHRONICLE_GAME_KEY);
+  const signature = [...signed.shown, ...signed.queue].find(line => line.kind === 'signed');
+  assert.equal(signature?.text, proposal.text, 'подписан именно вариант с показанной ценой');
   await fixture.context.close();
 
   // Старое сохранение 1978 года: в совете уже лежит отдельное предложение с автором. Новые кампании их не создают.
-  const advisorChoice = { ...state.currentEvent.choices[0], id: 'saved-advisor', advisor: state.advisors[0] };
+  const advisorChoice = { ...state.currentEvent.choices[0], id: 'saved-advisor',
+    text: 'Выделить резерв на районную закупку зерна', advisor: state.advisors[0] };
   const savedCouncil = { ...state, currentEvent: { ...state.currentEvent, council: [advisorChoice] } };
   const advisorFixture = await openFixture(savedCouncil, start);
   await checkPrice(advisorFixture.page, advisorFixture.state, advisorChoice, 'saved-advisor');
