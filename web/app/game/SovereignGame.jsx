@@ -412,7 +412,8 @@ export function ChoicePreview({ gs, c, debated = false }) {
       )}
       <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:exact ? 8 : 0 }}>
-        {c.deal?.pure ? <span style={{ fontFamily:serif }}>{c.hint}</span> : <><ChanceBadge p={successChance(gs, c)} exact={exact}/> · <span style={{ fontFamily:serif }}>{c.hint}</span></>}
+        {c.deal?.pure ? <span style={{ fontFamily:serif }}>{c.hint}</span> : <><ChanceBadge p={successChance(gs, c)} exact={exact}
+          execution={gs.country === ALTERNATE_COUNTRY}/> · <span style={{ fontFamily:serif }}>{c.hint}</span></>}
       </div>
       {exact && <ResourceChips delta={fx.resources}/>}
       {(exact || !debated) && <CostReasons gs={gs} c={c} fx={fx}/>}
@@ -1356,11 +1357,16 @@ export function SpecialHeader({ gs, event }) {
 
 // Без совета шанс назван словами: «надёжно», «как повезёт», — точный процент знает советник.
 const chanceWord = pct => (pct >= 85 ? "низкий риск" : pct >= 70 ? "умеренный риск" : pct >= 55 ? "высокий риск" : "очень высокий риск");
-function ChanceBadge({ p, exact = true }) {
+function ChanceBadge({ p, exact = true, execution = false }) {
   const pct = Math.round(p * 100);
   // Цвет совпадает со словом (#277): «низкий» — зелёный, «умеренный» — янтарный, «высокий» и выше — красный.
   const c = pct >= 85 ? G.grn : pct >= 70 ? G.amb : G.red;
-  return <span title="Вероятность благоприятного исхода. Зависит от советника, отношений и ресурсов; решение может состояться и обернуться скандалом." style={{ color:c, fontWeight:700 }}>{exact ? `шанс успеха ${pct}%` : chanceWord(pct)}</span>;
+  const label = exact ? `${execution ? "шанс исполнения" : "шанс успеха"} ${pct}%`
+    : `${chanceWord(pct)}${execution ? " срыва" : ""}`;
+  const description = execution
+    ? "Вероятность исполнения решения. Политическая цена указана отдельно: даже исполненное решение может стоить поддержки."
+    : "Вероятность благоприятного исхода. Зависит от советника, отношений и ресурсов; решение может состояться и обернуться скандалом.";
+  return <span title={description} style={{ color:c, fontWeight:700 }}>{label}</span>;
 }
 
 const stars = n => "★".repeat(n) + "☆".repeat(3 - n);
