@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
 import {
-  ACTIONS, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION, TERM_RULES, TERM, localTurn, termIndex, termOrdinal,
+  ACTIONS, actionLabel, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION, TERM_RULES, TERM, localTurn, termIndex, termOrdinal,
   reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES,
   RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY
 } from "@/lib/game/data.ts";
@@ -629,7 +629,7 @@ function DealLines({ gs, c, exact = true }) {
       const bloc = gs.factions.find(f => f.id === d.pact.faction)?.bloc;
       const res = RES_CONFIG.find(r => r.key === PACT_INCOME[bloc]);
       lines.push([G.grn, `Договор на ${plural(d.pact.turns, "ход", "хода", "ходов")}: ${SHORT[res.key].toLowerCase()} ${exact ? `+${pactIncome(d.pact)}` : "растёт"} каждый ход, их голоса на выборах`]);
-      lines.push([G.tx3, `Нельзя: ${d.pact.ban.map(t => `«${ACTIONS[t].label}»`).join(", ")}`]);
+      lines.push([G.tx3, `Нельзя: ${d.pact.ban.map(t => `«${actionLabel(t, gs.country)}»`).join(", ")}`]);
       if (d.pact.against) lines.push([G.red, `«${fac(d.pact.against)}» станут врагами`]);
     }
     if (fig && d.replace) lines.push([G.tx2, `${fig.name} уходит с поста`]);
@@ -660,7 +660,7 @@ export function PactSlips({ gs }) {
               <span style={{ fontFamily:mono, fontSize:13, color:G.tx3, whiteSpace:"nowrap" }}>ещё {plural(left, "ход", "хода", "ходов")}</span>
             </div>
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>
-              нельзя: {p.ban.map(t => ACTIONS[t].label.toLowerCase()).join(", ")}
+              нельзя: {p.ban.map(t => actionLabel(t, gs.country).toLowerCase()).join(", ")}
             </div>
           </div>
         );
@@ -1847,7 +1847,7 @@ function Recap({ gs, onClose }) {
   const next = nextElection(gs);
   const lines = [
     ...(gs.activeCrises ?? []).map(c => [G.red, `Кризис «${c.title}» — идёт ${plural(c.turnsActive + 1, "ход", "хода", "ходов")}`]),
-    ...(gs.pacts ?? []).map(p => [G.blue, `Договор с «${gs.factions.find(f => f.id === p.faction)?.name}» — ещё ${plural(p.until - gs.turn, "ход", "хода", "ходов")}; нельзя: ${p.ban.map(t => ACTIONS[t].label.toLowerCase()).join(", ")}`]),
+    ...(gs.pacts ?? []).map(p => [G.blue, `Договор с «${gs.factions.find(f => f.id === p.faction)?.name}» — ещё ${plural(p.until - gs.turn, "ход", "хода", "ходов")}; нельзя: ${p.ban.map(t => actionLabel(t, gs.country).toLowerCase()).join(", ")}`]),
     ...[...(gs.pending ?? [])].sort((a, b) => a.due - b.due).slice(0, 2).map(p => [G.tx2, `Через ${plural(p.due - gs.turn, "ход", "хода", "ходов")}: ${p.label.toLowerCase()}`]),
     ...(arcDef && !gs.arc.epilogue ? [[G.red, `Интрига «${arcDef.title}»: эпизод ${Math.min(gs.arc.done.length + 1, arcDef.beats.length)} из ${arcDef.beats.length} впереди`]] : []),
     ...(next ? [[G.tx2, `${next.label} ${inTurns(next.in)}`]] : []),
@@ -2731,7 +2731,7 @@ function PromisePicker({ gs, offered, picked, setPicked }) {
             <span style={{ minWidth:0 }}>
               <span style={{ display:"block", fontFamily:narrow, fontSize:17, fontWeight:700 }}>{def.title}</span>
               <span style={{ display:"block", fontFamily:serif, fontSize:15, fontStyle:"italic", color:G.tx2, lineHeight:1.45 }}>«{def.pitch}»</span>
-              <span style={{ display:"block", fontFamily:mono, fontSize:13, color:G.tx3, lineHeight:1.5, marginTop:3 }}>условие: {promiseGoalText(def, def.goal.kind === "resource" ? Math.min(95, gs.resources[def.goal.key] + def.goal.rise) : undefined)}{to ? ` · обещано: ${to}` : ""}</span>
+              <span style={{ display:"block", fontFamily:mono, fontSize:13, color:G.tx3, lineHeight:1.5, marginTop:3 }}>условие: {promiseGoalText(def, def.goal.kind === "resource" ? Math.min(95, gs.resources[def.goal.key] + def.goal.rise) : undefined, gs.country)}{to ? ` · обещано: ${to}` : ""}</span>
             </span>
           </button>
         );
@@ -2754,7 +2754,7 @@ function PromisesCard({ gs, final = false, style, bare = false }) {
         const mark = p.status === "kept" ? ["✔", G.grn] : p.status === "broken" ? ["✖", G.red] : ["☐", G.tx2];
         const left = p.status === "open" ? final ? "не успели" : (g.kind === "tags" ? `${p.progress}/${g.count}` : g.kind === "never" ? "держитесь" : `${gs.resources[g.key]} из ${p.target}`) : p.status === "kept" ? "исполнено" : "нарушено";
         return (
-          <div key={p.id} title={promiseGoalText(def, p.target)} style={{ display:"flex", justifyContent:"space-between", gap:8, padding:"5px 0", borderTop:`1px dashed ${G.bdr}`, fontFamily:narrow, fontSize:15 }}>
+          <div key={p.id} title={promiseGoalText(def, p.target, gs.country)} style={{ display:"flex", justifyContent:"space-between", gap:8, padding:"5px 0", borderTop:`1px dashed ${G.bdr}`, fontFamily:narrow, fontSize:15 }}>
             <span style={{ color:mark[1], minWidth:0 }}>{mark[0]} {def.title}</span>
             <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>{left}{p.status === "open" && def.due === 10 ? " · до 10 хода" : ""}</span>
           </div>

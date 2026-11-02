@@ -467,6 +467,11 @@ export const ACTIONS: Record<ActionTag, ActionInfo> = {
                    why:{ politicalCapital:"аппарат видит нерешительность", personalResource:"нерешённое давит" } },
 };
 
+// В 1978 году западный полюс — Торговый союз, а не «Запад» (#310, C13). Остальные метки общие для всех стран.
+const HISTORICAL_ACTION_LABELS: Partial<Record<ActionTag, string>> = { pro_west: "Курс на Торговый союз" };
+export const actionLabel = (tag: ActionTag, country?: string | null): string =>
+  (country === ALTERNATE_COUNTRY && HISTORICAL_ACTION_LABELS[tag]) || ACTIONS[tag].label;
+
 export const ACTION_TAGS = Object.keys(ACTIONS) as ActionTag[];
 
 // Решения в духе своей идеологии укрепляют лидера, против неё — подтачивают.
@@ -490,7 +495,7 @@ export function difficultyEffects(id: DifficultyId): string {
   return `ресурсы на старте ≈${avg} из 100 · ${mood} · ${drain}`;
 }
 export function ideologyEffects(id: IdeologyId, country: string | null): string {
-  const lab = (tags: ActionTag[]) => tags.map(t => ACTIONS[t].label.toLowerCase()).join(", ");
+  const lab = (tags: ActionTag[]) => tags.map(t => actionLabel(t, country).toLowerCase()).join(", ");
   const a = IDEOLOGY_ACTIONS[id];
   const parts = [`укрепляют вас: ${lab(a.aligned)}`, a.opposed.length ? `подтачивают: ${lab(a.opposed)}` : "ни одно решение не идёт против курса"];
   if (country) {

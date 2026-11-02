@@ -1,4 +1,4 @@
-import { ACTIONS, COUNTRIES, RES_CONFIG } from '../game/data.ts';
+import { actionLabel, COUNTRIES, RES_CONFIG } from '../game/data.ts';
 import { initiativeOptions } from '../game/initiatives.ts';
 import { livingActions } from '../game/living-world.ts';
 import { pactIncome, PACT_BROKEN, PACT_SIGN } from '../game/people.ts';
@@ -86,7 +86,7 @@ export function initiativeNote(state: GameState, option: InitiativeOption) {
     );
     commitments.push(
       `Договор до ${quarterDeadline(state, option.pact.until, true)}. Не проводить: ` +
-        `${option.pact.ban.map((tag) => ACTIONS[tag].label).join(', ')}. Нарушение разорвёт договор.`
+        `${option.pact.ban.map((tag) => actionLabel(tag, state.country)).join(', ')}. Нарушение разорвёт договор.`
     );
     commitments.push(
       `Цена нарушения: отношение лагеря ${PACT_BROKEN.faction}, личное отношение ${PACT_BROKEN.figure}, ` +

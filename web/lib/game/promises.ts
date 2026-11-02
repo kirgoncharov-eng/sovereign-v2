@@ -1,6 +1,6 @@
 // Обещания: какие предложить, как считать исполнение и что бывает за обман.
 // Модуль не зависит от движка: возвращает перемены, а применяет их planTurn.
-import { ACTIONS, RES_CONFIG } from "./data.ts";
+import { actionLabel, RES_CONFIG } from "./data.ts";
 import { campaignCopy } from "./alternate-world.ts";
 import { PROMISES, PROMISE_BROKEN, PROMISE_KEPT, PROMISE_OFFER, PROMISE_PICK, type PromiseDef } from "../content/promises.ts";
 import type { ActionTag, Faction, IdeologyId, PromiseNews, PromiseState, ResourceDelta, Resources } from "./types.ts";
@@ -103,10 +103,10 @@ export function stepPromises(
 }
 
 // Условие обещания одной строкой: для анкеты и досье.
-export function promiseGoalText(def: PromiseDef, target?: number): string {
+export function promiseGoalText(def: PromiseDef, target?: number, country?: string): string {
   const g = def.goal;
   const by = def.due === 10 ? "к парламентским выборам (10-й ход)" : "до конца срока";
-  const labels = (tags: ActionTag[]) => tags.map(t => `«${ACTIONS[t].label}»`).join(" или ");
+  const labels = (tags: ActionTag[]) => tags.map(t => `«${actionLabel(t, country)}»`).join(" или ");
   if (g.kind === "tags") return `${g.count} исполненных решения ${labels(g.tags)} ${by}`;
   if (g.kind === "never") return `ни одного решения ${labels(g.tags)} ${by}`;
   const r = RES_CONFIG.find(c => c.key === g.key)!;
