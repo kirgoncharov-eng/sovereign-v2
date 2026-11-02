@@ -38,7 +38,7 @@ import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
 import { termFinale } from "./term-finale.ts";
 import { PARTY_GENITIVE } from "../content/term-finale.ts";
 import { effectiveLaw, lawDef } from "./laws.ts";
-import { DEEDS, ELECTION_NIGHT, INTERCUTS, roleGroup } from "../content/roles.ts";
+import { DEEDS, ELECTION_NIGHT, INTERCUTS, historicalOutsiderPool, roleGroup } from "../content/roles.ts";
 import { TERMS_TURN, electionKind, fellTrying, isTermEnd, reignOf, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
 import { DIED, FINALE, LOCKED, PATHS, PATHS_AS, TERM_HOW, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
 import { LAW_REACT, MEANWHILE, type LawAct, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
@@ -1229,7 +1229,10 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const bonded = state.turn % 3 === 2 ? cast.find(f => ["insider", "mole"].includes(bondOf(f, facOf(f)) ?? "")) : undefined;
   // Что человек делает, зависит от его места: генерал не созывает митинг, посол не голосует в комитетах.
   const movedGroup = moved && roleGroup(moved.f.id);
-  const intercutPool = moved ? INTERCUTS[movedGroup!][moved.d > 0 ? "warm" : "cold"] : [];
+  const intercutSide = moved && moved.d > 0 ? "warm" : "cold";
+  const intercutBase = moved ? INTERCUTS[movedGroup!][intercutSide] : [];
+  const intercutPool = moved && movedGroup === "outsider" && state.country === ALTERNATE_COUNTRY
+    ? historicalOutsiderPool(intercutBase, moved.f.id, intercutSide) : intercutBase;
   // В ночь выборов говорит самый близкий к вам человек — о результате, а не о решении дня.
   const closest = plan.election ? [...state.keyFigures].filter(f => f.name !== state.arc?.target && f.name !== plan.path?.successor)
     .sort((x, y) => y.relation - x.relation)[0] : undefined;
@@ -1309,9 +1312,12 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     return voice(f, sign, envoy ? fresh(REACT_DIPLOMAT[envoy][side], `q${envoy}${side}`, state.turn)
       : fresh(REACT_BY_TAG[tag][side], `q${tag}${side}`, uses));
   };
+  // В 1978 году редактор и лидеры движений получают поступки по своему месту (#310, E03).
+  const deedPool = (id: string, side: "pro" | "con") => roleGroup(id) === "outsider" && state.country === ALTERNATE_COUNTRY
+    ? historicalOutsiderPool(DEEDS.outsider[side], id, side) : DEEDS[roleGroup(id)][side];
   // Если сказать по сути нечего — только поступок, без слов: так реплика не уходит мимо темы.
   const deed = (sign: number, f: (typeof cast)[number]) =>
-    fill(cycle(DEEDS[roleGroup(f.id)][sign > 0 ? "pro" : "con"], state.seed, `re${sign}`, state.turn), state, { name: f.name, role: lower(f.role) });
+    fill(cycle(deedPool(f.id, sign > 0 ? "pro" : "con"), state.seed, `re${sign}`, state.turn), state, { name: f.name, role: lower(f.role) });
   const speakers: string[] = [];
   // Эпизод интриги — дело закрытое: публика о нём не знает и не комментирует.
   // По закону говорят стороны: по одному человеку от тех, кто за, и от тех, кто против.

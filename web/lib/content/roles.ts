@@ -201,3 +201,64 @@ export const ELECTION_NIGHT: Record<"won" | "lost", Record<RoleGroup, string[]>>
     church: ["{name}, {role}, молится «о мирной передаче власти» и не называет ничьих имён."],
   },
 };
+
+// ── 1978: печать и движения — разные места (#310, E03) ────────────────────────
+// В архивных странах группа `outsider` общая. В Неманской республике редактор газеты не созывает митинг
+// и не выводит людей на площадь, а лидер движения не снимает расследование с публикации и не ведёт эфир.
+export type OutsiderKind = "press" | "movement";
+export const outsiderKind = (figureId: string): OutsiderKind | null =>
+  figureId === "journalist" ? "press" : ["opp_leader", "nat_leader", "activist"].includes(figureId) ? "movement" : null;
+
+// Строки общего списка, которые подходят только одному виду места.
+const PRESS_ONLY = new Set([INTERCUTS.outsider.warm[4], INTERCUTS.outsider.cold[4], DEEDS.outsider.pro[0]]);
+// Не подходит никому в 1978 году: эфир с гостями ведёт не газета и не движение.
+const NOT_IN_1978 = new Set([DEEDS.outsider.pro[1]]);
+// warm[1] в 1978 году заменяет сцена «передаёт в редакцию заявление» (historical-scenes.ts) — это реплика движения.
+const MOVEMENT_ONLY = new Set([
+  INTERCUTS.outsider.warm[0], INTERCUTS.outsider.warm[1], INTERCUTS.outsider.warm[2],
+  INTERCUTS.outsider.cold[0], INTERCUTS.outsider.cold[1], INTERCUTS.outsider.cold[2], INTERCUTS.outsider.cold[3], INTERCUTS.outsider.cold[5],
+  DEEDS.outsider.pro[2], DEEDS.outsider.con[1], DEEDS.outsider.con[2],
+]);
+
+// Свои строки взамен убранных, чтобы у каждого вида места оставался выбор на любую реакцию.
+const OUTSIDER_EXTRA: Record<OutsiderKind, { warm: string[]; cold: string[]; pro: string[]; con: string[] }> = {
+  press: {
+    warm: [
+      "Тем временем {name}, {role}, отправляет корреспондента в район проверить, что из обещанного уже дошло. Командировку редакция оплачивает сама.",
+    ],
+    cold: [
+      "Тем временем {name}, {role}, ставит в номер письма читателей о вашем решении — три против, одно за. Редакционного ответа под ними нет.",
+      "Тем временем {name}, {role}, держит номер до полуночи, чтобы поставить на первую полосу ответ ведомства целиком, с канцелярскими оборотами.",
+      "Тем временем {name}, {role}, просит корреспондентов собрать по районам, сколько стоит то, что вы подписали. Таблицу обещают к четвергу.",
+    ],
+    pro: [
+      "{name}, {role}, ставит ваше решение на первую полосу без редакционной колонки рядом.",
+    ],
+    con: [
+      "{name}, {role}, печатает ваше решение на третьей полосе. Первую занимает письмо читателя против.",
+      "{name}, {role}, отправляет в приёмную письменный запрос: кто готовил решение и по каким расчётам.",
+    ],
+  },
+  movement: {
+    warm: [
+      "Тем временем {name}, {role}, на собрании актива просит не спешить с новым обращением: «Посмотрим, что они сделают за месяц».",
+    ],
+    cold: [
+      "Тем временем {name}, {role}, проводит собрание в клубе при заводе. Зал полон, двери держат открытыми, чтобы слышали в коридоре.",
+    ],
+    pro: [
+      "{name}, {role}, просит сторонников снять плакаты у здания правительства до конца недели.",
+    ],
+    con: [
+      "{name}, {role}, собирает актив и до ночи обзванивает районные отделения.",
+    ],
+  },
+};
+
+// Пул строк для человека в партии 1978 года: убрать чужие по месту и добавить свои.
+export function historicalOutsiderPool(pool: string[], figureId: string, side: "warm" | "cold" | "pro" | "con"): string[] {
+  const kind = outsiderKind(figureId);
+  if (!kind) return pool;
+  const foreign = kind === "press" ? MOVEMENT_ONLY : PRESS_ONLY;
+  return [...pool.filter(line => !foreign.has(line) && !NOT_IN_1978.has(line)), ...OUTSIDER_EXTRA[kind][side]];
+}

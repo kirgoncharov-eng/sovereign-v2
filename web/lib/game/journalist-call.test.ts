@@ -71,6 +71,14 @@ test('публичная проверка исполняет предметно�
     assert.ok(result.lastTurn!.narrative.includes(pending.story!), `доклад ${id} виден в газете`);
     assert.ok(!result.lastTurn!.narrative.includes('не взял трубку'));
   }
+  // #310, C03: поздний документ назван поздним, а срочный результат приказа виден сразу в сцене подписи.
+  for (const controlled of [false, true]) {
+    const event = callEvent(await fixture(controlled))!;
+    for (const choice of event.choices) {
+      assert.match(choice.deal!.later!.story!, /квартальн|из газеты/i, `${choice.id}: поздний доклад назван поздним`);
+    }
+    assert.match(event.choices[0].scene!, /дежурный перезванивает: корреспондент вышел/);
+  }
   const release = await answer(state, 'a');
   const refuse = await answer(state, 'd');
   assert.ok(release.resources.politicalCapital < refuse.resources.politicalCapital);
