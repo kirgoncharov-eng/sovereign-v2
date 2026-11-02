@@ -1,4 +1,4 @@
-// #337: настоящий выбор и срыв в игре + отдельный экран прогноза, пока Chronicle.tsx занят аудио-PR #336.
+// #337: прогноз, подпись и оба исхода в игре; отдельный экран проверяет расклад при узкой ширине.
 // npm run build:demo && node scripts/playtest-execution-risk.mjs [--out=playtest/execution-risk]
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -29,7 +29,7 @@ const componentCss = bundle.outputFiles.find(file => file.path.endsWith('.css'))
 const demo = readFileSync('demo/dist/sovereign.html', 'utf8');
 const fontsAndStyles = demo.match(/<style>([\s\S]*?)<\/style>/)[1];
 const browser = await chromium.launch();
-const summary = { game: [], component: [], problems: [], integration: 'standalone component; Chronicle.tsx reserved by #336' };
+const summary = { game: [], component: [], problems: [], integration: 'game confirmation and standalone component' };
 
 const before = await nextCase(await newTerm(startFromSeed(7)));
 function withOutcome(choice, succeeded) {
@@ -84,6 +84,12 @@ try {
       await gamePage.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
       const row = gamePage.locator('button.sv-choice-row').filter({ has: gamePage.getByText(choice.text, { exact: true }) });
       await row.tap();
+      const liveForecast = gamePage.getByRole('group', { name: 'Последствия выбранного решения' });
+      await liveForecast.waitFor();
+      assert.deepEqual(await liveForecast.locator('tbody tr').evaluateAll(rows => rows.map(row =>
+        [...row.querySelectorAll('td')].map(cell => cell.textContent))),
+        RESOURCE_KEYS.map(key => [signed(forecast.success.resources[key]), signed(forecast.failure.resources[key])]));
+      assert.ok((await liveForecast.innerText()).includes(forecast.reason));
       await gamePage.getByRole('button', { name: /^Подписать/ }).tap();
       await gamePage.waitForFunction(key => JSON.parse(localStorage.getItem(key))?.snapshot.game.history.length > 0, CHRONICLE_GAME_KEY);
       const actual = await gamePage.evaluate(key => JSON.parse(localStorage.getItem(key)).snapshot, CHRONICLE_GAME_KEY);
