@@ -34,9 +34,25 @@ export function setSound(on: boolean) {
     }
   } catch {}
   if (!on) {
+    if (buses) {
+      try {
+        const t = buses.ctx.currentTime;
+        buses.master.gain.setValueAtTime(buses.master.gain.value, t);
+        buses.master.gain.linearRampToValueAtTime(0.0001, t + 0.1);
+        buses.master.gain.value = 0.0001;
+      } catch {}
+    }
     stopCabinetAmbient();
     stopTitleTheme();
   } else {
+    if (buses && !isDocumentHidden()) {
+      try {
+        const t = buses.ctx.currentTime;
+        buses.master.gain.setValueAtTime(buses.master.gain.value, t);
+        buses.master.gain.linearRampToValueAtTime(0.92, t + 0.2);
+        buses.master.gain.value = 0.92;
+      } catch {}
+    }
     startCabinetAmbient();
   }
   soundListeners.forEach(fn => {
@@ -44,11 +60,61 @@ export function setSound(on: boolean) {
   });
 }
 
+export function isDocumentHidden(): boolean {
+  return typeof document !== "undefined" && document.hidden === true;
+}
+
+export function handleVisibilityChange(hidden: boolean) {
+  const g = ensureBuses();
+  const t = g?.ctx.currentTime ?? 0;
+  try {
+    if (hidden) {
+      if (g) {
+        g.master.gain.setValueAtTime(g.master.gain.value, t);
+        g.master.gain.linearRampToValueAtTime(0.0001, t + 0.2);
+        g.master.gain.value = 0.0001;
+      }
+      if (ambientNodes) {
+        ambientNodes.masterGain.gain.setValueAtTime(ambientNodes.masterGain.gain.value, t);
+        ambientNodes.masterGain.gain.linearRampToValueAtTime(0.0001, t + 0.2);
+        ambientNodes.masterGain.gain.value = 0.0001;
+      }
+    } else {
+      if (g?.ctx.state === "suspended") {
+        void g.ctx.resume().catch(() => {});
+      }
+      if (soundOn()) {
+        if (g) {
+          g.master.gain.setValueAtTime(g.master.gain.value, t);
+          g.master.gain.linearRampToValueAtTime(0.92, t + 0.3);
+          g.master.gain.value = 0.92;
+        }
+        if (ambientNodes && !cabinetState.paused) {
+          ambientNodes.masterGain.gain.setValueAtTime(ambientNodes.masterGain.gain.value, t);
+          ambientNodes.masterGain.gain.linearRampToValueAtTime(0.022, t + 0.4);
+          ambientNodes.masterGain.gain.value = 0.022;
+        }
+      }
+    }
+  } catch {}
+}
+
+if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+  document.addEventListener("visibilitychange", () => {
+    handleVisibilityChange(isDocumentHidden());
+  });
+}
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener("pagehide", () => handleVisibilityChange(true));
+  window.addEventListener("pageshow", () => handleVisibilityChange(isDocumentHidden()));
+}
+
 // ── Шинный микшер (Audio Bus Graph) ──────────────────────────────────────────
 
 interface BusGraph {
   ctx: AudioContext;
   master: GainNode;
+  compressor: DynamicsCompressorNode | null;
   sfx: GainNode;
   ambient: GainNode;
   ambientFilter: BiquadFilterNode;
@@ -56,13 +122,18 @@ interface BusGraph {
 }
 
 let buses: BusGraph | null = null;
+let isCallActive = false;
+let sheetMuffled = false;
 
 function audio(): AudioContext | null {
   if (!soundOn() || typeof window === "undefined") return null;
   const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AC) return null;
   try {
-    ctx ??= new AC();
+    if (!ctx || (typeof AC === "function" && !(ctx instanceof AC))) {
+      ctx = new AC();
+      buses = null;
+    }
     if (ctx.state === "suspended") void ctx.resume().catch(() => {});
     return ctx;
   } catch {
@@ -76,8 +147,23 @@ function ensureBuses(): BusGraph | null {
   if (buses && buses.ctx === a) return buses;
   try {
     const master = a.createGain();
-    master.gain.setValueAtTime(0.92, a.currentTime);
-    master.connect(a.destination);
+    const initMasterGain = soundOn() && !isDocumentHidden() ? 0.92 : 0.0001;
+    master.gain.setValueAtTime(initMasterGain, a.currentTime);
+    master.gain.value = initMasterGain;
+
+    let compressor: DynamicsCompressorNode | null = null;
+    if (typeof a.createDynamicsCompressor === "function") {
+      compressor = a.createDynamicsCompressor();
+      compressor.threshold.setValueAtTime(-18, a.currentTime);
+      compressor.knee.setValueAtTime(12, a.currentTime);
+      compressor.ratio.setValueAtTime(4, a.currentTime);
+      compressor.attack.setValueAtTime(0.003, a.currentTime);
+      compressor.release.setValueAtTime(0.15, a.currentTime);
+      master.connect(compressor);
+      compressor.connect(a.destination);
+    } else {
+      master.connect(a.destination);
+    }
 
     const sfx = a.createGain();
     sfx.gain.setValueAtTime(0.95, a.currentTime);
@@ -85,17 +171,23 @@ function ensureBuses(): BusGraph | null {
 
     const ambientFilter = a.createBiquadFilter();
     ambientFilter.type = "lowpass";
-    ambientFilter.frequency.setValueAtTime(3200, a.currentTime);
+    const initFreq = sheetMuffled ? 680 : 3200;
+    ambientFilter.frequency.setValueAtTime(initFreq, a.currentTime);
+    ambientFilter.frequency.value = initFreq;
 
     const ambient = a.createGain();
-    ambient.gain.setValueAtTime(0.88, a.currentTime);
+    const initAmbientGain = isCallActive ? (sheetMuffled ? 0.32 : 0.38) : (sheetMuffled ? 0.52 : 0.88);
+    ambient.gain.setValueAtTime(initAmbientGain, a.currentTime);
+    ambient.gain.value = initAmbientGain;
     ambient.connect(ambientFilter).connect(master);
 
     const music = a.createGain();
-    music.gain.setValueAtTime(0.75, a.currentTime);
+    const initMusicGain = isCallActive ? 0.25 : 0.75;
+    music.gain.setValueAtTime(initMusicGain, a.currentTime);
+    music.gain.value = initMusicGain;
     music.connect(master);
 
-    buses = { ctx: a, master, sfx, ambient, ambientFilter, music };
+    buses = { ctx: a, master, compressor, sfx, ambient, ambientFilter, music };
     return buses;
   } catch {
     return null;
@@ -137,32 +229,39 @@ function noiseBuffer(a: AudioContext, seconds: number, decayPower = 1.8): AudioB
 
 // ── Управление фокусом и приглушением (Ducking & Sheet Focus) ────────────────
 
-/** При открытии модальной справки («Страна», «Люди», окно опоры) воздух кабинета мягко приглушается */
-export function setAmbientFocus(muffled: boolean) {
+function applyBusGains() {
   const g = ensureBuses();
   if (!g) return;
   try {
     const t = g.ctx.currentTime;
-    const targetFreq = muffled ? 680 : 3200;
-    const targetGain = muffled ? 0.52 : 0.88;
+    const targetAmbient = isCallActive ? (sheetMuffled ? 0.32 : 0.38) : (sheetMuffled ? 0.52 : 0.88);
+    const targetMusic = isCallActive ? 0.25 : 0.75;
+    const targetFreq = sheetMuffled ? 680 : 3200;
+
+    g.ambient.gain.setValueAtTime(g.ambient.gain.value, t);
+    g.ambient.gain.linearRampToValueAtTime(targetAmbient, t + 0.35);
+    g.ambient.gain.value = targetAmbient;
+
     g.ambientFilter.frequency.setValueAtTime(g.ambientFilter.frequency.value, t);
     g.ambientFilter.frequency.exponentialRampToValueAtTime(targetFreq, t + 0.28);
-    g.ambient.gain.setValueAtTime(g.ambient.gain.value, t);
-    g.ambient.gain.linearRampToValueAtTime(targetGain, t + 0.28);
+    g.ambientFilter.frequency.value = targetFreq;
+
+    g.music.gain.setValueAtTime(g.music.gain.value, t);
+    g.music.gain.linearRampToValueAtTime(targetMusic, t + 0.35);
+    g.music.gain.value = targetMusic;
   } catch {}
+}
+
+/** При открытии модальной справки («Страна», «Люди», окно опоры) воздух кабинета мягко приглушается */
+export function setAmbientFocus(muffled: boolean) {
+  sheetMuffled = muffled;
+  applyBusGains();
 }
 
 /** При звонке правительственной связи ЗАС фоновые шины плавно уходят на второй план */
 export function duckForCall(active: boolean) {
-  const g = ensureBuses();
-  if (!g) return;
-  try {
-    const t = g.ctx.currentTime;
-    g.ambient.gain.setValueAtTime(g.ambient.gain.value, t);
-    g.ambient.gain.linearRampToValueAtTime(active ? 0.38 : 0.88, t + 0.35);
-    g.music.gain.setValueAtTime(g.music.gain.value, t);
-    g.music.gain.linearRampToValueAtTime(active ? 0.25 : 0.75, t + 0.35);
-  } catch {}
+  isCallActive = active;
+  applyBusGains();
 }
 
 // ── 4-слойный акустический воздух кабинета 1978 года (Cabinet Soundscape) ─────
@@ -218,8 +317,7 @@ function createAtmosphereLoopBuffer(a: AudioContext): AudioBuffer {
 }
 
 function playPendulumTick(a: AudioContext, dest: AudioNode) {
-  if (!soundOn() || cabinetState.paused) return;
-  if (typeof document !== "undefined" && document.hidden) return;
+  if (!soundOn() || cabinetState.paused || isDocumentHidden()) return;
   try {
     const t = a.currentTime;
     const isTick = clockBeat % 2 === 0;
@@ -252,8 +350,14 @@ export function startCabinetAmbient() {
   try {
     const masterGain = a.createGain();
     const t = a.currentTime;
+    const targetMaster = (cabinetState.paused || isDocumentHidden() || !soundOn()) ? 0.0001 : 0.022;
     masterGain.gain.setValueAtTime(0.0001, t);
-    masterGain.gain.exponentialRampToValueAtTime(0.022, t + 1.8);
+    if (targetMaster > 0.0001) {
+      masterGain.gain.exponentialRampToValueAtTime(targetMaster, t + 1.8);
+      masterGain.gain.value = targetMaster;
+    } else {
+      masterGain.gain.value = 0.0001;
+    }
     masterGain.connect(dest);
 
     // 1. Сетевой воздух кабинета (52 Гц + 104 Гц)
@@ -337,8 +441,14 @@ export function updateCabinetState(next: CabinetAudioState) {
   cabinetState = { ...cabinetState, ...next };
   if (!ambientNodes) return;
   try {
-    const { ctx: a, tensionGain, squareGain, weatherFilter, weatherGain } = ambientNodes;
+    const { ctx: a, masterGain, tensionGain, squareGain, weatherFilter, weatherGain } = ambientNodes;
     const t = a.currentTime;
+
+    const targetMaster = (cabinetState.paused || isDocumentHidden() || !soundOn()) ? 0.0001 : 0.022;
+    masterGain.gain.setValueAtTime(masterGain.gain.value, t);
+    masterGain.gain.linearRampToValueAtTime(targetMaster, t + 0.25);
+    masterGain.gain.value = targetMaster;
+
     tensionGain.gain.setValueAtTime(tensionGain.gain.value, t);
     tensionGain.gain.linearRampToValueAtTime(cabinetState.crisis ? 0.48 : 0.0001, t + 1.2);
 
@@ -422,14 +532,14 @@ function playFeltPianoNote(a: AudioContext, freq: number, dest: AudioNode) {
 }
 
 export function startTitleTheme() {
-  if (titleTimer || !soundOn() || typeof window === "undefined") return;
+  if (titleTimer || !soundOn() || typeof window === "undefined" || isDocumentHidden()) return;
   const a = audio();
   if (!a) return;
   const dest = ensureBuses()?.music ?? a.destination;
   titleStep = 0;
   playFeltPianoNote(a, TITLE_NOTES[0], dest);
   titleTimer = setInterval(() => {
-    if (!soundOn() || (typeof document !== "undefined" && document.hidden)) return;
+    if (!soundOn() || isDocumentHidden()) return;
     const ctxNow = audio();
     if (!ctxNow) return;
     titleStep = (titleStep + 1) % TITLE_NOTES.length;
@@ -857,6 +967,7 @@ export function outcomeFx(success: boolean) {
 /** Двойной электромеханический звонок правительственного аппарата ЗАС */
 export function telephoneFx() {
   haptic("light");
+  duckForCall(true);
   const context = audio();
   if (!context) return;
   try {

@@ -10,7 +10,7 @@ import {
   startFromSeed, takeOffice, termOver, type ChronicleLine, type ChronicleStart, type Step,
 } from "@/lib/client/chronicle.ts";
 import {
-  chronicleLineFx, clickFx, councilBellFx, envelopeFx, folderDropFx, ledgerFx,
+  chronicleLineFx, clickFx, councilBellFx, duckForCall, envelopeFx, folderDropFx, handsetFx, ledgerFx,
   mapUnfoldFx, optionArmFx, pageFx, penScratchFx, pressFlashFx, setAmbientFocus,
   setSound, soundOn, stampFx, startCabinetAmbient, stopCabinetAmbient,
   subscribeSound, telephoneFx, updateCabinetState,
@@ -156,7 +156,11 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   const following = useRef(true);
   const speedRef = useRef<Speed>("calm");
   useEffect(() => { speedRef.current = speed; }, [speed]);
-  useEffect(() => () => stopCabinetAmbient(), []);
+  useEffect(() => () => {
+    stopCabinetAmbient();
+    duckForCall(false);
+    setAmbientFocus(false);
+  }, []);
   useEffect(() => { setAmbientFocus(!!sheet || waitingOpen); }, [sheet, waitingOpen]);
   // Хроника внутри игры шлёт те же события аналитики, что `/game`; отдельная страница прототипа — нет.
   const embedded = !!entry;
@@ -226,6 +230,13 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   const decision = !deciding ? null : form ? `form:${form.field}` : stop ? `stop:${stop.key}:${stop.token}:${view ?? ""}`
     : step ? `case:${game?.turn}` : null;
   const shownDecision = useRef<string | null>(null);
+  const isCall = deciding && !stop && !form && !!game?.currentEvent?.call;
+  useEffect(() => {
+    duckForCall(isCall);
+    return () => {
+      if (isCall) duckForCall(false);
+    };
+  }, [isCall]);
   // Новое дело или обращение всегда открываем с заголовка, даже если прежнее дочитывали вниз;
   // строки хроники — следуя за последней, только если игрок сам не прокрутил ленту назад.
   useEffect(() => {
@@ -237,7 +248,7 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         else if (stop.kind === "story" || stop.message) envelopeFx();
         else folderDropFx();
       } else if (step && game?.currentEvent) {
-        if (game.currentEvent.call) telephoneFx();
+        if (game.currentEvent.call) { telephoneFx(); handsetFx(true); }
         else if (game.currentEvent.press) pressFlashFx();
         else folderDropFx();
       }
@@ -789,11 +800,12 @@ function CaseDesk({ game, busy, onSign, onConvene }: {
   if (event.budget) body = <BudgetPanel gs={game} stamping={null} onSkip={() => onSign(refuse)}
     onFinish={(alloc: Record<string, number>, debt: boolean) => onSign(state => signBudget(state, alloc, debt))} />;
   else if (event.call?.negotiation === "journalist") body = <JournalistCall gs={game} stamping={null} renderPromises={promises} Portrait={Portrait}
-    onFinish={(choice: Choice) => onSign(state => signChoice(state, choice.id))} />;
+    onFinish={(choice: Choice) => { handsetFx(false); duckForCall(false); onSign(state => signChoice(state, choice.id)); }} />;
   else if (event.call?.negotiation) body = <NegotiationCall gs={game} stamping={null} renderPromises={promises} Portrait={Portrait}
-    onFinish={(choice: Choice) => onSign(state => signChoice(state, choice.id))} />;
-  else if (event.call) body = <CallPanel gs={game} call={event.call} seed={game.seed} stamping={null} onHang={() => onSign(refuse)}
-    onFinish={(approach: Parameters<typeof signCall>[1], ending: Parameters<typeof signCall>[2]) => onSign(state => signCall(state, approach, ending))} />;
+    onFinish={(choice: Choice) => { handsetFx(false); duckForCall(false); onSign(state => signChoice(state, choice.id)); }} />;
+  else if (event.call) body = <CallPanel gs={game} call={event.call} seed={game.seed} stamping={null}
+    onHang={() => { handsetFx(false); duckForCall(false); onSign(refuse); }}
+    onFinish={(approach: Parameters<typeof signCall>[1], ending: Parameters<typeof signCall>[2]) => { handsetFx(false); duckForCall(false); onSign(state => signCall(state, approach, ending)); }} />;
   else if (event.press) body = <PressPanel gs={game} press={event.press} stamping={null} onSkip={() => onSign(refuse)}
     onFinish={(picks: number[]) => onSign(state => signPress(state, picks))} />;
   else {
