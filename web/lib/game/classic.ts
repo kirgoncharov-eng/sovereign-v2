@@ -38,7 +38,7 @@ import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
 import { termFinale } from "./term-finale.ts";
 import { PARTY_GENITIVE } from "../content/term-finale.ts";
 import { effectiveLaw, lawDef } from "./laws.ts";
-import { DEEDS, ELECTION_NIGHT, INTERCUTS, historicalOutsiderPool, roleGroup } from "../content/roles.ts";
+import { DEEDS, ELECTION_NIGHT, HISTORICAL_PRESS_ELECTION_NIGHT, INTERCUTS, historicalOutsiderPool, outsiderKind, roleGroup } from "../content/roles.ts";
 import { TERMS_TURN, electionKind, fellTrying, isTermEnd, reignOf, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
 import { DIED, FINALE, LOCKED, PATHS, PATHS_AS, TERM_HOW, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
 import { LAW_REACT, MEANWHILE, type LawAct, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
@@ -1233,11 +1233,14 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const intercutBase = moved ? INTERCUTS[movedGroup!][intercutSide] : [];
   const intercutPool = moved && movedGroup === "outsider" && state.country === ALTERNATE_COUNTRY
     ? historicalOutsiderPool(intercutBase, moved.f.id, intercutSide) : intercutBase;
+  // В 1978 году редактор газеты встречает итоги выборов как печать, а не как лидер движения (#310, E03).
+  const electionNightPool = (id: string, outcome: "won" | "lost") =>
+    state.country === ALTERNATE_COUNTRY && outsiderKind(id) === "press" ? HISTORICAL_PRESS_ELECTION_NIGHT[outcome] : ELECTION_NIGHT[outcome][roleGroup(id)];
   // В ночь выборов говорит самый близкий к вам человек — о результате, а не о решении дня.
   const closest = plan.election ? [...state.keyFigures].filter(f => f.name !== state.arc?.target && f.name !== plan.path?.successor)
     .sort((x, y) => y.relation - x.relation)[0] : undefined;
   const intercut = closest
-    ? fill(cycle(ELECTION_NIGHT[plan.election!.outcome === "won" ? "won" : "lost"][roleGroup(closest.id)], state.seed, "elnight", state.turn), state, { name: closest.name, role: lower(closest.role) })
+    ? fill(cycle(electionNightPool(closest.id, plan.election!.outcome === "won" ? "won" : "lost"), state.seed, "elnight", state.turn), state, { name: closest.name, role: lower(closest.role) })
     : bonded
     ? fill(cycle(bondOf(bonded, facOf(bonded)) === "insider" ? INSIDER_LINES : MOLE_LINES, state.seed, "bond", state.turn), state, { name: bonded.name, camp: facOf(bonded)?.name ?? "" })
     : moved ? fill(cycle(intercutPool, state.seed, `ic${moved.d > 0}${movedGroup}`, state.turn)

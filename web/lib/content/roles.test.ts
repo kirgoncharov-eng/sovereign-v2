@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEEDS, INTERCUTS, historicalOutsiderPool, outsiderKind } from './roles.ts';
+import { DEEDS, HISTORICAL_PRESS_ELECTION_NIGHT, INTERCUTS, historicalOutsiderPool, outsiderKind } from './roles.ts';
 
 const SIDES = { warm: INTERCUTS.outsider.warm, cold: INTERCUTS.outsider.cold, pro: DEEDS.outsider.pro, con: DEEDS.outsider.con };
 const MOVEMENT = /митинг|площад|сбор подписей|[\s«]акци|сторонник|актив|послами|улица|плакат/;
@@ -25,5 +25,13 @@ test('архив и прочие места получают прежний сп
     for (const id of ['interior', 'oligarch', 'amb_russia', 'patriarch', 'diaspora']) {
       assert.equal(historicalOutsiderPool(pool, id, side), pool);
     }
+  }
+});
+
+test('1978: в ночь выборов редактор встречает итоги как газета, без лагеря и сторонников', () => {
+  for (const line of Object.values(HISTORICAL_PRESS_ELECTION_NIGHT).flat()) {
+    assert.doesNotMatch(line, MOVEMENT);
+    assert.doesNotMatch(line, /своего лагеря/);
+    assert.match(line, /номер|полос/);
   }
 });

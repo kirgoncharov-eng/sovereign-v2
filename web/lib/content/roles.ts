@@ -262,3 +262,9 @@ export function historicalOutsiderPool(pool: string[], figureId: string, side: "
   const foreign = kind === "press" ? MOVEMENT_ONLY : PRESS_ONLY;
   return [...pool.filter(line => !foreign.has(line) && !NOT_IN_1978.has(line)), ...OUTSIDER_EXTRA[kind][side]];
 }
+
+// Ночь выборов для редактора газеты в 1978 году: у печати нет «своего лагеря» и сторонников с цветами.
+export const HISTORICAL_PRESS_ELECTION_NIGHT: Record<"won" | "lost", string[]> = {
+  won: ["В половине первого звонит {name}, {role}: «Номер уже свёрстан. На первой полосе — итоги по округам, без комментария. Комментарий будет, когда вы что-нибудь сделаете»."],
+  lost: ["{name}, {role}, ставит в утренний номер портрет победителя на половину полосы. Ваша фотография — на второй странице, меньше, под таблицей округов."],
+};
