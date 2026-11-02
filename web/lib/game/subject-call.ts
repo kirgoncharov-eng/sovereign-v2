@@ -4,13 +4,12 @@
 import { CALL_TEXT } from '../content/calls.ts';
 import { HISTORICAL_CALL_TOPICS } from '../content/historical-calls.ts';
 import { SUBJECT_CALLS, type SubjectOption } from '../content/subject-calls.ts';
+import { RESOURCE_NAME } from '../content/resource-names.ts';
 import { traitOf } from './people.ts';
 import type { Choice, Faction, Figure, GameEvent, GameState, ResourceDelta } from './types.ts';
 
-const RESOURCE_NAMES: Record<keyof GameState['resources'], string> = {
-  politicalCapital: 'политкапитал', economy: 'экономика', military: 'силовики',
-  externalReputation: 'репутация за рубежом', internalLegitimacy: 'легитимность', personalResource: 'личный ресурс',
-};
+// Экранные имена — из общего словаря (#310, C13); «репутация за рубежом» понятнее в цене разговора.
+const RESOURCE_NAMES: Record<keyof GameState['resources'], string> = { ...RESOURCE_NAME, externalReputation: 'репутация за рубежом' };
 
 const signed = (value: number) => (value > 0 ? `+${value}` : `−${Math.abs(value)}`);
 

@@ -31,7 +31,7 @@ export interface SubjectCall {
 export const LATER_COST = { politicalCapital: -2 };
 const later = (subject: string, waiting: string): SubjectOption => ({
   text: 'Взять время подумать',
-  terms: `Решения нет: ${waiting} Второго разговора не будет: через полгода отсрочка обойдётся в политкапитал −2.`,
+  terms: `Решения нет: ${waiting} Второго разговора не будет: через полгода отсрочка будет стоить: влияние −2.`,
   tags: ['delay'], res: {}, figure: -5, camp: -2,
   scene: `Вы берёте время подумать: ${subject}. {name} не спорит: «Я подожду. Остальные — вряд ли».`,
   headline: `{name} ждёт решения: ${subject}`,

@@ -4,7 +4,7 @@ import { livingActions, worldPerson } from '../game/living-world.ts';
 import type { GameState, ResourceDelta } from '../game/types.ts';
 
 const RESOURCE_NAMES: Record<string, string> = {
-  economy: 'экономика', politicalCapital: 'политкапитал', personalResource: 'личный ресурс',
+  economy: 'экономика', politicalCapital: 'влияние', personalResource: 'личный ресурс',
   internalLegitimacy: 'легитимность', externalReputation: 'внешняя репутация',
 };
 export const governmentPrice = (cost: ResourceDelta) => Object.entries(cost)

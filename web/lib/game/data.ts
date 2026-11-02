@@ -3,7 +3,7 @@ import { ALTERNATE_CONTEXT, ALTERNATE_COUNTRY } from "./alternate-world.ts";
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "8.47";
+export const APP_VERSION = "8.48";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 // Срок — двадцать ходов (пять лет). Правление не ограничено сроком: партия идёт, пока лидер у власти.
 export const TERM = 20;
@@ -70,7 +70,7 @@ export const IDEOLOGIES: { id: IdeologyId; emoji: string; label: string; desc: s
 ];
 
 export const RES_CONFIG: { key: ResourceKey; label: string; prompt: string }[] = [
-  { key:"politicalCapital",   label:"ПОЛИТКАПИТАЛ", prompt:"Политический капитал" },
+  { key:"politicalCapital",   label:"ВЛИЯНИЕ",      prompt:"Влияние" },
   { key:"economy",            label:"ЭКОНОМИКА",    prompt:"Экономика" },
   { key:"military",           label:"СИЛОВИКИ",     prompt:"Силовики" },
   { key:"externalReputation", label:"РЕПУТАЦИЯ",    prompt:"Внешняя репутация" },
@@ -92,7 +92,7 @@ export const BIOGRAPHIES: Biography[] = [
   { id:"diplomat",  label:"Дипломат",       text:"Бывший дипломат, вернувшийся в политику после десяти лет за границей.", textFemale:"Бывший дипломат торгпредства, вернувшаяся в политику после десяти лет за границей.", tags:["pro_west", "pro_russia", "dialogue"], res:"externalReputation",
     note:"внешняя политика и диалог исполняются на 8% надёжнее · репутация +8 на старте" },
   { id:"mayor",     label:"Мэр",            text:"Мэр промышленного города, которого называют «человеком из народа».", textFemale:"Председатель горисполкома промышленного центра, которую называют «человеком из народа».", tags:["social", "elite_deal", "propaganda"], res:"politicalCapital",
-    note:"сделки, соцполитика и агитация исполняются на 8% надёжнее · политкапитал +8 на старте" },
+    note:"сделки, соцполитика и агитация исполняются на 8% надёжнее · влияние +8 на старте" },
 ];
 export function bioText(bioId: string | undefined, female = false): string {
   const b = BIOGRAPHIES.find(x => x.id === bioId) ?? BIOGRAPHIES[0];

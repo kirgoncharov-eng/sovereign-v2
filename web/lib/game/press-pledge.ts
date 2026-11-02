@@ -71,7 +71,7 @@ export function pledgeQuestion(state: GameState, skip: ReadonlySet<string> = new
     text: broken ? "«То обещание давалось в других условиях. Условия изменились»" : "«Условия изменились. Это обещание я снимаю: страна важнее лозунга»",
     res: { internalLegitimacy: broken ? -2 : -1, politicalCapital: 1 }, rel: { [bloc]: broken ? -2 : -3 },
     stake: broken ? "Вопрос закрывается дёшево, но те, кому оно давалось, не простят."
-      : "Обещание закрывается без исполнения: вы выигрываете в политкапитале, теряете доверие тех, кому оно давалось.",
+      : "Обещание закрывается без исполнения: вы выигрываете во влиянии, теряете доверие тех, кому оно давалось.",
     after: "Представитель лагеря с места напоминает дословную фразу митинга. В зале её уже записали.",
   };
   const forbidden = def.goal.kind === "never"; // обещание «никогда»: нарушено подписью, а не нехваткой работы
@@ -81,7 +81,7 @@ export function pledgeQuestion(state: GameState, skip: ReadonlySet<string> = new
     : "«Работа идёт по плану. Протоколы открыты, проверяйте каждое решение»";
   const prove: PressAnswer = proved
     ? { tone: "hard", text: proveText, res: { politicalCapital: 2, internalLegitimacy: 1 }, rel: { [bloc]: 2 },
-        stake: "Есть что предъявить: выигрываете в политкапитале и у тех, кому обещано." }
+        stake: "Есть что предъявить: выигрываете во влиянии и у тех, кому обещано." }
     : { tone: "hard", text: proveText, res: { internalLegitimacy: -2 }, rel: { [bloc]: -2 },
         stake: forbidden ? "Оправдание вынужденностью слова не вернёт: корреспондентка назовёт дату подписи."
           : "Показывать почти нечего: корреспондентка сверит слова с протоколами, и расхождение заметят.",
@@ -93,7 +93,7 @@ export function pledgeQuestion(state: GameState, skip: ReadonlySet<string> = new
       : "«Обещание в силе, но пока сделано меньше, чем нужно. Спрашивайте с меня к сроку»",
     res: broken ? { internalLegitimacy: 3, politicalCapital: -2 } : { internalLegitimacy: 2, politicalCapital: -1 },
     rel: { [bloc]: broken ? 3 : 2 },
-    stake: broken ? "Признание стоит политкапитала, зато ему поверят." : "Признание стоит немного политкапитала; спрос к сроку остаётся на вас.",
+    stake: broken ? "Признание стоит влияния, зато ему поверят." : "Признание стоит немного влияния; спрос к сроку остаётся на вас.",
   };
   return { id: PLEDGE_PREFIX + promise.id, who: "Корреспондентка независимого издания", topic: "данном слове", text, seconds: PLEDGE_SECONDS,
     answers: [admit, prove, renounce] };

@@ -39,7 +39,7 @@ export default function HealthPanel({ gs, Scene, tab, setTab, tabs, stamp, actio
       <p><PeopleText>{bargain.doctorCondition}</PeopleText></p>
       <p>К вам сейчас: министр {worldPerson(gs,'healthMinister').relation > 0 ? '+' : ''}{worldPerson(gs,'healthMinister').relation}, главный врач {worldPerson(gs,'doctor').relation > 0 ? '+' : ''}{worldPerson(gs,'doctor').relation}. Поддержка не отменяет собственных интересов.</p>
       <p>{bargain.phase==='open'?`Нужен ответ до итогового доклада: ${Math.max(0,continuation.due-gs.turn)} кв. Без ответа ведомство задержит график.`:bargain.phase==='ignored'?'Вы оставили спор без ответа. Его влияние объяснено в итоговом докладе.':`Вы подписали: «${BARGAIN_PLANS[bargain.choice].title}».`}</p>
-      {bargain.reviewDue!==null&&<p>Цена уступки ещё впереди: −2 политкапитала через {Math.max(0,bargain.reviewDue-gs.turn)} кв. Министр укрепит собственную сеть назначениями.</p>}
+      {bargain.reviewDue!==null&&<p>Цена уступки ещё впереди: −2 влияния через {Math.max(0,bargain.reviewDue-gs.turn)} кв. Министр укрепит собственную сеть назначениями.</p>}
       {bargain.phase==='open'&&<button className="sv-health-response" onClick={()=>{setTab('actions');actionsProps.setPending(null);}}>Разрешить спор исполнителей →</button>}
     </article>}
     <div ref={tabs} className="sv-country-tabs" role="tablist" aria-label="Досье районных больниц">

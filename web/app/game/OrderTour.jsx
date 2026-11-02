@@ -13,7 +13,7 @@ export default function OrderTour({ gs, mode, receipt, actionsProps, onAdjust, o
     <h3>{signed?'Теперь исполнителю нужно время':mode==='assign'?'Кто займётся районными больницами':mode==='report'?'Первый квартал работы':'Что изменить в работе больниц'}</h3>
     {signed?<>
       <p>Подписано: {receipt.title}.</p>
-      <p>Цена подписи: {Object.entries(receipt.cost).map(([key,value])=>`${({economy:'экономика',politicalCapital:'политкапитал',personalResource:'личный ресурс',externalReputation:'репутация'})[key]??key} ${value}`).join(' · ')}. Личное поручение этого квартала использовано.</p>
+      <p>Цена подписи: {Object.entries(receipt.cost).map(([key,value])=>`${({economy:'экономика',politicalCapital:'влияние',personalResource:'личный ресурс',externalReputation:'репутация'})[key]??key} ${value}`).join(' · ')}. Личное поручение этого квартала использовано.</p>
       <p><PeopleText>{actor?.name}</PeopleText> отвечает за программу. Сейчас укомплектовано {health.progress}% ставок. Новый результат появится после решения в кабинете; подпись сама по себе не заполняет кабинеты врачами.</p>
       <button onClick={onDesk}>Открыть дело в кабинете →</button>
     </>:mode==='report'?<>

@@ -30,7 +30,7 @@ test('six countries show real candidates, exact start prices and the two differe
       assert.equal(brief.deadline, 4);
       assert.match(brief.timing, /не продлевает/);
       assert.match(brief.nextStep, /провалится/);
-      assert.match(brief.price!, /экономика −4 · политкапитал −2/);
+      assert.match(brief.price!, /экономика −4 · влияние −2/);
       for (const action of brief.options) {
         assert.ok(state.world!.people.some(person => action.title.includes(person.name)));
       }
@@ -110,7 +110,7 @@ test('housing continuation uses its own coordinator, deadline, price and reports
   assert.equal(proposal.price, null);
   const signed = interveneWorld(state, 'government:start:expand');
   const brief = governmentBrief(signed, 'housing')!;
-  assert.match(brief.price!, /экономика −6 · политкапитал −3/);
+  assert.match(brief.price!, /экономика −6 · влияние −3/);
   assert.match(brief.goal, /первого.*отдельным делом/);
   assert.equal(brief.deadline, state.turn + 4);
   assert.equal(brief.paid, true);

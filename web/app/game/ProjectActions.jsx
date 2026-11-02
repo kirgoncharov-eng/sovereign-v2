@@ -1,6 +1,6 @@
 "use client";
 import { worldPerson } from '@/lib/game/living-world.ts';
-const RESOURCE = { economy:'экономика', politicalCapital:'политкапитал', personalResource:'личный ресурс', externalReputation:'репутация' };
+const RESOURCE = { economy:'экономика', politicalCapital:'влияние', personalResource:'личный ресурс', externalReputation:'репутация' };
 export default function ProjectActions({ gs, actions, quota, terminal, pending, setPending, confirm, error, quarterMode = false }) {
   if (terminal) return <p>{quarterMode ? 'Проект завершён. Итоги и обязательства — в докладах этого письма.'
     : 'Проект завершён. Итоги и обязательства остаются в поручениях и докладах.'}</p>;
