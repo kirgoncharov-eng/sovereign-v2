@@ -10,6 +10,7 @@ import {
   startFromSeed, takeOffice, termOver, type ChronicleLine, type ChronicleStart, type Step,
 } from "@/lib/client/chronicle.ts";
 import { EMPTY_PERSONAL, type PersonalMemory } from "@/lib/client/chronicle-personal.ts";
+import { ledgerParts } from "@/lib/client/chronicle-ledger.ts";
 import { contemporaries, type Rival } from "@/lib/client/chronicle-rivals.ts";
 import {
   EMPTY_STOPS, dueStops, letterStop, openStops, rememberStop, stillWaiting, storyStops, type Stop, type StopMemory,
@@ -53,7 +54,8 @@ const SPEEDS: { id: Speed; label: string }[] = [
 ];
 // Пауза перед строкой: чем длиннее строка, тем дольше её читают. «Быстрее» — вдвое короче.
 const delayFor = (line: ChronicleLine, speed: Speed) =>
-  speed === "all" ? 0 : Math.min(7000, 1100 + line.text.length * 30) / (speed === "quick" ? 2 : 1);
+  speed === "all" ? 0 : Math.min(7000, 1100 + (line.kind === "ledger" ? ledgerParts(line.text).summary : line.text).length * 30)
+    / (speed === "quick" ? 2 : 1);
 
 const HUD: { key: ResourceKey; label: string }[] = [
   { key: "politicalCapital", label: "Влияние" }, { key: "economy", label: "Экономика" }, { key: "military", label: "Силовики" },
@@ -789,8 +791,21 @@ function Line({ line, dated }: { line: ChronicleLine; dated: string }) {
     case "echo": return <p className={styles.echo}><small>Отклик прежних решений</small>{line.text}</p>;
     case "personal": return <p className={styles.personal}>{line.text}</p>;
     case "ledger": {
-      const [summary, danger] = line.text.split(" Опасно мало: ");
-      return <p className={styles.ledger}>{summary}{danger && <strong> Опасно мало: {danger}</strong>}</p>;
+      const { summary: text, details } = ledgerParts(line.text);
+      const [summary, danger] = text.split(" Опасно мало: ");
+      return <div className={styles.ledger} data-chronicle-ledger>
+        <p>{summary}{danger && <strong> Опасно мало: {danger}</strong>}</p>
+        {details.length > 0 && <details className={styles.ledgerDetails} onClick={event => event.stopPropagation()}>
+          <summary>Ведомость квартала</summary>
+          {details.map((detail, index) => {
+            const [heading, ...sources] = detail.split("\n");
+            return <div key={index}>
+              <h3>{heading}</h3>
+              <ul>{sources.map((source, sourceIndex) => <li key={sourceIndex}>{source}</li>)}</ul>
+            </div>;
+          })}
+        </details>}
+      </div>;
     }
     default: return <p className={line.kind === "opening" ? styles.opening : styles.scene}>{line.text}</p>;
   }

@@ -20,6 +20,7 @@ import { APPROACHES, CALL_ENDINGS, type Approach } from '../content/calls.ts';
 import { leadsWithHeadline } from './brief.ts';
 import { presidentialMessages, readPresidentialMessages } from './presidential-inbox.ts';
 import { personalBeat, type PersonalMemory } from './chronicle-personal.ts';
+import { quarterLedger } from './chronicle-ledger.ts';
 import type { Choice, DifficultyId, GameState, IdeologyId, ResourceKey } from '../game/types.ts';
 
 export type LineKind = 'opening' | 'speech' | 'signed' | 'scene' | 'voice' | 'paper' | 'press' | 'letter' | 'echo'
@@ -126,21 +127,9 @@ const RES_NAME: Record<ResourceKey, string> = {
   externalReputation: 'репутация', internalLegitimacy: 'легитимность', personalResource: 'личный ресурс',
 };
 
-const DANGER = 15;
-
 const deltaList = (res: Partial<Record<ResourceKey, number>>) => (Object.keys(RES_NAME) as ResourceKey[])
   .filter(key => res[key])
   .map(key => `${RES_NAME[key]} ${res[key]! > 0 ? '+' : '−'}${Math.abs(res[key]!)}`);
-
-function ledger(before: GameState, after: GameState): string {
-  const changes = deltaList(Object.fromEntries((Object.keys(RES_NAME) as ResourceKey[])
-    .map(key => [key, after.resources[key] - before.resources[key]])));
-  const summary = changes.length ? `К концу квартала: ${changes.join(', ')}.` : 'К концу квартала опоры власти не сдвинулись.';
-  // Предсказуемую угрозу видно заранее: опора у порога падения названа прямо.
-  const low = (Object.keys(RES_NAME) as ResourceKey[]).filter(key => after.resources[key] <= DANGER);
-  return low.length && !after.ended
-    ? `${summary} Опасно мало: ${low.map(key => `${RES_NAME[key]} — ${after.resources[key]}`).join(', ')}.` : summary;
-}
 
 // Доклады поручений и правительства за квартал. Письмо, которое ждёт ответа, придёт остановкой, а не строкой.
 function reports(before: GameState, after: GameState) {
@@ -186,7 +175,7 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
     const at = personal.first ? 0 : 1 + hashSeed(after.seed, 'personal-at', after.turn) % Math.max(1, body.length);
     body.splice(Math.min(at, body.length), 0, { kind: 'personal', text: personal.text });
   }
-  body.push({ kind: 'ledger', text: ledger(before, after) });
+  body.push({ kind: 'ledger', text: quarterLedger(before, after) });
   const start = dayNumber(from), span = Math.max(0, dayNumber(to) - start);
   const lines: ChronicleLine[] = [
     { id: `q${before.turn}-signed`, kind: 'signed', date: plain(from), text: report.choiceText },
