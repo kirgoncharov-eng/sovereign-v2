@@ -158,3 +158,16 @@ test('#310, E02: в 1978 году рассказчик не объявляет �
   const lines = [...WEATHER_ANY, ...POLLS_DOWN, ...Object.values(INTERCUTS).flatMap(group => [...group.warm, ...group.cold])];
   for (const line of lines) assert.doesNotMatch(historicalSceneText(line), EMPTY_HINT, line);
 });
+
+test('#310, E02: новые строки о после согласуются с послом любого рода', async () => {
+  const state = await fresh();
+  const envoy = INTERCUTS.envoy.warm.filter(line => /надёжным партнёром|без всякого повода/.test(line));
+  assert.equal(envoy.length, 2);
+  for (const name of ['Анна Андерссон', 'Ян Новак']) {
+    for (const line of envoy) {
+      const text = fill(line, state, { name, role: 'посол Торгового союза' });
+      assert.doesNotMatch(text, /(?<![\p{L}])(его|её|спросил|спросила)(?![\p{L}])/u, text);
+      assert.match(text, /советник посольства|посол дважды спрашивает/, text);
+    }
+  }
+});
