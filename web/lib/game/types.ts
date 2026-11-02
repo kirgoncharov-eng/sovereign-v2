@@ -205,7 +205,7 @@ export interface GameEvent {
   press?: { outlet: string; questions: PressQuestion[] } | null;       // пресс-конференция
   call?: {
     figure: string; trait: string; demand: string;
-    negotiation?: 'pension' | 'journalist'; lawSince?: number; context?: string;
+    negotiation?: 'pension' | 'journalist' | 'subject'; lawSince?: number; context?: string;
   } | null; // звонок по защищённой линии
   budget?: { total: number } | null;                                  // предвыборный бюджет
   beat?: { arcId: string; arcTitle: string; turn: number; episode: number; total: number } | null; // эпизод интриги

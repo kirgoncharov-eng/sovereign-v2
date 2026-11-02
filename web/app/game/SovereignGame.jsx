@@ -1345,7 +1345,8 @@ export function SpecialHeader({ gs, event }) {
       <Portrait name={fig.name} size={44}/>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, lineHeight:1.4 }}>
         <div style={{ fontFamily:serif, fontSize:15, fontWeight:700, color:G.txt }}>{fig.name}</div>
-        <div>{fig.role}{gs.currentEvent?.call?.negotiation !== 'journalist'
+        {/* В предметных разговорах исход решает вариант, а не подход к характеру: подсказку характера не показываем. */}
+        <div>{fig.role}{!['journalist', 'subject'].includes(gs.currentEvent?.call?.negotiation)
           && <> · {TRAITS[traitOf(gs.seed, fig, fac.bloc)].label} — {TRAIT_TIP[traitOf(gs.seed, fig, fac.bloc)]}</>}</div>
         <div>к вам лично <b style={{ color:relColor(fig.relation) }}>{signed(fig.relation)}</b> · лагерь «{fac.name}» <b style={{ color:relColor(fac.relation) }}>{signed(fac.relation)}</b></div>
       </div>

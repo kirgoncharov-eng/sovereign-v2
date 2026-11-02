@@ -74,7 +74,7 @@ const event = (v: unknown) => isObj(v) && fields(v, ["title", "source", "descrip
   && (!v.call || fields(v.call, ["figure", "trait", "demand"])
     && ((v.call as Obj).negotiation === undefined
       || (v.call as Obj).negotiation === "pension" && integer((v.call as Obj).lawSince)
-      || (v.call as Obj).negotiation === "journalist" && typeof (v.call as Obj).context === "string"))
+      || ["journalist", "subject"].includes(String((v.call as Obj).negotiation)) && typeof (v.call as Obj).context === "string"))
   && (!v.budget || isObj(v.budget) && integer(v.budget.total));
 
 const validLawNews = (v: unknown) => isObj(v) && typeof v.id === 'string'

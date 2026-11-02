@@ -3,6 +3,7 @@ import { ALTERNATE_COUNTRY, ALTERNATE_PARTIES, ALTERNATE_SPEECHES, ALTERNATE_SHA
 import { historicalEcho } from '../content/historical-echoes.ts';
 import { JOURNALIST_CALL_TITLE, journalistCall } from './journalist-call.ts';
 import { HISTORICAL_CALL_TOPICS, historicalCallTopic } from '../content/historical-calls.ts';
+import { subjectCall } from './subject-call.ts';
 import { pensionCall } from './pension-call.ts';
 import { withEvidenceChoice } from './private-evidence.ts';
 import { mandatePublicEvent } from './minister-public.ts';
@@ -755,6 +756,10 @@ export function callEvent(state: GameState): SpecialEvent | null {
   const slots = { name: fig.name, role: lower(fig.role), camp: fac.name };
   const historicalTopic = state.country === ALTERNATE_COUNTRY && !state.daily && state.turn === 16 && slot === 17
     ? HISTORICAL_CALL_TOPICS[fac.bloc] : undefined;
+  const description = chapter(dateline(state, "call"), fill(CALL_TEXT.intro, state, slots));
+  // Предметный звонок (#310, P05): у лагерей с SUBJECT_CALLS варианты задаёт предмет разговора, а не тон.
+  const subject = historicalTopic ? subjectCall(state, slot!, fig, fac, description) : null;
+  if (subject) return subject;
   const selectedDemand = cycle(CALL_DEMANDS[fac.bloc], state.seed, `demand${fig.id}`, k);
   const demand = typeof selectedDemand === 'string' ? selectedDemand : state.laws?.some(l => l.id === selectedDemand.law) ? selectedDemand.text : selectedDemand.otherwise;
   const hang: Choice = {
@@ -767,7 +772,7 @@ export function callEvent(state: GameState): SpecialEvent | null {
     cardId: `call:${slot}:${fig.id}`,
     title: CALL_TEXT.title,
     source: "Защищённая линия",
-    description: chapter(dateline(state, "call"), fill(CALL_TEXT.intro, state, slots)),
+    description,
     isCritical: false,
     affectedFactions: [fac.id],
     // Итог собирается из выбранного подхода и развязки (callChoice); до тех пор можно не брать трубку.
