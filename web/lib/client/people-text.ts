@@ -1,5 +1,5 @@
 import { worldPerson } from '../game/living-world.ts';
-import { ACTIONS, ADVISOR_SKILL } from '../game/data.ts';
+import { actionLabel, ADVISOR_SKILL } from '../game/data.ts';
 import { loyaltyLabel } from '../game/engine.ts';
 import { BOND_LABEL, bondOf, TRAITS, traitOf } from '../game/people.ts';
 import type { GameState } from '../game/types.ts';
@@ -17,8 +17,8 @@ export function personProfiles(gs: GameState): PersonProfile[] {
       rows: [
         ...(faction ? [{ label:`Лагерь «${faction.name}»`, value:`${faction.relation > 0 ? '+' : ''}${faction.relation}` }, { label:'Поддержка лагеря в обществе', value:`${faction.approval}%` }] : []),
         { label:'Характер', value:trait.label },
-        { label:'Ценит', value:trait.like.map(t=>ACTIONS[t].label.toLowerCase()).join(', ') },
-        { label:'Не принимает', value:trait.dislike.map(t=>ACTIONS[t].label.toLowerCase()).join(', ') },
+        { label:'Ценит', value:trait.like.map(t=>actionLabel(t, gs.country).toLowerCase()).join(', ') },
+        { label:'Не принимает', value:trait.dislike.map(t=>actionLabel(t, gs.country).toLowerCase()).join(', ') },
         ...(bond ? [{ label:'Связь с вами', value:BOND_LABEL[bond] }] : []),
         ...(gs.pacts?.some(p => p.figure === fig.id) ? [{ label:'Договор', value:'действующий союз' }] : []),
       ],
