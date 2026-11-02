@@ -212,14 +212,85 @@ test("звуковой движок: шинный микшер, компресс
   }
 });
 
-test("звуковой движок: точные уровни громкости при сворачивании (visibility) и звонке ЗАС (ducking)", () => {
-  const gains: { gain: { value: number } }[] = [];
+test("звуковой движок: отмена запланированных AudioParam-событий (AudioParam timeline cancellation)", () => {
+  interface TimelineEvent {
+    type: "setValue" | "linearRamp" | "exponentialRamp";
+    value: number;
+    time: number;
+  }
 
-  class MockParam {
-    value = 1;
-    setValueAtTime(v: number) { this.value = v; }
-    linearRampToValueAtTime(v: number) { this.value = v; }
-    exponentialRampToValueAtTime(v: number) { this.value = v; }
+  const sharedClock = { currentTime: 0 };
+  const gains: MockGainNode[] = [];
+
+  class MockTimelineParam {
+    events: TimelineEvent[] = [];
+    initialValue: number;
+
+    constructor(initialValue = 1) {
+      this.initialValue = initialValue;
+      this.events.push({ type: "setValue", value: initialValue, time: 0 });
+    }
+
+    setValueAtTime(value: number, time: number) {
+      this.events = this.events.filter(e => e.time !== time);
+      this.events.push({ type: "setValue", value, time });
+      this.events.sort((a, b) => a.time - b.time);
+    }
+
+    linearRampToValueAtTime(value: number, time: number) {
+      this.events.push({ type: "linearRamp", value, time });
+      this.events.sort((a, b) => a.time - b.time);
+    }
+
+    exponentialRampToValueAtTime(value: number, time: number) {
+      this.events.push({ type: "exponentialRamp", value, time });
+      this.events.sort((a, b) => a.time - b.time);
+    }
+
+    cancelScheduledValues(cancelTime: number) {
+      this.events = this.events.filter(e => e.time < cancelTime);
+    }
+
+    cancelAndHoldAtTime(cancelTime: number) {
+      const holdVal = this.getValueAtTime(cancelTime);
+      this.events = this.events.filter(e => e.time < cancelTime);
+      this.events.push({ type: "setValue", value: holdVal, time: cancelTime });
+    }
+
+    getValueAtTime(time: number): number {
+      if (this.events.length === 0) return this.initialValue;
+      let prevVal = this.initialValue;
+      let prevTime = 0;
+
+      for (let i = 0; i < this.events.length; i++) {
+        const e = this.events[i];
+        if (e.time > time) {
+          if (e.type === "linearRamp") {
+            const ratio = (time - prevTime) / Math.max(0.0001, e.time - prevTime);
+            return prevVal + (e.value - prevVal) * Math.min(1, Math.max(0, ratio));
+          } else if (e.type === "exponentialRamp") {
+            const ratio = (time - prevTime) / Math.max(0.0001, e.time - prevTime);
+            if (prevVal > 0 && e.value > 0) {
+              return prevVal * Math.pow(e.value / prevVal, Math.min(1, Math.max(0, ratio)));
+            }
+            return prevVal + (e.value - prevVal) * ratio;
+          } else {
+            return prevVal;
+          }
+        }
+        prevVal = e.value;
+        prevTime = e.time;
+      }
+      return prevVal;
+    }
+
+    get value(): number {
+      return this.getValueAtTime(sharedClock.currentTime);
+    }
+
+    set value(v: number) {
+      this.setValueAtTime(v, sharedClock.currentTime);
+    }
   }
 
   class MockNode {
@@ -228,30 +299,31 @@ test("звуковой движок: точные уровни громкост�
   }
 
   class MockGainNode extends MockNode {
-    gain = new MockParam();
-    constructor() {
+    gain: MockTimelineParam;
+    constructor(init = 1) {
       super();
+      this.gain = new MockTimelineParam(init);
       gains.push(this);
     }
   }
 
   class MockDynamicsCompressorNode extends MockNode {
-    threshold = new MockParam();
-    knee = new MockParam();
-    ratio = new MockParam();
-    attack = new MockParam();
-    release = new MockParam();
+    threshold = new MockTimelineParam(-18);
+    knee = new MockTimelineParam(12);
+    ratio = new MockTimelineParam(4);
+    attack = new MockTimelineParam(0.003);
+    release = new MockTimelineParam(0.15);
   }
 
   class MockBiquadFilterNode extends MockNode {
     type = "lowpass";
-    frequency = new MockParam();
-    Q = new MockParam();
+    frequency = new MockTimelineParam(1000);
+    Q = new MockTimelineParam(1);
   }
 
   class MockOscillatorNode extends MockNode {
     type = "sine";
-    frequency = new MockParam();
+    frequency = new MockTimelineParam(440);
     start() {}
     stop() {}
   }
@@ -265,7 +337,7 @@ test("звуковой движок: точные уровни громкост�
 
   class MockAudioContext {
     state = "running";
-    currentTime = 1.0;
+    get currentTime() { return sharedClock.currentTime; }
     sampleRate = 8000;
     destination = new MockNode();
     resume() { return Promise.resolve(); }
@@ -284,47 +356,96 @@ test("звуковой движок: точные уровни громкост�
   (globalThis as Record<string, unknown>).window = { AudioContext: MockAudioContext };
 
   try {
+    // ── Сценарий 1: Запуск t=10; paused=true t=10.1 ─────────────────────────
+    sharedClock.currentTime = 10.0;
     setSound(true);
     startCabinetAmbient();
 
-    // 1. Проверка сворачивания: при pause/hidden мастер-гейн эмбиента и мастер-шина глушатся
+    // gain[4] — это masterGain эмбиента (0=master, 1=sfx, 2=ambient, 3=music, 4=ambient.masterGain)
+    const ambientMaster = gains[4];
+    assert.ok(ambientMaster, "ambient masterGain должен быть создан");
+
+    // Игрок ставит паузу через 100 мс после старта
+    sharedClock.currentTime = 10.1;
     updateCabinetState({ paused: true });
-    // ambientNodes.masterGain (Gain 4) должен быть убран в 0.0001
-    const ambientMasterGain = gains.find(g => Math.abs(g.gain.value - 0.0001) < 0.00001);
-    assert.ok(ambientMasterGain, "пауза должна переводить ambient masterGain в 0.0001");
 
+    // В t=10.35 громкость должна опуститься до 0.0001
+    assert.ok(ambientMaster.gain.getValueAtTime(10.35) <= 0.0002, "в t=10.35 эмбиент должен затихнуть");
+
+    // В t=12.0 (после завершения старого startup-fade на 1.8 с) громкость НЕ должна вернуться к 0.022!
+    assert.ok(
+      ambientMaster.gain.getValueAtTime(12.0) <= 0.0002,
+      `старая автоматизация старта не должна возвращать громкость: ${ambientMaster.gain.getValueAtTime(12.0)}`,
+    );
+
+    // Снятие с паузы корректно возвращает громкость
+    sharedClock.currentTime = 12.1;
     updateCabinetState({ paused: false });
-    assert.equal(ambientMasterGain.gain.value, 0.022, "снятие с паузы возвращает громкость эмбиента в 0.022");
+    assert.ok(ambientMaster.gain.getValueAtTime(12.6) >= 0.02, "снятие с паузы возвращает эмбиент к 0.022");
 
+    // ── Сценарий 2: hidden t=14 → visible t=14.025 → hidden t=14.05 ──────────
+    const masterBus = gains[0]; // Мастер-шина
+    sharedClock.currentTime = 14.0;
     handleVisibilityChange(true);
-    const masterBus = gains[0]; // Первый созданный gain — master bus
-    assert.equal(masterBus.gain.value, 0.0001, "скрытая вкладка должна приглушать мастер-шину в 0.0001");
 
+    sharedClock.currentTime = 14.025;
     handleVisibilityChange(false);
-    assert.equal(masterBus.gain.value, 0.92, "активная вкладка возвращает мастер-шину в 0.92");
 
-    // 2. Проверка ducking при звонке ЗАС
-    const ambientBus = gains[2]; // ensureBuses: 0=master, 1=sfx, 2=ambient, 3=music
+    sharedClock.currentTime = 14.05;
+    handleVisibilityChange(true);
+
+    // В t=14.25 мастер затих
+    assert.ok(masterBus.gain.getValueAtTime(14.25) <= 0.0002, "в t=14.25 мастер-шина должна быть приглушена");
+
+    // В t=15.0 старый restore на t=14.325 НЕ должен возвращать 0.92, так как вкладка скрыта!
+    assert.ok(
+      masterBus.gain.getValueAtTime(15.0) <= 0.0002,
+      `старый restore не должен возвращать громкость при скрытой вкладке: ${masterBus.gain.getValueAtTime(15.0)}`,
+    );
+
+    // Возврат на вкладку в t=15.1
+    sharedClock.currentTime = 15.1;
+    handleVisibilityChange(false);
+    assert.ok(masterBus.gain.getValueAtTime(15.5) >= 0.9, "активная вкладка восстанавливает громкость мастер-шины");
+
+    // ── Сценарий 3: setSound(true) t=20 → false t=20.01 ─────────────────────
+    sharedClock.currentTime = 20.0;
+    setSound(true);
+
+    sharedClock.currentTime = 20.01;
+    setSound(false);
+
+    // В t=20.11 мастер затих
+    assert.ok(masterBus.gain.getValueAtTime(20.11) <= 0.0002, "в t=20.11 выключенный звук должен затихнуть");
+
+    // В t=20.3 старый enable fade НЕ должен возвращать 0.92 при soundOn()=false!
+    assert.ok(
+      masterBus.gain.getValueAtTime(20.3) <= 0.0002,
+      `старый enable fade не должен включать звук после setSound(false): ${masterBus.gain.getValueAtTime(20.3)}`,
+    );
+
+    // ── Проверка ducking и справки ──────────────────────────────────────────
+    setSound(true);
+    sharedClock.currentTime = 25.0;
+    const ambientBus = gains[2];
     const musicBus = gains[3];
-    assert.equal(ambientBus.gain.value, 0.88);
-    assert.equal(musicBus.gain.value, 0.75);
 
     telephoneFx();
-    assert.equal(ambientBus.gain.value, 0.38, "звонок вертушки должен приглушать AMBIENT до 0.38");
-    assert.equal(musicBus.gain.value, 0.25, "звонок вертушки должен приглушать MUSIC до 0.25");
+    assert.ok(ambientBus.gain.getValueAtTime(25.4) <= 0.39, "звонок ЗАС приглушает AMBIENT");
+    assert.ok(musicBus.gain.getValueAtTime(25.4) <= 0.26, "звонок ЗАС приглушает MUSIC");
 
-    // Совместная работа с открытой справкой: фокус не ломает ducking
+    sharedClock.currentTime = 26.0;
     setAmbientFocus(true);
-    assert.equal(ambientBus.gain.value, 0.32, "справка во время звонка дополнительно удерживает фокус");
-    assert.equal(musicBus.gain.value, 0.25);
+    assert.ok(ambientBus.gain.getValueAtTime(26.4) <= 0.33, "справка во время звонка дополнительно удерживает фокус");
 
+    sharedClock.currentTime = 27.0;
     setAmbientFocus(false);
-    assert.equal(ambientBus.gain.value, 0.38, "закрытие справки возвращает к уровню звонка 0.38");
+    assert.ok(ambientBus.gain.getValueAtTime(27.4) <= 0.39, "закрытие справки возвращает к уровню звонка 0.38");
 
-    // Завершение звонка
+    sharedClock.currentTime = 28.0;
     duckForCall(false);
-    assert.equal(ambientBus.gain.value, 0.88, "окончание разговора возвращает AMBIENT в 0.88");
-    assert.equal(musicBus.gain.value, 0.75, "окончание разговора возвращает MUSIC в 0.75");
+    assert.ok(ambientBus.gain.getValueAtTime(28.4) >= 0.85, "окончание разговора восстанавливает AMBIENT");
+    assert.ok(musicBus.gain.getValueAtTime(28.4) >= 0.72, "окончание разговора восстанавливает MUSIC");
 
     stopCabinetAmbient();
   } finally {

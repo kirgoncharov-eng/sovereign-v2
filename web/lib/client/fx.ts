@@ -26,6 +26,39 @@ export function soundOn(): boolean {
   return memorySound;
 }
 
+/**
+ * Безопасный переход AudioParam: отменяет запланированные будущие события,
+ * удерживает текущее вычисленное значение на момент time и плавно рампит к target.
+ */
+function rampParam(
+  param: AudioParam,
+  target: number,
+  time: number,
+  duration: number,
+  curve: "linear" | "exponential" = "linear",
+) {
+  try {
+    if (typeof param.cancelAndHoldAtTime === "function") {
+      param.cancelAndHoldAtTime(time);
+    } else {
+      if (typeof param.cancelScheduledValues === "function") {
+        param.cancelScheduledValues(time);
+      }
+      param.setValueAtTime(param.value, time);
+    }
+    const end = time + Math.max(0.001, duration);
+    if (curve === "exponential" && target > 0.00001 && param.value > 0.00001) {
+      param.exponentialRampToValueAtTime(target, end);
+    } else {
+      param.linearRampToValueAtTime(target, end);
+    }
+  } catch {
+    try {
+      param.setValueAtTime(target, time);
+    } catch {}
+  }
+}
+
 export function setSound(on: boolean) {
   memorySound = on;
   try {
@@ -37,9 +70,7 @@ export function setSound(on: boolean) {
     if (buses) {
       try {
         const t = buses.ctx.currentTime;
-        buses.master.gain.setValueAtTime(buses.master.gain.value, t);
-        buses.master.gain.linearRampToValueAtTime(0.0001, t + 0.1);
-        buses.master.gain.value = 0.0001;
+        rampParam(buses.master.gain, 0.0001, t, 0.1);
       } catch {}
     }
     stopCabinetAmbient();
@@ -48,9 +79,7 @@ export function setSound(on: boolean) {
     if (buses && !isDocumentHidden()) {
       try {
         const t = buses.ctx.currentTime;
-        buses.master.gain.setValueAtTime(buses.master.gain.value, t);
-        buses.master.gain.linearRampToValueAtTime(0.92, t + 0.2);
-        buses.master.gain.value = 0.92;
+        rampParam(buses.master.gain, 0.92, t, 0.2);
       } catch {}
     }
     startCabinetAmbient();
@@ -66,18 +95,14 @@ export function isDocumentHidden(): boolean {
 
 export function handleVisibilityChange(hidden: boolean) {
   const g = ensureBuses();
-  const t = g?.ctx.currentTime ?? 0;
+  const t = g?.ctx.currentTime ?? (ambientNodes?.ctx.currentTime ?? 0);
   try {
     if (hidden) {
       if (g) {
-        g.master.gain.setValueAtTime(g.master.gain.value, t);
-        g.master.gain.linearRampToValueAtTime(0.0001, t + 0.2);
-        g.master.gain.value = 0.0001;
+        rampParam(g.master.gain, 0.0001, t, 0.2);
       }
       if (ambientNodes) {
-        ambientNodes.masterGain.gain.setValueAtTime(ambientNodes.masterGain.gain.value, t);
-        ambientNodes.masterGain.gain.linearRampToValueAtTime(0.0001, t + 0.2);
-        ambientNodes.masterGain.gain.value = 0.0001;
+        rampParam(ambientNodes.masterGain.gain, 0.0001, t, 0.2);
       }
     } else {
       if (g?.ctx.state === "suspended") {
@@ -85,14 +110,10 @@ export function handleVisibilityChange(hidden: boolean) {
       }
       if (soundOn()) {
         if (g) {
-          g.master.gain.setValueAtTime(g.master.gain.value, t);
-          g.master.gain.linearRampToValueAtTime(0.92, t + 0.3);
-          g.master.gain.value = 0.92;
+          rampParam(g.master.gain, 0.92, t, 0.3);
         }
         if (ambientNodes && !cabinetState.paused) {
-          ambientNodes.masterGain.gain.setValueAtTime(ambientNodes.masterGain.gain.value, t);
-          ambientNodes.masterGain.gain.linearRampToValueAtTime(0.022, t + 0.4);
-          ambientNodes.masterGain.gain.value = 0.022;
+          rampParam(ambientNodes.masterGain.gain, 0.022, t, 0.4);
         }
       }
     }
@@ -238,17 +259,9 @@ function applyBusGains() {
     const targetMusic = isCallActive ? 0.25 : 0.75;
     const targetFreq = sheetMuffled ? 680 : 3200;
 
-    g.ambient.gain.setValueAtTime(g.ambient.gain.value, t);
-    g.ambient.gain.linearRampToValueAtTime(targetAmbient, t + 0.35);
-    g.ambient.gain.value = targetAmbient;
-
-    g.ambientFilter.frequency.setValueAtTime(g.ambientFilter.frequency.value, t);
-    g.ambientFilter.frequency.exponentialRampToValueAtTime(targetFreq, t + 0.28);
-    g.ambientFilter.frequency.value = targetFreq;
-
-    g.music.gain.setValueAtTime(g.music.gain.value, t);
-    g.music.gain.linearRampToValueAtTime(targetMusic, t + 0.35);
-    g.music.gain.value = targetMusic;
+    rampParam(g.ambient.gain, targetAmbient, t, 0.35);
+    rampParam(g.ambientFilter.frequency, targetFreq, t, 0.28, "exponential");
+    rampParam(g.music.gain, targetMusic, t, 0.35);
   } catch {}
 }
 
@@ -353,10 +366,7 @@ export function startCabinetAmbient() {
     const targetMaster = (cabinetState.paused || isDocumentHidden() || !soundOn()) ? 0.0001 : 0.022;
     masterGain.gain.setValueAtTime(0.0001, t);
     if (targetMaster > 0.0001) {
-      masterGain.gain.exponentialRampToValueAtTime(targetMaster, t + 1.8);
-      masterGain.gain.value = targetMaster;
-    } else {
-      masterGain.gain.value = 0.0001;
+      rampParam(masterGain.gain, targetMaster, t, 1.8, "exponential");
     }
     masterGain.connect(dest);
 
@@ -445,24 +455,17 @@ export function updateCabinetState(next: CabinetAudioState) {
     const t = a.currentTime;
 
     const targetMaster = (cabinetState.paused || isDocumentHidden() || !soundOn()) ? 0.0001 : 0.022;
-    masterGain.gain.setValueAtTime(masterGain.gain.value, t);
-    masterGain.gain.linearRampToValueAtTime(targetMaster, t + 0.25);
-    masterGain.gain.value = targetMaster;
+    rampParam(masterGain.gain, targetMaster, t, 0.25);
 
-    tensionGain.gain.setValueAtTime(tensionGain.gain.value, t);
-    tensionGain.gain.linearRampToValueAtTime(cabinetState.crisis ? 0.48 : 0.0001, t + 1.2);
-
-    squareGain.gain.setValueAtTime(squareGain.gain.value, t);
-    squareGain.gain.linearRampToValueAtTime(cabinetState.unrest ? 0.58 : 0.12, t + 1.2);
+    rampParam(tensionGain.gain, cabinetState.crisis ? 0.48 : 0.0001, t, 1.2);
+    rampParam(squareGain.gain, cabinetState.unrest ? 0.58 : 0.12, t, 1.2);
 
     const seasonFreq = cabinetState.season === "winter" ? 620
       : cabinetState.season === "autumn" ? 1150
       : cabinetState.season === "spring" ? 1050 : 880;
     const seasonGain = cabinetState.season === "autumn" || cabinetState.season === "winter" ? 0.52 : 0.36;
-    weatherFilter.frequency.setValueAtTime(weatherFilter.frequency.value, t);
-    weatherFilter.frequency.linearRampToValueAtTime(seasonFreq, t + 1.5);
-    weatherGain.gain.setValueAtTime(weatherGain.gain.value, t);
-    weatherGain.gain.linearRampToValueAtTime(seasonGain, t + 1.5);
+    rampParam(weatherFilter.frequency, seasonFreq, t, 1.5);
+    rampParam(weatherGain.gain, seasonGain, t, 1.5);
   } catch {}
 }
 
@@ -473,8 +476,7 @@ export function stopCabinetAmbient() {
     if (clockTimer) clearInterval(clockTimer);
     ambientNodes = null;
     const t = a.currentTime;
-    masterGain.gain.setValueAtTime(masterGain.gain.value, t);
-    masterGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    rampParam(masterGain.gain, 0.0001, t, 0.5, "exponential");
     setTimeout(() => {
       try {
         humOsc.stop();
