@@ -51,7 +51,7 @@ import {
   COUNCIL_HINT, COUNCIL_OUTCOME, COUNCIL_TEXT, RELATED_TAGS, CRISIS_DESC, CRISIS_TITLES, DIFFICULTY_SITUATION, EPITAPHS, HEADLINES, HISTORIAN,
   FOREIGN_NAMES, IDEOLOGY_PARTIES, NAMES, POWER_LOSS, type LossEnd, SPEECHES, TAG_LINES, TITLES,
 } from "../content/narration.ts";
-import { ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_RES, CAPITAL_CASES, COUNTRIES, FACTIONS_DATA, DELAYED, WEAK_ADVISOR_DELAYED, ELECTION_LABEL, FIGURE_ROLES, IDEOLOGY_REL, RATINGS, RES_CONFIG, START_RES, TERM, bioText, localTurn, reignLength, termIndex, termOrdinal, termOrdinalGen } from "./data.ts";
+import { ACTIONS, actionLabel, ADVISOR_ROLES, BIOGRAPHIES, BIO_RES, CAPITAL_CASES, COUNTRIES, FACTIONS_DATA, DELAYED, WEAK_ADVISOR_DELAYED, ELECTION_LABEL, FIGURE_ROLES, IDEOLOGY_REL, RATINGS, RES_CONFIG, START_RES, TERM, bioText, localTurn, reignLength, termIndex, termOrdinal, termOrdinalGen } from "./data.ts";
 import { INSIDER, INSIDER_LINES, MOLE, MOLE_LINES, OVERTURE, OVERTURE_REASON, PACT, PACT_BROKEN_LINE, PACT_GIVES, PACT_KEPT_LINE, PACT_OK_VARIANTS, type SpecialChoice } from "../content/people.ts";
 import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } from "./people.ts";
 import { applyDeltas, clampRel, computePolls, dueBeat, hashSeed, initFactions, isFemaleName, isSurvival, loyaltyLabel, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
@@ -276,7 +276,7 @@ export function beatEvent(state: GameState): GameEvent | null {
 const SPECIAL_GAP = 3;
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const tagLabels = (tags: ActionTag[]) => tags.map(t => `«${ACTIONS[t].label}»`).join(" или ");
+const tagLabels = (tags: ActionTag[], country: string) => tags.map(t => `«${actionLabel(t, country)}»`).join(" или ");
 
 function successorName(state: GameState, fig: Figure): string {
   const r = seededRandom(hashSeed(state.seed, "successor", fig.id, state.turn));
@@ -379,7 +379,7 @@ function pactEvent(state: GameState, turn: number, r: Rand, seen: (kind: string,
   const variant = (c: SpecialChoice, extra: string[]) => ({ ...c, ok: [c.ok, ...extra][nth % (extra.length + 1)] });
   const slots = {
     name: fig?.name ?? "", role: lower(fig?.role ?? ""), camp: fac.name, gives: PACT_GIVES[fac.bloc],
-    turns: plural(turns, "ход", "хода", "ходов"), ban: tagLabels(ban), against: rival?.name ?? "",
+    turns: plural(turns, "ход", "хода", "ходов"), ban: tagLabels(ban, state.country), against: rival?.name ?? "",
   };
   const base = fig ? { figure: fig.id } : {};
   const options: SpecialOption[] = [
