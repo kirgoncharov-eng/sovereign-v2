@@ -28,8 +28,8 @@ test('all mapped WebP files exist within the image budgets', () => {
     HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART,
     HISTORICAL_SECRETARY_ART, HISTORICAL_ADVISOR_REPLACEMENT_ART, HISTORICAL_WORLD_PEOPLE_ART,
     HISTORICAL_PRESS_ART, HISTORICAL_FIGURE_SUCCESSOR_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 83);
-  assert.equal(new Set(paths).size, 82); // wages and wagesGate share wages-gate.webp
+  assert.equal(paths.length, 86);
+  assert.equal(new Set(paths).size, 85); // wages and wagesGate share wages-gate.webp
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
@@ -41,7 +41,7 @@ test('all mapped WebP files exist within the image budgets', () => {
       assert.ok(statSync(file).size <= (isPortrait ? 10_000 : 100_000), src);
     }
   }
-  assert.ok(bytes < 2_800_000);
+  assert.ok(bytes < 3_000_000);
 });
 
 test('hospital photos distinguish failed repair, ongoing works and a finished roof after reload', async () => {
@@ -193,7 +193,11 @@ test('first crisis and election night resolve authorial outcome scenes', async (
     const successState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: choice.text, headline: '', historianNote: '', success: true }] };
     assert.deepEqual(historicalResultArt(successState, 'field'), expectedHarvestSuccess[idx]);
     const failState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
+    // Reviews on PR #323 (GPT/Codex & Claude): none of the 3 fail outcomes describe rotting grain or abandoned machinery,
+    // so returning harvestRot creates false narrative drama. Neutral harvest scene is returned.
     assert.deepEqual(historicalResultArt(failState, 'field'), HISTORICAL_SCENE_ART.harvest);
+    assert.notEqual(historicalResultArt(failState, 'field'), HISTORICAL_OUTCOME_ART.harvestRot);
+    assert.ok(choice.fail && !choice.fail.includes('сгнил') && !choice.fail.includes('брошен'), `choice ${idx} fail text shouldn't claim rot: ${choice.fail}`);
   }
   const fuelCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_fuel')!;
   const expectedFuelSuccess = [
@@ -467,4 +471,39 @@ test('living world characters, press correspondents and staffing candidates all 
     assert.notEqual(afterHire, HISTORICAL_ADVISOR_ART[candidate.seat].src);
   }
 });
+
+test('budget, terms, and factory strike resolve dedicated 1978 scenes while unmapped generic scenes return null', async () => {
+  const base = await fresh();
+  const event = await classicApi.event(base);
+
+  const budgetEvent = { ...event, card: undefined, title: 'Предвыборный бюджет', budget: { total: 10 } };
+  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, budgetEvent, 'cabinet'), HISTORICAL_SCENE_ART.budget);
+  const budgetState = { ...base, history: [{ year: 1979, title: 'Предвыборный бюджет', choice: '', headline: '', historianNote: '' }] };
+  assert.deepEqual(historicalResultArt(budgetState, 'cabinet'), HISTORICAL_SCENE_ART.budget);
+
+  const termsEvent = { ...event, card: undefined, title: 'Вопрос о сроках' };
+  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, termsEvent, 'stamp'), HISTORICAL_SCENE_ART.terms);
+  const termsState = { ...base, history: [{ year: 1982, title: 'Вопрос о сроках', choice: '', headline: '', historianNote: '' }] };
+  assert.deepEqual(historicalResultArt(termsState, 'stamp'), HISTORICAL_SCENE_ART.terms);
+
+  const strikeEvent = { ...event, card: 'alt_region_factory_strike', title: 'Заводы бастуют, деревня молчит' };
+  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, strikeEvent, 'protest'), HISTORICAL_SCENE_ART.factoryStrike);
+  assert.notEqual(historicalEventArt(ALTERNATE_COUNTRY, strikeEvent, 'protest'), HISTORICAL_SCENE_ART.protest);
+  const genericStrikeEvent = { ...event, card: undefined, title: 'Забастовка на крупнейшем заводе' };
+  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, genericStrikeEvent, 'protest'), HISTORICAL_SCENE_ART.factoryStrike);
+
+  const unmappedEvent = { ...event, card: undefined, title: 'Внеочередное совещание в министерстве' };
+  for (const scene of ['cabinet', 'stamp', 'meeting'] as const) {
+    assert.equal(historicalEventArt(ALTERNATE_COUNTRY, unmappedEvent, scene), null);
+    const unmappedResult = { ...base, history: [{ year: 1983, title: unmappedEvent.title, choice: '', headline: '', historianNote: '' }] };
+    assert.equal(historicalResultArt(unmappedResult, scene), null);
+  }
+
+  for (const country of LEGACY_COUNTRIES) {
+    assert.equal(historicalEventArt(country, budgetEvent, 'cabinet'), null);
+    assert.equal(historicalEventArt(country, termsEvent, 'stamp'), null);
+    assert.equal(historicalEventArt(country, strikeEvent, 'protest'), null);
+  }
+});
+
 
