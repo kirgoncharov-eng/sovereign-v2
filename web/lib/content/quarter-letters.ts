@@ -23,7 +23,7 @@ export function splitChancery(text: string): { voice: string; chancery: string |
 export function consequences(res: ResourceDelta): string {
   const names: Partial<Record<keyof ResourceDelta, string>> = {
     economy: 'экономика', internalLegitimacy: 'легитимность', externalReputation: 'репутация',
-    politicalCapital: 'политкапитал', personalResource: 'личный ресурс', military: 'силовики',
+    politicalCapital: 'влияние', personalResource: 'личный ресурс', military: 'силовики',
   };
   const parts = Object.entries(res).filter(([, value]) => value)
     .map(([key, value]) => `${names[key as keyof ResourceDelta] ?? key} ${signedNumber(value!)}`);
@@ -152,7 +152,7 @@ export function governmentProposals(advisor: string, notStarted: number): string
 
 // Почему поручение нельзя подписать: ресурс и порог вместо «недостаточно запаса».
 const RESOURCE_GENITIVE: Readonly<Record<string, string>> = {
-  economy: 'экономики', politicalCapital: 'политкапитала', personalResource: 'личного ресурса',
+  economy: 'экономики', politicalCapital: 'влияния', personalResource: 'личного ресурса',
   externalReputation: 'репутации', internalLegitimacy: 'легитимности', military: 'силовиков',
 };
 

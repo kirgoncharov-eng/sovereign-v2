@@ -5,7 +5,7 @@ import { sponsorPresent } from '@/lib/game/sponsor-world.ts';
 import { PeopleText } from './PeopleText.jsx';
 
 const LABELS = { offered: 'Можно выйти на контакт', accepted: 'Вы приняли помощь', demanding: 'Он предъявил условие', confirmed: 'Условие проведено', refused: 'Вы отказались', pressuring: 'Он задерживает поставки', independent: 'Рычаг поставок утрачен', released: 'Программа завершена', departed: 'Участник лишился прежней позиции' };
-const RES = { economy: 'экономика', politicalCapital: 'политкапитал', personalResource: 'личный ресурс' };
+const RES = { economy: 'экономика', politicalCapital: 'влияние', personalResource: 'личный ресурс' };
 export default function SponsorPanel({ gs, onAction, Scene, onViewChange, embedded = false, onClose }) {
   const [open, setOpen] = useState(embedded);
   const [selected, setSelected] = useState(null);

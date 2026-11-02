@@ -553,7 +553,7 @@ export function governmentReviewEvent(state: GameState): (GameEvent & { cardId: 
           : 'Лично признать неполный результат',
         hint: complete
           ? 'Легитимность +2; результат связывают с вашим курсом'
-          : 'Политкапитал −1; вы берёте публичную ответственность',
+          : 'Влияние −1; вы берёте публичную ответственность',
         tags: ['dialogue'],
         resolvesCrisis: null,
         deal: { pure: true, res: complete ? { internalLegitimacy: 2 } : { politicalCapital: -1 } },

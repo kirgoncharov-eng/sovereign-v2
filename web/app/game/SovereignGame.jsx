@@ -1664,7 +1664,7 @@ function Flag({ country, size = 18 }) {
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
 const HUD_LABEL = { politicalCapital:"Влияние", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимн.", personalResource:"Личный" };
-const SHORT = { politicalCapital:"Политкапитал", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимность", personalResource:"Личный ресурс" };
+const SHORT = { politicalCapital:"Влияние", economy:"Экономика", military:"Силовики", externalReputation:"Репутация", internalLegitimacy:"Легитимность", personalResource:"Личный ресурс" };
 
 // Постоянная панель статуса. При наведении на вариант показывает итог хода, посчитанный движком.
 function Hud({ gs, preview, onMenu, onHelp, onInfoChange, onSheet, sheetAlerts, onInitiative, onWorldAction, canAct }) {

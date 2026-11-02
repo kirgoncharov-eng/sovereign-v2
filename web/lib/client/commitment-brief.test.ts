@@ -85,11 +85,11 @@ test('health appointments retain their exact deferred price until the real revie
     gs.world!.health!.aftermath = { branch: 'rotation', phase: 'working', due: 8, deadline: 10, cause: 'test', response: 'mediate', executor: 'healthMinister', outcome: null, factors: [], bargain: { phase: 'answered', choice: 'minister', ministerCondition: 'test', doctorCondition: 'test', reviewDue: 10 } };
     let brief = commitmentBriefs(gs).find(c => c.id === 'health')!;
     assert.equal(brief.active, true);
-    assert.ok(brief.price.includes('Политкапитал −2'));
+    assert.ok(brief.price.includes('Влияние −2'));
     assert.ok(brief.next.includes('квартал 10'));
     gs.world!.health!.aftermath.phase = 'settled';
     gs.world!.health!.aftermath.bargain!.reviewDue = null;
     brief = commitmentBriefs(gs).find(c => c.id === 'health')!;
     assert.equal(brief.active, false);
-    assert.ok(!brief.price.includes('Политкапитал −2'));
+    assert.ok(!brief.price.includes('Влияние −2'));
 });

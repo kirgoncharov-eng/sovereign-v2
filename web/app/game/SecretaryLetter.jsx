@@ -5,7 +5,7 @@ import { pendingSecretaryFavor, secretaryActions, secretaryAvailable, secretaryT
 import { HISTORICAL_SECRETARY_ART } from '@/lib/client/historical-art.ts';
 import { PeopleText } from './PeopleText.jsx';
 
-const RESOURCE = { politicalCapital: 'политкапитал', personalResource: 'личный ресурс', internalLegitimacy: 'легитимность' };
+const RESOURCE = { politicalCapital: 'влияние', personalResource: 'личный ресурс', internalLegitimacy: 'легитимность' };
 
 function SecretaryActions({ gs, onAction, favors }) {
   const [pending, setPending] = useState(null);

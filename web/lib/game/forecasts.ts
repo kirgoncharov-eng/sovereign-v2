@@ -198,7 +198,7 @@ export function debate(state: GameState): AdvisorTake[] | null {
 
 const RES_NAME: Record<ResourceKey, string> = {
   economy: "экономика", military: "силовики", internalLegitimacy: "легитимность",
-  externalReputation: "репутация", politicalCapital: "политкапитал", personalResource: "личный ресурс",
+  externalReputation: "репутация", politicalCapital: "влияние", personalResource: "личный ресурс",
 };
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
 

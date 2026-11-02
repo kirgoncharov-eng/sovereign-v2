@@ -77,18 +77,18 @@ export function signatureQuestion(state: GameState, skip: ReadonlySet<string> = 
   const concede: PressAnswer = {
     tone: "honest", text: "«Упрёк справедлив: платят за это их люди. На этой неделе я встречусь с ними»",
     res: { politicalCapital: -2, internalLegitimacy: 1 }, rel: { [bloc]: repeated ? 5 : 3 },
-    stake: repeated ? "Встреча стоит политкапитала; лагерь, задетый не первый раз, это оценит."
-      : "Встреча стоит политкапитала, зато лагерь смягчится.",
+    stake: repeated ? "Встреча стоит влияния; лагерь, задетый не первый раз, это оценит."
+      : "Встреча стоит влияния, зато лагерь смягчится.",
   };
   const stand: PressAnswer = {
     tone: "hard", text: "«Решение остаётся в силе. Я понимаю, кому оно неудобно, и буду объяснять столько, сколько потребуется»",
     res: { politicalCapital: 2 }, rel: { [bloc]: repeated ? -4 : -2 },
-    stake: repeated ? "Политкапитал растёт, но терпение лагеря на исходе." : "Политкапитал растёт, но лагерь останется обижен.",
+    stake: repeated ? "Влияние растёт, но терпение лагеря на исходе." : "Влияние растёт, но лагерь останется обижен.",
   };
   const deflect: PressAnswer = {
     tone: "evasive", text: "«Это решение готовили министерства. Детали — к ним»",
     res: { internalLegitimacy: -2 }, rel: { [bloc]: -1 },
-    stake: "Политкапитал цел, но прятаться за министров — значит терять доверие.",
+    stake: "Влияние цел, но прятаться за министров — значит терять доверие.",
     after: "В министерствах этот ответ запомнят: виноватыми выставили их.",
   };
   return { id: SIGNATURE_PREFIX + camp.id, who: "Корреспондент делового издания", topic: "вашем распоряжении", text, seconds: SIGNATURE_SECONDS,

@@ -22,7 +22,7 @@ const BIO_SHORT_BONUS = {
   economist: "экономика +8",
   lawyer: "легитимность +8",
   diplomat: "репутация +8",
-  mayor: "политкапитал +8",
+  mayor: "влияние +8",
 };
 
 function LeaderPortrait({ name, src }) {
