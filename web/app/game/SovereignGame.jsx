@@ -2362,6 +2362,7 @@ function TitleModal({ id, title, onClose, triggerRef, children }) {
 // chronicle — партия 1978 года пойдёт в «Хронику срока»: там пролог — утро вступления после выборов, а не до анкеты.
 function Setup({ onStart, saved, onResume, chronicle = false }) {
   const country = NEW_GAME_COUNTRY;
+  const isTelegram = useSyncExternalStore(onTelegramReady, inTelegram, () => false);
   const [diff, setDiff]       = useState(null);
   const [loading, setLoading] = useState(false);
   const [prologue, setPrologue] = useState(null);
@@ -2541,6 +2542,29 @@ function Setup({ onStart, saved, onResume, chronicle = false }) {
               </span>
               <span aria-hidden="true" style={{ fontSize: 20 }}>→</span>
             </button>
+
+            {isTelegram && (
+              <aside aria-label="Игра в разработке" style={{ marginTop: 16, padding: "12px 14px",
+                border: "1px dashed #80745e", color: "#c6b58b", fontFamily: narrow, fontSize: 15, lineHeight: 1.45 }}>
+                <strong style={{ display: "block", color: "#f5eedc", marginBottom: 6 }}>«Суверен» ещё в разработке</strong>
+                <p style={{ margin: "0 0 8px" }}>
+                  Мы регулярно обновляем игру. Здесь могут встречаться ошибки, а правила и истории — меняться.
+                </p>
+                <p style={{ margin: "0 0 8px" }}>
+                  Что зацепило, что непонятно, где стало скучно? Напишите нам — даже пара слов поможет сделать игру лучше.
+                </p>
+                <a href={`${botLink()}?start=feedback`} onClick={event => {
+                  const app = window.Telegram?.WebApp;
+                  if (app?.openTelegramLink) {
+                    event.preventDefault();
+                    app.openTelegramLink(event.currentTarget.href);
+                  }
+                }} style={{ display: "inline-block", padding: "8px 0", color: "#f5eedc", textUnderlineOffset: 3 }}>
+                  Написать автору →
+                </a>
+                <span style={{ display: "block", fontSize: 13 }}>Бот передаст отзыв автору.</span>
+              </aside>
+            )}
 
             {err && (
               <div role="alert" style={{ color: G.red, marginTop: 10, fontSize: 13, font: "13px var(--font-serif), Georgia, serif" }}>
