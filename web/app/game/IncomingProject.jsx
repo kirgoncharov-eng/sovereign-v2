@@ -67,7 +67,7 @@ export default function IncomingProject({ gs, projectId, onAction }) {
         <p><PeopleText>{bargain.doctorCondition}</PeopleText></p>
         {bargain.choice && <p>Подписано: {BARGAIN_PLANS[bargain.choice].title}</p>}
         {bargain.phase === 'open' && <p>Ответ нужен до итогового доклада: {Math.max(0, continuation.due - gs.turn)} кв.</p>}
-        {bargain.reviewDue != null && <p>Цена кадровой уступки: −2 политкапитала через {Math.max(0, bargain.reviewDue - gs.turn)} кв.</p>}
+        {bargain.reviewDue != null && <p>Цена кадровой уступки: −2 влияния через {Math.max(0, bargain.reviewDue - gs.turn)} кв.</p>}
       </div>}
     </section>}
     {receipt?.turn === gs.turn && <p className="sv-country-receipt" role="status">Подписано: {receipt.title}.

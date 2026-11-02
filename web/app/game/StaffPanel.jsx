@@ -9,7 +9,7 @@ import { RES_CONFIG } from "@/lib/game/data.ts";
 import { ALTERNATE_COUNTRY } from "@/lib/game/alternate-world.ts";
 
 const SHORT = {
-  politicalCapital: "политкапитал", economy: "экономика", military: "силовики",
+  politicalCapital: "влияние", economy: "экономика", military: "силовики",
   externalReputation: "репутация", internalLegitimacy: "легитимность", personalResource: "личный ресурс",
 };
 const BLOC_NAME = {

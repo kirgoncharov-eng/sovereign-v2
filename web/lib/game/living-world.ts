@@ -348,7 +348,7 @@ export function interveneWorld(gs: GameState, id: string): GameState {
     for (const [k, value] of Object.entries(action.cost))
         resources[k as keyof typeof resources] = bounded(resources[k as keyof typeof resources] + (value ?? 0));
     const labels: Partial<Record<keyof ResourceDelta, string>> = {
-        economy: 'экономика', politicalCapital: 'политкапитал', personalResource: 'личный ресурс', externalReputation: 'репутация', internalLegitimacy: 'легитимность'
+        economy: 'экономика', politicalCapital: 'влияние', personalResource: 'личный ресурс', externalReputation: 'репутация', internalLegitimacy: 'легитимность'
     };
     const price = Object.entries(action.cost).map(([k, value]) => `${labels[k as keyof ResourceDelta] ?? k} ${value}`).join(', ');
     world = append(world, {

@@ -111,7 +111,7 @@ test('цена и отношения видны до подписи и совп�
     assert.equal(later.deal!.later!.turns, 2);
     assert.deepEqual(later.deal!.later!.res, LATER_COST);
     // Цена отсрочки безусловна: текст не обещает избежать её поручением, которого движок не проверяет.
-    assert.ok(later.hint.includes(`политкапитал −${-LATER_COST.politicalCapital}`), 'отложенная цена названа до подписи');
+    assert.ok(later.hint.includes(`влияние −${-LATER_COST.politicalCapital}`), 'отложенная цена названа до подписи');
     assert.doesNotMatch(`${later.hint} ${later.deal!.later!.story}`, /если поручени|до сих пор нет/);
   }
 });

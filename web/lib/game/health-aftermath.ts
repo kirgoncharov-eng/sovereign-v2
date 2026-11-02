@@ -126,7 +126,7 @@ export function stepHealthAftermath(state: GameState, world: LivingWorld, turn: 
     const bargain = continuation.bargain;
     if (bargain?.reviewDue != null && turn >= bargain.reviewDue) {
       bargain.reviewDue = null;
-      return { res: { politicalCapital: -2 }, story: `${minister.name} представил назначения по согласованному вами порядку. Руководители больниц теперь обязаны карьерой министру; он опирается на них в торге с резиденцией. Политкапитал −2 — цена переданного контроля над кадрами, а не новый штраф за больничную программу.` };
+      return { res: { politicalCapital: -2 }, story: `${minister.name} представил назначения по согласованному вами порядку. Руководители больниц теперь обязаны карьерой министру; он опирается на них в торге с резиденцией. Влияние −2 — цена переданного контроля над кадрами, а не новый штраф за больничную программу.` };
     }
     return { res: {}, story: null };
   }
