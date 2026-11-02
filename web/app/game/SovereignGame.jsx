@@ -1345,7 +1345,8 @@ export function SpecialHeader({ gs, event }) {
       <Portrait name={fig.name} size={44}/>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, lineHeight:1.4 }}>
         <div style={{ fontFamily:serif, fontSize:15, fontWeight:700, color:G.txt }}>{fig.name}</div>
-        <div>{fig.role}{gs.currentEvent?.call?.negotiation !== 'journalist'
+        {/* В предметных разговорах исход решает вариант, а не подход к характеру: подсказку характера не показываем. */}
+        <div>{fig.role}{!['journalist', 'subject'].includes(gs.currentEvent?.call?.negotiation)
           && <> · {TRAITS[traitOf(gs.seed, fig, fac.bloc)].label} — {TRAIT_TIP[traitOf(gs.seed, fig, fac.bloc)]}</>}</div>
         <div>к вам лично <b style={{ color:relColor(fig.relation) }}>{signed(fig.relation)}</b> · лагерь «{fac.name}» <b style={{ color:relColor(fac.relation) }}>{signed(fac.relation)}</b></div>
       </div>
@@ -2362,6 +2363,7 @@ function TitleModal({ id, title, onClose, triggerRef, children }) {
 // chronicle — партия 1978 года пойдёт в «Хронику срока»: там пролог — утро вступления после выборов, а не до анкеты.
 function Setup({ onStart, saved, onResume, chronicle = false }) {
   const country = NEW_GAME_COUNTRY;
+  const isTelegram = useSyncExternalStore(onTelegramReady, inTelegram, () => false);
   const [diff, setDiff]       = useState(null);
   const [loading, setLoading] = useState(false);
   const [prologue, setPrologue] = useState(null);
@@ -2541,6 +2543,29 @@ function Setup({ onStart, saved, onResume, chronicle = false }) {
               </span>
               <span aria-hidden="true" style={{ fontSize: 20 }}>→</span>
             </button>
+
+            {isTelegram && (
+              <aside aria-label="Игра в разработке" style={{ marginTop: 16, padding: "12px 14px",
+                border: "1px dashed #80745e", color: "#c6b58b", fontFamily: narrow, fontSize: 15, lineHeight: 1.45 }}>
+                <strong style={{ display: "block", color: "#f5eedc", marginBottom: 6 }}>«Суверен» ещё в разработке</strong>
+                <p style={{ margin: "0 0 8px" }}>
+                  Мы регулярно обновляем игру. Здесь могут встречаться ошибки, а правила и истории — меняться.
+                </p>
+                <p style={{ margin: "0 0 8px" }}>
+                  Что зацепило, что непонятно, где стало скучно? Напишите нам — даже пара слов поможет сделать игру лучше.
+                </p>
+                <a href={`${botLink()}?start=feedback`} onClick={event => {
+                  const app = window.Telegram?.WebApp;
+                  if (app?.openTelegramLink) {
+                    event.preventDefault();
+                    app.openTelegramLink(event.currentTarget.href);
+                  }
+                }} style={{ display: "inline-block", padding: "8px 0", color: "#f5eedc", textUnderlineOffset: 3 }}>
+                  Написать автору →
+                </a>
+                <span style={{ display: "block", fontSize: 13 }}>Бот передаст отзыв автору.</span>
+              </aside>
+            )}
 
             {err && (
               <div role="alert" style={{ color: G.red, marginTop: 10, fontSize: 13, font: "13px var(--font-serif), Georgia, serif" }}>
@@ -3521,16 +3546,21 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                   </div>
                 )}
                 <h2 style={{ fontFamily:serif, fontSize:28, fontWeight:700, color:G.txt, lineHeight:1.2, marginBottom:12, textWrap:"balance" }}>{event.title}</h2>
-                {isFactoryOpening(gs) ? <FactoryLive/> : sceneOf(event) !== "square" && (
-                  <figure className={`sv-scene${inboxMode && !event.call && !event.press ? ' sv-case-attachment' : ''}`}
-                    style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
-                    <SquareView gs={gs} art={historicalEventArt(gs.country, event, sceneOf(event))} sceneKey={sceneOf(event)}
-                      partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60} still/>
-                    {inboxMode && !event.call && !event.press && <figcaption>
-                      Приложение к делу · {historicalEventArt(gs.country, event, sceneOf(event))?.caption ?? SCENE_CAPTION[sceneOf(event)]}
-                    </figcaption>}
-                  </figure>
-                )}
+                {(() => {
+                  const caseArt = historicalEventArt(gs.country, event, sceneOf(event));
+                  if (isFactoryOpening(gs)) return <FactoryLive/>;
+                  if (gs.country === ALTERNATE_COUNTRY ? !caseArt : sceneOf(event) === "square") return null;
+                  return (
+                    <figure className={`sv-scene${inboxMode && !event.call && !event.press ? ' sv-case-attachment' : ''}`}
+                      style={{ margin:"0 0 16px", border:`2px solid ${G.txt}`, boxShadow:"var(--hard)" }}>
+                      <SquareView gs={gs} art={caseArt} sceneKey={sceneOf(event)}
+                        partner={event.source === "Кремль" ? "ru" : gs.country === ALTERNATE_COUNTRY ? "trade1978" : "eu"} height={60} still/>
+                      {inboxMode && !event.call && !event.press && <figcaption>
+                        Приложение к делу · {caseArt?.caption ?? SCENE_CAPTION[sceneOf(event)]}
+                      </figcaption>}
+                    </figure>
+                  );
+                })()}
                 {event.special && <SpecialHeader gs={gs} event={event}/>}
                 {(() => {
                   const { lead, rest } = splitLead(event.description, CASE_LEAD);
@@ -3656,13 +3686,19 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 </div>
                 <div style={{ fontFamily:narrow, fontWeight:700, fontSize:13, letterSpacing:".12em", textTransform:"uppercase", color:G.red, marginBottom:4 }}>{rubricOf(lastTurn)}</div>
                 <h2 id="sv-turn-result" className="sv-paper-drop" style={{ fontFamily:narrow, fontWeight:700, fontSize:"clamp(28px, 6.4vw, 38px)", lineHeight:1.1, color:G.txt, marginBottom:12, textWrap:"balance", animationDelay:".15s" }}><PeopleText>{lastTurn.headline}</PeopleText></h2>
-                <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
-                  <SquareView gs={gs} art={historicalResultArt(gs, lastTurn.scene)}
-                    sceneKey={lastTurn.scene} height={36} mono still/>
-                  <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>
-                    {historicalResultArt(gs, lastTurn.scene)?.caption ?? SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции
-                  </figcaption>
-                </figure>
+                {(() => {
+                  const resultArt = historicalResultArt(gs, lastTurn.scene);
+                  if (gs.country === ALTERNATE_COUNTRY && !resultArt) return null;
+                  return (
+                    <figure style={{ margin:"0 0 14px", border:`2px solid ${G.txt}` }}>
+                      <SquareView gs={gs} art={resultArt}
+                        sceneKey={lastTurn.scene} height={36} mono still/>
+                      <figcaption style={{ fontFamily:narrow, fontSize:14, color:G.tx3, padding:"3px 8px", borderTop:`2px solid ${G.txt}` }}>
+                        {resultArt?.caption ?? SCENE_CAPTION[lastTurn.scene] ?? SCENE_CAPTION.square}. Фото редакции
+                      </figcaption>
+                    </figure>
+                  );
+                })()}
                 {(() => {
                   // #260: первый абзац — всегда о резолюции; эхо прежних решений и прочее в квартале — отдельным блоком.
                   const quarter = splitQuarter(withoutHeadline(lastTurn.narrative, lastTurn.headline));
