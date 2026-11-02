@@ -8,7 +8,8 @@ import { PRESS_QUESTIONS } from './press.ts';
 import { ARCS } from './arcs.ts';
 import { STORIES, type StoryContext } from './stories.ts';
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES, campaignCopy } from '../game/alternate-world.ts';
-import { classicApi, fill, pressChoice } from '../game/classic.ts';
+import { POLLS_DOWN, classicApi, fill, pressChoice } from '../game/classic.ts';
+import { WEATHER_ANY } from './frame.ts';
 import { createInitialState, seededRandom, startEvent } from '../game/engine.ts';
 
 const sources = [
@@ -21,6 +22,7 @@ const sources = [
     ...variant.choices.flatMap(choice => [choice.ok, choice.fail ?? ''])]))),
   ...new Set(STORIES.flatMap(story => story.steps.flatMap(step => [true, false].flatMap(crisis =>
     (['warm', 'cold', 'neutral'] as const).map(mood => step.text({ crisis, mood, res: {} } as unknown as StoryContext) ?? ''))))),
+  ...new Set(WEATHER_ANY), ...POLLS_DOWN,
 ];
 const slots = (text: string) => [...text.matchAll(/\{[^{}]+\}/g)].map(match => match[0]).sort();
 async function fresh(country = ALTERNATE_COUNTRY) {
@@ -29,7 +31,7 @@ async function fresh(country = ALTERNATE_COUNTRY) {
 }
 
 test('scene keys match canonical content and preserve slots and surrounding chapters', () => {
-  assert.equal(HISTORICAL_SCENES.length, 27);
+  assert.equal(HISTORICAL_SCENES.length, 35);
   assert.equal(new Set(HISTORICAL_SCENES.map(scene => scene.source)).size, HISTORICAL_SCENES.length);
   for (const scene of HISTORICAL_SCENES) {
     assert.equal(sources.filter(source => source.includes(scene.source)).length, 1, scene.id);
@@ -149,4 +151,10 @@ test('delayed consequence names stay generic in the Daily Case', async () => {
     for (const pending of state.pending ?? []) { assert.ok(!authored.has(pending.label), pending.label); checked++; }
   }
   assert.ok(checked > 0, 'в партии были отложенные последствия');
+});
+
+test('#310, E02: в 1978 году рассказчик не объявляет скрытый смысл формулой без факта', () => {
+  const EMPTY_HINT = /Слишком тихо для такой недели|читать между строк|всегда с умыслом|это и есть повод|значит больше, чем звучит|и не нужно\.|говорят сами/;
+  const lines = [...WEATHER_ANY, ...POLLS_DOWN, ...Object.values(INTERCUTS).flatMap(group => [...group.warm, ...group.cold])];
+  for (const line of lines) assert.doesNotMatch(historicalSceneText(line), EMPTY_HINT, line);
 });
