@@ -49,10 +49,12 @@ import { track, feedbackEnabled, sendFeedback, isTester, subscribeTester, toggle
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { installErrorReporting } from "@/lib/client/errors.ts";
 import { resultCard } from "@/lib/client/card.ts";
+import { runScore } from "@/lib/game/daily.ts";
 import {
   clickFx, duckForCall, handsetFx, outcomeFx, pageFx, setSound, soundOn, stampFx,
   startCabinetAmbient, startTitleTheme, stopCabinetAmbient, stopTitleTheme, subscribeSound, thunderFx,
 } from "@/lib/client/fx.ts";
+import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
 import QuarterInbox, { IncomingLetter } from './QuarterInbox.jsx';
