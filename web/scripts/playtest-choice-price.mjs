@@ -43,6 +43,11 @@ const savedGame = page => page.evaluate(key => JSON.parse(localStorage.getItem(k
 async function checkPrice(page, state, choice, name, { select = true } = {}) {
   if (select) {
     const row = page.locator('button.sv-choice-row').filter({ has: page.getByText(choice.text, { exact: true }) });
+    if (!choice.deal?.pure) {
+      const label = await row.innerText();
+      assert.match(label, choice.advisor ? /шанс исполнения \d+%/ : /риск срыва/,
+        'риск обозначает исполнение, а не политическую цену');
+    }
     await row.tap();
   }
   const price = page.getByRole('group', { name: 'Цена выбранного решения' });
