@@ -1,12 +1,17 @@
 "use client";
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { breaches } from '@/lib/game/people.ts';
 import { PeopleText } from './PeopleText.jsx';
 import { artSource, HISTORICAL_SCENE_ART } from '@/lib/client/historical-art.ts';
 import { ALTERNATE_COUNTRY } from '@/lib/game/alternate-world.ts';
+import { duckForCall } from '@/lib/client/fx.ts';
 
 export default function NegotiationCall({ gs, onFinish, stamping, renderPromises, Portrait }) {
   const [selected, setSelected] = useState(null);
+  useEffect(() => {
+    duckForCall(true);
+    return () => duckForCall(false);
+  }, []);
   const event = gs.currentEvent;
   const person = gs.keyFigures.find(f => f.id === event.call.figure);
   const chosen = event.choices.find(c => c.id === selected);
