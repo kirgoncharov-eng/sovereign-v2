@@ -27,14 +27,17 @@ export interface SubjectCall {
   later: SubjectOption;
 }
 
+// Отсрочка — уже принятое решение: её цена наступает через полгода без условий (deal.later), второго разговора нет.
+export const LATER_COST = { politicalCapital: -2 };
 const later = (subject: string, waiting: string): SubjectOption => ({
   text: 'Взять время подумать',
-  terms: `Решения нет: ${waiting} Через полгода промедление обойдётся в политкапитал, если поручения так и не будет.`,
+  terms: `Решения нет: ${waiting} Второго разговора не будет: через полгода отсрочка обойдётся в политкапитал −2.`,
   tags: ['delay'], res: {}, figure: -5, camp: -2,
   scene: `Вы берёте время подумать: ${subject}. {name} не спорит: «Я подожду. Остальные — вряд ли».`,
   headline: `{name} ждёт решения: ${subject}`,
-  report: { label: 'Обещание повисло в воздухе', turns: 2, res: { politicalCapital: -2 },
-    story: `{name} напоминает: вы обещали подумать — ${subject}. Поручения до сих пор нет.` },
+  report: { label: 'Обещание повисло в воздухе', turns: 2, res: LATER_COST,
+    story: `{name} напоминает, что вы взяли время подумать — ${subject} — и ответа так и не дали. `
+      + 'В аппарате это запомнили как решение, которое отложили.' },
 });
 
 export const SUBJECT_CALLS: Partial<Record<Bloc, SubjectCall>> = {

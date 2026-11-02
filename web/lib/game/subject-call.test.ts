@@ -6,7 +6,7 @@ import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES } from './alternate-world.ts';
 import { traitOf, type TraitId } from './people.ts';
 import { priceText } from './subject-call.ts';
 import { HISTORICAL_CALL_TOPICS } from '../content/historical-calls.ts';
-import { SUBJECT_CALLS } from '../content/subject-calls.ts';
+import { LATER_COST, SUBJECT_CALLS } from '../content/subject-calls.ts';
 import { parseSave } from '../client/save.ts';
 import { SAVE_VERSION } from './data.ts';
 import type { Bloc, Choice, GameState } from './types.ts';
@@ -109,7 +109,10 @@ test('цена и отношения видны до подписи и совп�
     assert.ok(full.deal!.figureRel! > partial.deal!.figureRel! && partial.deal!.figureRel! > check.deal!.figureRel!);
     assert.ok(refuse.deal!.figureRel! < later.deal!.figureRel! && later.deal!.figureRel! < check.deal!.figureRel!);
     assert.equal(later.deal!.later!.turns, 2);
-    assert.deepEqual(later.deal!.later!.res, { politicalCapital: -2 });
+    assert.deepEqual(later.deal!.later!.res, LATER_COST);
+    // Цена отсрочки безусловна: текст не обещает избежать её поручением, которого движок не проверяет.
+    assert.ok(later.hint.includes(`политкапитал −${-LATER_COST.politicalCapital}`), 'отложенная цена названа до подписи');
+    assert.doesNotMatch(`${later.hint} ${later.deal!.later!.story}`, /если поручени|до сих пор нет/);
   }
 });
 
