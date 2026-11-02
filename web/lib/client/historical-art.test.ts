@@ -193,7 +193,11 @@ test('first crisis and election night resolve authorial outcome scenes', async (
     const successState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: choice.text, headline: '', historianNote: '', success: true }] };
     assert.deepEqual(historicalResultArt(successState, 'field'), expectedHarvestSuccess[idx]);
     const failState = { ...base, history: [{ year: 1978, title: harvestCard.title, choice: choice.text, headline: '', historianNote: '', success: false }] };
-    assert.deepEqual(historicalResultArt(failState, 'field'), HISTORICAL_OUTCOME_ART.harvestRot);
+    // Reviews on PR #323 (GPT/Codex & Claude): none of the 3 fail outcomes describe rotting grain or abandoned machinery,
+    // so returning harvestRot creates false narrative drama. Neutral harvest scene is returned.
+    assert.deepEqual(historicalResultArt(failState, 'field'), HISTORICAL_SCENE_ART.harvest);
+    assert.notEqual(historicalResultArt(failState, 'field'), HISTORICAL_OUTCOME_ART.harvestRot);
+    assert.ok(choice.fail && !choice.fail.includes('сгнил') && !choice.fail.includes('брошен'), `choice ${idx} fail text shouldn't claim rot: ${choice.fail}`);
   }
   const fuelCard = ALTERNATE_EVENTS.find(c => c.id === 'alt_fuel')!;
   const expectedFuelSuccess = [
