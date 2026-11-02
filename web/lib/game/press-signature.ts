@@ -88,7 +88,7 @@ export function signatureQuestion(state: GameState, skip: ReadonlySet<string> = 
   const deflect: PressAnswer = {
     tone: "evasive", text: "«Это решение готовили министерства. Детали — к ним»",
     res: { internalLegitimacy: -2 }, rel: { [bloc]: -1 },
-    stake: "Влияние цел, но прятаться за министров — значит терять доверие.",
+    stake: "Влияние не изменится, но прятаться за министров — значит терять доверие.",
     after: "В министерствах этот ответ запомнят: виноватыми выставили их.",
   };
   return { id: SIGNATURE_PREFIX + camp.id, who: "Корреспондент делового издания", topic: "вашем распоряжении", text, seconds: SIGNATURE_SECONDS,
