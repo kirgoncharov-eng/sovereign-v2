@@ -16,6 +16,8 @@ import {
 } from "@/lib/client/chronicle-stops.ts";
 import { governmentBriefs } from "@/lib/client/government-brief.ts";
 import { choicePrice } from "@/lib/client/choice-price.ts";
+import { historicalEventArt } from "@/lib/client/historical-art.ts";
+import { sceneOf } from "@/lib/content/scene-map.ts";
 import { personProfiles } from "@/lib/client/people-text.ts";
 import { presidentialMessages } from "@/lib/client/presidential-inbox.ts";
 import { MONTHS } from "@/lib/game/calendar.ts";
@@ -460,6 +462,9 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   const canAct = !!game && !busy && !over && !form;
 
   const event = game?.currentEvent;
+  // Звонки и пресса показывают собственные кадры внутри специальных панелей.
+  const caseArt = game && event && !event.call && !event.press
+    ? historicalEventArt(game.country, event, sceneOf(event)) : null;
   const current = shown.at(-1)?.date;
   const waiting = game && event && !form && !over ? openStops(game) : [];
 
@@ -571,6 +576,11 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
           onClick={e => e.stopPropagation()}>
           <div className={styles.caseHead}>На столе · {event.source}</div>
           <h2>{event.title}</h2>
+          {caseArt && <figure className={styles.caseArt} data-chronicle-case-art>
+            <SquareView gs={game} scene={undefined} art={caseArt} sceneKey={sceneOf(event)} partner="trade1978"
+              style={undefined} height={80} still />
+            <figcaption>{caseArt.caption}</figcaption>
+          </figure>}
           {event.description.split(/\n\n+/).map((p, i) => <p key={i}>{p}</p>)}
           <CaseDesk key={`${game.turn}:${event.title}`} game={game} busy={busy} onSign={signCase} onConvene={onConvene} />
         </section>}

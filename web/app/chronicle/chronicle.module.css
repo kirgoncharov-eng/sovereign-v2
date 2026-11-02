@@ -70,6 +70,8 @@
   animation: appear .6s ease both; }
 .case h2, .memoir h2 { font: 700 clamp(26px, 6vw, 32px)/1.15 var(--font-serif); margin: 6px 0 12px; }
 .case p { font: 16px/1.7 var(--font-serif); margin: 0 0 12px; }
+.caseArt { margin: 0 0 14px; border: 1px solid #6f6550; }
+.caseArt figcaption { padding: 5px 8px; border-top: 1px solid #6f6550; font: 14px/1.35 var(--font-narrow); color: #5e5446; }
 .question { padding: 10px 12px; background: #dcd1b0; border-left: 3px solid #2f2a22; font-style: italic; }
 .question small { font-style: normal; }
 .options { display: grid; gap: 8px; margin-top: 14px; }
