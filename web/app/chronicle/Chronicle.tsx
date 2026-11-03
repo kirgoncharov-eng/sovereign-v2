@@ -22,7 +22,7 @@ import {
   EMPTY_STOPS, dueStops, letterStop, openStops, rememberStop, stillWaiting, storyStops, type Stop, type StopMemory,
 } from "@/lib/client/chronicle-stops.ts";
 import { governmentBriefs } from "@/lib/client/government-brief.ts";
-import { choicePrice } from "@/lib/client/choice-price.ts";
+import ResolutionOutcomes from "@/app/game/ResolutionOutcomes.tsx";
 import { historicalEventArt } from "@/lib/client/historical-art.ts";
 import { sceneOf } from "@/lib/content/scene-map.ts";
 import { personProfiles } from "@/lib/client/people-text.ts";
@@ -38,7 +38,7 @@ import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import {
   CHRONICLE_GAME_KEY, CHRONICLE_SAVE_KEY, chronicleBelongsTo, encodeChronicle, parseChronicle, type ChronicleForm,
 } from "@/lib/client/chronicle-save.ts";
-import type { Choice, DifficultyId, GameEvent, GameState, IdeologyId, ResourceDelta, ResourceKey } from "@/lib/game/types.ts";
+import type { Choice, DifficultyId, GameEvent, GameState, IdeologyId, ResourceKey } from "@/lib/game/types.ts";
 import {
   AdvisorDebate, BudgetPanel, CallPanel, ChoicePreview, CountrySheet, CouncilPanel, HistoricalArtProvider, PeopleSheet, PrologueCutscene, InspectDoc, PactSlips, Portrait, PressPanel,
   PromiseLines, ResourceChips, SpecialHeader, SquareView,
@@ -777,16 +777,7 @@ function StopBody({ game, stop, view, onView, onAct, onStory, onHire, onPillar, 
 type Signing = (state: GameState) => Promise<GameState>;
 
 function ResolutionPrice({ game, choice }: { game: GameState; choice: Choice }) {
-  const price = choicePrice(game, choice);
-  if (!price) return null;
-  const losses = (delta: ResourceDelta) => Object.entries(delta)
-    .map(([key, value]) => `${PILLAR[key as ResourceKey]} −${-value!}`).join('; ') || 'без потерь опор';
-  return <div className={styles.price} role="group" aria-label="Цена выбранного решения" data-choice-id={choice.id}>
-    <div>При исполнении: {losses(price.success)}.</div>
-    {price.failure !== null && <div>При срыве: {losses(price.failure)}.</div>}
-    <div>Риск срыва исполнения: {price.failurePercent}%.</div>
-    <div className={styles.priceNote}>Отношения, будущие платежи и другие события квартала учитываются отдельно.</div>
-  </div>;
+  return <ResolutionOutcomes game={game} choice={choice} />;
 }
 
 // Дело на столе — те же части, что резолюция в `/game`: цена варианта, спор советников, совет, документ на проверку,
@@ -827,8 +818,8 @@ function CaseDesk({ game, busy, onSign, onConvene }: {
       </div>
       <CouncilPanel gs={game} stamping={null} debated={!!takes} onConvened={onConvene}
         optProps={(choice: Choice, index: number) => optProps(choice, councilOnly ? index + 1 : event.choices.length + index + 1)} />
+      {chosen && <ResolutionPrice game={game} choice={chosen} />}
       {chosen && <div className={styles.sign}>
-        <ResolutionPrice game={game} choice={chosen} />
         <button disabled={busy} onClick={() => onSign(state => signChoice(state, chosen.id))}><strong>Подписать</strong><span>{chosen.text}</span></button>
         <button disabled={busy} onClick={() => { clickFx(); setArmed(null); }}>Отменить выбор</button>
       </div>}

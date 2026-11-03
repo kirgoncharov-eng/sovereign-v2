@@ -1,0 +1,14 @@
+.forecast { margin: 10px 0; padding: 12px; border: 1px solid #b8aa8a; color: #413826; font: 16px/1.45 var(--font-narrow); }
+.forecast p { margin: 0 0 8px; }
+.forecast .title { font-weight: 700; }
+.risk { border-left: 3px solid #986741; padding-left: 9px; }
+.forecast table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.forecast caption { text-align: left; margin-bottom: 6px; }
+.forecast th, .forecast td { padding: 4px; border-bottom: 1px solid #c8bda5; }
+.forecast th { text-align: left; font-weight: 400; }
+.forecast thead th { font-weight: 700; }
+.forecast td { text-align: center; }
+.camps { margin-top: 8px; }
+.camps summary { cursor: pointer; min-height: 44px; align-content: center; }
+.camps summary:focus-visible { outline: 2px solid #7b6340; outline-offset: 2px; }
+.forecast .note { margin: 8px 0 0; color: #6a604c; font-size: 15px; }
