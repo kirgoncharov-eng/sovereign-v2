@@ -506,31 +506,52 @@ test('budget, terms, and factory strike resolve dedicated 1978 scenes while unma
   }
 });
 
-test('alt_contracts beats resolve distinct contextual scenes instead of repeating archive', async () => {
+test('alt_contracts beats resolve distinct contextual scenes across all 3 choices and 2 outcomes', async () => {
+  const CHOICES = [
+    'Оплатить зарплату в обмен на проверку договоров',
+    'Получить аванс под трёхлетний российский заказ',
+    'Перестроить производство и защитить увольняемых',
+  ] as const;
+
+  for (const choiceText of CHOICES) {
+    for (const success of [true, false]) {
+      const seed = 7;
+      const intro = await classicApi.setup(ALTERNATE_COUNTRY, 'coalition', 'pragmatist', seed);
+      let state = createInitialState(ALTERNATE_COUNTRY, 'coalition', 'pragmatist', intro, seededRandom(seed));
+      state = startEvent(state, await classicApi.event(state));
+      const choice = state.currentEvent!.choices.find(c => c.text === choiceText)!;
+      assert.ok(choice, choiceText);
+      state = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
+      state = { ...state, history: state.history.map(h => ({ ...h, success })) };
+      const eventTurn2 = await classicApi.event(state);
+
+      assert.equal(eventTurn2.beat?.arcId, 'alt_contracts');
+      const art = historicalEventArt(ALTERNATE_COUNTRY, eventTurn2, sceneOf(eventTurn2));
+
+      if (choiceText.startsWith('Оплатить зарплату')) {
+        assert.equal(eventTurn2.title, 'Опись из заводской бухгалтерии');
+        assert.deepEqual(art, HISTORICAL_SCENE_ART.wagesAudit);
+      } else if (choiceText.startsWith('Получить аванс')) {
+        assert.equal(eventTurn2.title, success ? 'Дело выданного аванса' : 'Приложение к российскому заказу');
+        assert.deepEqual(art, HISTORICAL_SCENE_ART.export);
+      } else {
+        assert.equal(eventTurn2.title, 'Три копии одного договора');
+        assert.deepEqual(art, HISTORICAL_SCENE_ART.archive);
+      }
+
+      for (const country of LEGACY_COUNTRIES) {
+        assert.equal(historicalEventArt(country, eventTurn2, sceneOf(eventTurn2)), null);
+      }
+    }
+  }
+
   const base = await fresh();
   const event = await classicApi.event(base);
   const beat = { arcId: 'alt_contracts', arcTitle: 'Четвёртый экземпляр', turn: 1, episode: 1, total: 3 };
-
-  const auditEvent = { ...event, beat, title: 'Опись из заводской бухгалтерии' };
-  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, auditEvent, 'archive'), HISTORICAL_SCENE_ART.wagesAudit);
-
-  const advanceEvent = { ...event, beat, title: 'Дело выданного аванса' };
-  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, advanceEvent, 'archive'), HISTORICAL_SCENE_ART.export);
-
-  const retoolEvent = { ...event, beat, title: 'Копия без закрытой страницы' };
-  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, retoolEvent, 'archive'), HISTORICAL_SCENE_ART.export);
-
   const pageEvent = { ...event, beat: { ...beat, turn: 2, episode: 2 }, title: 'Цена отсутствующей страницы' };
   assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, pageEvent, 'archive'), HISTORICAL_SCENE_ART.archive);
-
   const fourthEvent = { ...event, beat: { ...beat, turn: 15, episode: 3 }, title: 'Четвёртый экземпляр' };
   assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, fourthEvent, 'archive'), HISTORICAL_SCENE_ART.archive);
-
-  for (const country of LEGACY_COUNTRIES) {
-    assert.equal(historicalEventArt(country, auditEvent, 'archive'), null);
-    assert.equal(historicalEventArt(country, advanceEvent, 'archive'), null);
-    assert.equal(historicalEventArt(country, pageEvent, 'archive'), null);
-  }
 });
 
 

@@ -111,9 +111,10 @@ export function historicalEventArt(country: string, event: GameEvent, scene: Sce
   if (country !== ALTERNATE_COUNTRY) return null;
   if (event.beat?.arcId === 'alt_contracts') {
     if (event.title === 'Опись из заводской бухгалтерии') return HISTORICAL_SCENE_ART.wagesAudit;
-    if (event.title === 'Дело выданного аванса' || event.title === 'Копия без закрытой страницы') {
+    if (event.title === 'Дело выданного аванса' || event.title === 'Приложение к российскому заказу') {
       return HISTORICAL_SCENE_ART.export;
     }
+    // Вариант c («Перестроить производство...») ведёт к работе в архиве («Три копии одного договора») — остаётся archive
     return HISTORICAL_SCENE_ART.archive;
   }
   if (event.budget) return HISTORICAL_SCENE_ART.budget;
