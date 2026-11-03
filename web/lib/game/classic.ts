@@ -4,6 +4,7 @@ import { historicalEcho } from '../content/historical-echoes.ts';
 import { JOURNALIST_CALL_TITLE, journalistCall } from './journalist-call.ts';
 import { HISTORICAL_CALL_TOPICS, historicalCallTopic } from '../content/historical-calls.ts';
 import { subjectCall } from './subject-call.ts';
+import { press1978 } from './press-1978.ts';
 import { pensionCall } from './pension-call.ts';
 import { withEvidenceChoice } from './private-evidence.ts';
 import { mandatePublicEvent } from './minister-public.ts';
@@ -1421,8 +1422,14 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     ordinary: isOrdinaryNewspaperEvent(state.currentEvent?.card) && !authoredHeadline
       && !finale && !plan.election && !act && !arc && !plan.choice.law,
   });
+  // 1978: одна строка прессы с фактом хода и интересом издания (#310, E04). Прежний `press` всё равно собирается выше,
+  // чтобы порядок детерминированных выборок не сдвинулся; архив получает его без изменений.
+  const pressLines = state.country !== ALTERNATE_COUNTRY ? press : arc && !plan.election ? [] : press1978({
+    before: state, headline, success: plan.success, act, election: plan.election, finale: !!finale,
+    factions: plan.factions, resources: plan.resources,
+  });
   return {
-    press,
+    press: pressLines,
     heard: said,
     ...(letters.length ? { letters } : {}),
     ...(succession.length ? { succession: succession.map(({ figure, name }) => ({ figure, name })) } : {}),
