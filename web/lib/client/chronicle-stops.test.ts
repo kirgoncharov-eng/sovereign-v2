@@ -4,7 +4,7 @@ import {
   actOnLetter, answerStory, convene, hire, signInitiative, newTerm, nextCase, openLetter, programOf, signBudget, signCall, signChoice, signPress, startFromSeed,
   takeOffice, termOver,
 } from './chronicle.ts';
-import { DANGER, EMPTY_STOPS, EXTRA_STOPS, dueStops, openStops, rememberStop, stillWaiting, storyStops, type Stop, type StopMemory } from './chronicle-stops.ts';
+import { DANGER, EMPTY_STOPS, EXTRA_STOPS, dueStops, letterStop, openStops, rememberStop, stillWaiting, storyStops, type Stop, type StopMemory } from './chronicle-stops.ts';
 import { presidentialMessages, presidentialReplyActions, type PresidentialMessage } from './presidential-inbox.ts';
 import { prepareQuarterResolution, withoutQuarterDraft } from './quarter-inbox.ts';
 import { budgetChoice, callChoice, classicApi, pressChoice } from '../game/classic.ts';
@@ -12,7 +12,9 @@ import { openDeskWhenDue } from '../game/desk-timing.ts';
 import { conveneCouncil, resolveTurn, startEvent } from '../game/engine.ts';
 import { isPresidentialDiscussion } from '../game/presidential-story.ts';
 import { initPromises } from '../game/promises.ts';
-import { livingActions, interveneWorld } from '../game/living-world.ts';
+import { livingActions, interveneWorld, stepLivingWorld } from '../game/living-world.ts';
+import { actionableGovernmentProposals, governmentBriefs } from './government-brief.ts';
+import { initiativeBlockReason } from './initiative-note.ts';
 import { secretaryActions } from '../game/secretary.ts';
 import { candidatePool, hireAdvisor, staffingBlocked } from '../game/staffing.ts';
 import { confirmInitiative, initiativeOptions, type InitiativeId } from '../game/initiatives.ts';
@@ -26,6 +28,109 @@ const measure = (state: GameState, stop: Stop) =>
 
 // Кандидат из резерва, которого можно назначить сейчас: первый без запрета.
 const hireable = (state: GameState) => candidatePool(state).find(candidate => !staffingBlocked(state, candidate))?.id ?? null;
+
+async function proposalFixture() {
+  const initial = await newTerm(startFromSeed(7, 'debut'));
+  const resources = Object.fromEntries(RESOURCE_KEYS.map(key => [key, 60])) as GameState['resources'];
+  let state = takeOffice(initial, programOf(initial).suggested);
+  while (state.turn < 6) state = await chronicleSign(await nextCase({ ...state, resources }));
+  return nextCase({ ...state, resources });
+}
+
+test('необязательные программы не останавливают ленту без доступной подписи; письма со сроком остаются', async () => {
+  const state = await proposalFixture();
+  const proposal = openStops(state).find(stop => stop.key === 'government-proposals')!;
+  assert.ok(proposal);
+  const signed = interveneWorld(state, 'government:start:procurement');
+  assert.ok(livingActions(signed).every(action => action.blocked));
+  assert.ok(!openStops(signed).some(stop => stop.key === proposal.key));
+  assert.equal(stillWaiting(signed, proposal), false);
+  assert.ok(letterStop(signed, proposal.key), 'ручное чтение с объяснением блокировки остаётся');
+  const urgent = presidentialMessages(signed).filter(message => message.needsReply && message.deadline !== undefined);
+  assert.ok(urgent.length, 'сохранились настоящие обращения со сроком');
+  for (const message of urgent) assert.ok(openStops(signed).some(stop => stop.key === message.key));
+  const next = { ...signed, turn: signed.turn + 1 };
+  assert.ok(openStops(next).some(stop => stop.key === proposal.key), 'в новом квартале предложение возвращается');
+
+  const poor = { ...state, resources: { ...state.resources, economy: 6 } };
+  assert.ok(governmentBriefs(poor).filter(brief => brief.status === 'proposed').every(brief => brief.options.every(action => action.blocked)));
+  assert.ok(!openStops(poor).some(stop => stop.key === proposal.key), 'нет подписи из-за цены');
+  const full = interveneWorld(next, 'government:start:exports');
+  const later = { ...full, turn: full.turn + 1 };
+  assert.ok(!openStops(later).some(stop => stop.key === proposal.key), 'две программы уже в работе');
+});
+
+test('доступное предложение выбирается после заблокированного; низкое влияние не превращает проверку в помощь', async () => {
+  const state = await proposalFixture();
+  const low = { ...state, resources: { ...state.resources, politicalCapital: 7 } };
+  assert.ok(governmentBriefs(low).find(brief => brief.id === 'procurement')!.options.every(action => action.blocked));
+  assert.equal(actionableGovernmentProposals(low)[0].id, 'exports');
+  assert.equal(openStops(low).find(stop => stop.key === 'government-proposals')!.token, 'exports,housing,procurement');
+
+  const crisis = structuredClone(state);
+  crisis.resources.politicalCapital = 15;
+  const regional = crisis.factions.find(faction => faction.bloc === 'regional')!;
+  regional.relation = -30;
+  const before = JSON.stringify(crisis);
+  const support = initiativeOptions(crisis, 'politicalCapital').find(option => option.id === 'support:regional')!;
+  assert.equal(support.blocked?.code, 'partner_refuses');
+  assert.match(initiativeBlockReason(crisis, support)!, /−20.*Сейчас: лагерь −30/);
+  assert.ok(!openStops(crisis).some(stop => stop.kind === 'initiative' && stop.resources?.includes('politicalCapital')));
+  const procurement = governmentBriefs(crisis).find(brief => brief.id === 'procurement')!;
+  assert.equal(procurement.options[0].cost.politicalCapital, -3, 'цена проверки не является прибавкой влияния');
+  assert.equal(JSON.stringify(crisis), before, 'показ и отбор не меняют состояние');
+});
+
+test('цена не меняет версию отложенной папки; новое предложение и первое предупреждение остаются поводом остановиться', async () => {
+  const initial = await proposalFixture();
+  // Опора уже у порога: этот тест не смешивает изменение цены с законным первым напоминанием об опасности.
+  const state = { ...initial, resources: { ...initial.resources, economy: 15 } };
+  const proposal = openStops(state).find(stop => stop.key === 'government-proposals')!;
+  const memory = rememberStop(state, proposal, EMPTY_STOPS);
+  for (const politicalCapital of [7, 60, 7, 60]) {
+    const next = { ...state, turn: state.turn + 1, resources: { ...state.resources, politicalCapital } };
+    const current = openStops(next).find(stop => stop.key === proposal.key)!;
+    assert.ok(current, 'хотя бы одна программа остаётся доступной');
+    assert.equal(current.token, proposal.token, 'набор программ не изменился');
+    assert.ok(!dueStops(next, [current], memory).length, 'колебания цены не создают новую остановку');
+  }
+  const smaller = structuredClone(state);
+  smaller.world!.government!.programs.find(program => program.id === 'procurement')!.status = 'completed';
+  const previous = openStops(smaller).find(stop => stop.key === proposal.key)!;
+  assert.ok(dueStops(state, [proposal], rememberStop(smaller, previous, EMPTY_STOPS)).length,
+    'новая предложенная программа меняет версию');
+
+  const calm = openStops(initial).find(stop => stop.key === proposal.key)!;
+  assert.ok(dueStops(state, [proposal], rememberStop(initial, calm, EMPTY_STOPS)).length,
+    'первое предупреждение об опоре у порога не подавлено');
+});
+
+test('после стройки предлагается доступное продолжение, а текущий доклад не требует новой подписи', async () => {
+  let state = interveneWorld(await proposalFixture(), 'government:start:housing');
+  while (state.world!.government!.programs.find(program => program.id === 'housing')!.status === 'running') {
+    const turn = state.turn + 1;
+    state = { ...state, turn, world: stepLivingWorld(state, turn).world };
+  }
+  assert.equal(state.world!.government!.housingNext?.status, 'proposed');
+  assert.equal(openStops(state).filter(stop => stop.key === 'housing-next').length, 1);
+  const busy = { ...state, world: { ...state.world!, lastActionTurn: state.turn } };
+  assert.ok(!openStops(busy).some(stop => stop.key === 'housing-next'), 'для продолжения действует та же общая квота');
+  const regular = openStops(state).find(stop => stop.key === 'government-proposals');
+  assert.ok(!regular?.token.split(',').includes('housing'), 'продолжение жилья не дублируется общим предложением');
+  const signed = interveneWorld(state, 'government:start:settle');
+  assert.ok(!openStops(signed).some(stop => stop.key === 'housing-next'));
+  const turn = signed.turn + 1;
+  const working = { ...signed, turn, world: stepLivingWorld(signed, turn).world };
+  assert.equal(working.world!.government!.housingNext?.status, 'running');
+  assert.ok(!openStops(working).some(stop => stop.key === 'housing-next'), 'письмо-доклад не является остановкой');
+  let finished = working;
+  while (finished.world!.government!.housingNext!.status === 'running') {
+    const turn = finished.turn + 1;
+    finished = { ...finished, turn, world: stepLivingWorld(finished, turn).world };
+  }
+  assert.ok(!openStops(finished).some(stop => stop.key === 'housing-next'), 'итог также не требует новой подписи');
+  assert.ok(letterStop(finished, 'housing-next'), 'итоговый доклад можно прочитать вручную');
+});
 
 // Ответ на обращение, как его дал бы игрок в папке `/game`: первое доступное действие этого письма.
 function replyAction(state: GameState, message: PresidentialMessage): string | null {

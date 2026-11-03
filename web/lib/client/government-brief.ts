@@ -104,3 +104,8 @@ export function governmentBrief(gs: GameState, id: GovernmentProjectId) {
 export function governmentBriefs(gs: GameState) {
   return PROJECTS.map(project => governmentBrief(gs, project.id)).filter(brief => brief !== null);
 }
+
+/** Необязательные новые бюджеты, которые можно подписать сейчас. Цену и запреты определяет livingActions. */
+export function actionableGovernmentProposals(gs: GameState) {
+  return governmentBriefs(gs).filter(brief => brief.status === 'proposed' && brief.options.some(action => !action.blocked));
+}
