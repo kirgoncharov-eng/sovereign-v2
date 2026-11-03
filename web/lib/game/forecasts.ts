@@ -6,7 +6,7 @@
 import { authoredDebate, hasAuthoredDebate, isPresidentialDiscussion } from "./presidential-story.ts";
 import { campaignText } from "./alternate-world.ts";
 import { ACTIONS } from "./data.ts";
-import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed, loyaltyOf } from "./engine.ts";
+import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed, loyaltyOf, shiftedLoyalty } from "./engine.ts";
 import { campOf, isDisloyal, mannerOf } from "./advisors.ts";
 import {
   ABOUT_OTHER, ADMIT, ADVISOR_REASONS, AGREE, ALARM, DOWNPLAY, DRY, LEVEL_PHRASES, NO_STAKE, ORDINAL, ORDINAL_LOC, VERDICTS,
@@ -241,7 +241,7 @@ export function advisorNews(state: GameState, choiceId: string, failed: boolean)
       const nominal = reason === "followed" ? LOYALTY_FOLLOWED : LOYALTY_OVERRULED;
       const before = loyaltyOf(advisor);
       return {
-        id: advisor.id, loyalty: Math.max(0, Math.min(100, before + nominal)) - before,
+        id: advisor.id, loyalty: shiftedLoyalty(state, advisor, nominal) - before,
         right: 0, wrong: 0, reason,
       };
     });
@@ -255,10 +255,11 @@ export function advisorNews(state: GameState, choiceId: string, failed: boolean)
     const reason = take.favors === choiceId ? "followed" as const : overruled ? "overruled" as const : null;
     const own = checks.filter(check => check.take.id === take.id);
     const nominal = reason === "followed" ? LOYALTY_FOLLOWED : reason === "overruled" ? LOYALTY_OVERRULED : 0;
-    const before = loyaltyOf(state.advisors.find(advisor => advisor.id === take.id)!);
+    const member = state.advisors.find(advisor => advisor.id === take.id)!;
+    const before = loyaltyOf(member);
     return {
       id: take.id,
-      loyalty: Math.max(0, Math.min(100, before + nominal)) - before,
+      loyalty: shiftedLoyalty(state, member, nominal) - before,
       right: own.filter(check => check.right).length,
       wrong: own.filter(check => !check.right).length,
       reason,

@@ -11,6 +11,7 @@ import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
 import { isPresidentialDiscussion } from './presidential-story.ts';
 import { ARCS } from "../content/arcs.ts";
 import { LEAKS } from "../content/advisors.ts";
+import { OWN_CRISIS_BELOW, OWN_CRISIS_BONUS, OWN_LOYALTY_FLOOR } from "../content/staffing.ts";
 import { NAMES } from "../content/narration.ts";
 import { FACTION_PASS, PACT_BROKEN, PACT_INCOME, PACT_KEPT, PACT_SIGN, PACT_VOTE_BONUS, bondOf, breaches, pactIncome, personalDelta } from "./people.ts";
 import { stepPromises } from "./promises.ts";
@@ -306,6 +307,27 @@ export const SABOTAGE = 0.1;
 export const isDisloyal = (advisor: Advisor) => loyaltyOf(advisor) < DISLOYAL_BELOW;
 const unrestrained = (advisor: Advisor) => isDisloyal(advisor) && !advisor.dossier;
 
+// «Свой человек» (#310): родственник или человек со стороны, назначенный в партии 1978 года. Архив не меняется.
+const OWN_ORIGINS = ["relative", "freak"];
+export const isOwnPerson = (state: Pick<GameState, "country">, advisor: Pick<Advisor, "origin">) =>
+  state.country === ALTERNATE_COUNTRY && OWN_ORIGINS.includes(advisor.origin ?? "");
+
+// Новая лояльность после перемены delta: у «своего человека» она не опускается ниже «ровной».
+// Если она уже ниже (старое сохранение), обиды её больше не роняют, а благодарность поднимает как обычно.
+export function shiftedLoyalty(state: Pick<GameState, "country">, advisor: Advisor, delta: number): number {
+  const before = loyaltyOf(advisor);
+  const floor = isOwnPerson(state, advisor) ? Math.min(before, OWN_LOYALTY_FLOOR) : 0;
+  return Math.max(floor, Math.min(100, before + delta));
+}
+
+// Решение ведёт «свой человек», и у президента упадок сил: его поручение исполняют надёжнее, а не хуже.
+export function ownPersonCarries(state: Partial<Pick<GameState, "country" | "advisors">> & Pick<GameState, "resources">,
+  choice: Pick<Choice, "advisor">): boolean {
+  if (state.resources.personalResource >= OWN_CRISIS_BELOW || !choice.advisor) return false;
+  const advisor = state.advisors?.find(member => member.id === choice.advisor!.id && member.name === choice.advisor!.name);
+  return !!advisor && isOwnPerson({ country: state.country ?? "" }, advisor);
+}
+
 export function leakingAdvisors(state: Pick<GameState, "seed" | "turn"> & { advisors?: Advisor[] }): Advisor[] {
   return (state.advisors ?? []).filter(advisor => unrestrained(advisor) && LEAKS[advisor.id]
     && hashSeed(state.seed, "leak", state.turn, advisor.id) % LEAK_EVERY === 0);
@@ -398,7 +420,7 @@ export function seededRandom(seed: number): () => number {
 }
 
 // Шанс, что решение исполнят как задумано. Выжидание не проваливается.
-type ChanceState = Pick<GameState, "factions" | "resources"> & Partial<Pick<GameState, "keyFigures" | "pacts" | "bio" | "advisors">>;
+type ChanceState = Pick<GameState, "factions" | "resources"> & Partial<Pick<GameState, "keyFigures" | "pacts" | "bio" | "advisors" | "country">>;
 // Группы, руками которых решение исполняется: те, кому оно выгодно.
 export const executors = (factions: Faction[], choice: Pick<Choice, "tags">) => {
   const blocs = new Set(choice.tags.flatMap(t => Object.entries(ACTIONS[t]?.rel ?? {}).filter(([, v]) => (v ?? 0) > 0).map(([b]) => b)));
@@ -421,7 +443,7 @@ export function successChance(state: ChanceState, choice: Choice): number {
   if (people.length) p += avg(people.map(fig => fig.relation - exec.find(f => f.id === fig.faction)!.relation)) / 400;
   if (state.pacts?.some(pc => exec.some(f => f.id === pc.faction))) p += 0.05; // союзник даёт свой аппарат
   if (state.resources.politicalCapital < 25) p -= 0.1;
-  if (state.resources.personalResource < 25) p -= 0.05;
+  if (state.resources.personalResource < OWN_CRISIS_BELOW) p += ownPersonCarries(state, choice) ? OWN_CRISIS_BONUS : -0.05;
   if (saboteurOf(state, choice)) p -= SABOTAGE; // нелояльный советник тянет время и теряет бумаги
   return Math.round(Math.max(0.3, Math.min(0.95, p)) * 100) / 100;
 }
