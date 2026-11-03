@@ -1,9 +1,11 @@
 // Пресса 1978 года (#310, E04; образец и словарь приняты Кириллом в #340).
 // Одна строка за квартал, только когда есть факт: срыв → выборы → бюджет → пресс-конференция → лагерь ±4 →
 // экономика ±3 → репутация ±3 → строки нет. Всё берётся из уже рассчитанного хода: RNG, цены и исходы не трогаем.
+// Сдвиги лагерей и ресурсов — собственный вклад резолюции (`plan.effects`), а не итог квартала: старые долги,
+// фон и институты газета сегодняшнему решению не приписывает (ведомость квартала #335 показывает их отдельно).
 import { CAMP_OUTLET, CAMP_STANCE, PRESS_1978_OUTLETS, PRESS_1978_TEXT as T } from '../content/press-1978.ts';
 import type { SpecialAct } from '../content/reactions.ts';
-import type { Election, Faction, GameState, Resources } from './types.ts';
+import type { Election, GameState, ResourceDelta } from './types.ts';
 
 export interface PressLine { outlet: string; headline: string }
 
@@ -14,8 +16,8 @@ export interface Press1978Input {
   act: SpecialAct | null;
   election: Election | null;
   finale: boolean;
-  factions: Faction[];
-  resources: Resources;
+  /** Вклад самой резолюции: `plan.effects` (choiceEffects), без последствий прежних решений и фона. */
+  own: { resources: ResourceDelta; factionRel: Record<string, number> };
 }
 
 const CAMP_SHIFT = 4;
@@ -35,15 +37,13 @@ const thirdPerson = (topic: string) => OWN.reduce((text, [pattern, own]) => text
 // Перед гласной — «об»: «об обещаниях».
 const about = (topic: string) => `${/^[аоуэиАОУЭИ]/.test(topic) ? 'об' : 'о'} ${thirdPerson(topic)}`;
 
-function campShifts(before: GameState, factions: Faction[]) {
-  return before.factions.flatMap(group => {
-    const after = factions.find(entry => entry.id === group.id);
-    return after && CAMP_STANCE[group.id] ? [{ id: group.id, name: group.name, delta: after.relation - group.relation }] : [];
-  });
+function campShifts(before: GameState, factionRel: Record<string, number>) {
+  return before.factions.flatMap(group => CAMP_STANCE[group.id] && factionRel[group.id]
+    ? [{ id: group.id, name: group.name, delta: factionRel[group.id] }] : []);
 }
 
 export function press1978(input: Press1978Input): PressLine[] {
-  const { before, headline, success, act, election, finale, factions, resources } = input;
+  const { before, headline, success, act, election, finale, own } = input;
   // У развязки срока свой текст; прессу к ней не пристёгиваем.
   if (finale) return [];
   const civil = (text: string): PressLine[] => [{ outlet: PRESS_1978_OUTLETS.civil, headline: text }];
@@ -57,7 +57,7 @@ export function press1978(input: Press1978Input): PressLine[] {
   }
   if (!success) return civil(`${fact} ${T.failed}`);
 
-  const camps = campShifts(before, factions);
+  const camps = campShifts(before, own.factionRel);
   if (act === 'budget') {
     const gainers = camps.filter(camp => camp.delta >= MONEY_SHIFT).map(camp => camp.name);
     const losers = camps.filter(camp => camp.delta <= -MONEY_SHIFT).map(camp => camp.name);
@@ -78,13 +78,13 @@ export function press1978(input: Press1978Input): PressLine[] {
     const stance = CAMP_STANCE[moved.id][moved.delta < 0 ? 'against' : 'for'];
     return [{ outlet: PRESS_1978_OUTLETS[CAMP_OUTLET[moved.id] ?? 'civil'], headline: `${fact} ${moved.name} ${stance}.` }];
   }
-  const money = resources.economy - before.resources.economy;
+  const money = Math.round(own.resources.economy ?? 0);
   if (Math.abs(money) >= MONEY_SHIFT) {
     const n = Math.abs(money);
     const text = (money < 0 ? T.moneyLoss : T.moneyGain).replace('{n}', String(n)).replace('{points}', points(n));
     return [{ outlet: PRESS_1978_OUTLETS.business, headline: `${fact} ${text}` }];
   }
-  const reputation = resources.externalReputation - before.resources.externalReputation;
+  const reputation = Math.round(own.resources.externalReputation ?? 0);
   if (Math.abs(reputation) >= REPUTATION_SHIFT) {
     return [{ outlet: PRESS_1978_OUTLETS.trade, headline: `${fact} ${reputation > 0 ? T.reputationUp : T.reputationDown}` }];
   }

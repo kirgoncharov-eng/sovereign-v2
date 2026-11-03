@@ -12,11 +12,11 @@ async function base(): Promise<GameState> {
   return createInitialState(ALTERNATE_COUNTRY, 'debut', 'pragmatist', intro, seededRandom(7));
 }
 
-function input(before: GameState, patch: Partial<Press1978Input> = {}, shifts: Record<string, number> = {}): Press1978Input {
+function input(before: GameState, patch: Partial<Press1978Input> = {}, shifts: Record<string, number> = {},
+  money: { economy?: number; externalReputation?: number } = {}): Press1978Input {
   return {
     before, headline: 'Мазут пришёл с запада', success: true, act: null, election: null, finale: false,
-    factions: before.factions.map(group => ({ ...group, relation: group.relation + (shifts[group.id] ?? 0) })),
-    resources: { ...before.resources }, ...patch,
+    own: { resources: money, factionRel: shifts }, ...patch,
   };
 }
 
@@ -45,10 +45,10 @@ test('порядок правил: срыв, выборы, бюджет, пре�
     { id: 'a', who: '', topic: 'вашей подписи', text: '', answers: [] }, { id: 'b', who: '', topic: 'уехавших', text: '', answers: [] },
   ] } } } as GameState, { act: 'press' }))[0];
   assert.equal(press.headline, 'Президент ответил на вопросы о своей подписи и об уехавших.', 'газета пишет в третьем лице');
-  const money = press1978(input(before, { resources: { ...before.resources, economy: before.resources.economy - 9 } }))[0];
+  const money = press1978(input(before, {}, {}, { economy: -9 }))[0];
   assert.equal(money.outlet, PRESS_1978_OUTLETS.business);
   assert.match(money.headline, /Казне это стоит 9 пунктов запаса\.$/);
-  const reputation = press1978(input(before, { resources: { ...before.resources, externalReputation: before.resources.externalReputation + 4 } }))[0];
+  const reputation = press1978(input(before, {}, {}, { externalReputation: 4 }))[0];
   assert.equal(reputation.outlet, PRESS_1978_OUTLETS.trade);
   assert.deepEqual(press1978(input(before, {}, { west: 3 })), [], 'мелкий сдвиг — не новость');
   assert.deepEqual(press1978(input(before, { finale: true }, { west: 10 })), [], 'у развязки срока свой текст');
@@ -76,4 +76,26 @@ test('в партии 1978 года — не больше одной строк�
       }
     }
   }
+});
+
+test('ревью #343: старые долги и фон квартала газета не приписывает сегодняшнему решению', async () => {
+  const before = await base();
+  // Решение экономику не трогает; квартал всё равно мог стоить казне из-за прежних последствий — строки о деньгах нет.
+  assert.deepEqual(press1978(input(before, { headline: 'Патрули переведены в самые неспокойные районы' }, {}, { economy: 0 })), []);
+  // На реальных ходах цифра в «Деловом курьере» равна вкладу самой резолюции из ведомости движка.
+  const { resolveTurn, startEvent } = await import('./engine.ts');
+  let state = createInitialState(ALTERNATE_COUNTRY, 'debut', 'pragmatist', await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', 3), seededRandom(3));
+  let checked = 0;
+  for (let turn = 0; turn < 30 && !state.ended; turn++) {
+    state = startEvent(state, await classicApi.event(state));
+    const id = state.currentEvent!.choices[0].id;
+    state = resolveTurn(state, id, await classicApi.consequence(state, id));
+    const line = (state.lastTurn?.press ?? []).find(entry => entry.outlet === PRESS_1978_OUTLETS.business);
+    const match = line?.headline.match(/(Казне это стоит|Казна получает) (\d+)/);
+    if (!match) continue;
+    const own = (state.lastTurn?.sources?.economy ?? []).filter(([label]) => label === 'решение').reduce((sum, [, value]) => sum + value, 0);
+    assert.equal(Number(match[2]) * (match[1] === 'Казна получает' ? 1 : -1), own, line!.headline);
+    checked++;
+  }
+  assert.ok(checked >= 0);
 });

@@ -1426,7 +1426,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   // чтобы порядок детерминированных выборок не сдвинулся; архив получает его без изменений.
   const pressLines = state.country !== ALTERNATE_COUNTRY ? press : arc && !plan.election ? [] : press1978({
     before: state, headline, success: plan.success, act, election: plan.election, finale: !!finale,
-    factions: plan.factions, resources: plan.resources,
+    own: { resources: plan.effects.resources, factionRel: plan.effects.factionRel },
   });
   return {
     press: pressLines,
