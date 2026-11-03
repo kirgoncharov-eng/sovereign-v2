@@ -3,6 +3,8 @@
 // Не класть внутрь другой кнопки (вариантов решения): вложенные кнопки недопустимы.
 // Мышью карточка открывается наведением, касанием — нажатием; нажатие закрепляет её открытой.
 import { useId, useState } from "react";
+import { isOwnPerson } from "@/lib/game/engine.ts";
+import { OWN_PERSON_TEXT, OWN_LOYALTY_FLOOR } from "@/lib/content/staffing.ts";
 import { advisorProfile } from "@/lib/game/advisors.ts";
 
 const lowerFirst = text => text.charAt(0).toLowerCase() + text.slice(1);
@@ -18,6 +20,9 @@ export function AdvisorCard({ gs, advisor, id, children = null }) {
     <div id={id} className="sv-advisor-card" role="group" aria-label={`Карточка: ${advisor.name}`}>
       <div className="sv-advisor-card-role">{advisor.role}</div>
       {profile.bio && <p className="sv-advisor-card-bio">{profile.bio}</p>}
+      {isOwnPerson(gs, advisor) && <p data-own-person-card>
+        {profile.loyalty < OWN_LOYALTY_FLOOR ? OWN_PERSON_TEXT.legacy : OWN_PERSON_TEXT.card}
+      </p>}
       <dl>
         {profile.area && <><dt>Сильная сторона</dt><dd>{profile.area} · {stars(advisor.skill)} · {profile.skill}</dd></>}
         <dt>Лояльность</dt>

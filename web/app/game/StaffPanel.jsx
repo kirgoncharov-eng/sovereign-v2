@@ -5,6 +5,8 @@ import { useState } from "react";
 import {
   DOSSIER_COST, DOSSIER_PRESS_LOYALTY, DOSSIER_SECURITY_LOYALTY, candidatePool, dismissalOf, dossierBlocked, staffingBlocked, staffingOpen,
 } from "@/lib/game/staffing.ts";
+import { isOwnPerson } from "@/lib/game/engine.ts";
+import { OWN_PERSON_TEXT } from "@/lib/content/staffing.ts";
 import { RES_CONFIG } from "@/lib/game/data.ts";
 import { ALTERNATE_COUNTRY } from "@/lib/game/alternate-world.ts";
 
@@ -27,11 +29,11 @@ function Candidate({ gs, candidate, onHire, Portrait }) {
   const current = gs.advisors.find(advisor => advisor.id === candidate.seat);
   const leaving = current ? dismissalOf(gs, current) : null;
   const blocked = staffingBlocked(gs, candidate);
+  const is1978 = gs.country === ALTERNATE_COUNTRY;
   const camps = Object.entries(candidate.relation)
     .filter(([bloc]) => gs.factions.some(faction => faction.bloc === bloc))
-    .map(([bloc, value]) => `${BLOC_NAME[bloc] ?? bloc} ${signed(value)}`);
+    .map(([bloc, value]) => `${is1978 ? gs.factions.find(faction => faction.bloc === bloc).name : BLOC_NAME[bloc] ?? bloc} ${signed(value)}`);
   const price = costLine(candidate.cost);
-  const is1978 = gs.country === ALTERNATE_COUNTRY;
   const showPortrait = Boolean(Portrait && is1978);
   return (
     <div className="sv-staff-candidate">
@@ -50,6 +52,7 @@ function Candidate({ gs, candidate, onHire, Portrait }) {
         </div>
       )}
       <p className="sv-staff-bio">{candidate.bio}</p>
+      {isOwnPerson(gs, { origin: candidate.channel }) && <p data-own-person-card>{OWN_PERSON_TEXT.card}</p>}
       <div className="sv-staff-line">На место: {current ? `${current.name}, ${current.role.toLowerCase()}` : candidate.seat}</div>
       {price && <div className="sv-staff-line">Цена назначения: {price}</div>}
       {camps.length > 0 && <div className="sv-staff-line">Лагеря: {camps.join(", ")}</div>}
