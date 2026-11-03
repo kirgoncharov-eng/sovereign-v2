@@ -8,13 +8,12 @@ import { APP_VERSION, SAVE_VERSION } from '../lib/game/data.ts';
 import { newTerm, nextCase, startFromSeed, signOption, firstStep } from '../lib/client/chronicle.ts';
 import { CHRONICLE_GAME_KEY, encodeChronicle, parseChronicle } from '../lib/client/chronicle-save.ts';
 import { EMPTY_PERSONAL } from '../lib/client/chronicle-personal.ts';
-import { choicePrice } from '../lib/client/choice-price.ts';
+import { choiceOutcomes } from '../lib/client/choice-outcomes.ts';
+import { RESOURCE_KEYS } from '../lib/game/data.ts';
 import { parseSave } from '../lib/client/save.ts';
 
 const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6) ?? 'playtest/choice-price');
 mkdirSync(out, { recursive: true });
-const labels = { politicalCapital: 'Влияние', economy: 'Экономика', military: 'Силовики',
-  externalReputation: 'Репутация', internalLegitimacy: 'Легитимность', personalResource: 'Личный ресурс' };
 const summary = { checks: [], problems: [] };
 const browser = await chromium.launch();
 
@@ -41,27 +40,52 @@ async function openFixture(game, start) {
 const savedGame = page => page.evaluate(key => JSON.parse(localStorage.getItem(key)).snapshot.game, CHRONICLE_GAME_KEY);
 
 async function checkPrice(page, state, choice, name, { select = true } = {}) {
+  await page.waitForTimeout(1800);
   if (select) {
     const row = page.locator('button.sv-choice-row').filter({ has: page.getByText(choice.text, { exact: true }) });
+    if (!choice.deal?.pure) {
+      const label = await row.innerText();
+      assert.match(label, choice.advisor ? /шанс исполнения \d+%/ : /риск срыва/,
+        'риск обозначает исполнение, а не политическую цену');
+    }
+    await row.evaluate(element => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
     await row.tap();
   }
-  const price = page.getByRole('group', { name: 'Цена выбранного решения' });
+  const price = page.getByRole('group', { name: 'Последствия выбранного решения' });
   await price.waitFor();
   assert.equal(await price.getAttribute('data-choice-id'), choice.id);
-  const shown = await price.innerText(), expected = choicePrice(state, choice);
-  const text = delta => Object.entries(delta).map(([key, value]) => `${labels[key]} −${-value}`).join('; ') || 'без потерь опор';
-  assert.ok(shown.includes(`При исполнении: ${text(expected.success)}.`));
-  if (expected.failure !== null) assert.ok(shown.includes(`При срыве: ${text(expected.failure)}.`));
-  else assert.ok(!shown.includes('При срыве:'));
+  const shown = await price.innerText(), expected = choiceOutcomes(state, choice);
+  const signed = value => value === 0 ? '0' : `${value < 0 ? '−' : '+'}${Math.abs(value)}`;
+  const cells = await price.locator('tbody tr').evaluateAll(rows => rows.map(row =>
+    [...row.querySelectorAll('td')].map(cell => cell.textContent)));
+  assert.deepEqual(cells, RESOURCE_KEYS.map(key => [signed(expected.success.resources[key] ?? 0),
+    ...(expected.failure ? [signed(expected.failure.resources[key] ?? 0)] : [])]));
+  if (expected.reason && expected.failure) assert.ok(shown.includes(expected.reason));
   assert.ok(shown.includes(`Риск срыва исполнения: ${expected.failurePercent}%.`));
   const sign = page.getByRole('button', { name: /^Подписать/ });
   await sign.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1800);
+  await price.scrollIntoViewIfNeeded();
+  await price.evaluate(element => {
+    const header = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0;
+    let parent = element.parentElement;
+    while (parent && !(/auto|scroll/.test(getComputedStyle(parent).overflowY) && parent.scrollHeight > parent.clientHeight)) {
+      parent = parent.parentElement;
+    }
+    const scroller = parent ?? document.scrollingElement;
+    scroller.scrollTo({ top: scroller.scrollTop + element.getBoundingClientRect().top - header - 12, behavior: 'instant' });
+  });
   const geometry = await price.evaluate(element => {
     const box = element.getBoundingClientRect(), header = document.querySelector('header')?.getBoundingClientRect();
     return { top: box.top, bottom: box.bottom, header: header?.bottom ?? 0, height: innerHeight,
       wide: document.documentElement.scrollWidth > document.documentElement.clientWidth };
   });
-  assert.ok(!geometry.wide && geometry.top >= geometry.header && geometry.bottom <= geometry.height, JSON.stringify(geometry));
+  assert.ok(!geometry.wide && geometry.top >= geometry.header, JSON.stringify(geometry));
+  const table = await price.locator('table').boundingBox();
+  assert.ok(table && table.y >= geometry.header && table.y + table.height <= geometry.height, 'обе колонки таблицы читаются под шапкой');
+  await sign.scrollIntoViewIfNeeded();
+  const signBox = await sign.boundingBox();
+  assert.ok(signBox && signBox.y >= geometry.header && signBox.y + signBox.height <= geometry.height, 'подпись доступна после чтения');
   const after = await savedGame(page);
   assert.deepEqual(after.resources, state.resources, 'выбор до подписи не списывает опоры');
   assert.equal(after.turn, state.turn);
@@ -84,7 +108,7 @@ try {
       assert.ok(choice, 'видимый вариант принадлежит текущему делу');
       await checkPrice(fixture.page, fixture.state, choice, `decision-${turn + 1}`);
       await fixture.page.getByRole('button', { name: 'Отменить выбор' }).tap();
-      assert.equal(await fixture.page.getByRole('group', { name: 'Цена выбранного решения' }).count(), 0);
+      assert.equal(await fixture.page.getByRole('group', { name: 'Последствия выбранного решения' }).count(), 0);
       await fixture.context.close();
       state = await signOption(state, firstStep(state).options[0].key);
     }
@@ -98,7 +122,7 @@ try {
   await page.getByRole('button', { name: /^(Собрать совет|Обсудить подпись)$/ }).tap();
   await page.waitForFunction(key => JSON.parse(localStorage.getItem(key)).snapshot.game.currentEvent.council?.length > 0, CHRONICLE_GAME_KEY);
   const afterCouncil = await savedGame(page);
-  assert.equal(await page.getByRole('group', { name: 'Цена выбранного решения' }).getAttribute('data-choice-id'), selected.id);
+  assert.equal(await page.getByRole('group', { name: 'Последствия выбранного решения' }).getAttribute('data-choice-id'), selected.id);
   await checkPrice(page, afterCouncil, selected, 'after-council', { select: false });
   const proposal = afterCouncil.currentEvent.council[0];
   const { sign } = await checkPrice(page, afterCouncil, proposal, 'council-choice');

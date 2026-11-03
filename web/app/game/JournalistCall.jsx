@@ -1,14 +1,19 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { journalistReply } from '@/lib/game/journalist-call.ts';
 import { breaches } from '@/lib/game/people.ts';
 import { PeopleText } from './PeopleText.jsx';
 import { artSource, HISTORICAL_SCENE_ART } from '@/lib/client/historical-art.ts';
+import { duckForCall } from '@/lib/client/fx.ts';
 
 export default function JournalistCall({ gs, onFinish, stamping, renderPromises, Portrait }) {
   const [selected, setSelected] = useState(null);
   const [asked, setAsked] = useState(false);
+  useEffect(() => {
+    duckForCall(true);
+    return () => duckForCall(false);
+  }, []);
   const event = gs.currentEvent;
   const caller = gs.keyFigures.find(person => person.id === event.call.figure);
   const faction = gs.factions.find(group => group.id === caller?.faction);

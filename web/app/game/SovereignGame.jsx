@@ -50,7 +50,10 @@ import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/da
 import { installErrorReporting } from "@/lib/client/errors.ts";
 import { resultCard } from "@/lib/client/card.ts";
 import { runScore } from "@/lib/game/daily.ts";
-import { clickFx, outcomeFx, pageFx, setSound, soundOn, stampFx, startCabinetAmbient, stopCabinetAmbient, subscribeSound, thunderFx } from "@/lib/client/fx.ts";
+import {
+  clickFx, duckForCall, handsetFx, outcomeFx, pageFx, setSound, soundOn, stampFx,
+  startCabinetAmbient, startTitleTheme, stopCabinetAmbient, stopTitleTheme, subscribeSound, thunderFx,
+} from "@/lib/client/fx.ts";
 import { PORTRAIT_H, PORTRAIT_W, portraitCanvas } from "@/lib/client/portrait.ts";
 import { drawFlagAt, drawSquare, squareCaption } from "@/lib/client/square.ts";
 import WorldPanel from "./WorldPanel.jsx";
@@ -412,7 +415,8 @@ export function ChoicePreview({ gs, c, debated = false }) {
       )}
       <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:exact ? 8 : 0 }}>
-        {c.deal?.pure ? <span style={{ fontFamily:serif }}>{c.hint}</span> : <><ChanceBadge p={successChance(gs, c)} exact={exact}/> · <span style={{ fontFamily:serif }}>{c.hint}</span></>}
+        {c.deal?.pure ? <span style={{ fontFamily:serif }}>{c.hint}</span> : <><ChanceBadge p={successChance(gs, c)} exact={exact}
+          execution={gs.country === ALTERNATE_COUNTRY}/> · <span style={{ fontFamily:serif }}>{c.hint}</span></>}
       </div>
       {exact && <ResourceChips delta={fx.resources}/>}
       {(exact || !debated) && <CostReasons gs={gs} c={c} fx={fx}/>}
@@ -762,7 +766,24 @@ export function BudgetPanel({ gs, onFinish, onSkip, stamping }) {
 export function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
   const [approach, setApproach] = useState(null);
   const [secs, setSecs] = useState(0);
-  useEffect(() => { const t = setInterval(() => setSecs(x => x + 1), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    duckForCall(true);
+    const t = setInterval(() => setSecs(x => x + 1), 1000);
+    return () => {
+      clearInterval(t);
+      duckForCall(false);
+    };
+  }, []);
+  const handleHang = () => {
+    handsetFx(false);
+    duckForCall(false);
+    onHang?.();
+  };
+  const handleFinish = (app, end) => {
+    handsetFx(false);
+    duckForCall(false);
+    onFinish?.(app, end);
+  };
   const ok = approach && approachWorks(call.trait, approach);
   const isHistorical = gs?.country === ALTERNATE_COUNTRY;
   const row = { display:"block", width:"100%", textAlign:"left", padding:"12px 22px 12px 48px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" };
@@ -784,7 +805,7 @@ export function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
             </button>
           ))}
           <div style={{ padding:"10px 22px 0" }}>
-            <button onClick={onHang} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+            <button onClick={handleHang} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
               Не брать трубку
             </button>
           </div>
@@ -796,7 +817,7 @@ export function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
               <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.5, fontStyle:"italic", color:ok ? G.grn : G.red, marginTop:4 }}>{callReply(seed, call, approach, ok)}.</div>
             </div>
             {CALL_ENDINGS.map((e, i) => (
-              <button key={e.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => onFinish(approach, e.id)}>
+              <button key={e.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => handleFinish(approach, e.id)}>
                 {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{e.text}</span>
               </button>
             ))}
@@ -864,7 +885,7 @@ export function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
           </button>
         ))}
         <div style={{ padding:"10px 22px 0" }}>
-          <button onClick={onHang} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
+          <button onClick={handleHang} style={{ background:"transparent", border:"none", padding:0, fontFamily:narrow, fontSize:15, color:G.tx3, textDecoration:"underline dotted" }}>
             Не брать трубку
           </button>
         </div>
@@ -876,7 +897,7 @@ export function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
             <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.5, fontStyle:"italic", color:ok ? G.grn : G.red, marginTop:4 }}>{callReply(seed, call, approach, ok)}.</div>
           </div>
           {CALL_ENDINGS.map((e, i) => (
-            <button key={e.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => onFinish(approach, e.id)}>
+            <button key={e.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => handleFinish(approach, e.id)}>
               {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{e.text}</span>
             </button>
           ))}
@@ -1356,11 +1377,16 @@ export function SpecialHeader({ gs, event }) {
 
 // Без совета шанс назван словами: «надёжно», «как повезёт», — точный процент знает советник.
 const chanceWord = pct => (pct >= 85 ? "низкий риск" : pct >= 70 ? "умеренный риск" : pct >= 55 ? "высокий риск" : "очень высокий риск");
-function ChanceBadge({ p, exact = true }) {
+function ChanceBadge({ p, exact = true, execution = false }) {
   const pct = Math.round(p * 100);
   // Цвет совпадает со словом (#277): «низкий» — зелёный, «умеренный» — янтарный, «высокий» и выше — красный.
   const c = pct >= 85 ? G.grn : pct >= 70 ? G.amb : G.red;
-  return <span title="Вероятность благоприятного исхода. Зависит от советника, отношений и ресурсов; решение может состояться и обернуться скандалом." style={{ color:c, fontWeight:700 }}>{exact ? `шанс успеха ${pct}%` : chanceWord(pct)}</span>;
+  const label = exact ? `${execution ? "шанс исполнения" : "шанс успеха"} ${pct}%`
+    : `${chanceWord(pct)}${execution ? " срыва" : ""}`;
+  const description = execution
+    ? "Вероятность исполнения решения. Политическая цена указана отдельно: даже исполненное решение может стоить поддержки."
+    : "Вероятность благоприятного исхода. Зависит от советника, отношений и ресурсов; решение может состояться и обернуться скандалом.";
+  return <span title={description} style={{ color:c, fontWeight:700 }}>{label}</span>;
 }
 
 const stars = n => "★".repeat(n) + "☆".repeat(3 - n);
@@ -2383,12 +2409,26 @@ function Setup({ onStart, saved, onResume, chronicle = false }) {
     if (soundOn()) thunderFx();
   }, []);
 
+  useEffect(() => {
+    if (soundEnabled) {
+      startTitleTheme();
+    } else {
+      stopTitleTheme();
+    }
+    return () => {
+      stopTitleTheme();
+    };
+  }, [soundEnabled]);
+
   const toggleSound = () => {
     const next = !soundEnabled;
     setSound(next);
     if (next) {
       clickFx();
       thunderFx();
+      startTitleTheme();
+    } else {
+      stopTitleTheme();
     }
   };
 
@@ -2413,6 +2453,7 @@ function Setup({ onStart, saved, onResume, chronicle = false }) {
         : baseState;
       const payload = { st: daily ? { ...st, daily: daily.date, dailyMoves: [] } : st, quick: quick || !!daily };
 
+      stopTitleTheme();
       if (!daily && c === ALTERNATE_COUNTRY && !chronicle) {
         setLoading(false);
         setPrologue(payload);
@@ -2482,8 +2523,8 @@ function Setup({ onStart, saved, onResume, chronicle = false }) {
                 role="button"
                 tabIndex={0}
                 className={styles.titleContinueCard}
-                onClick={() => { clickFx(); onResume(); }}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { clickFx(); onResume(); } }}
+                onClick={() => { clickFx(); stopTitleTheme(); onResume(); }}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { clickFx(); stopTitleTheme(); onResume(); } }}
                 aria-label="Продолжить сохранённую игру"
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>

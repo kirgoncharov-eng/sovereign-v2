@@ -17,6 +17,7 @@ import { stepPromises } from "./promises.ts";
 import { stepLaws } from "./laws.ts";
 import { stepLivingWorld, type LivingWorld } from "./living-world.ts";
 import { initiativePactWaiting, initiativeResourcesBefore, initiativeTurnSources, retainInitiativeDebts } from './initiatives.ts';
+import { executionRisk, type ExecutionContext } from './execution-risk.ts';
 import { ensureSecretary, finishSecretaryTurn, secretaryDueEffects, secretaryPreventsLeak } from './secretary.ts';
 import { electionKind, isTermEnd, nextReign, pathEnd, reignOf } from "./terms.ts";
 import type {
@@ -429,33 +430,41 @@ export function rollSuccess(state: ChanceState & Pick<GameState, "seed" | "turn"
   return seededRandom(hashSeed(state.seed ?? 0, state.turn, choice.id, choice.text))() < successChance(state, choice);
 }
 
-export function choiceEffects(state: Pick<GameState, "ideo" | "factions"> & Partial<Pick<GameState, "pacts" | "betrayals">>, choice: Choice, failed = false) {
+export function choiceEffects(
+  state: Pick<GameState, "ideo" | "factions"> & Partial<Pick<GameState, "pacts" | "betrayals">> & ExecutionContext,
+  choice: Choice, failed = false,
+) {
   const res: Record<string, number> = {};
   const rel: Record<string, number> = {};
   const appr: Record<string, number> = {};
   const ideo = IDEOLOGY_ACTIONS[state.ideo];
-  addDelta(res, choice.arc?.effect);
-  addDelta(res, choice.policyEffect);
+  const risk = failed ? executionRisk(state, choice) : null;
+  const stance = risk?.stance ?? choice.stance;
+  if (risk) addDelta(res, risk.resources);
+  else {
+    addDelta(res, choice.arc?.effect);
+    addDelta(res, choice.policyEffect);
+  }
   for (const tag of choice.deal?.pure ? [] : choice.tags) {
     const a = ACTIONS[tag];
     if (!a) continue;
-    if (!choice.policyEffect) addDelta(res, a.res);
-    if (ideo.aligned.includes(tag)) addDelta(res, IDEOLOGY_BONUS);
-    if (ideo.opposed.includes(tag)) addDelta(res, IDEOLOGY_PENALTY);
+    if (!choice.policyEffect && !risk) addDelta(res, a.res);
+    if (!risk && ideo.aligned.includes(tag)) addDelta(res, IDEOLOGY_BONUS);
+    if (!risk && ideo.opposed.includes(tag)) addDelta(res, IDEOLOGY_PENALTY);
     for (const f of state.factions) {
-      if (!choice.stance) addDelta(rel, { [f.id]: a.rel[f.bloc] });
-      addDelta(appr, { [f.id]: a.appr?.[f.bloc] });
+      if (!stance) addDelta(rel, { [f.id]: a.rel[f.bloc] });
+      if (!risk) addDelta(appr, { [f.id]: a.appr?.[f.bloc] });
     }
   }
   // Законы и подобные им решения задевают тех, кого касаются по сути: союзный договор злит не «патриотов вообще»,
   // а Запад и либералов. Тогда отношения берутся из позиции сторон, а не из общих тегов.
-  if (choice.stance) for (const f of state.factions) addDelta(rel, { [f.id]: choice.stance[f.bloc] });
+  if (stance) for (const f of state.factions) addDelta(rel, { [f.id]: stance[f.bloc] });
   for (const k of Object.keys(res)) if (res[k] < 0) res[k] *= COSTS.weight;
   // Качество советника: потери умножаются на cost, выгода — на gain.
   const skill = choice.advisor ? ADVISOR_SKILL[choice.advisor.skill] : null;
   if (skill) for (const k of Object.keys(res)) res[k] *= res[k] < 0 ? skill.cost : skill.gain;
-  // Провал: выгода почти не наступает, а цена растёт.
-  if (failed) {
+  // Общий срыв: польза уменьшается, цена растёт. Авторский профиль уже описывает собственные потери сцены.
+  if (failed && !risk) {
     for (const k of Object.keys(res)) res[k] *= res[k] < 0 ? 1.15 : 0.5;
     for (const k of Object.keys(rel)) if (rel[k] > 0) rel[k] *= 0.5;
   }

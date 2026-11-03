@@ -55,6 +55,7 @@ await page.screenshot({ path: shot("0-form") });
 
 const timeline = [];
 const problems = [];
+const caseArtChecks = [];
 let prologueAfterElection = false, firstDecisionMs = null, stuck = false, memoir = false, resumeChecked = false;
 const resume = { sameRun: null, foreignSnapshotKept: null, formKeptWithoutSnapshot: null, formKeptWithForeign: null };
 const leader = () => page.evaluate(() => {
@@ -173,6 +174,17 @@ if (opened) {
     const text = await desk.innerText();
     const title = (await desk.locator("h2").first().innerText()).slice(0, 50);
     decisions++;
+    if (SHOT_DECISIONS.includes(decisions)) {
+      const art = desk.locator('[data-chronicle-case-art] img[data-scene-art]');
+      try {
+        await art.waitFor({ timeout: 5000 });
+        await page.waitForFunction(() => {
+          const image = document.querySelector('[data-chronicle-case-art] img');
+          return image?.complete && image.naturalWidth > 0;
+        }, null, { timeout: 5000 });
+        caseArtChecks.push({ decision: decisions, src: await art.getAttribute('data-scene-art') });
+      } catch { problems.push(`нет загруженной иллюстрации дела ${decisions}: ${title}`); }
+    }
     if (SHOT_DECISIONS.includes(decisions)) await page.screenshot({ path: shot(`decision-${decisions}`), fullPage: true });
     if (/УТВЕРДИТЬ БЮДЖЕТ/.test(text)) {
       timeline.push(`${decisions} · бюджет · ${title}`);
@@ -229,7 +241,7 @@ problems.push(
   ...(resume.formKeptWithForeign === false ? ["чужой снимок ленты подменил кандидата в анкете"] : []),
 );
 const summary = { decisions: timeline.filter(line => /^\d/.test(line)).length, memoir, firstDecisionMs, prologueAfterElection, geometry,
-  saved: save?.screen ?? null, resume, problems, timeline };
+  saved: save?.screen ?? null, resume, caseArtChecks, problems, timeline };
 writeFileSync(join(OUT, "summary.json"), JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));
 process.exit(problems.length ? 1 : 0);

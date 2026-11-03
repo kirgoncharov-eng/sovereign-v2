@@ -63,6 +63,13 @@
 .fall { margin: 18px 0 10px; padding: 14px 14px; background: #2f2a22; color: #eee5ca; font: 17px/1.7 var(--font-serif); }
 .ledger strong { display: block; color: #a02f24; font-weight: 700; }
 .ledger { margin: 4px 0 6px; font: 15px var(--font-narrow); color: #6a604c; letter-spacing: .02em; }
+.ledger > p { margin: 0; }
+.ledgerDetails { margin-top: 6px; border-left: 2px solid #c8bda5; padding-left: 12px; }
+.ledgerDetails summary { cursor: pointer; min-height: 44px; align-content: center; color: #514632; }
+.ledgerDetails summary:focus-visible { outline: 2px solid #7b6340; outline-offset: 2px; }
+.ledgerDetails > div { margin: 0 0 14px; }
+.ledgerDetails h3 { margin: 0 0 4px; font: inherit; font-weight: 700; }
+.ledgerDetails ul { margin: 0; padding-left: 20px; line-height: 1.5; }
 
 .more { text-align: center; font: 18px var(--font-narrow); color: #7a6f57; margin: 14px 0; letter-spacing: .3em; }
 
@@ -70,6 +77,8 @@
   animation: appear .6s ease both; }
 .case h2, .memoir h2 { font: 700 clamp(26px, 6vw, 32px)/1.15 var(--font-serif); margin: 6px 0 12px; }
 .case p { font: 16px/1.7 var(--font-serif); margin: 0 0 12px; }
+.caseArt { margin: 0 0 14px; border: 1px solid #6f6550; }
+.caseArt figcaption { padding: 5px 8px; border-top: 1px solid #6f6550; font: 14px/1.35 var(--font-narrow); color: #5e5446; }
 .question { padding: 10px 12px; background: #dcd1b0; border-left: 3px solid #2f2a22; font-style: italic; }
 .question small { font-style: normal; }
 .options { display: grid; gap: 8px; margin-top: 14px; }
@@ -151,8 +160,10 @@
 /* Справка или список поверх дела: таймер ответа пресс-конференции (.sv-timer из /game) стоит, а не отвечает за игрока. */
 .timersPaused :global(.sv-timer) { animation-play-state: paused !important; }
 
-/* #302 · этап 4: хроника внутри игры — выход в меню и итоги на общем экране. */
-.menu { margin-top: 8px; min-height: 36px; padding: 4px 12px; background: transparent; border: 1px solid #8d8166;
+/* #302 · этап 4: хроника внутри игры — выход в меню, переключатель звука и итоги на общем экране. */
+.mastheadActions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.menu { min-height: 36px; padding: 4px 12px; background: transparent; border: 1px solid #8d8166;
   font: 14px var(--font-narrow); color: #4f483a; letter-spacing: .04em; }
+.menu[aria-pressed="true"] { background: #ded3b3; border-color: #6f6550; color: #2f2a22; }
 .again button { display: block; width: 100%; text-align: center; padding: 13px; border: 2px solid #2f2a22; background: #2f2a22;
   color: #eee5ca; font: 700 18px var(--font-narrow); letter-spacing: .04em; }
