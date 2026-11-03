@@ -24,6 +24,7 @@ export const HISTORICAL_SCENE_ART = {
   protest: { src: '/art/scenes/protest.webp', caption: 'Собрание у университета' },
   ballot: { src: '/art/scenes/ballot.webp', caption: 'Подсчёт избирательных бюллетеней' },
   wages: { src: '/art/gemini-next/wages-gate.webp', caption: 'Проходная тракторного завода зимой' },
+  wagesAudit: { src: '/art/gemini-next/wages-audit.webp', caption: 'Ревизоры проверяют документы в заводоуправлении' },
   electionNight: { src: '/art/gemini-next/election-night.webp', caption: 'Кабинет президента в ночь подсчёта голосов' },
   electionDefeat: { src: '/art/gemini-next/election-defeat.webp', caption: 'Штаб кампании в полночь после поражения' },
   parliamentHall: { src: '/art/gemini-next/parliament-hall.webp', caption: 'Правительственная ложа в зале парламента' },
@@ -108,7 +109,13 @@ const TITLE_ART: Record<string, HistoricalArt> = Object.fromEntries([
 
 export function historicalEventArt(country: string, event: GameEvent, scene: SceneKey): HistoricalArt | null {
   if (country !== ALTERNATE_COUNTRY) return null;
-  if (event.beat?.arcId === 'alt_contracts') return HISTORICAL_SCENE_ART.archive;
+  if (event.beat?.arcId === 'alt_contracts') {
+    if (event.title === 'Опись из заводской бухгалтерии') return HISTORICAL_SCENE_ART.wagesAudit;
+    if (event.title === 'Дело выданного аванса' || event.title === 'Копия без закрытой страницы') {
+      return HISTORICAL_SCENE_ART.export;
+    }
+    return HISTORICAL_SCENE_ART.archive;
+  }
   if (event.budget) return HISTORICAL_SCENE_ART.budget;
   if (event.card && CARD_ART[event.card]) return CARD_ART[event.card];
   const bill = event.card?.match(/^law:\d+:(alt_export_guarantee|alt_open_orders)$/)?.[1];

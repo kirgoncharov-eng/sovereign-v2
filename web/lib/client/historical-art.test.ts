@@ -28,8 +28,8 @@ test('all mapped WebP files exist within the image budgets', () => {
     HISTORICAL_ADDITIONAL_FIGURE_ART, HISTORICAL_ADVISOR_ART, HISTORICAL_LEADER_ART,
     HISTORICAL_SECRETARY_ART, HISTORICAL_ADVISOR_REPLACEMENT_ART, HISTORICAL_WORLD_PEOPLE_ART,
     HISTORICAL_PRESS_ART, HISTORICAL_FIGURE_SUCCESSOR_ART].flatMap(group => Object.values(group).map(art => art.src));
-  assert.equal(paths.length, 86);
-  assert.equal(new Set(paths).size, 85); // wages and wagesGate share wages-gate.webp
+  assert.equal(paths.length, 87);
+  assert.equal(new Set(paths).size, 85); // wages/wagesGate share wages-gate.webp, scene wagesAudit shares wages-audit.webp with outcome
   let bytes = 0;
   for (const src of paths) {
     const file = new URL(`../../public${src}`, import.meta.url);
@@ -503,6 +503,33 @@ test('budget, terms, and factory strike resolve dedicated 1978 scenes while unma
     assert.equal(historicalEventArt(country, budgetEvent, 'cabinet'), null);
     assert.equal(historicalEventArt(country, termsEvent, 'stamp'), null);
     assert.equal(historicalEventArt(country, strikeEvent, 'protest'), null);
+  }
+});
+
+test('alt_contracts beats resolve distinct contextual scenes instead of repeating archive', async () => {
+  const base = await fresh();
+  const event = await classicApi.event(base);
+  const beat = { arcId: 'alt_contracts', arcTitle: 'Четвёртый экземпляр', turn: 1, episode: 1, total: 3 };
+
+  const auditEvent = { ...event, beat, title: 'Опись из заводской бухгалтерии' };
+  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, auditEvent, 'archive'), HISTORICAL_SCENE_ART.wagesAudit);
+
+  const advanceEvent = { ...event, beat, title: 'Дело выданного аванса' };
+  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, advanceEvent, 'archive'), HISTORICAL_SCENE_ART.export);
+
+  const retoolEvent = { ...event, beat, title: 'Копия без закрытой страницы' };
+  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, retoolEvent, 'archive'), HISTORICAL_SCENE_ART.export);
+
+  const pageEvent = { ...event, beat: { ...beat, turn: 2, episode: 2 }, title: 'Цена отсутствующей страницы' };
+  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, pageEvent, 'archive'), HISTORICAL_SCENE_ART.archive);
+
+  const fourthEvent = { ...event, beat: { ...beat, turn: 15, episode: 3 }, title: 'Четвёртый экземпляр' };
+  assert.deepEqual(historicalEventArt(ALTERNATE_COUNTRY, fourthEvent, 'archive'), HISTORICAL_SCENE_ART.archive);
+
+  for (const country of LEGACY_COUNTRIES) {
+    assert.equal(historicalEventArt(country, auditEvent, 'archive'), null);
+    assert.equal(historicalEventArt(country, advanceEvent, 'archive'), null);
+    assert.equal(historicalEventArt(country, pageEvent, 'archive'), null);
   }
 });
 
