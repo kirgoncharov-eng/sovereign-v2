@@ -65,7 +65,7 @@ test('доступное предложение выбирается после 
   const low = { ...state, resources: { ...state.resources, politicalCapital: 7 } };
   assert.ok(governmentBriefs(low).find(brief => brief.id === 'procurement')!.options.every(action => action.blocked));
   assert.equal(actionableGovernmentProposals(low)[0].id, 'exports');
-  assert.equal(openStops(low).find(stop => stop.key === 'government-proposals')!.token, 'exports,housing');
+  assert.equal(openStops(low).find(stop => stop.key === 'government-proposals')!.token, 'exports,housing,procurement');
 
   const crisis = structuredClone(state);
   crisis.resources.politicalCapital = 15;
@@ -79,6 +79,30 @@ test('доступное предложение выбирается после 
   const procurement = governmentBriefs(crisis).find(brief => brief.id === 'procurement')!;
   assert.equal(procurement.options[0].cost.politicalCapital, -3, 'цена проверки не является прибавкой влияния');
   assert.equal(JSON.stringify(crisis), before, 'показ и отбор не меняют состояние');
+});
+
+test('цена не меняет версию отложенной папки; новое предложение и первое предупреждение остаются поводом остановиться', async () => {
+  const initial = await proposalFixture();
+  // Опора уже у порога: этот тест не смешивает изменение цены с законным первым напоминанием об опасности.
+  const state = { ...initial, resources: { ...initial.resources, economy: 15 } };
+  const proposal = openStops(state).find(stop => stop.key === 'government-proposals')!;
+  const memory = rememberStop(state, proposal, EMPTY_STOPS);
+  for (const politicalCapital of [7, 60, 7, 60]) {
+    const next = { ...state, turn: state.turn + 1, resources: { ...state.resources, politicalCapital } };
+    const current = openStops(next).find(stop => stop.key === proposal.key)!;
+    assert.ok(current, 'хотя бы одна программа остаётся доступной');
+    assert.equal(current.token, proposal.token, 'набор программ не изменился');
+    assert.ok(!dueStops(next, [current], memory).length, 'колебания цены не создают новую остановку');
+  }
+  const smaller = structuredClone(state);
+  smaller.world!.government!.programs.find(program => program.id === 'procurement')!.status = 'completed';
+  const previous = openStops(smaller).find(stop => stop.key === proposal.key)!;
+  assert.ok(dueStops(state, [proposal], rememberStop(smaller, previous, EMPTY_STOPS)).length,
+    'новая предложенная программа меняет версию');
+
+  const calm = openStops(initial).find(stop => stop.key === proposal.key)!;
+  assert.ok(dueStops(state, [proposal], rememberStop(initial, calm, EMPTY_STOPS)).length,
+    'первое предупреждение об опоре у порога не подавлено');
 });
 
 test('после стройки предлагается доступное продолжение, а текущий доклад не требует новой подписи', async () => {
