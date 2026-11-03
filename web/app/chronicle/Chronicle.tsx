@@ -21,7 +21,7 @@ import { contemporaries, type Rival } from "@/lib/client/chronicle-rivals.ts";
 import {
   EMPTY_STOPS, dueStops, letterStop, openStops, rememberStop, stillWaiting, storyStops, type Stop, type StopMemory,
 } from "@/lib/client/chronicle-stops.ts";
-import { governmentBriefs } from "@/lib/client/government-brief.ts";
+import { actionableGovernmentProposals, governmentBriefs } from "@/lib/client/government-brief.ts";
 import ResolutionOutcomes from "@/app/game/ResolutionOutcomes.tsx";
 import { historicalEventArt } from "@/lib/client/historical-art.ts";
 import { sceneOf } from "@/lib/content/scene-map.ts";
@@ -763,7 +763,9 @@ function StopBody({ game, stop, view, onView, onAct, onStory, onHire, onPillar, 
   // Из письма можно перейти к связанному поручению; «к главному делу» — закончить остановку.
   const onOpen = (key: string) => key === "secretary" ? onDone() : onView(key);
   if (stop.key === "government-proposals" && !view) {
-    const first = governmentBriefs(game).find(brief => brief.status === "proposed")?.id ?? "energy";
+    const briefs = governmentBriefs(game);
+    const first = actionableGovernmentProposals(game)[0]?.id
+      ?? briefs.find(brief => brief.status === "proposed")?.id ?? "energy";
     return <article className="sv-paper sv-incoming-project">
       <h2>{stop.title}</h2>
       <LetterText text={stop.message!.text} />

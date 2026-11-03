@@ -1,7 +1,7 @@
 // «Хроника срока» (#302): когда лента останавливается. Только представление: какие уже существующие обращения
 // ждут ответа игрока и в каком порядке их показать. Ни цен, ни последствий здесь нет — их считает движок.
 // Правило: лента стоит, если промолчать — значит изменить игру. Опись — docs/chronicle-inventory.md.
-import { governmentBriefs } from './government-brief.ts';
+import { actionableGovernmentProposals } from './government-brief.ts';
 import { presidentialMessages, type PresidentialMessage } from './presidential-inbox.ts';
 import { CRISIS_THRESHOLD, RESOURCE_KEYS } from '../game/data.ts';
 import { initiativeOptions } from '../game/initiatives.ts';
@@ -67,15 +67,20 @@ export function openStops(state: GameState): Stop[] {
     ...(message.deadline !== undefined ? { deadline: message.deadline } : {}), message,
   }));
   // Предложения правительства в `/game` помечены «для сведения», но без ответа программа не запустится.
-  // Новое предложение — новая остановка: версия — набор ещё не запущенных программ.
-  const proposed = governmentBriefs(state).filter(brief => brief.status === 'proposed').map(brief => brief.id).sort();
+  // Если все подписи заблокированы квотой, ценой или загрузкой кабинета, отвечать сейчас не на что.
+  // Чтение через папку остаётся доступным; обязательные письма со сроком от этого фильтра не зависят.
+  const actionable = actionableGovernmentProposals(state);
+  const proposed = actionable.filter(brief => brief.id !== 'housing' || !state.world!.government?.housingNext)
+    .map(brief => brief.id).sort();
   const cabinet = messages.find(message => message.key === 'government-proposals');
   const proposals: Stop[] = cabinet && proposed.length ? [{
     key: cabinet.key, token: proposed.join(','), kind: 'proposal', title: cabinet.title, person: cabinet.person, message: cabinet,
   }] : [];
-  const housing = messages.filter(message => message.key === 'housing-next').map(message => ({
-    key: message.key, token: message.token, kind: 'proposal' as const, title: message.title, person: message.person, message,
-  }));
+  // Продолжение стройки имеет своё письмо. Доклад о текущей/законченной работе новой подписи не требует.
+  const housing = messages.filter(message => message.key === 'housing-next' && actionable.some(brief => brief.id === 'housing'))
+    .map(message => ({
+      key: message.key, token: message.token, kind: 'proposal' as const, title: message.title, person: message.person, message,
+    }));
   // Кадровый резерв обновляется раз в год: новый резерв — одна остановка. Без решения кресла остаются за прежними людьми.
   const staff: Stop[] = staffingOpen(state) && candidatePool(state).length ? [{
     key: 'staffing', token: `year:${Math.floor(state.turn / POOL_TURNS)}`, kind: 'staff', title: 'Кадровый резерв', person: '',
