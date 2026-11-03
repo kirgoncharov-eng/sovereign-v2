@@ -1,16 +1,16 @@
-import { campaignCopy, campaignText } from "./alternate-world.ts";
+import { ALTERNATE_COUNTRY, campaignCopy, campaignText } from "./alternate-world.ts";
 // Кадры: президент сам собирает окружение. Раз в год в резерве три кандидата из разных каналов —
 // два «серьёзных» и один абсурдный (родня или человек со стороны). Назначение — замена: кандидат садится в кресло
 // одного из советников, прежний уходит. Это кадровое решение квартала: стоит ресурсов и меняет отношения лагерей,
 // а уволенный обижает свой лагерь — нелояльный уходит со скандалом.
 import { ADVISOR_ROLES } from "./data.ts";
 import { freshPersonName } from "./classic.ts";
-import { hashSeed, isFemaleName, loyaltyOf, seededRandom } from "./engine.ts";
+import { hashSeed, isFemaleName, loyaltyOf, seededRandom, shiftedLoyalty } from "./engine.ts";
 import { DESK_FROM } from "./desk-timing.ts";
 import { campOf, isDisloyal } from "./advisors.ts";
 import { ARCS } from "../content/arcs.ts";
 import { DOSSIERS, DOSSIER_TEXT } from "../content/advisors.ts";
-import { ABSURD, CHANNELS, DISMISSAL, FREAKS, RELATIVES, SERIOUS, STAFFING_TEXT, type Channel } from "../content/staffing.ts";
+import { ABSURD, CHANNELS, DISMISSAL, FREAKS, RELATIVES, RELATIVES_1978, KINSHIP_1978, SERIOUS, STAFFING_TEXT, type Channel } from "../content/staffing.ts";
 import type { Advisor, Bloc, GameState, ResourceDelta, ResourceKey } from "./types.ts";
 import { secretaryStaffingChange } from './secretary.ts';
 
@@ -44,6 +44,7 @@ function shuffled<T>(random: () => number, list: readonly T[]): T[] {
 
 // Резерв этого года: детерминирован зерном партии и годом; уже назначенные из него убраны.
 export function candidatePool(state: GameState): Candidate[] {
+  const historical = state.country === ALTERNATE_COUNTRY && !state.daily;
   const year = Math.floor(state.turn / POOL_TURNS);
   const random = seededRandom(hashSeed(state.seed, "staff-pool", year));
   const serious = shuffled(random, SERIOUS).slice(0, POOL_SIZE - 1);
@@ -59,18 +60,24 @@ export function candidatePool(state: GameState): Candidate[] {
     const freak = channel === "freak" ? pickFrom(random, FREAKS) : null;
     const [low, high] = def.loyalty;
     const relative = pickFrom(random, isFemaleName(name) ? RELATIVES.female : RELATIVES.male);
-    const bio = freak ? freak.bio : pickFrom(random, def.bios).replace("{rel}", relative);
+    const kin = historical && channel === "relative" ? pickFrom(random, RELATIVES_1978) : null;
+    const bio = freak ? (historical ? freak.bio1978 ?? freak.bio : freak.bio)
+      : (kin?.bio ?? pickFrom(random, def.bios)).replace("{rel}", relative);
+    // Сохраняем единственный бросок умения, в том числе когда его уже задала биография родни.
+    const drawnSkill = pickFrom(random, historical && freak ? freak.skills1978 : def.skills);
+    const skill = kin?.skill ?? drawnSkill;
+    const kinship = kin ? KINSHIP_1978[skill] : null;
     const camp = def.camp?.find(bloc => state.factions.some(faction => faction.bloc === bloc)) ?? null;
     return {
       id: `${year}:${index}`,
       channel, seat, name,
-      skill: pickFrom(random, def.skills),
+      skill,
       loyalty: low + Math.floor(random() * (high - low + 1)),
       camp,
       title: freak ? freak.title : def.label,
       bio,
-      cost: def.cost,
-      relation: def.relation,
+      cost: kinship?.cost ?? def.cost,
+      relation: kinship?.relation ?? def.relation,
     };
   });
   const taken = new Set(state.staffing?.taken ?? []);
@@ -83,7 +90,7 @@ export const staffingOpen = (state: GameState) => !state.daily && !state.ended &
 // Что уволенный оставит после себя: обида лагеря и тихий или громкий уход.
 // С досье даже нелояльного увольняют тихо: ему есть что терять.
 export function dismissalOf(state: GameState, advisor: Advisor) {
-  const scandal = isDisloyal(advisor) && !advisor.dossier;
+  const scandal = isDisloyal(advisor, state) && !advisor.dossier;
   const camp = campOf(state, advisor);
   const outcome = scandal ? DISMISSAL.scandal : DISMISSAL.quiet;
   return { scandal, camp, cost: outcome.cost, text: outcome.text.replace("{name}", advisor.name) };
@@ -209,7 +216,7 @@ export function applyDossier(state: GameState, advisorId: string, action: Dossie
     ...state,
     resources,
     advisors: state.advisors.map(member => member.id === advisorId ? { ...member, dossier: { fact, turn: state.turn } }
-      : member.id === "security" ? { ...member, loyalty: Math.max(0, loyaltyOf(member) + DOSSIER_SECURITY_LOYALTY) } : member),
+      : member.id === "security" ? { ...member, loyalty: shiftedLoyalty(state, member, DOSSIER_SECURITY_LOYALTY) } : member),
     staffing: staffing(DOSSIER_TEXT.collect.replace("{name}", target.name).replace("{fact}", fact)),
   };
 }

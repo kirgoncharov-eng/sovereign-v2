@@ -14,7 +14,7 @@ export type SheetId = "country" | "people";
 // Сколько тревог за кнопкой: опоры ниже порога кризиса; нелояльные советники и враждебные лагеря.
 export function sheetAlerts(gs: GameState): Record<SheetId, number> {
   const country = RESOURCE_KEYS.filter(key => gs.resources[key] < CRISIS_THRESHOLD).length;
-  const advisors = (gs.advisors ?? []).filter(advisor => isDisloyal(advisor)).length;
+  const advisors = (gs.advisors ?? []).filter(advisor => isDisloyal(advisor, gs)).length;
   const factions = gs.factions.filter(faction => faction.relation <= HOSTILE_RELATION).length;
   return { country, people: advisors + factions };
 }

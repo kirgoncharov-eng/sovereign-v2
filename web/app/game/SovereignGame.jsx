@@ -5,7 +5,7 @@ import {
   reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES,
   RES_CONFIG, SAVE_VERSION, IDEOLOGY_ACTIONS, IDEOLOGY_PENALTY
 } from "@/lib/game/data.ts";
-import { commitmentTags, choiceEffects, saboteurOf, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
+import { ownPersonCarries, commitmentTags, choiceEffects, saboteurOf, computePolls, delayedEffects, planTurn, successChance, createInitialState, isSurvival, isFemaleName, endCause, plural, conveneCouncil, resolveTurn, seededRandom, setVerdict, startEvent, warningLevel } from "@/lib/game/engine.ts";
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, customizeLeader, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
 import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
@@ -24,6 +24,7 @@ import { advisorProfile, newsLine } from "@/lib/game/advisors.ts";
 import { countryNotes, governmentNote, inboxRows, sheetAlerts, staffNote } from "@/lib/client/country-people.ts";
 import AdvisorName, { AdvisorCard } from "./AdvisorCard.jsx";
 import StaffPanel, { DossierActions } from "./StaffPanel.jsx";
+import { OWN_PERSON_TEXT } from "@/lib/content/staffing.ts";
 import { hireAdvisor, applyDossier } from "@/lib/game/staffing.ts";
 import { DOSSIER_TEXT } from "@/lib/content/advisors.ts";
 import { DICTATOR_LEGIT, FORCE_HOSTILE, POSTPONE_LEGIT, RULER_STEP, SUCCESSOR_REL, TERMS_TURN, electionKind, forceRelation, pathOptions, termRule } from "@/lib/game/terms.ts";
@@ -413,6 +414,7 @@ export function ChoicePreview({ gs, c, debated = false }) {
           <span className="sv-hand" style={{ fontSize:18, lineHeight:1.2 }}>предлагает {c.advisor.name}, {c.advisor.role.toLowerCase()} {stars(c.advisor.skill)}</span>
         </div>
       )}
+      {ownPersonCarries(gs, c) && <p data-own-person-crisis>{OWN_PERSON_TEXT.crisis}</p>}
       <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:exact ? 8 : 0 }}>
         {c.deal?.pure ? <span style={{ fontFamily:serif }}>{c.hint}</span> : <><ChanceBadge p={successChance(gs, c)} exact={exact}

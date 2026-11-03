@@ -1,5 +1,5 @@
 // Карточка советника: всё, что президент может быстро проверить о человеке из своего окружения.
-import { DISLOYAL_BELOW, hashSeed, loyaltyOf } from "./engine.ts";
+import { hashSeed, isDisloyal, loyaltyOf } from "./engine.ts";
 import { ADVISOR_AREA, ADVISOR_BIOS, ADVISOR_BLOC, ADVISOR_CAMP_BY_NAME, LOYALTY_WORDS, MANNER_LABEL, NEWS_REASON, SKILL_WORDS } from "../content/advisors.ts";
 import { MANNERS, type Manner } from "../content/forecasts.ts";
 import { CHANNELS, type Channel } from "../content/staffing.ts";
@@ -45,7 +45,7 @@ export interface AdvisorProfile {
 
 export const loyaltyWord = (loyalty: number) => LOYALTY_WORDS.find(([from]) => loyalty >= from)![1];
 
-export function advisorProfile(gs: Pick<GameState, "factions">, advisor: Advisor): AdvisorProfile {
+export function advisorProfile(gs: Pick<GameState, "factions"> & Partial<Pick<GameState, "country" | "daily">>, advisor: Advisor): AdvisorProfile {
   const camp = campOf(gs, advisor);
   const bios = ADVISOR_BIOS[advisor.id];
   const loyalty = loyaltyOf(advisor);
@@ -60,8 +60,8 @@ export function advisorProfile(gs: Pick<GameState, "factions">, advisor: Advisor
     bio: advisor.bio ?? (bios ? bios[hashSeed(advisor.name, advisor.id, "bio") % bios.length] : null),
     manner: MANNER_LABEL[mannerOf(advisor)],
     origin: originOf(advisor),
-    disloyal: loyalty < DISLOYAL_BELOW,
-    harmful: loyalty < DISLOYAL_BELOW && !advisor.dossier,
+    disloyal: isDisloyal(advisor, gs),
+    harmful: isDisloyal(advisor, gs) && !advisor.dossier,
     dossier: advisor.dossier ? { fact: advisor.dossier.fact, used: !!advisor.dossier.used } : null,
   };
 }

@@ -168,13 +168,13 @@ function chooseGossip(gs: GameState, secretary: SecretaryState): SecretaryGossip
       text });
   };
   if (secretary.planted && !secretary.channelExposed && hashSeed(gs.seed, 'secretary-director-channel', gs.turn) % 2 === 0) {
-    const loyal = gs.advisors.filter(a => !isDisloyal(a));
+    const loyal = gs.advisors.filter(a => !isDisloyal(a, gs));
     const target = loyal[hashSeed(gs.seed, 'secretary-planted', gs.turn) % loyal.length];
     if (target) addAdvisor(target.id, 'leak', false, 'director');
   }
   if (!candidates.length) {
     for (const advisor of leakingAdvisors(gs)) addAdvisor(advisor.id, 'leak');
-    if (!candidates.length) for (const advisor of gs.advisors.filter(isDisloyal)) addAdvisor(advisor.id, 'disloyal');
+    if (!candidates.length) for (const advisor of gs.advisors.filter(advisor => isDisloyal(advisor, gs))) addAdvisor(advisor.id, 'disloyal');
     const base = nextSecretaryCase(gs);
     if (!candidates.length && base && copy.NEXT_CASE_GOSSIP[base]) candidates.push({ kind: 'nextCase', truthful: true,
       source: 'state', subject: base, name: ALTERNATE_EVENTS.find(card => card.id === base)!.title, text: copy.NEXT_CASE_GOSSIP[base] });
@@ -198,7 +198,7 @@ function chooseGossip(gs: GameState, secretary: SecretaryState): SecretaryGossip
   // Wrong names occur only where there is a concrete, independently checkable advisor fact.
   if (secretary.trust === 0 && chosen.source === 'state' && ['leak', 'disloyal'].includes(chosen.kind)
     && hashSeed(gs.seed, 'secretary-mistake', gs.turn) % 3 === 0) {
-    const innocent = gs.advisors.find(a => !isDisloyal(a));
+    const innocent = gs.advisors.find(a => !isDisloyal(a, gs));
     if (innocent) {
       candidates.length = 0;
       addAdvisor(innocent.id, chosen.kind as 'leak' | 'disloyal', false, 'mistake');
@@ -294,7 +294,7 @@ export function secretaryActions(gs: GameState): SecretaryAction[] {
 export function gossipConfirmed(gs: GameState, gossip: SecretaryGossip): boolean {
   const advisor = gs.advisors.find(a => a.id === gossip.subject && a.name === gossip.name);
   if (gossip.kind === 'leak') return !!advisor && leakingAdvisors(gs).some(a => a.id === advisor.id);
-  if (gossip.kind === 'disloyal') return !!advisor && isDisloyal(advisor);
+  if (gossip.kind === 'disloyal') return !!advisor && isDisloyal(advisor, gs);
   if (gossip.kind === 'intrigue') return gs.arc?.id === gossip.subject && gs.arc.target === gossip.name && !gs.arc.epilogue;
   if (gossip.kind === 'figure') return gs.keyFigures.some(f => f.id === gossip.subject && f.name === gossip.name
     && gs.prevFigures?.some(p => p.id === f.id && p.name === f.name && p.relation > f.relation));
