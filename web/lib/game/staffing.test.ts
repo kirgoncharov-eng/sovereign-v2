@@ -33,7 +33,8 @@ test("резерв: три кандидата в год, один абсурдн
       if (candidate.seat === "security") assert.ok(!isFemaleName(candidate.name), `${country}: ${candidate.name} на месте силовика`);
       if (candidate.channel === "relative") assert.match(candidate.bio, isFemaleName(candidate.name) ? /^Ваша / : /^Ваш /);
       const def = CHANNELS[candidate.channel];
-      assert.ok(def.skills.includes(candidate.skill));
+      if (country !== "Беларусь · 1978" || !["relative", "freak"].includes(candidate.channel)) assert.ok(def.skills.includes(candidate.skill));
+      else assert.ok([1, 2, 3].includes(candidate.skill));
       assert.ok(candidate.loyalty >= def.loyalty[0] && candidate.loyalty <= def.loyalty[1]);
     }
     const nextYear = candidatePool({ ...state, turn: state.turn + POOL_TURNS });

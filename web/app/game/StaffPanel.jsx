@@ -5,6 +5,8 @@ import { useState } from "react";
 import {
   DOSSIER_COST, DOSSIER_PRESS_LOYALTY, DOSSIER_SECURITY_LOYALTY, candidatePool, dismissalOf, dossierBlocked, staffingBlocked, staffingOpen,
 } from "@/lib/game/staffing.ts";
+import { isOwnPerson } from "@/lib/game/engine.ts";
+import { OWN_PERSON_TEXT } from "@/lib/content/staffing.ts";
 import { RES_CONFIG } from "@/lib/game/data.ts";
 import { ALTERNATE_COUNTRY } from "@/lib/game/alternate-world.ts";
 
@@ -50,6 +52,7 @@ function Candidate({ gs, candidate, onHire, Portrait }) {
         </div>
       )}
       <p className="sv-staff-bio">{candidate.bio}</p>
+      {isOwnPerson(gs, { origin: candidate.channel }) && <p data-own-person-card>{OWN_PERSON_TEXT.card}</p>}
       <div className="sv-staff-line">На место: {current ? `${current.name}, ${current.role.toLowerCase()}` : candidate.seat}</div>
       {price && <div className="sv-staff-line">Цена назначения: {price}</div>}
       {camps.length > 0 && <div className="sv-staff-line">Лагеря: {camps.join(", ")}</div>}

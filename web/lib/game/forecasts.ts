@@ -163,7 +163,7 @@ export function debate(state: GameState): AdvisorTake[] | null {
   const speakers = pairFor(state, event).flatMap(id => {
     const advisor = state.advisors?.find(member => member.id === id);
     if (!advisor) return [];
-    const disloyal = isDisloyal(advisor);
+    const disloyal = isDisloyal(advisor, state);
     return [{ id, ...ADVISOR_STAKE[id], advisor, disloyal, manner: mannerOf(advisor), camp: disloyal ? campOf(state, advisor)?.id ?? null : null }];
   });
   if (speakers.length < 2) return null;

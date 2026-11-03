@@ -8,7 +8,7 @@ import {
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES, SURVIVAL_ENDS, CONTINUE_ENDS, TERM_FATIGUE, DEATH_FROM, DEATH_STEP, localTurn,
 } from "./data.ts";
 import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
-import { isPresidentialDiscussion } from './presidential-story.ts';
+import { HISTORICAL_DEBATES, isPresidentialDiscussion } from './presidential-story.ts';
 import { ARCS } from "../content/arcs.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { OWN_CRISIS_BELOW, OWN_CRISIS_BONUS, OWN_LOYALTY_FLOOR } from "../content/staffing.ts";
@@ -304,39 +304,49 @@ export const loyaltyOf = (advisor: Advisor) => advisor.loyalty ?? baseLoyalty(ad
 export const DISLOYAL_BELOW = 35;
 export const LEAK_EVERY = 3;
 export const SABOTAGE = 0.1;
-export const isDisloyal = (advisor: Advisor) => loyaltyOf(advisor) < DISLOYAL_BELOW;
-const unrestrained = (advisor: Advisor) => isDisloyal(advisor) && !advisor.dossier;
+type OwnContext = Partial<Pick<GameState, "country" | "daily">>;
+export const isDisloyal = (advisor: Advisor, state: OwnContext = {}) => !isOwnPerson(state, advisor) && loyaltyOf(advisor) < DISLOYAL_BELOW;
+const unrestrained = (advisor: Advisor, state: OwnContext) => isDisloyal(advisor, state) && !advisor.dossier;
 
 // «Свой человек» (#310): родственник или человек со стороны, назначенный в партии 1978 года. Архив не меняется.
 const OWN_ORIGINS = ["relative", "freak"];
-export const isOwnPerson = (state: Pick<GameState, "country">, advisor: Pick<Advisor, "origin">) =>
-  state.country === ALTERNATE_COUNTRY && OWN_ORIGINS.includes(advisor.origin ?? "");
+export const isOwnPerson = (state: OwnContext, advisor: Pick<Advisor, "origin">) =>
+  state.country === ALTERNATE_COUNTRY && !state.daily && OWN_ORIGINS.includes(advisor.origin ?? "");
 
 // Новая лояльность после перемены delta: у «своего человека» она не опускается ниже «ровной».
 // Если она уже ниже (старое сохранение), обиды её больше не роняют, а благодарность поднимает как обычно.
-export function shiftedLoyalty(state: Pick<GameState, "country">, advisor: Advisor, delta: number): number {
+export function shiftedLoyalty(state: OwnContext, advisor: Advisor, delta: number): number {
   const before = loyaltyOf(advisor);
   const floor = isOwnPerson(state, advisor) ? Math.min(before, OWN_LOYALTY_FLOOR) : 0;
   return Math.max(floor, Math.min(100, before + delta));
 }
 
 // Решение ведёт «свой человек», и у президента упадок сил: его поручение исполняют надёжнее, а не хуже.
-export function ownPersonCarries(state: Partial<Pick<GameState, "country" | "advisors">> & Pick<GameState, "resources">,
-  choice: Pick<Choice, "advisor">): boolean {
-  if (state.resources.personalResource >= OWN_CRISIS_BELOW || !choice.advisor) return false;
-  const advisor = state.advisors?.find(member => member.id === choice.advisor!.id && member.name === choice.advisor!.name);
-  return !!advisor && isOwnPerson({ country: state.country ?? "" }, advisor);
+export function ownPersonCarries(state: Partial<Pick<GameState, "country" | "advisors" | "daily" | "currentEvent">> & Pick<GameState, "resources">,
+  choice: Pick<Choice, "id" | "advisor" | "tags" | "deal">): boolean {
+  if (state.resources.personalResource >= OWN_CRISIS_BELOW || choice.deal?.pure
+    || choice.tags.every(tag => tag === "delay")) return false;
+  // Старый совет хранит автора в варианте; новый обсуждает исходную подпись.
+  // Берём автора из того же диалога, что advisorNews, только после обсуждения этой подписи.
+  const event = state.currentEvent;
+  const index = event?.choices.findIndex(option => option.id === choice.id) ?? -1;
+  const discussed = event?.council?.some(option => option.id === choice.id);
+  const proponent = discussed && index >= 0 ? HISTORICAL_DEBATES[event?.card ?? ""]?.[index]?.[0]?.[0] : undefined;
+  const advisor = choice.advisor
+    ? state.advisors?.find(member => member.id === choice.advisor!.id && member.name === choice.advisor!.name)
+    : state.advisors?.find(member => member.id === proponent);
+  return !!advisor && isOwnPerson(state, advisor);
 }
 
-export function leakingAdvisors(state: Pick<GameState, "seed" | "turn"> & { advisors?: Advisor[] }): Advisor[] {
-  return (state.advisors ?? []).filter(advisor => unrestrained(advisor) && LEAKS[advisor.id]
+export function leakingAdvisors(state: Pick<GameState, "seed" | "turn"> & OwnContext & { advisors?: Advisor[] }): Advisor[] {
+  return (state.advisors ?? []).filter(advisor => unrestrained(advisor, state) && LEAKS[advisor.id]
     && hashSeed(state.seed, "leak", state.turn, advisor.id) % LEAK_EVERY === 0);
 }
 
 // Кто саботирует это решение: нелояльный советник, в чью область оно попадает.
-export function saboteurOf(state: { advisors?: Advisor[] }, choice: Pick<Choice, "tags">): Advisor | null {
+export function saboteurOf(state: OwnContext & { advisors?: Advisor[] }, choice: Pick<Choice, "tags">): Advisor | null {
   const domainOf = (id: string) => ADVISOR_ROLES.find(role => role.id === id)?.domain ?? [];
-  return (state.advisors ?? []).find(advisor => unrestrained(advisor) && domainOf(advisor.id).some(tag => choice.tags.includes(tag))) ?? null;
+  return (state.advisors ?? []).find(advisor => unrestrained(advisor, state) && domainOf(advisor.id).some(tag => choice.tags.includes(tag))) ?? null;
 }
 
 export function applyAdvisorNews(advisors: Advisor[], news: AdvisorNews[] | undefined): Advisor[] {
@@ -420,7 +430,7 @@ export function seededRandom(seed: number): () => number {
 }
 
 // Шанс, что решение исполнят как задумано. Выжидание не проваливается.
-type ChanceState = Pick<GameState, "factions" | "resources"> & Partial<Pick<GameState, "keyFigures" | "pacts" | "bio" | "advisors" | "country">>;
+type ChanceState = Pick<GameState, "factions" | "resources"> & Partial<Pick<GameState, "keyFigures" | "pacts" | "bio" | "advisors" | "country" | "daily" | "currentEvent">>;
 // Группы, руками которых решение исполняется: те, кому оно выгодно.
 export const executors = (factions: Faction[], choice: Pick<Choice, "tags">) => {
   const blocs = new Set(choice.tags.flatMap(t => Object.entries(ACTIONS[t]?.rel ?? {}).filter(([, v]) => (v ?? 0) > 0).map(([b]) => b)));
