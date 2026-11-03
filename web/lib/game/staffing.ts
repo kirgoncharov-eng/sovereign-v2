@@ -1,4 +1,4 @@
-import { campaignCopy } from "./alternate-world.ts";
+import { campaignCopy, campaignText } from "./alternate-world.ts";
 // Кадры: президент сам собирает окружение. Раз в год в резерве три кандидата из разных каналов —
 // два «серьёзных» и один абсурдный (родня или человек со стороны). Назначение — замена: кандидат садится в кресло
 // одного из советников, прежний уходит. Это кадровое решение квартала: стоит ресурсов и меняет отношения лагерей,
@@ -146,10 +146,11 @@ export function hireAdvisor(state: GameState, candidateId: string): GameState {
     bio: candidate.bio,
     since: state.turn,
   };
-  const receipt = [
+  // Квитанция назначения говорит языком кампании: в 1978 году без «топ запросов» и «акций холдинга» (#310, E06).
+  const receipt = campaignText([
     CHANNELS[candidate.channel].receipt.replace("{name}", candidate.name).replace("{title}", candidate.title),
     dismissal?.text,
-  ].filter(Boolean).join(" ");
+  ].filter(Boolean).join(" "), state.country);
   return secretaryStaffingChange(state, {
     ...state,
     resources,
