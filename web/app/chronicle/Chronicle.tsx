@@ -1,5 +1,7 @@
 "use client";
 
+import { endCause } from "@/lib/game/engine.ts";
+
 // «Хроника срока» (#298, #302). Между решениями строки идут сами, в темпе чтения; касание — следующая строка сразу.
 // Лента стоит, когда нужен ответ: анкета ЦИК, письмо со сроком, предложение правительства, письмо человека, дело.
 // Ответы — те же панели и функции, что в папке `/game`; логика игры не меняется. Скрытая вкладка ставит хронику на паузу.
@@ -653,6 +655,9 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
           <div className={styles.caseHead}>Мемуары · {page.years}</div>
           <h2>«{page.title}»</h2>
           <p className={styles.outcome}>{page.outcome}</p>
+          {game?.ended && endCause(game) && <p className={styles.note} data-ending-cause>
+            Канцелярия: {endCause(game)?.replace(/^Рухнул ресурс: /, "основание отставки — ")}
+          </p>}
           <p>{page.verdict}</p>
           <p className={styles.epitaph}>{page.epitaph}</p>
           <h3>Другие жизни того же срока</h3>

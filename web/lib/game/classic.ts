@@ -5,6 +5,7 @@ import { JOURNALIST_CALL_TITLE, journalistCall } from './journalist-call.ts';
 import { HISTORICAL_CALL_TOPICS, historicalCallTopic } from '../content/historical-calls.ts';
 import { subjectCall } from './subject-call.ts';
 import { press1978 } from './press-1978.ts';
+import { collapseNarrative } from './collapse-narrative.ts';
 import { pensionCall } from './pension-call.ts';
 import { withEvidenceChoice } from './private-evidence.ts';
 import { mandatePublicEvent } from './minister-public.ts';
@@ -1468,7 +1469,8 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     historianNote: cycle(HISTORIAN[tone], state.seed, `hi${tone}`, state.turn),
     crisisTitle: key ? pick(r, CRISIS_TITLES[key]) : null,
     crisisDescription: key ? CRISIS_DESC[key] : null,
-    powerLoss: plan.endType && !isSurvival(plan.endType) ? fallText(r, plan.path, plan.endType, state) : null,
+    powerLoss: plan.endType && !isSurvival(plan.endType)
+      ? fallText(r, plan.path, plan.endType, { ...state, endType: plan.endType, resources: plan.resources }) : null,
   };
 }
 
@@ -1632,7 +1634,9 @@ function buildIntro(country: string, diff: DifficultyId, ideo: IdeologyId, seed?
 // Сцена падения: после попытки отменить выборы — своя, «свергнут при попытке».
 function fallText(r: Rand, path: GameState["path"], end: EndType, state: GameState): string {
   const pool = fellTrying(path, end) ? PATH_FALL[end as "coup" | "revolution"] : POWER_LOSS[end as LossEnd] ?? POWER_LOSS.collapse;
-  return fill(pick(r, pool), state, { name: path?.successor ?? "" });
+  // Прежнюю выборку сохраняем: редактура не сдвигает RNG последующих строк и исходов.
+  const original = fill(pick(r, pool), state, { name: path?.successor ?? "" });
+  return collapseNarrative(state) ?? original;
 }
 
 // Насколько концовка украшает вердикт: остаться по закону лучше, чем силой.
@@ -1677,7 +1681,7 @@ function buildVerdict(state: GameState): Verdict {
     title: pick(r, fellTrying(state.path, end) ? PATH_FALL.titles : TITLES[end]),
     epitaph: pick(r, PATH_EPITAPHS[end] ?? EPITAPHS[band]),
     rating: ratingLabel,
-    fallNarrative: isSurvival(end) ? null : state.powerLoss ?? fallText(r, state.path, end, state),
+    fallNarrative: isSurvival(end) ? null : collapseNarrative(state) ?? state.powerLoss ?? fallText(r, state.path, end, state),
   };
 }
 
