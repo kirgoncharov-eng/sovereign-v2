@@ -83,19 +83,27 @@ test('ревью #343: старые долги и фон квартала газ
   // Решение экономику не трогает; квартал всё равно мог стоить казне из-за прежних последствий — строки о деньгах нет.
   assert.deepEqual(press1978(input(before, { headline: 'Патрули переведены в самые неспокойные районы' }, {}, { economy: 0 })), []);
   // На реальных ходах цифра в «Деловом курьере» равна вкладу самой резолюции из ведомости движка.
+  // Перебираем зёрна, пока не встретятся настоящие денежные строки: проверка не может пройти вхолостую.
   const { resolveTurn, startEvent } = await import('./engine.ts');
-  let state = createInitialState(ALTERNATE_COUNTRY, 'debut', 'pragmatist', await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', 3), seededRandom(3));
   let checked = 0;
-  for (let turn = 0; turn < 30 && !state.ended; turn++) {
-    state = startEvent(state, await classicApi.event(state));
-    const id = state.currentEvent!.choices[0].id;
-    state = resolveTurn(state, id, await classicApi.consequence(state, id));
-    const line = (state.lastTurn?.press ?? []).find(entry => entry.outlet === PRESS_1978_OUTLETS.business);
-    const match = line?.headline.match(/(Казне это стоит|Казна получает) (\d+)/);
-    if (!match) continue;
-    const own = (state.lastTurn?.sources?.economy ?? []).filter(([label]) => label === 'решение').reduce((sum, [, value]) => sum + value, 0);
-    assert.equal(Number(match[2]) * (match[1] === 'Казна получает' ? 1 : -1), own, line!.headline);
-    checked++;
+  for (let seed = 1; seed <= 15 && checked < 3; seed++) {
+    let state = createInitialState(ALTERNATE_COUNTRY, 'debut', 'pragmatist',
+      await classicApi.setup(ALTERNATE_COUNTRY, 'debut', 'pragmatist', seed), seededRandom(seed));
+    for (let turn = 0; turn < 30 && !state.ended; turn++) {
+      state = startEvent(state, await classicApi.event(state));
+      // Каждый вариант дела пробуем на копии состояния; партию продвигаем первым вариантом.
+      for (const choice of state.currentEvent!.choices) {
+        const tried = resolveTurn(state, choice.id, await classicApi.consequence(state, choice.id));
+        const line = (tried.lastTurn?.press ?? []).find(entry => entry.outlet === PRESS_1978_OUTLETS.business);
+        const match = line?.headline.match(/(Казне это стоит|Казна получает) (\d+)/);
+        if (!match) continue;
+        const own = (tried.lastTurn?.sources?.economy ?? []).filter(([label]) => label === 'решение').reduce((sum, [, value]) => sum + value, 0);
+        assert.equal(Number(match[2]) * (match[1] === 'Казна получает' ? 1 : -1), own, line!.headline);
+        checked++;
+      }
+      const id = state.currentEvent!.choices[0].id;
+      state = resolveTurn(state, id, await classicApi.consequence(state, id));
+    }
   }
-  assert.ok(checked >= 0);
+  assert.ok(checked > 0, 'денежная строка встретилась и сверена с ведомостью');
 });
