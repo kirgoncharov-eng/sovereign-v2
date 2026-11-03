@@ -30,6 +30,7 @@ import { presidentialMessages } from "@/lib/client/presidential-inbox.ts";
 import { MONTHS } from "@/lib/game/calendar.ts";
 import { track } from "@/lib/client/analytics.ts";
 import { BIOGRAPHIES, CRISIS_THRESHOLD, IDEOLOGIES, LIMITS } from "@/lib/game/data.ts";
+import { endCause } from "@/lib/game/engine.ts";
 import { promiseDef } from "@/lib/game/promises.ts";
 import { debate } from "@/lib/game/forecasts.ts";
 import { hasPresidentialCouncil, isPresidentialDiscussion } from "@/lib/game/presidential-story.ts";
@@ -514,6 +515,7 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     ? historicalEventArt(game.country, event, sceneOf(event)) : null;
   const current = shown.at(-1)?.date;
   const waiting = game && event && !form && !over ? openStops(game) : [];
+  const endingCause = game?.ended ? endCause(game) : null;
 
   useEffect(() => {
     if (!visibleResources) return;
@@ -653,6 +655,9 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
           <div className={styles.caseHead}>Мемуары · {page.years}</div>
           <h2>«{page.title}»</h2>
           <p className={styles.outcome}>{page.outcome}</p>
+          {endingCause && <p className={styles.note} data-ending-cause>
+            Канцелярия: {endingCause.replace(/^Рухнул ресурс: /, "основание отставки — ")}
+          </p>}
           <p>{page.verdict}</p>
           <p className={styles.epitaph}>{page.epitaph}</p>
           <h3>Другие жизни того же срока</h3>
