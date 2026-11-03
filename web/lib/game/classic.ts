@@ -150,11 +150,34 @@ export function fill(tpl: string, state: GameState, extra: Record<string, string
 
 // Шапка главы: день, время, погода, место. Детерминирована ходом, чтобы не менялась при перезагрузке.
 // Место — по роду дела. У эпизодов интриги время и место задаёт сама сцена, в шапке только дата и погода.
+// Погода партии 1978 года: каждый ход берёт первый ещё не выпадавший вариант из перестановки своего сезона.
+// Строки «на любой сезон» входят во все пулы, поэтому «уже было» считается по всей партии, а не по сезону.
+function campaignWeather(seed: number, startYear: number, turn: number): string {
+  const used = new Set<string>();
+  let chosen = '';
+  for (let step = 0; step <= turn; step++) {
+    const season = turnDate(seed, startYear, step).season;
+    const pool = [...WEATHER_BY_SEASON[season], ...WEATHER_ANY];
+    const order = pool.map((_, i) => i).sort((a, b) => hashSeed(seed, `weather:${season}`, a) - hashSeed(seed, `weather:${season}`, b));
+    const fresh = order.map(i => pool[i]).filter(line => !used.has(line));
+    // Все варианты сезона уже были (длинное правление) — сезон начинает свою перестановку заново.
+    if (!fresh.length) for (const line of pool) used.delete(line);
+    chosen = fresh[0] ?? pool[order[0]];
+    used.add(chosen);
+  }
+  return chosen;
+}
+
 export function dateline(state: GameState, kind: PlaceKind | "beat" = "desk"): string {
   const r = seededRandom(hashSeed(state.seed, "dateline", state.turn));
   const t = state.turn;
   const d = turnDate(state.seed, COUNTRIES[state.country].startYear, t);
-  const weather = cycle([...WEATHER_BY_SEASON[d.season], ...WEATHER_ANY], state.seed, "weather", t);
+  const weatherPool = [...WEATHER_BY_SEASON[d.season], ...WEATHER_ANY];
+  // 1978: погода без повторов в партии, пока не исчерпаны варианты сезона (#310). Прежде одна строка выпадала
+  // до семи раз за срок. Архив выбирает по-старому.
+  const weather = state.country === ALTERNATE_COUNTRY
+    ? campaignWeather(state.seed, COUNTRIES[state.country].startYear, t)
+    : cycle(weatherPool, state.seed, "weather", t);
   if (kind === "beat") return fill(`${d.day} ${MONTHS_GEN[d.month]} ${d.year}, ${d.weekday}. ${weather}`, state);
   const factoryOpening = state.country === ALTERNATE_COUNTRY && !state.daily && t === 0 && (kind === 'desk' || kind === 'crisis');
   const place = factoryOpening ? 'Кабинет президента. На столе папка завода, рядом телефон секретариата.'
