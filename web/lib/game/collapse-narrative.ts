@@ -9,5 +9,5 @@ export function collapseNarrative(state: Pick<GameState, 'country' | 'endType' |
   const causes = RESOURCE_KEYS.filter(key => state.resources[key] <= LIMITS.endResource);
   if (!causes.length) return null;
   return `${causes.map(key => CRISIS_DESC[key]).join(' ')} В пустом кабинете ${state.leader.name} `
-    + 'подписал последний указ — о собственной отставке.';
+    + 'подписывает последний указ — о собственной отставке.';
 }

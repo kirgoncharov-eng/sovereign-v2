@@ -19,6 +19,13 @@ test('истощение лидера не рассказывается как �
   const text = collapseNarrative(state)!;
   assert.match(text, /Лидер измотан/);
   assert.doesNotMatch(text, /Казна пуста|зарплат|свет/);
+  for (const name of ['Анна Ладина', 'Антон Кленов']) {
+    const leader = { ...state.leader, name };
+    const named = { ...state, leader, ended: true };
+    assert.ok(collapseNarrative(named)!.includes(`${name} подписывает последний указ`));
+    const page = await memoir(named);
+    assert.ok(page.fall!.text.includes(`${name} подписывает последний указ`), 'реальные мемуары согласованы');
+  }
   const both = collapseNarrative({ ...state, resources: { ...state.resources, economy: 0 } })!;
   assert.match(both, /Казна пуста/);
   assert.match(both, /Лидер измотан/);
