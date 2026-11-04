@@ -30,8 +30,10 @@ async function openFixture(game, start) {
   assert.ok(parseSave(save), 'обычное сохранение сценария валидно');
   assert.ok(parseChronicle(chronicle), 'снимок хроники сценария валиден');
   await page.addInitScript(({ save, chronicle, key }) => {
+    if (sessionStorage.getItem('choice-price-fixture-loaded')) return;
     localStorage.setItem('sovereign.save', save);
     localStorage.setItem(key, chronicle);
+    sessionStorage.setItem('choice-price-fixture-loaded', '1');
   }, { save, chronicle, key: CHRONICLE_GAME_KEY });
   await page.goto(`file://${resolve('demo/dist/sovereign.html')}`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
@@ -192,7 +194,9 @@ try {
     assert.equal(actual.history.at(-1).success, rollSuccess(live.state, scenario.choice));
     await live.page.reload();
     await live.page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
-    assert.deepEqual((await savedGame(live.page)).pending, expected.pending, 'обязательства сохраняются после reload');
+    const restored = await savedGame(live.page);
+    assert.equal(restored.turn, expected.turn, 'reload возвращает подписанный квартал, а не исходную фикстуру');
+    assert.deepEqual(restored.pending, expected.pending, 'обязательства сохраняются после reload');
     await live.context.close();
   }
 
