@@ -46,7 +46,8 @@ jobs:
   # Стол `/game` проверяется по ?desk=1, «Хроника срока» — отдельным шагом.
   # Идёт параллельно с check; 24 хода — первый срок и начало второго.
   playtest:
-    runs-on: ubuntu-latest
+    # Playwright 1.56.1 поддерживает Ubuntu 24.04; ubuntu-latest уже перешёл на 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
