@@ -6,6 +6,7 @@ import {
 } from "./data.ts";
 import { ARCS } from "../content/arcs.ts";
 import { loyaltyLabel } from "./engine.ts";
+import { validFactoryMandate } from './factory-mandate.ts';
 import type {
   ActionTag, Advisor, ArcChoice, Bloc, ArcState, Choice, Deal, Pact, Pending, Election, Crisis, DifficultyId, EndType, Faction, Figure, GameEvent, GameState,
   HistoryEntry, IdeologyId, LeaderPortraitId, NewCrisis, PathId, PowerPath, RandomEvent, ResourceDelta, Resources, Severity,
@@ -345,7 +346,7 @@ function sanitizeElections(v: unknown): Election[] {
   }));
 }
 
-function sanitizeHistory(v: unknown): HistoryEntry[] {
+function sanitizeHistory(v: unknown, turn: number): HistoryEntry[] {
   if (!Array.isArray(v)) return [];
   return v.filter(isObj).slice(-MAX_TURNS).map(h => ({
     year: num(h.year, 1900, 2200, 2025),
@@ -353,6 +354,7 @@ function sanitizeHistory(v: unknown): HistoryEntry[] {
     choice: str(h.choice, TEXT.choice),
     headline: str(h.headline, TEXT.title),
     historianNote: str(h.historianNote, TEXT.title),
+    ...(validFactoryMandate(h.factoryMandate, turn) ? { factoryMandate: structuredClone(h.factoryMandate) } : {}),
   }));
 }
 
@@ -404,7 +406,7 @@ export function sanitizeState(raw: unknown): GameState | null {
     activeCrises,
     year: num(raw.year, startYear, startYear + MAX_TURNS, startYear),
     turn,
-    history: sanitizeHistory(raw.history),
+    history: sanitizeHistory(raw.history, turn),
     elections: sanitizeElections(raw.elections),
     advisors,
     councilCharges: num(raw.councilCharges, 0, 10, 0),
