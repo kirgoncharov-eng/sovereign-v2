@@ -190,8 +190,12 @@ test("нехватка сил: +5 вместо −5, цена и граница 
 
 test("нынешний совет: поддержка автора из диалога после обсуждения; возражение и другие резолюции бонуса не дают", async () => {
   let state = await fresh();
+  // Проверяем бонус автора, не обрезку потолком 95% после учёта компетентности и контрагентов.
+  state.factions = state.factions.map(faction => ({ ...faction, relation: 0 }));
+  state.keyFigures = state.keyFigures.map(figure => ({ ...figure, relation: 0 }));
   state.advisors = state.advisors.map((member) => ({
     ...member,
+    skill: 2 as const,
     origin: member.id === "economist" ? "relative" : "civil",
   }));
   state = startEvent(state, await classicApi.event({ ...state, turn: 0 }));
@@ -215,3 +219,4 @@ test("нынешний совет: поддержка автора из диал
   assert.equal(Math.round((successChance(state, choice) - successChance(ordinary, choice)) * 100), 10);
   assert.equal(ownPersonCarries({ ...state, daily: "2026-11-03" }, choice), false);
 });
+
