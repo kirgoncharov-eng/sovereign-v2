@@ -64,6 +64,34 @@ test('точные условия сделки и личные затраты с
   assert.notEqual(outlook.later[0].resources.internalLegitimacy!.min, outlook.later[0].resources.internalLegitimacy!.max);
 });
 
+test('риск трёх заводских резолюций оценивают их авторы: экономист, дипломат, экономист', async () => {
+  const state = await nextCase(await newTerm(startFromSeed(7)));
+  assert.equal(state.currentEvent!.card, 'alt_wages');
+  for (const [index, id] of ['economist', 'diplomat', 'economist'].entries()) {
+    const choice = state.currentEvent!.choices[index];
+    const source = advisorOutlook(state, choice)!.risk.source;
+    assert.equal(source.name, state.advisors.find(advisor => advisor.id === id)!.name);
+    assert.equal(source.skill, state.advisors.find(advisor => advisor.id === id)!.skill);
+    const withoutExpert = { ...state, advisors: state.advisors.filter(advisor => advisor.id !== id) };
+    assert.equal(advisorOutlook(withoutExpert, choice)!.risk.source.skill, 0);
+  }
+});
+
+test('чужой вариант дела не меняет автора риска, а переделанное предложение не наследует исходного автора', async () => {
+  const state = await nextCase(await newTerm(startFromSeed(7)));
+  const choice: Choice = { ...state.currentEvent!.choices[0], id: 'local', tags: ['social'] };
+  const event = { ...state.currentEvent!, card: 'generic', choices: [choice] };
+  const local = { ...state, currentEvent: event };
+  const withForeign = { ...local, currentEvent: { ...event, choices: [choice,
+    { ...choice, id: 'foreign', tags: ['pro_west'] as Choice['tags'] }] } };
+  const source = advisorOutlook(local, choice)!.risk.source;
+  assert.equal(source.name, state.advisors.find(advisor => advisor.id === 'economist')!.name);
+  assert.deepEqual(advisorOutlook(withForeign, choice)!.risk.source, source);
+  const revised: Choice = { ...state.currentEvent!.choices[1], text: 'Проверить расходы казны', tags: ['austerity'] };
+  assert.equal(advisorOutlook(state, revised)!.risk.source.name, source.name,
+    'изменённый второй вариант идёт по экономическому профилю, а не к прежнему дипломату');
+});
+
 test('прогноз не меняет подпись, очередь и состояние; reload воспроизводит оценку', async () => {
   const state = await nextCase(await newTerm(startFromSeed(7)));
   const before = structuredClone(state), choice = state.currentEvent!.choices[1];

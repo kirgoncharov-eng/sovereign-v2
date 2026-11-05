@@ -1,7 +1,7 @@
 // Представление прогноза: движок знает точный расчёт, президент получает оценку своей команды.
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
-import { RESOURCE_KEYS } from '../game/data.ts';
-import { pairFor } from '../game/forecasts.ts';
+import { ADVISOR_ROLES, RESOURCE_KEYS } from '../game/data.ts';
+import { authoredDebate } from '../game/presidential-story.ts';
 import type { Choice, GameState, ResourceKey } from '../game/types.ts';
 import { choiceOutcomes } from './choice-outcomes.ts';
 
@@ -30,6 +30,18 @@ function sourceFor(state: GameState, id: string): OutlookSource {
   const advisor = state.advisors.find(member => member.id === id);
   return advisor ? { name: advisor.name, role: advisor.role, skill: advisor.skill }
     : { name: 'Канцелярия', role: 'профильный советник не назначен', skill: 0 };
+}
+
+function riskSourceFor(state: GameState, choice: Choice): OutlookSource {
+  // У старого предложения есть автор; качество доклада определяет нынешний состав на этом месте.
+  if (choice.advisor) return sourceFor(state, choice.advisor.id);
+  // Для исходной резолюции риск разбирает её автор в том же разговоре, который видит игрок.
+  // Переделанное предложение не наследует эксперта лишь из-за совпадения id с исходным вариантом.
+  const index = state.currentEvent?.choices.findIndex(original => original.id === choice.id
+    && JSON.stringify(original) === JSON.stringify(choice)) ?? -1;
+  const proponent = index >= 0 ? authoredDebate(state, index)?.[0]?.[0] : undefined;
+  const expert = proponent ?? ADVISOR_ROLES.find(role => role.domain.some(tag => choice.tags.includes(tag)))?.id ?? 'strategist';
+  return sourceFor(state, expert);
 }
 
 /** Вложенные интервалы округления, без случайной ошибки и без знания выпавшего исхода. */
@@ -61,8 +73,7 @@ export function advisorOutlook(state: GameState, choice: Choice, raw = choiceOut
       return { name: camp.name, source, estimate: bounded(estimateDelta(camp.delta, source.skill), -100 - relation, 100 - relation) };
     }),
   });
-  const riskId = choice.advisor?.id ?? (state.currentEvent ? pairFor(state, state.currentEvent)[0] : 'economist');
-  const riskSource = sourceFor(state, riskId);
+  const riskSource = riskSourceFor(state, choice);
   const riskMin = raw.failurePercent ? Math.floor((raw.failurePercent - 1) / RISK_STEP[riskSource.skill]) * RISK_STEP[riskSource.skill] + 1 : 0;
   const riskMax = raw.failurePercent ? Math.min(100, riskMin + RISK_STEP[riskSource.skill] - 1) : 0;
   return {
