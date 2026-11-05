@@ -11,6 +11,7 @@ import { rollSuccess } from '../lib/game/engine.ts';
 import { CHRONICLE_GAME_KEY, encodeChronicle, parseChronicle } from '../lib/client/chronicle-save.ts';
 import { EMPTY_PERSONAL } from '../lib/client/chronicle-personal.ts';
 import { choiceOutcomes } from '../lib/client/choice-outcomes.ts';
+import { advisorOutlook } from '../lib/client/advisor-outlook.ts';
 import { RESOURCE_KEYS } from '../lib/game/data.ts';
 import { parseSave } from '../lib/client/save.ts';
 
@@ -49,7 +50,7 @@ async function checkPrice(page, state, choice, name, { select = true } = {}) {
     const row = page.locator('button.sv-choice-row').filter({ has: page.getByText(choice.text, { exact: true }) });
     if (!choice.deal?.pure) {
       const label = await row.innerText();
-      assert.match(label, choice.advisor ? /шанс исполнения \d+%/ : /риск срыва/,
+      assert.match(label, /Риск срыва исполнения:/,
         'риск обозначает исполнение, а не политическую цену');
     }
     await row.evaluate(element => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
@@ -58,21 +59,22 @@ async function checkPrice(page, state, choice, name, { select = true } = {}) {
   const price = page.getByRole('group', { name: 'Последствия выбранного решения' });
   await price.waitFor();
   assert.equal(await price.getAttribute('data-choice-id'), choice.id);
-  const shown = await price.innerText(), expected = choiceOutcomes(state, choice);
-  const signed = value => value === 0 ? '0' : `${value < 0 ? '−' : '+'}${Math.abs(value)}`;
+  const shown = await price.innerText(), expected = choiceOutcomes(state, choice), outlook = advisorOutlook(state, choice);
+  assert.ok(shown.includes('Оценка советников'));
+  assert.ok(shown.includes('округлённая оценка, а не гарантия'));
   const cells = await price.locator('tbody tr').evaluateAll(rows => rows.map(row =>
     [...row.querySelectorAll('td')].map(cell => cell.textContent)));
-  assert.deepEqual(cells, RESOURCE_KEYS.map(key => [signed(expected.success.resources[key] ?? 0),
-    ...(expected.failure ? [signed(expected.failure.resources[key] ?? 0)] : [])]));
+  assert.deepEqual(cells, RESOURCE_KEYS.map(key => [outlook.success.resources[key].text,
+    ...(expected.failure ? [outlook.failure.resources[key].text] : [])]));
   if (expected.reason && expected.failure) assert.ok(shown.includes(expected.reason));
-  assert.ok(shown.includes(`Риск срыва исполнения: ${expected.failurePercent}%.`));
+  assert.ok(shown.includes(outlook.risk.text));
   const future = price.getByRole('group', { name: 'Будущие последствия резолюции' });
   assert.equal(await future.count(), expected.later.length ? 1 : 0);
-  for (const effect of expected.later) {
+  for (const [index, effect] of expected.later.entries()) {
     const line = future.locator('p').filter({ hasText: `«${effect.label}»` });
     const text = await line.innerText();
     assert.ok(text.includes(quarterDeadline(state, effect.due)), 'срок совпадает с очередью движка');
-    for (const delta of Object.values(effect.res)) assert.ok(text.includes(signed(delta)));
+    for (const estimate of Object.values(outlook.later[index].resources)) assert.ok(text.includes(estimate.text));
     if (expected.failure) assert.ok(text.includes(effect.onFailure
       ? 'Сохраняется и при срыве исполнения.' : 'Только если резолюцию исполнят.'));
     assert.equal(await line.isVisible(), true, 'будущая цена не скрыта в совете или раскрывающемся блоке');
@@ -97,7 +99,9 @@ async function checkPrice(page, state, choice, name, { select = true } = {}) {
   });
   assert.ok(!geometry.wide && geometry.top >= geometry.header, JSON.stringify(geometry));
   const table = await price.locator('table').boundingBox();
-  assert.ok(table && table.y >= geometry.header && table.y + table.height <= geometry.height, 'обе колонки таблицы читаются под шапкой');
+  await page.screenshot({ path: join(out, `${name}-before-sign.png`), fullPage: true });
+  assert.ok(table && table.y >= geometry.header && table.y + table.height <= geometry.height,
+    `обе колонки таблицы читаются под шапкой: ${JSON.stringify({ table, geometry })}`);
   await sign.scrollIntoViewIfNeeded();
   const signBox = await sign.boundingBox();
   assert.ok(signBox && signBox.y >= geometry.header && signBox.y + signBox.height <= geometry.height, 'подпись доступна после чтения');
@@ -129,6 +133,17 @@ try {
       state = await signOption(state, firstStep(state).options[0].key);
     }
   }
+
+  // Одна и та же резолюция: меняются реальные назначения, а не исход подписи.
+  const weakAndStrong = [];
+  for (const skill of [1, 3]) {
+    const team = { ...state, advisors: state.advisors.map(advisor => ({ ...advisor, skill })) };
+    const live = await openFixture(team, start);
+    await checkPrice(live.page, live.state, team.currentEvent.choices[0], `team-${skill}`);
+    weakAndStrong.push(await live.page.getByRole('group', { name: 'Последствия выбранного решения' }).innerText());
+    await live.context.close();
+  }
+  assert.notEqual(weakAndStrong[0], weakAndStrong[1], 'разные назначения дают разную точность');
 
   // Четвёртое дело позволяет собрать обычный совет. Выбранный второй вариант должен остаться выбранным.
   const fixture = await openFixture(state, start), page = fixture.page;

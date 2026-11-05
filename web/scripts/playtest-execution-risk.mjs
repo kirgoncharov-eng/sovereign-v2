@@ -9,6 +9,7 @@ import { APP_VERSION, RESOURCE_KEYS, SAVE_VERSION } from '../lib/game/data.ts';
 import { rollSuccess } from '../lib/game/engine.ts';
 import { newTerm, nextCase, firstStep, signChoice, startFromSeed } from '../lib/client/chronicle.ts';
 import { choiceOutcomes } from '../lib/client/choice-outcomes.ts';
+import { advisorOutlook } from '../lib/client/advisor-outlook.ts';
 import { CHRONICLE_GAME_KEY, encodeChronicle, parseChronicle } from '../lib/client/chronicle-save.ts';
 import { EMPTY_PERSONAL } from '../lib/client/chronicle-personal.ts';
 
@@ -36,7 +37,6 @@ function withOutcome(choice, succeeded) {
   for (let seed = 1; seed <= 1000; seed++) if (rollSuccess({ ...before, seed }, choice) === succeeded) return { ...before, seed };
   throw new Error('Нет исхода');
 }
-const signed = value => value === 0 ? '0' : `${value < 0 ? '−' : '+'}${Math.abs(value)}`;
 
 try {
   for (const choice of before.currentEvent.choices) {
@@ -50,10 +50,10 @@ try {
     await page.goto(`file://${fixtureFile}`);
     const group = page.getByRole('group', { name: 'Последствия выбранного решения' });
     await group.waitFor();
-    const forecast = choiceOutcomes(before, choice);
+    const forecast = choiceOutcomes(before, choice), outlook = advisorOutlook(before, choice);
     assert.ok((await group.innerText()).includes(forecast.reason));
     assert.deepEqual(await group.locator('tbody tr').evaluateAll(rows => rows.map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent))),
-      RESOURCE_KEYS.map(key => [signed(forecast.success.resources[key]), signed(forecast.failure.resources[key])]));
+      RESOURCE_KEYS.map(key => [outlook.success.resources[key].text, outlook.failure.resources[key].text]));
     const details = group.locator('details');
     await details.locator('summary').focus();
     await page.keyboard.press('Enter');
@@ -88,7 +88,7 @@ try {
       await liveForecast.waitFor();
       assert.deepEqual(await liveForecast.locator('tbody tr').evaluateAll(rows => rows.map(row =>
         [...row.querySelectorAll('td')].map(cell => cell.textContent))),
-        RESOURCE_KEYS.map(key => [signed(forecast.success.resources[key]), signed(forecast.failure.resources[key])]));
+        RESOURCE_KEYS.map(key => [outlook.success.resources[key].text, outlook.failure.resources[key].text]));
       assert.ok((await liveForecast.innerText()).includes(forecast.reason));
       await gamePage.getByRole('button', { name: /^Подписать/ }).tap();
       await gamePage.waitForFunction(key => JSON.parse(localStorage.getItem(key))?.snapshot.game.history.length > 0, CHRONICLE_GAME_KEY);

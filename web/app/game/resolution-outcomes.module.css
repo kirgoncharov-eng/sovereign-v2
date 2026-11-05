@@ -8,6 +8,8 @@
 .forecast th { text-align: left; font-weight: 400; }
 .forecast thead th { font-weight: 700; }
 .forecast td { text-align: center; }
+.source { display: block; color: #6a604c; font-size: 12px; line-height: 1.2; margin-top: 2px; overflow-wrap: anywhere; }
+.forecast td { white-space: nowrap; }
 .camps { margin-top: 8px; }
 .camps summary { cursor: pointer; min-height: 44px; align-content: center; }
 .camps summary:focus-visible { outline: 2px solid #7b6340; outline-offset: 2px; }

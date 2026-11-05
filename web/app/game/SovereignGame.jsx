@@ -46,6 +46,8 @@ const game = expressApi;
 import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons, requestWriteAccess, tgInitData, telegramStory, canTelegramStory } from "@/lib/client/telegram.ts";
 import { newAnalyticsRun, setRunContext } from "@/lib/client/run-context.ts";
 import { campCosts } from "@/lib/client/camp-costs.ts";
+import { advisorOutlook, usesAdvisorOutlook } from "@/lib/client/advisor-outlook.ts";
+import ResolutionOutcomes from './ResolutionOutcomes.tsx';
 import { track, feedbackEnabled, sendFeedback, isTester, subscribeTester, toggleTester, syncSubscription } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { installErrorReporting } from "@/lib/client/errors.ts";
@@ -399,10 +401,11 @@ function choiceStampLabel(c) {
   return { text: "К ИСПОЛНЕНИЮ", sub: "РЕЗОЛЮЦИЯ · 1978", kind: "default" };
 }
 
-// Точный расклад знает только совет: его вариант показан в цифрах. Об остальных спорят советники над вариантами,
-// а без спора под вариантом — причины цены словами. Точный итог — в ведомости после хода.
+// В кампании 1978 года прогноз зависит от действующей команды; автор старого предложения не даёт точный расклад.
+// Архив и Daily сохраняют прежнее представление. Фактический итог — в ведомости после хода.
 export function ChoicePreview({ gs, c, debated = false }) {
-  const exact = !!c.advisor;
+  const outlook = advisorOutlook(gs, c);
+  const exact = !!c.advisor && !outlook;
   const fx = choiceEffects(gs, c);
   const crisis = c.resolvesCrisis && gs.activeCrises.find(x => x.id === c.resolvesCrisis);
   const later = delayedEffects(c, gs);
@@ -417,8 +420,9 @@ export function ChoicePreview({ gs, c, debated = false }) {
       {ownPersonCarries(gs, c) && <p data-own-person-crisis>{OWN_PERSON_TEXT.crisis}</p>}
       <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:exact ? 8 : 0 }}>
-        {c.deal?.pure ? <span style={{ fontFamily:serif }}>{c.hint}</span> : <><ChanceBadge p={successChance(gs, c)} exact={exact}
-          execution={gs.country === ALTERNATE_COUNTRY}/> · <span style={{ fontFamily:serif }}>{c.hint}</span></>}
+        {c.deal?.pure ? <span style={{ fontFamily:serif }}>{c.hint}</span> : <>
+          {outlook ? <span>{outlook.risk.text}</span> : <ChanceBadge p={successChance(gs, c)} exact={exact}
+            execution={gs.country === ALTERNATE_COUNTRY}/>} · <span style={{ fontFamily:serif }}>{c.hint}</span></>}
       </div>
       {exact && <ResourceChips delta={fx.resources}/>}
       {(exact || !debated) && <CostReasons gs={gs} c={c} fx={fx}/>}
@@ -446,10 +450,13 @@ export function ChoicePreview({ gs, c, debated = false }) {
 function CampCosts({ gs, c }) {
   const camps = campCosts(gs, c);
   if (!camps.length) return null;
+  const outlook = advisorOutlook(gs, c);
   return (
     <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.4, marginTop:4 }}>
       Лагеря: {camps.map((camp, index) => <span key={camp.id} style={{ color:camp.delta < 0 ? G.red : G.grn }}>
-        {index ? " · " : ""}{camp.name} {camp.delta > 0 ? "+" : "−"}{Math.abs(camp.delta)}</span>)}
+        {index ? " · " : ""}{camp.name} {outlook
+          ? outlook.success.camps.find(entry => entry.name === camp.name)?.estimate.text ?? 'без перемены'
+          : `${camp.delta > 0 ? "+" : "−"}${Math.abs(camp.delta)}`}</span>)}
     </div>
   );
 }
@@ -3698,6 +3705,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
               </Card>
               )}
               {inboxMode && armedChoice && <div className="sv-quarter-prepare">
+                {usesAdvisorOutlook(gs) && <ResolutionOutcomes game={gs} choice={armedChoice} />}
                 <PrimaryBtn onClick={() => choose(armedChoice)}>Подготовить резолюцию</PrimaryBtn>
                 <button onClick={() => { setArmed(null); setPreview(null); }}>Отменить выбор</button>
               </div>}
