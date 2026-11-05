@@ -1,6 +1,6 @@
 import { choiceOutcomes } from '@/lib/client/choice-outcomes.ts';
 import { RESOURCE_KEYS } from '@/lib/game/data.ts';
-import { plural } from '@/lib/game/engine.ts';
+import { quarterDeadline } from '@/lib/client/initiative-note.ts';
 import { RESOURCE_TITLE } from '@/lib/content/resource-names.ts';
 import type { Choice, GameState } from '@/lib/game/types.ts';
 import styles from './resolution-outcomes.module.css';
@@ -30,12 +30,15 @@ export default function ResolutionOutcomes({ game, choice }: { game: GameState; 
       <p>При исполнении: {camps(forecast.success.camps) || 'без перемены'}.</p>
       {forecast.failure && <p>При срыве: {camps(forecast.failure.camps) || 'без перемены'}.</p>}
     </details>
-    {forecast.later && <p className={styles.note}>
-      Если исполнят — «{forecast.later.label}» через {plural(forecast.later.turns, 'квартал', 'квартала', 'кварталов')}:
-      {' '}{RESOURCE_KEYS.filter(key => forecast.later!.res[key]).map(key =>
-        `${RESOURCE_TITLE[key]} ${signed(forecast.later!.res[key]!)}`).join('; ')}.
-      {forecast.failure && ' При срыве это условие не вступит в силу.'}
-    </p>}
+    {forecast.later.length > 0 && <div role="group" aria-label="Будущие последствия резолюции">
+      <p className={styles.title}>Будущие последствия</p>
+      {forecast.later.map((effect, index) => <p key={index} className={styles.note}>
+        «{effect.label}»: {RESOURCE_KEYS.filter(key => effect.res[key]).map(key =>
+          `${RESOURCE_TITLE[key]} ${signed(effect.res[key]!)}`).join('; ')}.
+        {' '}Срок: {quarterDeadline(game, effect.due)}.
+        {forecast.failure && (effect.onFailure ? ' Сохраняется и при срыве исполнения.' : ' Только если резолюцию исполнят.')}
+      </p>)}
+    </div>}
     <p className={styles.note}>Прежние долги и другие события квартала изменят общий итог отдельно.</p>
   </div>;
 }

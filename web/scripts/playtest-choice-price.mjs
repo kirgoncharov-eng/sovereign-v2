@@ -5,7 +5,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { chromium } from 'playwright';
 import { APP_VERSION, SAVE_VERSION } from '../lib/game/data.ts';
-import { newTerm, nextCase, startFromSeed, signOption, firstStep } from '../lib/client/chronicle.ts';
+import { newTerm, nextCase, startFromSeed, signChoice, signOption, firstStep } from '../lib/client/chronicle.ts';
+import { quarterDeadline } from '../lib/client/initiative-note.ts';
+import { rollSuccess } from '../lib/game/engine.ts';
 import { CHRONICLE_GAME_KEY, encodeChronicle, parseChronicle } from '../lib/client/chronicle-save.ts';
 import { EMPTY_PERSONAL } from '../lib/client/chronicle-personal.ts';
 import { choiceOutcomes } from '../lib/client/choice-outcomes.ts';
@@ -28,8 +30,10 @@ async function openFixture(game, start) {
   assert.ok(parseSave(save), 'обычное сохранение сценария валидно');
   assert.ok(parseChronicle(chronicle), 'снимок хроники сценария валиден');
   await page.addInitScript(({ save, chronicle, key }) => {
+    if (sessionStorage.getItem('choice-price-fixture-loaded')) return;
     localStorage.setItem('sovereign.save', save);
     localStorage.setItem(key, chronicle);
+    sessionStorage.setItem('choice-price-fixture-loaded', '1');
   }, { save, chronicle, key: CHRONICLE_GAME_KEY });
   await page.goto(`file://${resolve('demo/dist/sovereign.html')}`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
@@ -62,6 +66,17 @@ async function checkPrice(page, state, choice, name, { select = true } = {}) {
     ...(expected.failure ? [signed(expected.failure.resources[key] ?? 0)] : [])]));
   if (expected.reason && expected.failure) assert.ok(shown.includes(expected.reason));
   assert.ok(shown.includes(`Риск срыва исполнения: ${expected.failurePercent}%.`));
+  const future = price.getByRole('group', { name: 'Будущие последствия резолюции' });
+  assert.equal(await future.count(), expected.later.length ? 1 : 0);
+  for (const effect of expected.later) {
+    const line = future.locator('p').filter({ hasText: `«${effect.label}»` });
+    const text = await line.innerText();
+    assert.ok(text.includes(quarterDeadline(state, effect.due)), 'срок совпадает с очередью движка');
+    for (const delta of Object.values(effect.res)) assert.ok(text.includes(signed(delta)));
+    if (expected.failure) assert.ok(text.includes(effect.onFailure
+      ? 'Сохраняется и при срыве исполнения.' : 'Только если резолюцию исполнят.'));
+    assert.equal(await line.isVisible(), true, 'будущая цена не скрыта в совете или раскрывающемся блоке');
+  }
   const sign = page.getByRole('button', { name: /^Подписать/ });
   await sign.scrollIntoViewIfNeeded();
   await page.waitForTimeout(1800);
@@ -90,6 +105,7 @@ async function checkPrice(page, state, choice, name, { select = true } = {}) {
   assert.deepEqual(after.resources, state.resources, 'выбор до подписи не списывает опоры');
   assert.equal(after.turn, state.turn);
   await page.screenshot({ path: join(out, `${name}.png`), fullPage: true });
+  if (expected.later.length) await price.screenshot({ path: join(out, `${name}-forecast.png`) });
   summary.checks.push({ name, choice: choice.id, price: shown, geometry });
   return { price, sign };
 }
@@ -141,6 +157,48 @@ try {
   const advisorFixture = await openFixture(savedCouncil, start);
   await checkPrice(advisorFixture.page, advisorFixture.state, advisorChoice, 'saved-advisor');
   await advisorFixture.context.close();
+
+  // Настоящие партии: эфир (польза / неотменяемый вред) и конкурс (два будущих изменения).
+  // Подбираем оба исхода обычной генерацией; seed, history и варианты готового сохранения не подменяются.
+  const targets = [
+    { key: 'radio-benefit', text: 'Проверить магазин до следующего выпуска' },
+    { key: 'radio-cost', text: 'Потребовать согласовывать подобные передачи' },
+    { key: 'two-effects', text: 'Отдать контракт конкурсу заводов без гарантии казны' },
+  ];
+  const cases = new Map();
+  for (let seed = 1; seed <= 80 && cases.size < targets.length * 2; seed++) {
+    const route = startFromSeed(seed);
+    let game = await newTerm(route);
+    for (let turn = 0; turn < 6 && !game.ended; turn++) {
+      game = await nextCase(game);
+      for (const target of targets) {
+        const choice = game.currentEvent.choices.find(option => option.text === target.text);
+        if (!choice) continue;
+        const succeeded = rollSuccess(game, choice), key = `${target.key}-${succeeded ? 'executed' : 'failed'}`;
+        if (!cases.has(key)) cases.set(key, { start: route, game, choice });
+      }
+      game = await signChoice(game, game.currentEvent.choices[0].id);
+    }
+  }
+  assert.equal(cases.size, targets.length * 2, 'найдены реальные партии со всеми нужными исходами');
+  for (const [name, scenario] of cases) {
+    const live = await openFixture(scenario.game, scenario.start);
+    const { sign } = await checkPrice(live.page, live.state, scenario.choice, name);
+    const expected = await signChoice(live.state, scenario.choice.id);
+    await sign.tap();
+    await live.page.waitForFunction(({ key, turn }) => JSON.parse(localStorage.getItem(key)).snapshot.game.turn > turn,
+      { key: CHRONICLE_GAME_KEY, turn: live.state.turn });
+    const actual = await savedGame(live.page);
+    assert.deepEqual(actual.pending, expected.pending, 'очередь после настоящей подписи соответствует прогнозу');
+    assert.deepEqual(actual.resources, expected.resources);
+    assert.equal(actual.history.at(-1).success, rollSuccess(live.state, scenario.choice));
+    await live.page.reload();
+    await live.page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
+    const restored = await savedGame(live.page);
+    assert.equal(restored.turn, expected.turn, 'reload возвращает подписанный квартал, а не исходную фикстуру');
+    assert.deepEqual(restored.pending, expected.pending, 'обязательства сохраняются после reload');
+    await live.context.close();
+  }
 
   const crisisStart = startFromSeed(7, 'crisis'), crisis = await nextCase(await newTerm(crisisStart));
   const crisisFixture = await openFixture(crisis, crisisStart);
