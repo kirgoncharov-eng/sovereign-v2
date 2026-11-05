@@ -110,6 +110,7 @@ export function HistoricalArtProvider({ state, children }) {
 import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM, countryName } from "@/lib/game/alternate-world.ts";
+import { lawCampNames } from "@/lib/client/law-camps.ts";
 import PresidentialOpening, { PresidentialCouncil, RepublicAtlas } from "./PresidentialOpening.jsx";
 import RepublicMap from "./RepublicMap.jsx";
 import { isRepublicMapVisible } from "@/lib/game/republic-map.ts";
@@ -511,17 +512,16 @@ function CostReasons({ gs, c, fx }) {
 }
 
 // Законопроект: что закон будет делать каждый ход, если пройдёт, — или что исчезнет с его отменой.
-function LawEffects({ def, law }) {
+function LawEffects({ gs, def, law }) {
   const impact = effectiveLaw(def, law);
   const fac = Object.entries(impact.drift ?? {}).filter(([, d]) => d < 0).map(([b]) => b);
   return (
     <span style={{ display:"inline-flex", flexWrap:"wrap", gap:"2px 12px", alignItems:"center" }}>
       <ResourceChips delta={impact.perTurn} exact={false}/>
-      {fac.length > 0 && <span style={{ color:G.red }}>недовольны: {fac.map(b => BLOC_LABEL[b] ?? b).join(", ")}</span>}
+      {fac.length > 0 && <span style={{ color:G.red }}>недовольны: {lawCampNames(gs, fac).join(", ")}</span>}
     </span>
   );
 }
-const BLOC_LABEL = { security:"силовики", business:"бизнес", church:"церковь", liberal:"либералы", west:"торговые партнёры", russia:"Россия", nationalist:"националисты", regional:"регионы", ruling:"правящая партия" };
 function LawLines({ gs, c, effects = true }) {
   const def = c.law && lawDef(c.law.id);
   if (!def) return null;
@@ -530,7 +530,7 @@ function LawLines({ gs, c, effects = true }) {
     <div style={{ fontFamily:narrow, fontSize:15, marginTop:6, lineHeight:1.45, color:G.tx2 }}>
       {c.law.act === "enact"
         ? effects
-          ? <><div>§ Если парламент примет — закон «{def.title}» будет действовать каждый ход:</div><LawEffects def={def}/></>
+          ? <><div>§ Если парламент примет — закон «{def.title}» будет действовать каждый ход:</div><LawEffects gs={gs} def={def}/></>
           : <div>§ Если парламент примет — закон «{def.title}» будет действовать каждый ход</div>
         : <div>§ Отменит закон «{def.title}»{inForce ? " — его действие прекратится" : ""}</div>}
     </div>
@@ -598,7 +598,7 @@ function LawsCard({ gs, final = false, style, bare = false }) {
               <span style={{ color:G.txt }}>«{def.title}»</span>
               <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>с {monthYear(turnDate(gs.seed, start, Math.max(0, l.since - 1)))}</span>
             </div>
-            {!final && <div style={{ fontFamily:narrow, fontSize:14, marginTop:2 }}><LawEffects def={def} law={l}/></div>}
+            {!final && <div style={{ fontFamily:narrow, fontSize:14, marginTop:2 }}><LawEffects gs={gs} def={def} law={l}/></div>}
             {l.transition && <div style={{ fontFamily:narrow, fontSize:14, color:G.amb }}>Льготный выход: кому при принятии закона до пенсии оставалось не более года. Поправка с {monthYear(turnDate(gs.seed, start, Math.max(0, l.transition.since - 1)))}</div>}
             {final && <div style={{ fontFamily:serif, fontSize:13, color:G.tx3 }}>{def.short}</div>}
           </div>
