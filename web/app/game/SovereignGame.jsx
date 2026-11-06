@@ -1,7 +1,8 @@
 "use client";
+import ForecastReview, { isForecastReview } from "./ForecastReview.tsx";
 import ResIcon from "./ResourceIcon.jsx";
 import ResolutionChoices from "./ResolutionChoices.tsx";
-import { advisorSigningState, unifiedResolution, usesAdvisorOutlook, knowsAdvisorSkill } from "@/lib/client/advisor-outlook.ts";
+import { advisorSigningState, unifiedResolution, knowsAdvisorSkill } from "@/lib/client/advisor-outlook.ts";
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
 import {
   ACTIONS, actionLabel, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION, TERM_RULES, TERM, localTurn, termIndex, termOrdinal,
@@ -3836,10 +3837,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                       const f = factions.find(x => x.id === fid);
                       return f && v ? [{ k:fid, label:f.name, value:f.relation, delta:v, rel:true }] : [];
                     }),
-                  ]} extra={lastTurn.forecasts?.length > 0 && (
-                    <div style={{ marginTop:12 }}>
-                      <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>{usesAdvisorOutlook(gs) ? lastTurn.forecasts[0] : "ПРОГНОЗЫ СОВЕТНИКОВ"}</div>
-                      {(usesAdvisorOutlook(gs) ? lastTurn.forecasts.slice(1) : lastTurn.forecasts).map(line => (
+                  ]} extra={lastTurn.forecasts?.length > 0 && (isForecastReview(lastTurn.forecasts[0])
+                    ? <ForecastReview lines={lastTurn.forecasts}/> : <div style={{ marginTop:12 }}>
+                      <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>ПРОГНОЗЫ СОВЕТНИКОВ</div>
+                      {lastTurn.forecasts.map(line => (
                         <div key={line} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:/— верно\.$/.test(line) ? G.grn : G.tx2 }}>{line}</div>
                       ))}
                     </div>

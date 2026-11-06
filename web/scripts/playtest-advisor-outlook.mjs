@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
 import { newTerm, nextCase, startFromSeed } from '../lib/client/chronicle.ts';
-import { advisorOutlook } from '../lib/client/advisor-outlook.ts';
+import { advisorOutlook, advisorSigningState, reviewAdvisorOutlook } from '../lib/client/advisor-outlook.ts';
 
 const root = resolve('.');
 const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6) ?? 'playtest/advisor-outlook');
@@ -13,9 +13,11 @@ mkdirSync(out, { recursive: true });
 const bundle = await build({ stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client';
   import ResolutionChoices from './app/game/ResolutionChoices.tsx';
   import { AdvisorCard } from './app/game/AdvisorCard.jsx';
-  createRoot(document.getElementById('root')).render(<><ResolutionChoices game={window.fixture} busy={false}
+  import ForecastReview from './app/game/ForecastReview.tsx';
+  createRoot(document.getElementById('root')).render(<><ResolutionChoices game={window.fixture} busy={false} dialogue={window.dialogue}
     onSign={choice=>{document.body.dataset.signed=choice.id;}}/><details id="dossier"><summary>Досье команды</summary>
-    <AdvisorCard gs={window.fixture} advisor={window.fixture.advisors[0]} id="advisor-card"/></details></>);`, resolveDir: root, loader: 'jsx' },
+    <AdvisorCard gs={window.fixture} advisor={window.fixture.advisors[0]} id="advisor-card"/></details>
+    <details id="review"><summary>Ведомость после срыва</summary><ForecastReview lines={window.review}/></details></>);`, resolveDir: root, loader: 'jsx' },
   bundle: true, write: false, outfile: 'outlook.js', jsx: 'automatic', format: 'iife',
   define: { 'process.env.NODE_ENV': '"production"' },
   plugins: [{ name: 'aliases', setup(builder) {
@@ -26,15 +28,28 @@ const js = bundle.outputFiles.find(file => file.path.endsWith('.js')).text.repla
 const css = bundle.outputFiles.find(file => file.path.endsWith('.css')).text;
 const styles = readFileSync('demo/dist/sovereign.html', 'utf8').match(/<style>([\s\S]*?)<\/style>/)[1];
 const base = await nextCase(await newTerm(startFromSeed(7)));
+// Выдержки из черновика Claude (Notion: «Реплики: alt_wages», 6 ноября); только тестовый стенд, не контент игры.
+const dialogue = { alt_wages: { 0: {
+  economist: {
+    strong: 'Платим из резерва, но не на общий счёт завода: банк спишет всё в счёт старой ссуды раньше, чем бухгалтерия начислит зарплату. Нужен отдельный счёт и ревизор у кассы.',
+    weak: 'Деньги в резерве есть, переведём заводу — и вопрос закрыт. С банком бухгалтерия как-нибудь разберётся.',
+  },
+  strategist: {
+    strong: 'Людям это зачтут: зарплату дал президент, а не директор. Но {target} проверку не простит, а Палата будет говорить, что мы душим промышленность. С банком договариваться придётся вам лично.',
+    weak: 'Платить надо, тут без вопросов. Рабочие запомнят добро, остальное — шум.',
+    challenge: { after: 'economist', text: 'А банк? Если деньги лягут на общий счёт, их спишут раньше, чем они дойдут до кассы.' },
+  },
+} } };
 const browser = await chromium.launch();
 const summary = { checks: [], problems: [] };
 try {
   for (const width of [320, 390, 1440]) for (const diff of ['debut', 'crisis']) for (const skill of [1, 2, 3]) {
     const game = { ...base, diff, advisors: base.advisors.map(advisor => ({ ...advisor, skill })) };
+    const review = reviewAdvisorOutlook(advisorSigningState(game), game.currentEvent.choices[0], false).lines;
     const name = `${width}-${diff}-skill-${skill}`, file = join(out, `${name}.html`);
     writeFileSync(file, `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <style>${styles}${css}body{margin:0;background:#e4dcbd}#root{max-width:640px;margin:12px auto}</style>
-      <div id="root"></div><script>window.fixture=${JSON.stringify(game).replace(/</g, '\\u003c')};${js}</script>`);
+      <div id="root" class="sv-paper"></div><script>window.fixture=${JSON.stringify(game).replace(/</g, '\\u003c')};window.dialogue=${JSON.stringify(dialogue).replace(/</g, '\\u003c')};window.review=${JSON.stringify(review).replace(/</g, '\\u003c')};${js}</script>`);
     const context = await browser.newContext({ viewport: { width, height: 844 }, hasTouch: true });
     const page = await context.newPage();
     page.on('pageerror', error => summary.problems.push(String(error)));
@@ -71,6 +86,10 @@ try {
     assert.equal(dossier.includes('★'), diff === 'debut', 'досье не раскрывает скрытую компетентность');
     await details.getByRole('button', { name: 'Подписать', exact: true }).click();
     assert.equal(await page.locator('body').getAttribute('data-signed'), game.currentEvent.choices[0].id);
+    await page.locator('#review > summary').click();
+    assert.ok(await page.locator('[data-forecast-review]').isVisible());
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
+    await page.screenshot({ path: join(out, `${name}-ledger.png`), fullPage: true });
     await page.reload();
     assert.equal(await choices.innerText(), text, 'reload не меняет доклад');
     summary.checks.push({ width, diff, skill });

@@ -124,10 +124,10 @@ try {
     await sign.tap();
     await live.page.waitForFunction(key => JSON.parse(localStorage.getItem(key)).snapshot.game.turn > 0, CHRONICLE_GAME_KEY);
     const actual = await savedGame(live.page);
-    assert.equal(actual.lastTurn.success, success);
+    assert.equal(actual.history.at(-1).success, success);
     assert.deepEqual(actual.resources, expected.resources);
     assert.deepEqual(actual.factions, expected.factions);
-    assert.deepEqual(actual.lastTurn.forecasts, expected.lastTurn.forecasts);
+    assert.deepEqual(actual.advisors, expected.advisors, 'проверенный доклад попал в досье, даже если хроника уже открыла следующее дело');
     await live.context.close();
   }
 

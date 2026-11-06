@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import ResIcon from './ResourceIcon.jsx';
 import { advisorOutlook, resolutionOptions, hardOutlook, signedEstimate, type Estimate, type OutlookSource } from '@/lib/client/advisor-outlook.ts';
+import type { AdvisorDialogue } from '@/lib/content/advisor-dialogue.ts';
 import { advisorDialogue } from '@/lib/client/advisor-dialogue.ts';
 import { quarterDeadline } from '@/lib/client/initiative-note.ts';
 import { RESOURCE_TITLE } from '@/lib/content/resource-names.ts';
@@ -16,10 +17,10 @@ function Resources({ estimates }: { estimates: Partial<Record<ResourceKey, Estim
   const entries = Object.entries(estimates).filter(([, estimate]) => estimate!.value !== 0);
   if (!entries.length) return <span className={styles.neutral}>без перемены</span>;
   return <span className={styles.resources}>{entries.map(([key, estimate]) => {
-    const { text, source } = estimate!;
+    const { text, source, value } = estimate!;
     return <span className={styles.resource} key={key} title={`${RESOURCE_TITLE[key as ResourceKey]} · ${source.name}`}
       aria-label={`${RESOURCE_TITLE[key as ResourceKey]}: ${text}, ${source.name}`}>
-      <ResIcon k={key} size={16} /><span>{text}</span>
+      <ResIcon k={key} size={17} /><span className={value < 0 ? styles.loss : styles.gain}>{text}</span>
     </span>;
   })}</span>;
 }
@@ -35,8 +36,8 @@ function Risk({ forecast, hard }: { forecast: Forecast; hard: boolean }) {
 }
 
 /** Одно раскрытие на документ: сравнение всех вариантов доступно до первого касания. */
-export default function ResolutionChoices({ game, busy, onSign }: {
-  game: GameState; busy: boolean; onSign: (choice: Choice) => void;
+export default function ResolutionChoices({ game, busy, onSign, dialogue }: {
+  game: GameState; busy: boolean; onSign: (choice: Choice) => void; dialogue?: AdvisorDialogue;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const groupId = useId();
@@ -45,21 +46,23 @@ export default function ResolutionChoices({ game, busy, onSign }: {
     {resolutionOptions(game).map((choice, index) => {
       const forecast = advisorOutlook(game, choice)!;
       const expanded = selected === choice.id;
-      const speeches = expanded ? advisorDialogue(game, choice) : [];
+      const speeches = expanded ? advisorDialogue(game, choice, dialogue) : [];
       const experts = [...new Map([...Object.values(forecast.sources), forecast.risk.source].map(source => [source.id, source])).values()];
       const detailId = `${groupId}-${index}`;
       return <section key={choice.id} className={`${styles.option}${expanded ? ` ${styles.selected}` : ''}`} data-choice-id={choice.id}>
         <button id={`opt-${index + 1}`} type="button" className={`sv-choice-row ${styles.pick}`} aria-expanded={expanded} aria-controls={detailId}
           disabled={busy} onClick={() => setSelected(expanded ? null : choice.id)}>
-          <strong className={styles.title}><span>{index + 1}.</span> <span>{choice.text}</span></strong>
+          <strong className={styles.title}><span>{choice.text}</span></strong>
           {forecast.people.proponent && <span className={styles.people}>Предлагает {forecast.people.proponent.name}
             {forecast.people.critic && ` · возражает ${forecast.people.critic.name}`}</span>}
           {!expanded && <><span className={styles.line}><span>Сейчас</span><Resources estimates={forecast.success.resources} /></span>
             <Later game={game} forecast={forecast} compact /><Risk forecast={forecast} hard={hard} /></>}
         </button>
         {expanded && <div id={detailId} className={styles.detail} role="group" aria-label="Последствия выбранного решения" data-choice-id={choice.id}>
-          {speeches.map((line, n) => <blockquote key={n}><p>{line.text}</p>
-            {line.correction && <p>{line.correction}</p>}<cite><Source source={line.source} hard={hard} /></cite></blockquote>)}
+          {speeches.map((line, n) => <blockquote key={n}>
+            <span className={styles.portrait} aria-hidden="true">{line.source.name.split(' ').at(-1)?.[0]}</span>
+            <div><cite><Source source={line.source} hard={hard} /></cite><p>«{line.text}»</p>
+              {line.correction && <p>«{line.correction}»</p>}</div></blockquote>)}
           <div className={styles.line}><strong>Исполнят</strong><Resources estimates={forecast.success.resources} /></div>
           {forecast.failure && <div className={styles.line}><strong>Срыв</strong>
             {forecast.failureOmitted ? <span>не обсуждали</span> : <Resources estimates={forecast.failure.resources} />}

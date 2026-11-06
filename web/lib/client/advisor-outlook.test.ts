@@ -107,7 +107,7 @@ test('архив/Daily без новой оценки и аудита; отде�
     assert.equal(reviewAdvisorOutlook(archive, choice, true), null);
     assert.equal(advisorSigningState(archive), archive);
   }
-  const daily = { ...state, daily: { id: 'test' } } as unknown as GameState;
+  const daily = { ...state, daily: 'test' } as unknown as GameState;
   assert.equal(advisorOutlook(daily, choice), null);
   assert.equal(advisorSigningState(daily), daily);
   const proposal = { ...choice, id: 'saved-advisor', advisor: state.advisors[0] };
@@ -133,6 +133,6 @@ test('умение скрыто на сложных уровнях обычно�
   for (const diff of ['debut', 'coalition', 'crisis', 'ruins'] as const) {
     assert.equal(knowsAdvisorSkill({ ...state, diff }), diff === 'debut' || diff === 'coalition');
     assert.equal(knowsAdvisorSkill({ ...state, country: LEGACY_COUNTRIES[0], diff }), true);
-    assert.equal(knowsAdvisorSkill({ ...state, daily: { id: 'daily' } as GameState['daily'], diff }), true);
+    assert.equal(knowsAdvisorSkill({ ...state, daily: 'daily', diff }), true);
   }
 });
