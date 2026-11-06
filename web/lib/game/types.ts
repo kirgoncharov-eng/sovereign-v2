@@ -309,6 +309,7 @@ export interface Pending {
 export type SpecialKind = "overture" | "insider" | "mole" | "pact" | "inspect" | "press" | "call" | "budget" | "terms";
 
 export interface HistoryEntry {
+  factoryMandate?: import('./factory-mandate.ts').FactoryMandate;
   law?: TurnReport["law"];
   year: number;
   title: string;

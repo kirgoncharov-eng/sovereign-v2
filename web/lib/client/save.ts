@@ -9,6 +9,7 @@ import { managementDocument } from "../game/classic.ts";
 import { validLivingWorld } from "../game/living-world.ts";
 import { validInitiatives } from '../game/initiatives.ts';
 import { migrateLegacyCaseText } from '../game/legacy-case-text.ts';
+import { validFactoryMandate } from '../game/factory-mandate.ts';
 import type { GameState } from "../game/types.ts";
 
 const KEY = "sovereign.save";
@@ -114,7 +115,9 @@ function validState(s: Obj): boolean {
     && (a.since === undefined || integer(a.since))
     && (a.dossier === undefined || isObj(a.dossier) && typeof a.dossier.fact === "string" && integer(a.dossier.turn)
       && (a.dossier.used === undefined || typeof a.dossier.used === "boolean")))) return false;
-  if (!rows(s.history, h => fields(h, ["title", "choice", "headline", "historianNote"]) && integer(h.year) && (h.law === undefined || h.law === null || validLawNews(h.law)))) return false;
+  if (!rows(s.history, h => fields(h, ["title", "choice", "headline", "historianNote"]) && integer(h.year)
+    && (h.law === undefined || h.law === null || validLawNews(h.law))
+    && (h.factoryMandate === undefined || validFactoryMandate(h.factoryMandate, s.turn as number)))) return false;
   if (!rows(s.activeCrises, c => fields(c, ["id", "title", "description", "severity"]) && isObj(c.resourceDrain) && integer(c.turnsActive))) return false;
   if (!pending(s.pending)) return false;
   if (s.initiatives !== undefined && !validInitiatives(s.initiatives, s as unknown as GameState)) return false;

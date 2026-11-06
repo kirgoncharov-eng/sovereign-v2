@@ -20,6 +20,7 @@ import { stepLaws } from "./laws.ts";
 import { stepLivingWorld, type LivingWorld } from "./living-world.ts";
 import { initiativePactWaiting, initiativeResourcesBefore, initiativeTurnSources, retainInitiativeDebts } from './initiatives.ts';
 import { executionProfile, executionRisk, type ExecutionContext } from './execution-risk.ts';
+import { recordFactoryMandate, settleFactoryMandates } from './factory-mandate.ts';
 import { ensureSecretary, finishSecretaryTurn, secretaryDueEffects, secretaryPreventsLeak } from './secretary.ts';
 import { electionKind, isTermEnd, nextReign, pathEnd, reignOf } from "./terms.ts";
 import type {
@@ -814,6 +815,7 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     return { ...fig, name: heir.name, relation, loyalty: loyaltyLabel(relation) };
   });
 
+  const factoryMandate = recordFactoryMandate(state, plan.choice, plan);
   return finishSecretaryTurn(state, {
     ...state,
     resources: plan.resources, prevResources: initiativeResourcesBefore(state),
@@ -826,10 +828,11 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     year: state.year + (turn % 4 === 0 ? 1 : 0),
     elections: plan.election ? [...(state.elections ?? []), plan.election] : (state.elections ?? []),
     councilCharges: state.councilCharges + (plan.election?.kind === "parliament" && plan.election.outcome === "won" ? COUNCIL_ELECTION_BONUS : 0),
-    history: [...state.history, {
+    history: [...settleFactoryMandates(state, plan), {
       year: state.year, title: event.title, choice: plan.choice.text,
       headline: narration.headline, historianNote: narration.historianNote,
       tags: plan.choice.tags, success: plan.success,
+      ...(factoryMandate ? { factoryMandate } : {}),
       ...(plan.lawNews ? { law: plan.lawNews } : {}),
       ...(narration.heard?.length ? { heard: narration.heard } : {}),
       ...(narration.cast?.length ? { cast: narration.cast } : {}),

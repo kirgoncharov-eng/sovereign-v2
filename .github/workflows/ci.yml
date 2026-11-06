@@ -67,6 +67,7 @@ jobs:
       # Новая партия 1978 года идёт в «Хронике срока» (#302): анкета, пролог вступления, дела и обращения.
       - run: node scripts/playtest-chronicle.mjs --out=playtest/chronicle
       - run: node scripts/playtest-choice-price.mjs --out=playtest/choice-price
+      - run: node scripts/playtest-factory-mandate.mjs --out=playtest/factory-mandate
       - if: always()
         uses: actions/upload-artifact@v4
         with:

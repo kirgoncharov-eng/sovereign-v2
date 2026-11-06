@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { governmentLoad } from '@/lib/game/government.ts';
 import { governmentBriefs, governmentPrice } from '@/lib/client/government-brief.ts';
+import { factoryMandateBrief } from '@/lib/client/factory-mandate.ts';
 import { PeopleText } from './PeopleText.jsx';
 export { governmentPrice } from '@/lib/client/government-brief.ts';
 
@@ -21,6 +22,7 @@ export default function GovernmentPanel({ gs, onAction, onClose, onDetails, init
   const priority = gs.world.government.priority === brief.id;
   const mandate = gs.world.mandate;
   const nextHousing = gs.world.government.housingNext;
+  const factory = factoryMandateBrief(gs);
 
   function selectProject(id) {
     setSelected(id);
@@ -51,6 +53,10 @@ export default function GovernmentPanel({ gs, onAction, onClose, onDetails, init
       <h3>Что требует внимания?</h3>
       <p>В работе {governmentLoad(gs.world)}/2 программ. Одно личное поручение на квартал; чтение свободно.</p>
     </header>
+    {factory && <details className="sv-government-context" data-factory-mandate>
+      <summary>Заводская подпись · {factory.status}</summary>
+      {factory.lines.map((line, index) => <p key={index}><PeopleText>{line}</PeopleText></p>)}
+    </details>}
     <div className="sv-government-list" aria-label="Текущие поручения">{current.map(projectButton)}</div>
     {proposals.length > 0 && <>
       <button className="sv-desk-link" aria-expanded={showProposals} onClick={() => setShowProposals(!showProposals)}>

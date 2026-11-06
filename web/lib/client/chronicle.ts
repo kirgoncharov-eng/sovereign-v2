@@ -22,6 +22,7 @@ import { leadsWithHeadline } from './brief.ts';
 import { presidentialMessages, readPresidentialMessages } from './presidential-inbox.ts';
 import { personalBeat, type PersonalMemory } from './chronicle-personal.ts';
 import { quarterLedger } from './chronicle-ledger.ts';
+import { factoryQuarterReports } from './factory-mandate.ts';
 import type { Choice, DifficultyId, GameState, IdeologyId, ResourceKey } from '../game/types.ts';
 
 export type LineKind = 'opening' | 'speech' | 'signed' | 'scene' | 'voice' | 'paper' | 'press' | 'letter' | 'echo'
@@ -168,6 +169,7 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
     ...(report.letters ?? []).filter(letter => !letter.replies?.length)
       .map(letter => ({ kind: 'letter' as const, who: letter.from, text: letter.text })),
     ...dispatches.map(dispatch => ({ kind: 'report' as const, who: dispatch.title, text: dispatch.text })),
+    ...factoryQuarterReports(before, after).map(dispatch => ({ kind: 'report' as const, who: dispatch.title, text: dispatch.text })),
     ...withoutReportEchoes(quarter.other, dispatches).map(text => ({ kind: 'echo' as const, text })),
   ];
   // Личная строка — среди событий квартала, а не приписка в конце; первая ночь — сразу после первой подписи.
