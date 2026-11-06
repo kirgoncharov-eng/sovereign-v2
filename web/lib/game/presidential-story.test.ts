@@ -1,3 +1,4 @@
+import { reviewAdvisorOutlook } from "../client/advisor-outlook.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ALTERNATE_COUNTRY, countryName, eraText } from './alternate-world.ts';
@@ -113,7 +114,11 @@ test('all historical conversations retain exact resolutions and their outcomes a
                     const before = state.advisors.find(previous => previous.id === advisor.id)!;
                     const expected = advisor.name === lines[0].name ? 3 : advisor.name === lines[1].name ? -5 : 0;
                     assert.equal(loyaltyOf(advisor) - loyaltyOf(before), expected);
-                    assert.deepEqual(advisor.record, before.record);
+                    const checked = reviewAdvisorOutlook(state, choice, direct.lastTurn!.success)!.news.find(item => item.id === advisor.id);
+                    assert.deepEqual(advisor.record, {
+                        right: (before.record?.right ?? 0) + (checked?.right ?? 0),
+                        wrong: (before.record?.wrong ?? 0) + (checked?.wrong ?? 0),
+                    });
                 }
                 const discussed = resolveTurn(loaded, choice.id, councilReport);
                 assert.deepEqual(discussed.resources, direct.resources);

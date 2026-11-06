@@ -109,6 +109,8 @@ async function decide(page, kind) {
   await opt(1).scrollIntoViewIfNeeded();
   await opt(1).tap();
   await wait(200);
+  const unifiedSign = page.locator('[data-resolution-choices]').getByRole('button', { name: 'Подписать', exact: true });
+  if (await unifiedSign.count()) return unifiedSign.tap();
   // Some document interactions prepare their resolution directly (no separate selection bar).
   if (await page.locator('[data-quarter-resolution]').count()) return;
   const sign = page.locator(".sv-actionbar button", { hasText: /Подписать|Подготовить резолюцию/ });

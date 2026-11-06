@@ -70,7 +70,7 @@ test('убирается только повтор показанного док
   };
   const snapshot = structuredClone(after);
   const { lines } = quarterLines(before, after, EMPTY_PERSONAL);
-  assert.deepEqual(lines.filter(line => line.kind === 'report').map(line => line.text), [energy, health, government]);
+  assert.deepEqual(lines.filter(line => line.kind === 'report').map(line => line.text), [energy, health, government, after.lastTurn!.forecasts!.slice(1).join('\n')]);
   assert.deepEqual(lines.filter(line => line.kind === 'echo').map(line => line.text), [news[0], old, news.at(-1)]);
   assert.deepEqual(after, snapshot, 'представление не меняет состояние партии');
 

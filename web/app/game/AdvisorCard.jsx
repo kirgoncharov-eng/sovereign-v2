@@ -3,6 +3,7 @@
 // Не класть внутрь другой кнопки (вариантов решения): вложенные кнопки недопустимы.
 // Мышью карточка открывается наведением, касанием — нажатием; нажатие закрепляет её открытой.
 import { useId, useState } from "react";
+import { knowsAdvisorSkill } from "@/lib/client/advisor-outlook.ts";
 import { isOwnPerson } from "@/lib/game/engine.ts";
 import { OWN_PERSON_TEXT, OWN_LOYALTY_FLOOR } from "@/lib/content/staffing.ts";
 import { advisorProfile } from "@/lib/game/advisors.ts";
@@ -24,7 +25,7 @@ export function AdvisorCard({ gs, advisor, id, children = null }) {
         {profile.loyalty < OWN_LOYALTY_FLOOR ? OWN_PERSON_TEXT.legacy : OWN_PERSON_TEXT.card}
       </p>}
       <dl>
-        {profile.area && <><dt>Сильная сторона</dt><dd>{profile.area} · {stars(advisor.skill)} · {profile.skill}</dd></>}
+        {profile.area && <><dt>Сильная сторона</dt><dd>{profile.area}{knowsAdvisorSkill(gs) && <> · {stars(advisor.skill)} · {profile.skill}</>}</dd></>}
         <dt>Лояльность</dt>
         <dd>
           <span className={`sv-advisor-card-${tone}`}>{profile.loyaltyWord} · {profile.loyalty}</span>
