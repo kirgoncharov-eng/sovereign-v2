@@ -2886,7 +2886,7 @@ function Intro({ gs, onGo }) {
                     <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{a.role}</div>
                   </div>
                 </div>
-                {knowsAdvisorSkill(gs) && <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }} title={ADVISOR_SKILL[a.skill].label}>{stars(a.skill)}</span>
+                {knowsAdvisorSkill(gs) && <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }} title={ADVISOR_SKILL[a.skill].label}>{stars(a.skill)}</span>}
               </div>
             ))}
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10 }}>
