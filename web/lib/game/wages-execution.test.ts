@@ -50,7 +50,7 @@ test('завод: явная цепочка различает выплату, �
     [['economist'], ['economist', 'diplomat'], ['economist', 'diplomat']]);
   for (const choice of state.currentEvent!.choices) {
     const profile = executionProfile(state, choice)!;
-    assert.ok(executionRisk(state, choice)!.reason.startsWith(profile.responsibility));
+    assert.ok(executionRisk(state, choice)?.reason?.startsWith(profile.responsibility));
   }
 });
 
