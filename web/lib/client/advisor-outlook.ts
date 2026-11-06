@@ -18,6 +18,7 @@ const PROFILE: Record<ResourceKey, string> = {
 export const signedEstimate = (n: number) => n === 0 ? '0' : `${n < 0 ? '−' : '+'}${Math.abs(n)}`;
 export const hardOutlook = (state: Pick<GameState, 'diff'>) => state.diff === 'crisis' || state.diff === 'ruins';
 export const usesAdvisorOutlook = (state: Pick<GameState, 'country' | 'daily'>) => state.country === ALTERNATE_COUNTRY && !state.daily;
+export const knowsAdvisorSkill = (state: Pick<GameState, 'country' | 'daily' | 'diff'>) => !usesAdvisorOutlook(state) || !hardOutlook(state);
 export function unifiedResolution(state: GameState) {
   const event = state.currentEvent;
   return usesAdvisorOutlook(state) && !!event && !event.call && !event.press && !event.budget;

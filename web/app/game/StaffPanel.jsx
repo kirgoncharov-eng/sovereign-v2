@@ -2,6 +2,7 @@
 // Кадровый резерв в досье: три кандидата в год, одно кадровое решение за квартал.
 // Назначение — замена: кандидат садится в кресло советника, прежний уходит. Цену и реакцию лагерей видно до подписи.
 import { useState } from "react";
+import { knowsAdvisorSkill } from "@/lib/client/advisor-outlook.ts";
 import {
   DOSSIER_COST, DOSSIER_PRESS_LOYALTY, DOSSIER_SECURITY_LOYALTY, candidatePool, dismissalOf, dossierBlocked, staffingBlocked, staffingOpen,
 } from "@/lib/game/staffing.ts";
@@ -42,13 +43,13 @@ function Candidate({ gs, candidate, onHire, Portrait }) {
           <Portrait name={candidate.name} size={36}/>
           <div style={{ minWidth: 0 }}>
             <div><strong>{candidate.name}</strong></div>
-            <span>{upperFirst(candidate.title)} · {stars(candidate.skill)} · лояльность {candidate.loyalty}</span>
+            <span>{upperFirst(candidate.title)}{knowsAdvisorSkill(gs) && <> · {stars(candidate.skill)}</>} · лояльность {candidate.loyalty}</span>
           </div>
         </div>
       ) : (
         <div className="sv-staff-head">
           <strong>{candidate.name}</strong>
-          <span>{upperFirst(candidate.title)} · {stars(candidate.skill)} · лояльность {candidate.loyalty}</span>
+          <span>{upperFirst(candidate.title)}{knowsAdvisorSkill(gs) && <> · {stars(candidate.skill)}</>} · лояльность {candidate.loyalty}</span>
         </div>
       )}
       <p className="sv-staff-bio">{candidate.bio}</p>

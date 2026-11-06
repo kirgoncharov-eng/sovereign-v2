@@ -12,8 +12,10 @@ const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6)
 mkdirSync(out, { recursive: true });
 const bundle = await build({ stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client';
   import ResolutionChoices from './app/game/ResolutionChoices.tsx';
-  createRoot(document.getElementById('root')).render(<ResolutionChoices game={window.fixture} busy={false}
-    onSign={choice=>{document.body.dataset.signed=choice.id;}}/>);`, resolveDir: root, loader: 'jsx' },
+  import { AdvisorCard } from './app/game/AdvisorCard.jsx';
+  createRoot(document.getElementById('root')).render(<><ResolutionChoices game={window.fixture} busy={false}
+    onSign={choice=>{document.body.dataset.signed=choice.id;}}/><details id="dossier"><summary>Досье команды</summary>
+    <AdvisorCard gs={window.fixture} advisor={window.fixture.advisors[0]} id="advisor-card"/></details></>);`, resolveDir: root, loader: 'jsx' },
   bundle: true, write: false, outfile: 'outlook.js', jsx: 'automatic', format: 'iife',
   define: { 'process.env.NODE_ENV': '"production"' },
   plugins: [{ name: 'aliases', setup(builder) {
@@ -64,6 +66,9 @@ try {
     assert.equal((await details.innerText()).includes('★'), diff === 'debut');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
     await page.screenshot({ path: join(out, `${name}-selected.png`), fullPage: true });
+    await page.locator('#dossier > summary').click();
+    const dossier = await page.locator('#dossier').innerText();
+    assert.equal(dossier.includes('★'), diff === 'debut', 'досье не раскрывает скрытую компетентность');
     await details.getByRole('button', { name: 'Подписать', exact: true }).click();
     assert.equal(await page.locator('body').getAttribute('data-signed'), game.currentEvent.choices[0].id);
     await page.reload();

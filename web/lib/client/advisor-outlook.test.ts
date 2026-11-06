@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { advisorOutlook, advisorSigningState, estimateDelta, optimisticCase, reviewAdvisorOutlook, sourceFor, resolutionOptions } from './advisor-outlook.ts';
+import { advisorOutlook, advisorSigningState, estimateDelta, optimisticCase, reviewAdvisorOutlook, sourceFor, resolutionOptions, knowsAdvisorSkill } from './advisor-outlook.ts';
 import { choiceOutcomes } from './choice-outcomes.ts';
 import { newTerm, nextCase, signChoice, startFromSeed } from './chronicle.ts';
 import { LEGACY_COUNTRIES } from '../game/alternate-world.ts';
@@ -126,4 +126,13 @@ test('сильный автор риска называет действующе
   const protectedState = { ...state, advisors: state.advisors.map(advisor => ({ ...advisor, dossier: { fact: 'Счёт', turn: 0 } })) };
   assert.ok(!advisorOutlook(protectedState, choice)!.risk.reason!.includes('тянет с бумагами'));
   assert.ok(forecast.risk.value > advisorOutlook(protectedState, choice)!.risk.value);
+});
+
+test('умение скрыто на сложных уровнях обычной кампании, архив и Daily сохраняют звёзды', async () => {
+  const state = await fixture();
+  for (const diff of ['debut', 'coalition', 'crisis', 'ruins'] as const) {
+    assert.equal(knowsAdvisorSkill({ ...state, diff }), diff === 'debut' || diff === 'coalition');
+    assert.equal(knowsAdvisorSkill({ ...state, country: LEGACY_COUNTRIES[0], diff }), true);
+    assert.equal(knowsAdvisorSkill({ ...state, daily: { id: 'daily' } as GameState['daily'], diff }), true);
+  }
 });

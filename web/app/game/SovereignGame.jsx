@@ -1,7 +1,7 @@
 "use client";
 import ResIcon from "./ResourceIcon.jsx";
 import ResolutionChoices from "./ResolutionChoices.tsx";
-import { advisorSigningState, unifiedResolution, usesAdvisorOutlook } from "@/lib/client/advisor-outlook.ts";
+import { advisorSigningState, unifiedResolution, usesAdvisorOutlook, knowsAdvisorSkill } from "@/lib/client/advisor-outlook.ts";
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
 import {
   ACTIONS, actionLabel, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION, TERM_RULES, TERM, localTurn, termIndex, termOrdinal,
@@ -2886,7 +2886,7 @@ function Intro({ gs, onGo }) {
                     <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{a.role}</div>
                   </div>
                 </div>
-                <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }} title={ADVISOR_SKILL[a.skill].label}>{stars(a.skill)}</span>
+                {knowsAdvisorSkill(gs) && <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }} title={ADVISOR_SKILL[a.skill].label}>{stars(a.skill)}</span>
               </div>
             ))}
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginTop:10 }}>
