@@ -3948,7 +3948,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             <div style={{ textAlign:"right" }}><PrimaryBtn onClick={onEnd} danger>ПОДВЕСТИ ИТОГИ →</PrimaryBtn></div>
           )}
           </div>
-          {inboxMode && !busy && event && !unifiedResolution(gs) && prepared && <footer className="sv-quarter-close">
+          {inboxMode && !busy && event && prepared && <footer className="sv-quarter-close">
             <p>Утром выйдет газета.</p>
             <button type="button" data-finish-quarter disabled={!prepared || !!recap} onClick={finishQuarter}>Подписать и закрыть квартал</button>
           </footer>}

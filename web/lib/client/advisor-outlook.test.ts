@@ -115,3 +115,15 @@ test('архив/Daily без новой оценки и аудита; отде�
   assert.equal(resolutionOptions(old).at(-1)!.id, proposal.id);
   assert.equal(advisorSigningState(old), old);
 });
+
+test('сильный автор риска называет действующего саботажника, досье убирает именно эту причину', async () => {
+  const base = team(await fixture(), 3);
+  const state = { ...base, advisors: base.advisors.map(advisor => ({ ...advisor, loyalty: advisor.id === 'economist' ? 0 : 90 })) };
+  const choice = state.currentEvent!.choices[1];
+  const forecast = advisorOutlook(state, choice)!;
+  assert.ok(forecast.risk.reason!.includes(state.advisors.find(advisor => advisor.id === 'economist')!.name));
+  assert.match(forecast.risk.reason!, /п\. п\. — .* тянет с бумагами/);
+  const protectedState = { ...state, advisors: state.advisors.map(advisor => ({ ...advisor, dossier: { fact: 'Счёт', turn: 0 } })) };
+  assert.ok(!advisorOutlook(protectedState, choice)!.risk.reason!.includes('тянет с бумагами'));
+  assert.ok(forecast.risk.value > advisorOutlook(protectedState, choice)!.risk.value);
+});

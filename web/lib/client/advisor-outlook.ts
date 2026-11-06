@@ -2,8 +2,9 @@
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { ADVISOR_ROLES, RESOURCE_KEYS } from '../game/data.ts';
 import { authoredDebate, isPresidentialDiscussion } from '../game/presidential-story.ts';
-import { hashSeed, loyaltyOf } from '../game/engine.ts';
-import { loyaltyWord } from '../game/advisors.ts';
+import { hashSeed, loyaltyOf, saboteurOf, successChance } from '../game/engine.ts';
+import { isDisloyal, loyaltyWord } from '../game/advisors.ts';
+import { executionProfile } from '../game/execution-risk.ts';
 import { RESOURCE_TITLE } from '../content/resource-names.ts';
 import type { AdvisorNews, Choice, GameState, ResourceKey } from '../game/types.ts';
 import { choiceOutcomes } from './choice-outcomes.ts';
@@ -94,11 +95,24 @@ export function advisorOutlook(state: GameState, choice: Choice) {
   const riskText = !riskSource.skill ? '?' : hardOutlook(state) || riskSource.skill === 3 ? `${percent}%`
     : riskSource.skill === 1 ? (percent ? 'надёжно' : 'нет') : percent === 0 ? 'нет'
     : percent < 20 ? 'низкий' : percent < 40 ? 'умеренный' : 'высокий';
+  let reason = riskSource.skill === 3 ? raw.reason : null;
+  if (riskSource.skill === 3 && raw.failure) {
+    const profile = executionProfile(ready, choice);
+    const harmful = ready.advisors.filter(advisor => isDisloyal(advisor, ready) && !advisor.dossier);
+    const saboteur = profile ? harmful.find(advisor => profile.coordinators.includes(advisor.id)) : saboteurOf(ready, choice);
+    if (saboteur) {
+      // Учитываем предел шанса: у нижней границы саботаж может добавить меньше десяти пунктов.
+      const restrained = { ...ready, advisors: ready.advisors.map(advisor => harmful.includes(advisor)
+        ? { ...advisor, dossier: { fact: '', turn: ready.turn } } : advisor) };
+      const points = Math.round((successChance(restrained, choice) - successChance(ready, choice)) * 100);
+      if (points > 0) reason = [reason, `Из риска срыва ${points} п. п. — ${saboteur.name} тянет с бумагами.`].filter(Boolean).join(' ');
+    }
+  }
   return { sources, people: resolutionPeople(state, choice), success: outcome(raw.success),
     failure: raw.failure ? outcome(raw.failure, true) : null,
     failureOmitted: !!raw.failure && !hardOutlook(state) && riskSource.skill === 1,
     risk: { text: riskText, value: percent, source: riskSource,
-      reason: riskSource.skill === 3 ? raw.reason : null },
+      reason },
     payment: (choice.deal?.res?.economy ?? 0) < 0 ? choice.deal!.res!.economy! : null,
     later: raw.later.map((effect, index) => ({ ...effect,
       resources: Object.fromEntries(RESOURCE_KEYS.filter(key => effect.res[key]).map(key => [key,
