@@ -10,6 +10,7 @@ import { ALTERNATE_COUNTRY } from '../lib/game/alternate-world.ts';
 import { createInitialState, seededRandom, startEvent, resolveTurn } from '../lib/game/engine.ts';
 import { openDeskWhenDue } from '../lib/game/desk-timing.ts';
 import { actSecretary, ensureSecretary, pendingSecretaryFavor } from '../lib/game/secretary.ts';
+import { prepareQuarterResolution } from '../lib/client/quarter-inbox.ts';
 import { parseSave } from '../lib/client/save.ts';
 import { SAVE_VERSION } from '../lib/game/data.ts';
 
@@ -50,7 +51,7 @@ try {
     await page.addInitScript(save => {
       if (!localStorage.getItem('sovereign.save')) localStorage.setItem('sovereign.save', JSON.stringify(save));
       localStorage.setItem('sovereign.tutorial.seen', '1');
-    }, encode(state));
+    }, encode(prepareQuarterResolution(state, state.currentEvent.choices[0].id)));
     const resume = async () => {
       await page.getByRole('button', { name: 'Продолжить сохранённую игру', exact: true }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'ПРОДОЛЖИТЬ', exact: true }).click();
@@ -63,9 +64,7 @@ try {
     await resume();
     assert.match(await page.locator('[data-quarter-secretary]').innerText(), /держит дистанцию/);
     await page.screenshot({ path: `${output}/${width}-inventory.png`, fullPage: true });
-    await open('main');
-    await page.locator('#opt-1').click();
-    await page.locator('.sv-quarter-prepare button').first().click();
+    // Сохранение старого подготовленного документа остаётся валидным после действия секретаря.
     await page.waitForFunction(() => !!JSON.parse(localStorage.getItem('sovereign.save')).state.quarterDraft);
     const prepared = await read();
     await open('secretary-favor');
@@ -143,8 +142,7 @@ try {
   assert.deepEqual((await protectionRead()).world.secretary.gossip, protectedSave.world.secretary.gossip);
   await protectionPage.locator('[data-quarter-document="main"]').click();
   await protectionPage.locator('#opt-1').click();
-  await protectionPage.locator('.sv-quarter-prepare button').first().click();
-  await protectionPage.locator('[data-finish-quarter]').click();
+  await protectionPage.locator('[data-resolution-choices]').getByRole('button', { name: 'Подписать', exact: true }).click();
   await protectionPage.locator('#sv-turn-result').waitFor();
   await protectionPage.waitForFunction(() => JSON.parse(localStorage.getItem('sovereign.save')).state.lastTurn?.narrative.includes('Утечку предотвратили'));
   await protectionPage.evaluate(() => window.scrollTo({ top: 0 }));

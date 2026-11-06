@@ -1,3 +1,4 @@
+import { reviewAdvisorOutlook } from "../client/advisor-outlook.ts";
 // Игровой движок: чистые функции без сети и без React.
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
 import { historicalDelayedLabel } from "../content/historical-echoes.ts";
@@ -778,6 +779,16 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 export function resolveTurn(state: GameState, choiceId: string, narration: Narration): GameState {
   const plan = planTurn(state, choiceId);
   const event = state.currentEvent!;
+  const review = reviewAdvisorOutlook(state, plan.choice, plan.success);
+  // Лояльность остаётся из прежнего авторского разговора; новый доклад добавляет только проверенный счёт.
+  if (review) {
+    const news = new Map((narration.advisorNews ?? []).map(item => [item.id, { ...item, right: 0, wrong: 0 }]));
+    for (const item of review.news) {
+      const previous = news.get(item.id);
+      news.set(item.id, previous ? { ...previous, right: item.right, wrong: item.wrong } : item);
+    }
+    narration = { ...narration, forecasts: review.lines, advisorNews: [...news.values()] };
+  }
   const tracksOutcomes = ARCS.find(arc => arc.id === state.arc?.id)?.trackOutcomes;
   const turn = state.turn + 1;
 

@@ -1,4 +1,7 @@
 "use client";
+import ForecastReview, { isForecastReview } from "../game/ForecastReview.tsx";
+import ResolutionChoices from "../game/ResolutionChoices.tsx";
+import { unifiedResolution } from "@/lib/client/advisor-outlook.ts";
 
 // «Хроника срока» (#298, #302). Между решениями строки идут сами, в темпе чтения; касание — следующая строка сразу.
 // Лента стоит, когда нужен ответ: анкета ЦИК, письмо со сроком, предложение правительства, письмо человека, дело.
@@ -808,6 +811,8 @@ function CaseDesk({ game, busy, onSign, onConvene }: {
     onFinish={(approach: Parameters<typeof signCall>[1], ending: Parameters<typeof signCall>[2]) => { handsetFx(false); duckForCall(false); onSign(state => signCall(state, approach, ending)); }} />;
   else if (event.press) body = <PressPanel gs={game} press={event.press} stamping={null} onSkip={() => onSign(refuse)}
     onFinish={(picks: number[]) => onSign(state => signPress(state, picks))} />;
+  else if (unifiedResolution(game)) body = <ResolutionChoices key={`${game.turn}:${event.title}`} game={game} busy={busy}
+    onSign={choice => onSign(state => signChoice(state, choice.id))} />;
   else {
     const takes = debate(game);
     const councilOnly = hasPresidentialCouncil(game) || hasInvestigationDebate(game);
@@ -850,7 +855,8 @@ function Line({ line, dated }: { line: ChronicleLine; dated: string }) {
     case "paper": return <p className={styles.paperLine}><small>{line.who}</small>{line.text}</p>;
     case "press": return <p className={styles.press}><small>{line.who}</small> {line.text}</p>;
     case "letter": return <p className={styles.letter}><small>Письмо{who ? ` · ${who}` : ""}</small>{line.text}</p>;
-    case "report": return <p className={styles.letter}><small>{line.who ?? "Доклад"}</small>{line.text}</p>;
+    case "report": return isForecastReview(line.who)
+      ? <ForecastReview lines={[line.who!, ...line.text.split("\n")]}/> : <p className={styles.letter}><small>{line.who ?? "Доклад"}</small>{line.text}</p>;
     case "secretary": return <p className={styles.echo}><small>Приёмная · {line.who}</small>{line.text}</p>;
     case "echo": return <p className={styles.echo}><small>Отклик прежних решений</small>{line.text}</p>;
     case "personal": return <p className={styles.personal}>{line.text}</p>;
