@@ -1,11 +1,11 @@
-.review { margin:16px 0; font-family:var(--font-narrow), sans-serif; color:var(--txt); }
+.review { margin:16px 0; font-family:var(--font-narrow), sans-serif; color:#2f2a22; }
 .review h3 { margin:0 0 10px; font-size:16px; font-weight:400; letter-spacing:.08em; text-transform:uppercase; }
-.card { padding:12px; margin:8px 0; border:1px solid var(--bdr); background:var(--bg3); font-size:16px; line-height:1.4; }
+.card { padding:12px; margin:8px 0; border:1px solid #9d9277; background:#eee7d1; font-size:16px; line-height:1.4; }
 .card > strong { display:block; margin-bottom:6px; font-size:17px; }
 .row { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin:4px 0; }
 .row > span { flex:1 1 180px; }
 .row > b { font-size:15px; font-weight:600; }
-.miss { color:var(--red); }
-.almost { color:var(--gold); }
-.exact { color:var(--grn); }
-.review > p { margin:8px 0; color:var(--tx2); font-size:14px; }
+.miss { color:#a02f24; }
+.almost { color:#875a00; }
+.exact { color:#365e22; }
+.review > p { margin:8px 0; color:#5e5446; font-size:14px; }

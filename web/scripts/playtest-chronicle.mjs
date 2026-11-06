@@ -123,19 +123,35 @@ async function checkResume() {
   await chronicle.waitFor({ timeout: 10_000 });
   await wait(1200);
 }
-const geometry = { checks: 0, underHeader: 0, wide: 0 };
+const geometry = { checks: 0, underHeader: 0, wide: 0, unreadableAudit: 0 };
 
 async function measure() {
   await wait(1100);
   const g = await page.evaluate(() => {
     const section = document.querySelector('section[aria-label="Дело на столе"]:not([hidden]), section[aria-label="Ждёт ответа"]:not([hidden])');
     const header = document.querySelector("header");
+    const audit = document.querySelector('[data-forecast-review]');
+    let auditContrast = null;
+    if (audit) {
+      let surface = audit.parentElement;
+      while (surface && getComputedStyle(surface).backgroundColor === 'rgba(0, 0, 0, 0)') surface = surface.parentElement;
+      const luminance = color => {
+        const channels = color.match(/[\d.]+/g).slice(0, 3).map(Number).map(n => n / 255)
+          .map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4);
+        return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+      };
+      if (surface) {
+        const text = luminance(getComputedStyle(audit).color), paper = luminance(getComputedStyle(surface).backgroundColor);
+        auditContrast = (Math.max(text, paper) + .05) / (Math.min(text, paper) + .05);
+      }
+    }
     return { top: section ? section.getBoundingClientRect().top : 9999, bottom: header?.getBoundingClientRect().bottom ?? 0,
-      wide: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+      wide: document.documentElement.scrollWidth > document.documentElement.clientWidth, auditContrast };
   });
   geometry.checks++;
   if (g.top < g.bottom - 1) geometry.underHeader++;
   if (g.wide) geometry.wide++;
+  if (g.auditContrast !== null && g.auditContrast < 4.5) geometry.unreadableAudit++;
 }
 
 if (opened) {
@@ -236,6 +252,7 @@ problems.push(
   ...(opened && !prologueAfterElection ? ["нет пролога вступления после выборов"] : []),
   ...(stuck ? ["хроника застряла"] : []),
   ...(geometry.underHeader ? [`заголовок дела под шапкой: ${geometry.underHeader} из ${geometry.checks}`] : []),
+  ...(geometry.unreadableAudit ? [`нечитаемая сверка советников: ${geometry.unreadableAudit}`] : []),
   ...(geometry.wide ? [`страница шире экрана: ${geometry.wide} из ${geometry.checks}`] : []),
   ...(firstDecisionMs !== null && firstDecisionMs > FIRST_DECISION_LIMIT_MS ? [`первое решение через ${Math.round(firstDecisionMs / 1000)} с`] : []),
   ...(opened && save?.screen !== "chronicle" && save?.screen !== "ending" ? ["партия хроники не попала в общее сохранение"] : []),
