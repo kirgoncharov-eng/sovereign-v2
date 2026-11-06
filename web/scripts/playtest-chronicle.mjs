@@ -128,7 +128,7 @@ const geometry = { checks: 0, underHeader: 0, wide: 0 };
 async function measure() {
   await wait(1100);
   const g = await page.evaluate(() => {
-    const section = document.querySelector("section[aria-label]:not([hidden])");
+    const section = document.querySelector('section[aria-label="Дело на столе"]:not([hidden]), section[aria-label="Ждёт ответа"]:not([hidden])');
     const header = document.querySelector("header");
     return { top: section ? section.getBoundingClientRect().top : 9999, bottom: header?.getBoundingClientRect().bottom ?? 0,
       wide: document.documentElement.scrollWidth > document.documentElement.clientWidth };

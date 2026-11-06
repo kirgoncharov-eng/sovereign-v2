@@ -3837,8 +3837,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                       const f = factions.find(x => x.id === fid);
                       return f && v ? [{ k:fid, label:f.name, value:f.relation, delta:v, rel:true }] : [];
                     }),
-                  ]} extra={lastTurn.forecasts?.length > 0 && (isForecastReview(lastTurn.forecasts[0])
-                    ? <ForecastReview lines={lastTurn.forecasts}/> : <div style={{ marginTop:12 }}>
+                  ]} extra={lastTurn.forecasts?.length > 0 && !isForecastReview(lastTurn.forecasts[0]) && (<div style={{ marginTop:12 }}>
                       <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>ПРОГНОЗЫ СОВЕТНИКОВ</div>
                       {lastTurn.forecasts.map(line => (
                         <div key={line} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:/— верно\.$/.test(line) ? G.grn : G.tx2 }}>{line}</div>
@@ -3846,6 +3845,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     </div>
                   )}/>
                 )}
+                {isForecastReview(lastTurn.forecasts?.[0]) && <ForecastReview lines={lastTurn.forecasts}/>}
                 </div>
                 </div>
               </Card>

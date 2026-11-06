@@ -43,8 +43,8 @@ const dialogue = { alt_wages: { 0: {
 const browser = await chromium.launch();
 const summary = { checks: [], problems: [] };
 try {
-  for (const width of [320, 390, 1440]) for (const diff of ['debut', 'crisis']) for (const skill of [1, 2, 3]) {
-    const game = { ...base, diff, advisors: base.advisors.map(advisor => ({ ...advisor, skill })) };
+  for (const width of [320, 390, 1440]) for (const diff of ['debut', 'crisis']) for (const skill of [1, 2, 3, 'mixed']) {
+    const game = { ...base, diff, advisors: base.advisors.map(advisor => ({ ...advisor, skill: skill === 'mixed' ? ({ economist: 1, diplomat: 2, strategist: 3, security: 2 }[advisor.id]) : skill })) };
     const review = reviewAdvisorOutlook(advisorSigningState(game), game.currentEvent.choices[0], false).lines;
     const name = `${width}-${diff}-skill-${skill}`, file = join(out, `${name}.html`);
     writeFileSync(file, `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -73,7 +73,7 @@ try {
     await choices.locator('#opt-1').click();
     assert.equal(await page.locator('body').getAttribute('data-signed'), null);
     const details = page.getByRole('group', { name: 'Последствия выбранного решения' });
-    assert.ok((await details.innerText()).includes(skill === 1 && diff === 'debut' ? 'не обсуждали' : 'Срыв'));
+    assert.ok((await details.innerText()).includes(advisorOutlook(game, game.currentEvent.choices[0]).failureOmitted ? 'не обсуждали' : 'Срыв'));
     assert.equal(await details.locator('table').count(), 0);
     const risk = advisorOutlook(game, game.currentEvent.choices[0]).risk;
     assert.ok((await details.innerText()).includes(risk.text));
