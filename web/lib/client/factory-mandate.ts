@@ -19,18 +19,24 @@ const FAILURE: Record<FactoryMandate['route'], string> = {
   b: 'Покупатель требует дополнительную гарантию; зарплатных денег завод не получил.',
   c: 'Старая линия разобрана, новое оборудование задержано. Расходы на переход уже понесены.',
 };
+// Единственный последующий исход, где деньги по сорванному авансу действительно пришли (alternate-history.ts, «Приложение к российскому заказу»).
+const LATE_ADVANCE = { title: 'Приложение к российскому заказу', choice: 'Отправить делегации копию без закрытой страницы' };
 const deltaList = (delta: ResourceDelta) => Object.entries(delta).filter(([, value]) => value)
   .map(([key, value]) => `${RESOURCE_NAME[key as ResourceKey]} ${value! < 0 ? '−' : '+'}${Math.abs(value!)}`).join(', ');
 
 export function factoryMandateBrief(state: GameState) {
   if (state.country !== ALTERNATE_COUNTRY || state.daily) return null;
-  const mandate = state.history.findLast(entry => entry.factoryMandate)?.factoryMandate;
+  const index = state.history.findLastIndex(entry => entry.factoryMandate);
+  const mandate = state.history[index]?.factoryMandate;
   if (!mandate) return null;
+  // Исходное success не переписываем: первый срыв остаётся датированным исходом, а поздний факт показываем отдельно.
+  const lateAdvance = mandate.route === 'b' && !mandate.success && state.history.slice(index + 1).some(entry =>
+    entry.title === LATE_ADVANCE.title && entry.choice === LATE_ADVANCE.choice && entry.success === true);
   const prepared = mandate.coordinators.map(person => `${person.name}, ${person.role.toLowerCase()}`).join('; ');
   const active = mandate.followUp && state.pending.some(effect => effect.id === mandate.followUp!.id
     && effect.due === mandate.followUp!.due && effect.label === mandate.followUp!.label);
   const status = mandate.settled ? 'Контрольный расчёт получен'
-    : mandate.followUp && !active ? 'Требуется сверка исполнения' : OUTCOME[mandate.route][mandate.success ? 0 : 1];
+    : mandate.followUp && !active ? 'Требуется сверка исполнения' : lateAdvance ? 'Аванс получен после задержки' : OUTCOME[mandate.route][mandate.success ? 0 : 1];
   const lines = [
     `Цель: ${GOAL[mandate.route]}`,
     mandate.responsibility,
@@ -46,6 +52,8 @@ export function factoryMandateBrief(state: GameState) {
   } else if (mandate.followUp) {
     lines.push(`Контрольный срок: ${quarterDeadline(state, mandate.followUp.due)}.`);
     lines.push(active ? 'Условие подписи действует до контрольного расчёта.' : 'Нет подтверждения контрольного расчёта; канцелярии нужна сверка.');
+  } else if (lateAdvance) {
+    lines.push('При подписи аванс задержали: покупатель требовал гарантию. Позднее делегация перечислила аванс; неполный комплект остался в описи.');
   } else if (!mandate.success) {
     lines.push(`Цель не достигнута. ${FAILURE[mandate.route]}`);
   } else if (mandate.route === 'a') {

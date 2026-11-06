@@ -80,3 +80,28 @@ test('старому сохранению не приписывают нынеш
   assert.ok(brief.lines.some(line => line.includes('Нет подтверждения контрольного расчёта')));
   assert.equal(brief.mandate.settled, undefined);
 });
+
+test('срыв аванса, за которым пришёл поздний аванс, не утверждает, что денег нет, и переживает reload', async () => {
+  for (let seed = 1; seed <= 100; seed++) {
+    const first = await nextCase(await newTerm(startFromSeed(seed)));
+    const advance = first.currentEvent!.choices[1];
+    if (rollSuccess(first, advance)) continue;
+    const signed = await signChoice(first, advance.id);
+    const next = await nextCase(signed);
+    const copy = next.currentEvent?.choices.find(choice => choice.text === 'Отправить делегации копию без закрытой страницы');
+    if (next.currentEvent?.title !== 'Приложение к российскому заказу' || !copy || !rollSuccess(next, copy)) continue;
+    const before = factoryMandateBrief(signed)!;
+    assert.equal(before.status, 'Аванс задержан');
+    const after = await signChoice(next, copy.id);
+    const brief = factoryMandateBrief(after)!;
+    assert.equal(brief.mandate.success, false);
+    assert.deepEqual(brief.mandate.spent, before.mandate.spent);
+    assert.equal(brief.status, 'Аванс получен после задержки');
+    const text = brief.lines.join('\n');
+    assert.ok(!text.includes('зарплатных денег завод не получил') && !text.includes('Цель не достигнута'));
+    const loaded = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'game', state: after }))!.state;
+    assert.deepEqual(factoryMandateBrief(loaded), brief);
+    return;
+  }
+  throw new Error('Не найден маршрут');
+});
