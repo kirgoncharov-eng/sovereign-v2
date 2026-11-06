@@ -488,7 +488,7 @@ export function choiceEffects(
     if (!a) continue;
     if (!choice.policyEffect && !risk) addDelta(res, a.res);
     if (!risk && ideo.aligned.includes(tag)) addDelta(res, IDEOLOGY_BONUS);
-    if (!risk && ideo.opposed.includes(tag)) addDelta(res, IDEOLOGY_PENALTY);
+    if ((!risk || risk.keepsOpposedPenalty) && ideo.opposed.includes(tag)) addDelta(res, IDEOLOGY_PENALTY);
     for (const f of state.factions) {
       if (!stance) addDelta(rel, { [f.id]: a.rel[f.bloc] });
       if (!risk) addDelta(appr, { [f.id]: a.appr?.[f.bloc] });
