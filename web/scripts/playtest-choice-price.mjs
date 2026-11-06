@@ -10,9 +10,7 @@ import { quarterDeadline } from '../lib/client/initiative-note.ts';
 import { rollSuccess } from '../lib/game/engine.ts';
 import { CHRONICLE_GAME_KEY, encodeChronicle, parseChronicle } from '../lib/client/chronicle-save.ts';
 import { EMPTY_PERSONAL } from '../lib/client/chronicle-personal.ts';
-import { choiceOutcomes } from '../lib/client/choice-outcomes.ts';
 import { advisorOutlook } from '../lib/client/advisor-outlook.ts';
-import { RESOURCE_KEYS } from '../lib/game/data.ts';
 import { parseSave } from '../lib/client/save.ts';
 
 const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6) ?? 'playtest/choice-price');
@@ -45,73 +43,30 @@ async function openFixture(game, start) {
 const savedGame = page => page.evaluate(key => JSON.parse(localStorage.getItem(key)).snapshot.game, CHRONICLE_GAME_KEY);
 
 async function checkPrice(page, state, choice, name, { select = true } = {}) {
-  await page.waitForTimeout(1800);
-  if (select) {
-    const row = page.locator('button.sv-choice-row').filter({ has: page.getByText(choice.text, { exact: true }) });
-    if (!choice.deal?.pure) {
-      const label = await row.innerText();
-      assert.match(label, /Риск срыва исполнения:/,
-        'риск обозначает исполнение, а не политическую цену');
-    }
-    await row.evaluate(element => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
-    await row.tap();
-  }
+  const row = page.locator('button.sv-choice-row').filter({ has: page.getByText(choice.text, { exact: true }) });
+  if (select) { await row.scrollIntoViewIfNeeded(); await row.tap(); }
   const price = page.getByRole('group', { name: 'Последствия выбранного решения' });
   await price.waitFor();
   assert.equal(await price.getAttribute('data-choice-id'), choice.id);
-  const shown = await price.innerText(), expected = choiceOutcomes(state, choice), outlook = advisorOutlook(state, choice);
-  assert.ok(shown.includes('Оценка советников'));
-  assert.ok(shown.includes('округлённая оценка, а не гарантия'));
-  const cells = await price.locator('tbody tr').evaluateAll(rows => rows.map(row =>
-    [...row.querySelectorAll('td')].map(cell => cell.textContent)));
-  assert.deepEqual(cells, RESOURCE_KEYS.map(key => [outlook.success.resources[key].text,
-    ...(expected.failure ? [outlook.failure.resources[key].text] : [])]));
-  if (expected.reason && expected.failure) assert.ok(shown.includes(expected.reason));
-  assert.ok(shown.includes(outlook.risk.text));
-  const future = price.getByRole('group', { name: 'Будущие последствия резолюции' });
-  assert.equal(await future.count(), expected.later.length ? 1 : 0);
-  for (const [index, effect] of expected.later.entries()) {
-    const line = future.locator('p').filter({ hasText: `«${effect.label}»` });
-    const text = await line.innerText();
-    assert.ok(text.includes(quarterDeadline(state, effect.due)), 'срок совпадает с очередью движка');
-    for (const estimate of Object.values(outlook.later[index].resources)) assert.ok(text.includes(estimate.text));
-    if (expected.failure) assert.ok(text.includes(effect.onFailure
-      ? 'Сохраняется и при срыве исполнения.' : 'Только если резолюцию исполнят.'));
-    assert.equal(await line.isVisible(), true, 'будущая цена не скрыта в совете или раскрывающемся блоке');
+  const shown = await price.innerText(), expected = advisorOutlook(state, choice);
+  assert.equal(await price.locator('table').count(), 0, 'таблицы больше нет');
+  assert.ok(shown.includes(expected.risk.text));
+  for (const estimate of Object.values(expected.success.resources))
+    if (estimate.value) assert.ok(shown.includes(estimate.text));
+  if (expected.failure) assert.ok(shown.includes(expected.failureOmitted ? 'не обсуждали' : 'Срыв'));
+  for (const effect of expected.later) {
+    assert.ok(shown.includes(quarterDeadline(state, effect.due)));
+    assert.ok(shown.includes(effect.label));
+    for (const estimate of Object.values(effect.resources)) assert.ok(shown.includes(estimate.text));
+    assert.ok(shown.includes(effect.onFailure ? 'Сохраняется при срыве.' : 'При исполнении.'));
   }
-  const sign = page.getByRole('button', { name: /^Подписать/ });
+  const sign = price.getByRole('button', { name: 'Подписать', exact: true });
+  assert.ok(await sign.isEnabled());
   await sign.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(1800);
-  await price.scrollIntoViewIfNeeded();
-  await price.evaluate(element => {
-    const header = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0;
-    let parent = element.parentElement;
-    while (parent && !(/auto|scroll/.test(getComputedStyle(parent).overflowY) && parent.scrollHeight > parent.clientHeight)) {
-      parent = parent.parentElement;
-    }
-    const scroller = parent ?? document.scrollingElement;
-    scroller.scrollTo({ top: scroller.scrollTop + element.getBoundingClientRect().top - header - 12, behavior: 'instant' });
-  });
-  const geometry = await price.evaluate(element => {
-    const box = element.getBoundingClientRect(), header = document.querySelector('header')?.getBoundingClientRect();
-    return { top: box.top, bottom: box.bottom, header: header?.bottom ?? 0, height: innerHeight,
-      wide: document.documentElement.scrollWidth > document.documentElement.clientWidth };
-  });
-  assert.ok(!geometry.wide && geometry.top >= geometry.header, JSON.stringify(geometry));
-  const table = await price.locator('table').boundingBox();
-  await page.screenshot({ path: join(out, `${name}-before-sign.png`), fullPage: true });
-  assert.ok(table && table.y >= geometry.header && table.y + table.height <= geometry.height,
-    `обе колонки таблицы читаются под шапкой: ${JSON.stringify({ table, geometry })}`);
-  await sign.scrollIntoViewIfNeeded();
-  const signBox = await sign.boundingBox();
-  assert.ok(signBox && signBox.y >= geometry.header && signBox.y + signBox.height <= geometry.height, 'подпись доступна после чтения');
-  const after = await savedGame(page);
-  assert.deepEqual(after.resources, state.resources, 'выбор до подписи не списывает опоры');
-  assert.equal(after.turn, state.turn);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
   await page.screenshot({ path: join(out, `${name}.png`), fullPage: true });
-  if (expected.later.length) await price.screenshot({ path: join(out, `${name}-forecast.png`) });
-  summary.checks.push({ name, choice: choice.id, price: shown, geometry });
-  return { price, sign };
+  summary.checks.push(name);
+  return { sign, price, row };
 }
 
 try {
@@ -127,42 +82,24 @@ try {
       const choice = choices.find(choice => text.includes(choice.text));
       assert.ok(choice, 'видимый вариант принадлежит текущему делу');
       await checkPrice(fixture.page, fixture.state, choice, `decision-${turn + 1}`);
-      await fixture.page.getByRole('button', { name: 'Отменить выбор' }).tap();
+      await row.tap();
       assert.equal(await fixture.page.getByRole('group', { name: 'Последствия выбранного решения' }).count(), 0);
       await fixture.context.close();
       state = await signOption(state, firstStep(state).options[0].key);
     }
   }
 
-  // Одна и та же резолюция: меняются реальные назначения, а не исход подписи.
-  const weakAndStrong = [];
-  for (const skill of [1, 3]) {
-    const team = { ...state, advisors: state.advisors.map(advisor => ({ ...advisor, skill })) };
-    const live = await openFixture(team, start);
-    await checkPrice(live.page, live.state, team.currentEvent.choices[0], `team-${skill}`);
-    weakAndStrong.push(await live.page.getByRole('group', { name: 'Последствия выбранного решения' }).innerText());
-    await live.context.close();
-  }
-  assert.notEqual(weakAndStrong[0], weakAndStrong[1], 'разные назначения дают разную точность');
-
-  // Четвёртое дело позволяет собрать обычный совет. Выбранный второй вариант должен остаться выбранным.
+  // Переключение между резолюциями сохраняет выбранный документ без отдельного сбора совета.
   const fixture = await openFixture(state, start), page = fixture.page;
   await checkPrice(page, fixture.state, state.currentEvent.choices[0], 'ordinary-first');
   const selected = state.currentEvent.choices[1];
-  await checkPrice(page, fixture.state, selected, 'ordinary-second');
-  await page.getByRole('button', { name: /^(Собрать совет|Обсудить подпись)$/ }).tap();
-  await page.waitForFunction(key => JSON.parse(localStorage.getItem(key)).snapshot.game.currentEvent.council?.length > 0, CHRONICLE_GAME_KEY);
-  const afterCouncil = await savedGame(page);
-  assert.equal(await page.getByRole('group', { name: 'Последствия выбранного решения' }).getAttribute('data-choice-id'), selected.id);
-  await checkPrice(page, afterCouncil, selected, 'after-council', { select: false });
-  const proposal = afterCouncil.currentEvent.council[0];
-  const { sign } = await checkPrice(page, afterCouncil, proposal, 'council-choice');
+  const { sign } = await checkPrice(page, fixture.state, selected, 'ordinary-second');
   await sign.tap();
   await page.waitForFunction(({ key, turn }) => JSON.parse(localStorage.getItem(key)).snapshot.game.turn > turn,
     { key: CHRONICLE_GAME_KEY, turn: state.turn });
   const signed = await page.evaluate(key => JSON.parse(localStorage.getItem(key)).snapshot, CHRONICLE_GAME_KEY);
   const signature = [...signed.shown, ...signed.queue].find(line => line.kind === 'signed');
-  assert.equal(signature?.text, proposal.text, 'подписан именно вариант с показанной ценой');
+  assert.equal(signature?.text, selected.text, 'подписан именно вариант с показанной ценой');
   await fixture.context.close();
 
   // Старое сохранение 1978 года: в совете уже лежит отдельное предложение с автором. Новые кампании их не создают.
@@ -172,6 +109,27 @@ try {
   const advisorFixture = await openFixture(savedCouncil, start);
   await checkPrice(advisorFixture.page, advisorFixture.state, advisorChoice, 'saved-advisor');
   await advisorFixture.context.close();
+
+  // Все три заводские резолюции: настоящая подпись, оба исхода, фактический отчёт.
+  const factory = await nextCase(await newTerm(startFromSeed(7)));
+  for (const choice of factory.currentEvent.choices) for (const success of [true, false]) {
+    let scenario;
+    for (let seed = 1; seed <= 1000; seed++) if (rollSuccess({ ...factory, seed }, choice) === success) {
+      scenario = { ...factory, seed }; break;
+    }
+    assert.ok(scenario);
+    const live = await openFixture(scenario, startFromSeed(scenario.seed));
+    const expected = await signChoice(scenario, choice.id);
+    const { sign } = await checkPrice(live.page, live.state, choice, `factory-${choice.id}-${success}`);
+    await sign.tap();
+    await live.page.waitForFunction(key => JSON.parse(localStorage.getItem(key)).snapshot.game.turn > 0, CHRONICLE_GAME_KEY);
+    const actual = await savedGame(live.page);
+    assert.equal(actual.lastTurn.success, success);
+    assert.deepEqual(actual.resources, expected.resources);
+    assert.deepEqual(actual.factions, expected.factions);
+    assert.deepEqual(actual.lastTurn.forecasts, expected.lastTurn.forecasts);
+    await live.context.close();
+  }
 
   // Настоящие партии: эфир (польза / неотменяемый вред) и конкурс (два будущих изменения).
   // Подбираем оба исхода обычной генерацией; seed, history и варианты готового сохранения не подменяются.

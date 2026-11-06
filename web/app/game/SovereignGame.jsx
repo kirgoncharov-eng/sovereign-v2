@@ -1,5 +1,8 @@
 "use client";
-import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useId } from "react";
+import ResIcon from "./ResourceIcon.jsx";
+import ResolutionChoices from "./ResolutionChoices.tsx";
+import { advisorSigningState, unifiedResolution, usesAdvisorOutlook } from "@/lib/client/advisor-outlook.ts";
+import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from "react";
 import {
   ACTIONS, actionLabel, APP_VERSION, BIOGRAPHIES, COUNTRIES, CRISIS_THRESHOLD, HOSTILE_RELATION, TERM_RULES, TERM, localTurn, termIndex, termOrdinal,
   reignLength, reignShort, ADVISOR_SKILL, ELECTION_LABEL, END_TYPES, LIMITS, NON_VOTING_BLOCS, DIFFICULTIES, IDEOLOGIES,
@@ -46,8 +49,6 @@ const game = expressApi;
 import { cloudGet, cloudSet, inTelegram, initTelegram, onTelegramReady, setBackButton, setMainButton, telegramShare, tgButtons, requestWriteAccess, tgInitData, telegramStory, canTelegramStory } from "@/lib/client/telegram.ts";
 import { newAnalyticsRun, setRunContext } from "@/lib/client/run-context.ts";
 import { campCosts } from "@/lib/client/camp-costs.ts";
-import { advisorOutlook, usesAdvisorOutlook } from "@/lib/client/advisor-outlook.ts";
-import ResolutionOutcomes from './ResolutionOutcomes.tsx';
 import { track, feedbackEnabled, sendFeedback, isTester, subscribeTester, toggleTester, syncSubscription } from "@/lib/client/analytics.ts";
 import { fetchBoard, inviteUrl, rememberRef, submitDaily } from "@/lib/client/daily.ts";
 import { installErrorReporting } from "@/lib/client/errors.ts";
@@ -112,6 +113,7 @@ export function HistoricalArtProvider({ state, children }) {
 import { SCENE_CAPTION, sceneOf } from "@/lib/content/scene-map.ts";
 import { clearSave, parseSave, readSaveRaw, subscribeSave, writeSave } from "@/lib/client/save.ts";
 import { ALTERNATE_COUNTRY, ALTERNATE_DAILY_FROM, countryName } from "@/lib/game/alternate-world.ts";
+import { lawCampNames } from "@/lib/client/law-camps.ts";
 import PresidentialOpening, { PresidentialCouncil, RepublicAtlas } from "./PresidentialOpening.jsx";
 import RepublicMap from "./RepublicMap.jsx";
 import { isRepublicMapVisible } from "@/lib/game/republic-map.ts";
@@ -134,26 +136,6 @@ const narrow = "var(--font-narrow)";
 const pixel  = "var(--font-pixel)";
 
 // Значки опор власти в духе Reigns: силуэт заполняется снизу по уровню ресурса.
-const RES_SHAPES = {
-  politicalCapital: <path d="M2 9.5 12 3l10 6.5zM4 11h3v7H4zm4.5 0h3v7h-3zm4.5 0h3v7h-3zm4.5 0h3v7h-3zM2 19h20v2.5H2z"/>,
-  economy: <g><rect x="3" y="17.5" width="14" height="3.5" rx="1.6"/><rect x="5" y="13" width="14" height="3.5" rx="1.6"/><rect x="3.5" y="8.5" width="14" height="3.5" rx="1.6"/><rect x="6" y="4" width="14" height="3.5" rx="1.6"/></g>,
-  military: <path d="M12 2 20.5 5v6.2c0 5.2-3.6 9.6-8.5 10.8-4.9-1.2-8.5-5.6-8.5-10.8V5zm0 5.2-1.3 2.9-3.1.3 2.3 2.1-.7 3.1 2.8-1.6 2.8 1.6-.7-3.1 2.3-2.1-3.1-.3z" fillRule="evenodd"/>,
-  externalReputation: <path d="M4 2h2.2v20H4zm2.2 1.4c3-1.6 5.4 1.4 8.2 0 2.2-1.1 4-1 6 0v9.4c-2-1-3.8-1.1-6 0-2.8 1.4-5.2-1.6-8.2 0z"/>,
-  internalLegitimacy: <g><circle cx="6.5" cy="8.5" r="2.7"/><circle cx="17.5" cy="8.5" r="2.7"/><circle cx="12" cy="6.5" r="3.2"/><path d="M1.5 20.5a5 5.6 0 0 1 10 0zm11 0a5 5.6 0 0 1 10 0z"/><path d="M5.8 21.5a6.2 7.4 0 0 1 12.4 0z"/></g>,
-  personalResource: <path d="M7 7a5 5 0 1 1 0 10A5 5 0 0 1 7 7zm0 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm4.6.8H22v2.6h-2v3.2h-2.4v-3.2h-1.4v2.2h-2.4v-2.2h-2.2z" fillRule="evenodd"/>,
-};
-function ResIcon({ k, value = 100, size = 24, color = "currentColor", dim = "var(--bdr2)" }) {
-  const id = useId();
-  const shape = RES_SHAPES[k];
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" style={{ display:"block", flexShrink:0 }}>
-      <defs><clipPath id={id}><rect x="0" y={24 * (1 - Math.max(0, Math.min(100, value)) / 100)} width="24" height="24"/></clipPath></defs>
-      <g fill={dim}>{shape}</g>
-      <g fill={color} clipPath={`url(#${id})`}>{shape}</g>
-    </svg>
-  );
-}
-
 // Фото на документ: карандашный портрет, переснятый в низком разрешении
 // и отпечатанный пятью тонами с растровой сеткой — как карточки в Papers, Please.
 const PHOTO_W = 40, PHOTO_H = 50;
@@ -401,11 +383,10 @@ function choiceStampLabel(c) {
   return { text: "К ИСПОЛНЕНИЮ", sub: "РЕЗОЛЮЦИЯ · 1978", kind: "default" };
 }
 
-// В кампании 1978 года прогноз зависит от действующей команды; автор старого предложения не даёт точный расклад.
-// Архив и Daily сохраняют прежнее представление. Фактический итог — в ведомости после хода.
+// Точный расклад знает только совет: его вариант показан в цифрах. Об остальных спорят советники над вариантами,
+// а без спора под вариантом — причины цены словами. Точный итог — в ведомости после хода.
 export function ChoicePreview({ gs, c, debated = false }) {
-  const outlook = advisorOutlook(gs, c);
-  const exact = !!c.advisor && !outlook;
+  const exact = !!c.advisor;
   const fx = choiceEffects(gs, c);
   const crisis = c.resolvesCrisis && gs.activeCrises.find(x => x.id === c.resolvesCrisis);
   const later = delayedEffects(c, gs);
@@ -420,9 +401,8 @@ export function ChoicePreview({ gs, c, debated = false }) {
       {ownPersonCarries(gs, c) && <p data-own-person-crisis>{OWN_PERSON_TEXT.crisis}</p>}
       <div style={{ fontFamily:serif, fontSize:17, fontWeight:700, lineHeight:1.35, marginBottom:3 }}>{c.text}</div>
       <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3, marginBottom:exact ? 8 : 0 }}>
-        {c.deal?.pure ? <span style={{ fontFamily:serif }}>{c.hint}</span> : <>
-          {outlook ? <span>{outlook.risk.text}</span> : <ChanceBadge p={successChance(gs, c)} exact={exact}
-            execution={gs.country === ALTERNATE_COUNTRY}/>} · <span style={{ fontFamily:serif }}>{c.hint}</span></>}
+        {c.deal?.pure ? <span style={{ fontFamily:serif }}>{c.hint}</span> : <><ChanceBadge p={successChance(gs, c)} exact={exact}
+          execution={gs.country === ALTERNATE_COUNTRY}/> · <span style={{ fontFamily:serif }}>{c.hint}</span></>}
       </div>
       {exact && <ResourceChips delta={fx.resources}/>}
       {(exact || !debated) && <CostReasons gs={gs} c={c} fx={fx}/>}
@@ -450,13 +430,10 @@ export function ChoicePreview({ gs, c, debated = false }) {
 function CampCosts({ gs, c }) {
   const camps = campCosts(gs, c);
   if (!camps.length) return null;
-  const outlook = advisorOutlook(gs, c);
   return (
     <div style={{ fontFamily:narrow, fontSize:14, color:G.tx3, lineHeight:1.4, marginTop:4 }}>
       Лагеря: {camps.map((camp, index) => <span key={camp.id} style={{ color:camp.delta < 0 ? G.red : G.grn }}>
-        {index ? " · " : ""}{camp.name} {outlook
-          ? outlook.success.camps.find(entry => entry.name === camp.name)?.estimate.text ?? 'без перемены'
-          : `${camp.delta > 0 ? "+" : "−"}${Math.abs(camp.delta)}`}</span>)}
+        {index ? " · " : ""}{camp.name} {camp.delta > 0 ? "+" : "−"}{Math.abs(camp.delta)}</span>)}
     </div>
   );
 }
@@ -518,17 +495,16 @@ function CostReasons({ gs, c, fx }) {
 }
 
 // Законопроект: что закон будет делать каждый ход, если пройдёт, — или что исчезнет с его отменой.
-function LawEffects({ def, law }) {
+function LawEffects({ gs, def, law }) {
   const impact = effectiveLaw(def, law);
   const fac = Object.entries(impact.drift ?? {}).filter(([, d]) => d < 0).map(([b]) => b);
   return (
     <span style={{ display:"inline-flex", flexWrap:"wrap", gap:"2px 12px", alignItems:"center" }}>
       <ResourceChips delta={impact.perTurn} exact={false}/>
-      {fac.length > 0 && <span style={{ color:G.red }}>недовольны: {fac.map(b => BLOC_LABEL[b] ?? b).join(", ")}</span>}
+      {fac.length > 0 && <span style={{ color:G.red }}>недовольны: {lawCampNames(gs, fac).join(", ")}</span>}
     </span>
   );
 }
-const BLOC_LABEL = { security:"силовики", business:"бизнес", church:"церковь", liberal:"либералы", west:"торговые партнёры", russia:"Россия", nationalist:"националисты", regional:"регионы", ruling:"правящая партия" };
 function LawLines({ gs, c, effects = true }) {
   const def = c.law && lawDef(c.law.id);
   if (!def) return null;
@@ -537,7 +513,7 @@ function LawLines({ gs, c, effects = true }) {
     <div style={{ fontFamily:narrow, fontSize:15, marginTop:6, lineHeight:1.45, color:G.tx2 }}>
       {c.law.act === "enact"
         ? effects
-          ? <><div>§ Если парламент примет — закон «{def.title}» будет действовать каждый ход:</div><LawEffects def={def}/></>
+          ? <><div>§ Если парламент примет — закон «{def.title}» будет действовать каждый ход:</div><LawEffects gs={gs} def={def}/></>
           : <div>§ Если парламент примет — закон «{def.title}» будет действовать каждый ход</div>
         : <div>§ Отменит закон «{def.title}»{inForce ? " — его действие прекратится" : ""}</div>}
     </div>
@@ -605,7 +581,7 @@ function LawsCard({ gs, final = false, style, bare = false }) {
               <span style={{ color:G.txt }}>«{def.title}»</span>
               <span style={{ color:G.tx3, whiteSpace:"nowrap" }}>с {monthYear(turnDate(gs.seed, start, Math.max(0, l.since - 1)))}</span>
             </div>
-            {!final && <div style={{ fontFamily:narrow, fontSize:14, marginTop:2 }}><LawEffects def={def} law={l}/></div>}
+            {!final && <div style={{ fontFamily:narrow, fontSize:14, marginTop:2 }}><LawEffects gs={gs} def={def} law={l}/></div>}
             {l.transition && <div style={{ fontFamily:narrow, fontSize:14, color:G.amb }}>Льготный выход: кому при принятии закона до пенсии оставалось не более года. Поправка с {monthYear(turnDate(gs.seed, start, Math.max(0, l.transition.since - 1)))}</div>}
             {final && <div style={{ fontFamily:serif, fontSize:13, color:G.tx3 }}>{def.short}</div>}
           </div>
@@ -3667,6 +3643,10 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     choose(final, { press: picks });
                   }}/>
               ) : (
+              unifiedResolution(gs) ? <Card style={{ padding:0 }}>
+                <ResolutionChoices key={`${turn}:${event.title}`} game={gs} busy={!!busy || !!stamping}
+                  onSign={choice => { commit(advisorSigningState(gsRef.current)); resolveChoice(choice); }}/>
+              </Card> :
               <Card style={{ padding:"18px 0 8px" }}>
                 <div id="sv-resolution" style={{ padding:"0 24px" }}><Label>{"Резолюция"}</Label></div>
                 {tips && TIP_TURNS[gs.turn] && (
@@ -3704,8 +3684,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 </div>
               </Card>
               )}
-              {inboxMode && armedChoice && <div className="sv-quarter-prepare">
-                {usesAdvisorOutlook(gs) && <ResolutionOutcomes game={gs} choice={armedChoice} />}
+              {inboxMode && !unifiedResolution(gs) && armedChoice && <div className="sv-quarter-prepare">
                 <PrimaryBtn onClick={() => choose(armedChoice)}>Подготовить резолюцию</PrimaryBtn>
                 <button onClick={() => { setArmed(null); setPreview(null); }}>Отменить выбор</button>
               </div>}
@@ -3859,8 +3838,8 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     }),
                   ]} extra={lastTurn.forecasts?.length > 0 && (
                     <div style={{ marginTop:12 }}>
-                      <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>ПРОГНОЗЫ СОВЕТНИКОВ</div>
-                      {lastTurn.forecasts.map(line => (
+                      <div style={{ fontFamily:pixel, fontSize:13, color:G.tx3, marginBottom:4 }}>{usesAdvisorOutlook(gs) ? lastTurn.forecasts[0] : "ПРОГНОЗЫ СОВЕТНИКОВ"}</div>
+                      {(usesAdvisorOutlook(gs) ? lastTurn.forecasts.slice(1) : lastTurn.forecasts).map(line => (
                         <div key={line} style={{ fontFamily:narrow, fontSize:15, lineHeight:1.4, color:/— верно\.$/.test(line) ? G.grn : G.tx2 }}>{line}</div>
                       ))}
                     </div>
@@ -3969,7 +3948,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
             <div style={{ textAlign:"right" }}><PrimaryBtn onClick={onEnd} danger>ПОДВЕСТИ ИТОГИ →</PrimaryBtn></div>
           )}
           </div>
-          {inboxMode && !busy && event && prepared && <footer className="sv-quarter-close">
+          {inboxMode && !busy && event && !unifiedResolution(gs) && prepared && <footer className="sv-quarter-close">
             <p>Утром выйдет газета.</p>
             <button type="button" data-finish-quarter disabled={!prepared || !!recap} onClick={finishQuarter}>Подписать и закрыть квартал</button>
           </footer>}

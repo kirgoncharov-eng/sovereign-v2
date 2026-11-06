@@ -1,3 +1,4 @@
+import { reviewAdvisorOutlook } from "../client/advisor-outlook.ts";
 // Игровой движок: чистые функции без сети и без React.
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
 import { historicalDelayedLabel } from "../content/historical-echoes.ts";
@@ -18,7 +19,7 @@ import { stepPromises } from "./promises.ts";
 import { stepLaws } from "./laws.ts";
 import { stepLivingWorld, type LivingWorld } from "./living-world.ts";
 import { initiativePactWaiting, initiativeResourcesBefore, initiativeTurnSources, retainInitiativeDebts } from './initiatives.ts';
-import { executionRisk, type ExecutionContext } from './execution-risk.ts';
+import { executionProfile, executionRisk, type ExecutionContext } from './execution-risk.ts';
 import { ensureSecretary, finishSecretaryTurn, secretaryDueEffects, secretaryPreventsLeak } from './secretary.ts';
 import { electionKind, isTermEnd, nextReign, pathEnd, reignOf } from "./terms.ts";
 import type {
@@ -335,7 +336,8 @@ export function ownPersonCarries(state: Partial<Pick<GameState, "country" | "adv
   const advisor = choice.advisor
     ? state.advisors?.find(member => member.id === choice.advisor!.id && member.name === choice.advisor!.name)
     : state.advisors?.find(member => member.id === proponent);
-  return !!advisor && isOwnPerson(state, advisor);
+  const execution = executionProfile(state, choice);
+  return !!advisor && (!execution || execution.coordinators.includes(advisor.id)) && isOwnPerson(state, advisor);
 }
 
 export function leakingAdvisors(state: Pick<GameState, "seed" | "turn"> & OwnContext & { advisors?: Advisor[] }): Advisor[] {
@@ -431,7 +433,7 @@ export function seededRandom(seed: number): () => number {
 
 // Шанс, что решение исполнят как задумано. Выжидание не проваливается.
 type ChanceState = Pick<GameState, "factions" | "resources"> & Partial<Pick<GameState, "keyFigures" | "pacts" | "bio" | "advisors" | "country" | "daily" | "currentEvent">>;
-// Группы, руками которых решение исполняется: те, кому оно выгодно.
+// Прежняя общая схема: группы, которым выгодны теги решения. Авторская заводская подпись использует явный профиль ниже.
 export const executors = (factions: Faction[], choice: Pick<Choice, "tags">) => {
   const blocs = new Set(choice.tags.flatMap(t => Object.entries(ACTIONS[t]?.rel ?? {}).filter(([, v]) => (v ?? 0) > 0).map(([b]) => b)));
   return factions.filter(f => blocs.has(f.bloc));
@@ -444,9 +446,13 @@ export function successChance(state: ChanceState, choice: Choice): number {
   if (choice.resolvesCrisis) p += 0.1; // на борьбу с кризисом брошены все силы
   const bio = BIOGRAPHIES.find(b => b.id === state.bio);
   if (bio && choice.tags.some(t => bio.tags.includes(t))) p += BIO_CHANCE; // лидер знает это ремесло
-  // чем лучше к вам относятся исполнители, тем надёжнее; а их люди могут и помочь, и саботировать
-  const exec = executors(state.factions, choice);
   const avg = (xs: number[]) => xs.reduce((s, r) => s + r, 0) / xs.length;
+  const execution = executionProfile(state, choice);
+  const coordinators = execution ? (state.advisors ?? []).filter(advisor => execution.coordinators.includes(advisor.id)) : [];
+  // Компетентность координации отдельно от сотрудничества контрагентов; skill 2 — исходный уровень.
+  if (coordinators.length) p += (avg(coordinators.map(advisor => advisor.skill)) - 2) * 0.06;
+  // У заводской подписи участники заданы по полномочиям, а не по политической выгоде. Остальные дела не меняются.
+  const exec = execution ? state.factions.filter(faction => execution.blocs.includes(faction.bloc)) : executors(state.factions, choice);
   if (exec.length) p += avg(exec.map(f => f.relation)) / 400;
   // Человек, который относится к вам лучше своего лагеря, проталкивает решение; хуже — саботирует.
   const people = (state.keyFigures ?? []).filter(fig => exec.some(f => f.id === fig.faction));
@@ -454,7 +460,8 @@ export function successChance(state: ChanceState, choice: Choice): number {
   if (state.pacts?.some(pc => exec.some(f => f.id === pc.faction))) p += 0.05; // союзник даёт свой аппарат
   if (state.resources.politicalCapital < 25) p -= 0.1;
   if (state.resources.personalResource < OWN_CRISIS_BELOW) p += ownPersonCarries(state, choice) ? OWN_CRISIS_BONUS : -0.05;
-  if (saboteurOf(state, choice)) p -= SABOTAGE; // нелояльный советник тянет время и теряет бумаги
+  const saboteur = execution ? coordinators.find(advisor => unrestrained(advisor, state)) : saboteurOf(state, choice);
+  if (saboteur) p -= SABOTAGE; // в авторском профиле мешать может только участник координации
   return Math.round(Math.max(0.3, Math.min(0.95, p)) * 100) / 100;
 }
 
@@ -771,6 +778,16 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 export function resolveTurn(state: GameState, choiceId: string, narration: Narration): GameState {
   const plan = planTurn(state, choiceId);
   const event = state.currentEvent!;
+  const review = reviewAdvisorOutlook(state, plan.choice, plan.success);
+  // Лояльность остаётся из прежнего авторского разговора; новый доклад добавляет только проверенный счёт.
+  if (review) {
+    const news = new Map((narration.advisorNews ?? []).map(item => [item.id, { ...item, right: 0, wrong: 0 }]));
+    for (const item of review.news) {
+      const previous = news.get(item.id);
+      news.set(item.id, previous ? { ...previous, right: item.right, wrong: item.wrong } : item);
+    }
+    narration = { ...narration, forecasts: review.lines, advisorNews: [...news.values()] };
+  }
   const tracksOutcomes = ARCS.find(arc => arc.id === state.arc?.id)?.trackOutcomes;
   const turn = state.turn + 1;
 
@@ -883,3 +900,4 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     powerLoss: plan.endType && !isSurvival(plan.endType) ? narration.powerLoss : null,
   });
 }
+

@@ -1,3 +1,4 @@
+import { advisorSigningState, usesAdvisorOutlook } from "./advisor-outlook.ts";
 // «Хроника срока» (#298): тот же движок 1978 года, но срок читается одной непрерывной хроникой.
 // Между решениями время течёт само: исполнение подписи, голоса людей, пресса, отклики прежних решений.
 // На решении история стоит и ждёт. Здесь только представление уже разрешённых ходов: ни тиков, ни скрытых факторов.
@@ -175,6 +176,7 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
     const at = personal.first ? 0 : 1 + hashSeed(after.seed, 'personal-at', after.turn) % Math.max(1, body.length);
     body.splice(Math.min(at, body.length), 0, { kind: 'personal', text: personal.text });
   }
+  if (usesAdvisorOutlook(before) && report.forecasts?.length) body.push({ kind: 'report', who: report.forecasts[0], text: report.forecasts.slice(1).join('\n') });
   body.push({ kind: 'ledger', text: quarterLedger(before, after) });
   const start = dayNumber(from), span = Math.max(0, dayNumber(to) - start);
   const lines: ChronicleLine[] = [
@@ -249,7 +251,7 @@ const withChoice = (state: GameState, choice: Choice): GameState =>
 
 // Подпись закрывает квартал так же, как в `/game`: итог хода, затем стол открывается, когда пришёл его срок.
 async function sign(state: GameState, choice: Choice | null, id: string): Promise<GameState> {
-  const ready = choice ? withChoice(state, choice) : state;
+  const ready = advisorSigningState(choice ? withChoice(state, choice) : state);
   const choiceId = choice ? choice.id : id;
   return openDeskWhenDue(resolveTurn(ready, choiceId, await classicApi.consequence(ready, choiceId)));
 }

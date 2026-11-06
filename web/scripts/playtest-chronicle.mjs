@@ -203,6 +203,10 @@ if (opened) {
       timeline.push(`${decisions} · разговор · ${title}`);
       await desk.locator("[data-negotiation-choice]").first().tap();
       await desk.getByRole("button", { name: "Подтвердить решение" }).tap();
+    } else if (await desk.locator('[data-resolution-choices]').count()) {
+      timeline.push(`${decisions} · дело · ${title}`);
+      await desk.locator('[id^="opt-"]').first().tap();
+      await desk.getByRole('button', { name: 'Подписать', exact: true }).tap();
     } else if (await desk.locator("button").filter({ hasText: /^\s*\d\./ }).count()) {
       // Звонок раньше обычного дела: у его кнопок тоже id="opt-…".
       timeline.push(`${decisions} · звонок · ${title}`);

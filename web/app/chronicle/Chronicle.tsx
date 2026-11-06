@@ -1,4 +1,6 @@
 "use client";
+import ResolutionChoices from "../game/ResolutionChoices.tsx";
+import { unifiedResolution } from "@/lib/client/advisor-outlook.ts";
 
 // «Хроника срока» (#298, #302). Между решениями строки идут сами, в темпе чтения; касание — следующая строка сразу.
 // Лента стоит, когда нужен ответ: анкета ЦИК, письмо со сроком, предложение правительства, письмо человека, дело.
@@ -808,6 +810,8 @@ function CaseDesk({ game, busy, onSign, onConvene }: {
     onFinish={(approach: Parameters<typeof signCall>[1], ending: Parameters<typeof signCall>[2]) => { handsetFx(false); duckForCall(false); onSign(state => signCall(state, approach, ending)); }} />;
   else if (event.press) body = <PressPanel gs={game} press={event.press} stamping={null} onSkip={() => onSign(refuse)}
     onFinish={(picks: number[]) => onSign(state => signPress(state, picks))} />;
+  else if (unifiedResolution(game)) body = <ResolutionChoices key={`${game.turn}:${event.title}`} game={game} busy={busy}
+    onSign={choice => onSign(state => signChoice(state, choice.id))} />;
   else {
     const takes = debate(game);
     const councilOnly = hasPresidentialCouncil(game) || hasInvestigationDebate(game);
