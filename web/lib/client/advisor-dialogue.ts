@@ -18,7 +18,7 @@ export function advisorDialogue(state: GameState, choice: Choice, data: AdvisorD
   const authored = data[state.currentEvent?.card ?? '']?.[index];
   const forecast = advisorOutlook(state, choice);
   if (!authored || !forecast) return [];
-  const values: Record<string, string> = { risk: forecast.risk.text };
+  const values: Record<string, string> = { risk: forecast.risk.text, ...(state.arc ? { target: state.arc.target } : {}) }; 
   for (const [key, estimate] of Object.entries(forecast.success.resources)) values[`success.${key}`] = estimate.text;
   for (const [key, estimate] of Object.entries(forecast.failure?.resources ?? {})) values[`failure.${key}`] = estimate.text;
   forecast.later.forEach((effect, i) => {
