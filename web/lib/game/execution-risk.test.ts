@@ -6,6 +6,7 @@ import { choiceEffects, planTurn, rollSuccess, successChance } from './engine.ts
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES } from './alternate-world.ts';
 import { SAVE_VERSION } from './data.ts';
 import { parseSave } from '../client/save.ts';
+import { choiceOutcomes } from '../client/choice-outcomes.ts';
 import type { Choice, GameState } from './types.ts';
 
 async function first(seed = 7, diff: 'debut' | 'coalition' | 'crisis' = 'debut') {
@@ -19,6 +20,55 @@ function withOutcome(state: GameState, choice: Choice, succeeded: boolean) {
   }
   throw new Error('Не найден нужный исход');
 }
+
+test('левый курс: срыв аванса и переоборудования сохраняет политическую цену подписи', async () => {
+  for (const diff of ['debut', 'coalition', 'crisis', 'ruins'] as const) {
+    for (const seed of [1, 7, 21]) {
+      const initial = await nextCase(await newTerm({ ...startFromSeed(seed, diff), ideo: 'leftist' }));
+      const resources = Object.fromEntries(Object.keys(initial.resources).map(key => [key, 60])) as GameState['resources'];
+      const original = { ...initial, resources };
+      for (const choice of original.currentEvent!.choices.slice(1)) {
+        const label = `${diff}/${seed}/${choice.id}`;
+        const success = choiceEffects(original, choice).resources;
+        const failure = choiceEffects(original, choice, true).resources;
+        assert.equal(success.personalResource, -8, label);
+        assert.equal(success.politicalCapital, -3, label);
+        assert.equal(failure.personalResource, -8, `${label}: срыв не прощает личную цену`);
+        assert.equal(failure.politicalCapital, choice.id === 'b' ? -4 : -3, `${label}: штраф курса сохраняется`);
+        assert.ok(failure.personalResource! <= success.personalResource!, label);
+        assert.ok(failure.politicalCapital! <= success.politicalCapital!, label);
+        for (const succeeded of [false, true]) {
+          const state = withOutcome(original, choice, succeeded);
+          const restored = parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'chronicle', state }))!.state;
+          const preview = choiceOutcomes(restored, choice)!;
+          const expected = succeeded ? preview.success : preview.failure!;
+          const after = await signChoice(restored, choice.id);
+          assert.equal(after.lastTurn!.success, succeeded, label);
+          assert.deepEqual(after.lastTurn!.resourceChanges,
+            Object.fromEntries(Object.entries(expected.resources).filter(([, value]) => value)), `${label}: прогноз совпадает с подписью`);
+          assert.equal(after.lastTurn!.resourceChanges.personalResource, -8, label);
+          assert.equal(after.lastTurn!.resourceChanges.politicalCapital, succeeded ? -3 : failure.politicalCapital, label);
+          assert.deepEqual(after, await signChoice(restored, choice.id), `${label}: reload и повтор детерминированы`);
+        }
+      }
+    }
+  }
+});
+
+test('срыв заводской подписи по-прежнему не приносит бонуса за совпадение с курсом', async () => {
+  const initial = await first();
+  for (const ideo of ['liberal', 'nationalist', 'pragmatist', 'leftist'] as const) {
+    const state = { ...initial, ideo };
+    const [pay, ...investments] = state.currentEvent!.choices;
+    assert.deepEqual(choiceEffects(state, pay, true).resources,
+      { economy: -9, internalLegitimacy: -4, politicalCapital: -3, personalResource: -1 }, 'выплата без нового бонуса или штрафа');
+    if (ideo === 'leftist') continue;
+    assert.deepEqual(investments.map(choice => choiceEffects(state, choice, true).resources), [
+      { economy: -3, internalLegitimacy: -4, politicalCapital: -1, personalResource: -3 },
+      { economy: -8, internalLegitimacy: -4, personalResource: -3 },
+    ], `${ideo}: остальные курсы не меняются`);
+  }
+});
 
 test('три срыва соответствуют сценам: деньги ушли банку, аванса нет, новая линия не запущена', async () => {
   const state = await first();
