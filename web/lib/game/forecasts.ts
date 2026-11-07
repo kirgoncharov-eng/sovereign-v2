@@ -4,7 +4,7 @@
 // о прочем — тянет в свою сторону, каждый в своей манере. Нелояльный служит своему лагерю и лжёт даже в своей области.
 // Кто был прав, видно после хода: газета сверяет прогнозы с ведомостью.
 import { authoredDebate, hasAuthoredDebate, isPresidentialDiscussion } from "./presidential-story.ts";
-import { campaignText } from "./alternate-world.ts";
+import { ALTERNATE_COUNTRY, campaignText } from "./alternate-world.ts";
 import { ACTIONS } from "./data.ts";
 import { LOYALTY_FOLLOWED, LOYALTY_OVERRULED, choiceEffects, hashSeed, loyaltyOf, shiftedLoyalty } from "./engine.ts";
 import { campOf, isDisloyal, mannerOf } from "./advisors.ts";
@@ -12,6 +12,7 @@ import {
   ABOUT_OTHER, ADMIT, ADVISOR_REASONS, AGREE, ALARM, DOWNPLAY, DRY, LEVEL_PHRASES, NO_STAKE, ORDINAL, ORDINAL_LOC, VERDICTS,
   type Level, type Manner,
 } from "../content/forecasts.ts";
+import { ADVISOR_VOICES, MANNER_LINES, type AdvisorRoleId } from "../content/advisor-voices.ts";
 import type { ActionTag, AdvisorNews, Choice, GameEvent, GameState, ResourceKey } from "./types.ts";
 
 export type { Level };
@@ -94,6 +95,48 @@ const upper = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const fillLine = (template: string, text: string, index: number) => template
   .replace("{x}", text).replace("{X}", upper(text)).replace("{n}", ORDINAL[index]).replace("{loc}", ORDINAL_LOC[index]);
 
+// Чем говорит советник. Архив — прежние фразы и прежний жребий, чтобы его партии не менялись.
+// 1978 год (#370) — голос роли и выбор по кругу: соседние ходы не повторяют одну и ту же связку.
+interface Lines {
+  verdict: (agree: boolean) => string;
+  noStake: (resource: ResourceKey) => string;
+  pick: (pool: readonly string[], slot: string, salt: number) => string;
+  aboutOther: readonly string[];
+  admit: readonly string[];
+  downplay: readonly string[];
+  alarm: readonly string[];
+  dry: readonly string[];
+  after: readonly string[];
+}
+
+const ARCHIVE_AFTER = ["Там же {x}."];
+
+function linesOf(state: GameState, speaker: string, salt: number, used: Set<string>): Lines {
+  const voice = state.country === ALTERNATE_COUNTRY ? ADVISOR_VOICES[speaker as AdvisorRoleId] : undefined;
+  if (!voice) {
+    return {
+      verdict: agree => (agree ? AGREE : VERDICTS)[salt % (agree ? AGREE : VERDICTS).length],
+      noStake: resource => NO_STAKE[resource] ?? "",
+      pick: (pool, _slot, lineSalt) => pool[lineSalt % pool.length],
+      aboutOther: ABOUT_OTHER, admit: ADMIT, downplay: DOWNPLAY, alarm: ALARM, dry: DRY, after: ARCHIVE_AFTER,
+    };
+  }
+  // По кругу от хода: соседние ходы не повторяют связку. Второй советник в том же споре не берёт ту же строку.
+  const pick = (pool: readonly string[], slot: string) => {
+    const start = hashSeed(state.seed, "voice", speaker, slot) + state.turn;
+    const order = pool.map((_, step) => pool[(start + step) % pool.length]);
+    const line = order.find(candidate => !used.has(candidate)) ?? order[0];
+    used.add(line);
+    return line;
+  };
+  return {
+    verdict: agree => pick(agree ? voice.agree : voice.verdict, agree ? "agree" : "verdict"),
+    noStake: () => pick(voice.noStake, "stake"),
+    pick: (pool, slot) => pick(pool, slot),
+    ...MANNER_LINES,
+  };
+}
+
 interface Option {
   choice: Choice;
   index: number;
@@ -123,9 +166,9 @@ function favoriteOf(options: Option[], interest: ResourceKey, also: ResourceKey,
 const toward = (target: Option, favored: Option, truth: Level, shift: number) => clamp(target === favored ? truth + shift : truth - shift);
 
 // Утверждение о своей области с причиной: честное у лояльного, со сдвигом у нелояльного.
-function domainLine(favored: Option, opposed: Option, interest: ResourceKey, salt: number, lie: boolean) {
+function domainLine(favored: Option, opposed: Option, interest: ResourceKey, salt: number, lie: boolean, lines: Lines) {
   const pro = favored.truth[interest], contra = opposed.truth[interest];
-  if (!pro && !contra) return { line: NO_STAKE[interest] ?? "", claim: null };
+  if (!pro && !contra) return { line: lines.noStake(interest), claim: null };
   const aboutOpposed = Math.abs(contra) > Math.abs(pro) || (Math.abs(contra) === Math.abs(pro) && contra < 0);
   const target = aboutOpposed ? opposed : favored;
   const truth = target.truth[interest];
@@ -133,12 +176,14 @@ function domainLine(favored: Option, opposed: Option, interest: ResourceKey, sal
   const why = said === truth ? reasonOf(target.choice, interest, Math.sign(truth), salt) : null;
   const text = `${phrase(interest, said)}${why ? `: ${why}` : ""}`;
   const claim: Claim = { choiceId: target.choice.id, index: target.index, resource: interest, said, truth, domain: true };
-  return { line: aboutOpposed ? fillLine(ABOUT_OTHER[salt % ABOUT_OTHER.length], text, target.index) : `${upper(text)}.`, claim };
+  return { line: aboutOpposed ? fillLine(lines.pick(lines.aboutOther, "domain", salt), text, target.index) : `${upper(text)}.`, claim };
 }
 
 // Утверждение о чужой области: здесь советник тянет в свою сторону — в своей манере.
 // smooth и dry сначала говорят о цене своего варианта, alarm — о цене чужого.
-function spinLine(favored: Option, opposed: Option, interest: ResourceKey, manner: Manner, spun: boolean, salt: number, afterOpposed: boolean) {
+function spinLine(
+  favored: Option, opposed: Option, interest: ResourceKey, manner: Manner, spun: boolean, salt: number, afterOpposed: boolean, lines: Lines,
+) {
   const others = RESOURCES.filter(key => key !== interest);
   const worst = (option: Option) => others.reduce((found, key) => (option.delta[key] < option.delta[found] ? key : found));
   const best = (option: Option) => others.reduce((found, key) => (option.delta[key] > option.delta[found] ? key : found));
@@ -149,10 +194,10 @@ function spinLine(favored: Option, opposed: Option, interest: ResourceKey, manne
   if (!pick) return null;
   const { target, resource } = pick;
   const said = toward(target, favored, target.truth[resource], spun ? 1 : 0);
-  const aboutRival = manner === "alarm" ? ALARM : manner === "dry" ? DRY : ABOUT_OTHER;
-  const templates = target === favored ? (said < 0 ? ADMIT : DOWNPLAY) : afterOpposed ? ["Там же {x}."] : aboutRival;
+  const aboutRival = manner === "alarm" ? lines.alarm : manner === "dry" ? lines.dry : lines.aboutOther;
+  const templates = target === favored ? (said < 0 ? lines.admit : lines.downplay) : afterOpposed ? lines.after : aboutRival;
   const claim: Claim = { choiceId: target.choice.id, index: target.index, resource, said, truth: target.truth[resource], domain: false };
-  return { line: fillLine(templates[salt % templates.length], phrase(resource, said), target.index), claim };
+  return { line: fillLine(lines.pick(templates, "spin", salt), phrase(resource, said), target.index), claim };
 }
 
 // Спор под делом: два советника, каждый за свой вариант. null — дело без спора.
@@ -169,6 +214,7 @@ export function debate(state: GameState): AdvisorTake[] | null {
   if (speakers.length < 2) return null;
   // Против кого интрига, тот о ней не советует.
   if (event.beat && speakers.some(speaker => speaker.advisor.name === state.arc?.target)) return null;
+  const used = new Set<string>(); // строки, уже сказанные в этом споре (1978)
   const favorites = speakers.map(speaker => favoriteOf(options, speaker.interest, speaker.also, speaker.camp));
   return speakers.map((speaker, position) => {
     const favored = favorites[position];
@@ -181,10 +227,10 @@ export function debate(state: GameState): AdvisorTake[] | null {
     const spun = speaker.disloyal || hashSeed(state.seed, "spin", state.turn, speaker.id) % 100 < chance * 100;
     const agree = position === 1 && rival === favored;
     const salt = hashSeed(state.seed, "debate", state.turn, speaker.id);
-    const verdicts = agree ? AGREE : VERDICTS;
-    const verdict = verdicts[salt % verdicts.length].replace("{n}", ORDINAL[favored.index]);
-    const domain = domainLine(favored, opposed, speaker.interest, salt >>> 3, speaker.disloyal);
-    const spin = spinLine(favored, opposed, speaker.interest, speaker.manner, spun, salt >>> 6, domain.claim?.choiceId === opposed.choice.id);
+    const lines = linesOf(state, speaker.id, salt, used);
+    const verdict = lines.verdict(agree).replace("{n}", ORDINAL[favored.index]);
+    const domain = domainLine(favored, opposed, speaker.interest, salt >>> 3, speaker.disloyal, lines);
+    const spin = spinLine(favored, opposed, speaker.interest, speaker.manner, spun, salt >>> 6, domain.claim?.choiceId === opposed.choice.id, lines);
     return {
       id: speaker.id,
       name: speaker.advisor.name,

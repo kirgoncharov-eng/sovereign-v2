@@ -42,6 +42,7 @@ import { termFinale } from "./term-finale.ts";
 import { PARTY_GENITIVE } from "../content/term-finale.ts";
 import { effectiveLaw, lawDef } from "./laws.ts";
 import { DEEDS, ELECTION_NIGHT, HISTORICAL_PRESS_ELECTION_NIGHT, INTERCUTS, historicalOutsiderPool, outsiderKind, roleGroup } from "../content/roles.ts";
+import { ENVOY_DEEDS, isEnvoyId } from "../content/advisor-voices.ts";
 import { TERMS_TURN, electionKind, fellTrying, isTermEnd, reignOf, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
 import { DIED, FINALE, LOCKED, PATHS, PATHS_AS, TERM_HOW, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
 import { LAW_REACT, MEANWHILE, type LawAct, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
@@ -1345,9 +1346,12 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     return voice(f, sign, envoy ? fresh(REACT_DIPLOMAT[envoy][side], `q${envoy}${side}`, state.turn)
       : fresh(REACT_BY_TAG[tag][side], `q${tag}${side}`, uses));
   };
-  // В 1978 году редактор и лидеры движений получают поступки по своему месту (#310, E03).
-  const deedPool = (id: string, side: "pro" | "con") => roleGroup(id) === "outsider" && state.country === ALTERNATE_COUNTRY
-    ? historicalOutsiderPool(DEEDS.outsider[side], id, side) : DEEDS[roleGroup(id)][side];
+  // В 1978 году редактор и лидеры движений получают поступки по своему месту (#310, E03), послы — каждый свои (#370).
+  const deedPool = (id: string, side: "pro" | "con") => {
+    if (state.country !== ALTERNATE_COUNTRY) return DEEDS[roleGroup(id)][side];
+    if (roleGroup(id) === "outsider") return historicalOutsiderPool(DEEDS.outsider[side], id, side);
+    return isEnvoyId(id) ? ENVOY_DEEDS[id][side] : DEEDS[roleGroup(id)][side];
+  };
   // Если сказать по сути нечего — только поступок, без слов: так реплика не уходит мимо темы.
   const deed = (sign: number, f: (typeof cast)[number]) =>
     fill(cycle(deedPool(f.id, sign > 0 ? "pro" : "con"), state.seed, `re${sign}`, state.turn), state, { name: f.name, role: lower(f.role) });
