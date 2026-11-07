@@ -65,6 +65,7 @@ test('заводские речи не попадают в архив, Daily, д
   assert.deepEqual(advisorDialogue({ ...state, daily: '2026-11-07' }, choice), []);
   assert.deepEqual(advisorDialogue({ ...state, currentEvent: { ...state.currentEvent!, card: 'alt_fuel' } }, choice), []);
   assert.deepEqual(advisorDialogue(state, { ...choice, id: 's_economist' }), []);
+  assert.deepEqual(advisorDialogue(state, { ...choice, policyEffect: { economy: -20 } }), [], 'другая цена — уже другое предложение');
   assert.deepEqual(advisorDialogue(state, { ...choice, advisor: { id: 'economist', name: 'Другой', role: 'Экономист', skill: 3 } }), []);
   assert.deepEqual(advisorDialogue(state, { ...choice, deal: { pure: true, res: { economy: -2 } } }), []);
   const untouched = structuredClone(state);

@@ -1,6 +1,7 @@
 import { ADVISOR_DIALOGUE, type AdvisorDialogue } from '../content/advisor-dialogue.ts';
 import { campOf, isDisloyal } from '../game/advisors.ts';
 import { isFemaleName } from '../game/engine.ts';
+import { executionProfile } from '../game/execution-risk.ts';
 import { advisorOutlook, sourceFor, unifiedResolution } from './advisor-outlook.ts';
 import type { Choice, GameState } from '../game/types.ts';
 
@@ -15,6 +16,7 @@ export function fillAdvisorSpeech(text: string, values: Record<string, string>):
 }
 export function advisorDialogue(state: GameState, choice: Choice, data: AdvisorDialogue = ADVISOR_DIALOGUE) {
   if (!unifiedResolution(state) || choice.advisor || choice.deal?.pure) return [];
+  if (state.currentEvent?.card === 'alt_wages' && !executionProfile(state, choice)) return [];
   const index = state.currentEvent?.choices.findIndex(option => option.id === choice.id) ?? -1;
   const authored = data[state.currentEvent?.card ?? '']?.[index];
   const forecast = advisorOutlook(state, choice);
