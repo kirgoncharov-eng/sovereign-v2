@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 164" width="100%" height="100%">
+  <!-- Telegram Blank Base -->
+  <rect x="0" y="0" width="640" height="164" fill="#241e1b" stroke="#efe6d0" stroke-width="3"/>
+  <rect x="28" y="18" width="584" height="138" fill="none" stroke="#efe6d0" stroke-width="1.5"/>
+
+  <!-- Top Hazard Stripe Bar -->
+  <rect x="2" y="2" width="636" height="14" fill="#efe6d0"/>
+  <g><polygon points="-20,0 -6,0 -18,14 -32,14" fill="#e56550"/><polygon points="8,0 22,0 10,14 -4,14" fill="#e56550"/><polygon points="36,0 50,0 38,14 24,14" fill="#e56550"/><polygon points="64,0 78,0 66,14 52,14" fill="#e56550"/><polygon points="92,0 106,0 94,14 80,14" fill="#e56550"/><polygon points="120,0 134,0 122,14 108,14" fill="#e56550"/><polygon points="148,0 162,0 150,14 136,14" fill="#e56550"/><polygon points="176,0 190,0 178,14 164,14" fill="#e56550"/><polygon points="204,0 218,0 206,14 192,14" fill="#e56550"/><polygon points="232,0 246,0 234,14 220,14" fill="#e56550"/><polygon points="260,0 274,0 262,14 248,14" fill="#e56550"/><polygon points="288,0 302,0 290,14 276,14" fill="#e56550"/><polygon points="316,0 330,0 318,14 304,14" fill="#e56550"/><polygon points="344,0 358,0 346,14 332,14" fill="#e56550"/><polygon points="372,0 386,0 374,14 360,14" fill="#e56550"/><polygon points="400,0 414,0 402,14 388,14" fill="#e56550"/><polygon points="428,0 442,0 430,14 416,14" fill="#e56550"/><polygon points="456,0 470,0 458,14 444,14" fill="#e56550"/><polygon points="484,0 498,0 486,14 472,14" fill="#e56550"/><polygon points="512,0 526,0 514,14 500,14" fill="#e56550"/><polygon points="540,0 554,0 542,14 528,14" fill="#e56550"/><polygon points="568,0 582,0 570,14 556,14" fill="#e56550"/><polygon points="596,0 610,0 598,14 584,14" fill="#e56550"/><polygon points="624,0 638,0 626,14 612,14" fill="#e56550"/><polygon points="652,0 666,0 654,14 640,14" fill="#e56550"/></g>
+  <line x1="0" y1="16" x2="640" y2="16" stroke="#efe6d0" stroke-width="2"/>
+
+  <!-- Telegraph Sprocket Holes -->
+  <circle cx="14" cy="26" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="626" cy="26" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="14" cy="46" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="626" cy="46" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="14" cy="66" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="626" cy="66" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="14" cy="86" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="626" cy="86" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="14" cy="106" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="626" cy="106" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="14" cy="126" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="626" cy="126" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="14" cy="146" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/><circle cx="626" cy="146" r="4.2" fill="#12100e" stroke="#a89d86" stroke-width="1"/>
+
+  <!-- Top Telegraph Form Metadata -->
+  <text x="40" y="35" fill="#a89d86" font-family="'Courier New', monospace" font-weight="700" font-size="12.5" letter-spacing="0.8">
+    БЛАНК № 01-ЧП · ЛИНИЯ ПРАВИТЕЛЬСТВЕННОЙ СВЯЗИ НР
+  </text>
+  <text x="600" y="35" text-anchor="end" fill="#e56550" font-family="'Courier New', monospace" font-weight="700" font-size="12.5" letter-spacing="1">
+    ВНЕ ОЧЕРЕДИ
+  </text>
+  <line x1="28" y1="42" x2="612" y2="42" stroke="#efe6d0" stroke-width="1.2" stroke-dasharray="6 3"/>
+
+  <!-- Glued Paper Telegraph Tape Strip 1: "МОЛНИЯ" with Lightning Bolt -->
+  <g transform="translate(38, 52) rotate(-0.6)">
+    <rect x="0" y="0" width="394" height="54" fill="#b83226" stroke="#efe6d0" stroke-width="2"/>
+    <!-- Lightning bolt icon -->
+    <polygon points="26,7 12,29 24,29 16,47 40,23 27,23 36,7" fill="#f7efe0"/>
+    <text x="198" y="38" text-anchor="middle" fill="#f7efe0" font-family="Impact, 'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="900" font-size="35" letter-spacing="2.8">
+      МОЛНИЯ · СРОЧНО
+    </text>
+  </g>
+
+  <!-- Right Stamp: "ЛИЧНО ПРЕЗИДЕНТУ / ДОЛОЖИТЬ НЕМЕДЛЕННО" -->
+  <g transform="translate(522, 79) rotate(2.5)">
+    <rect x="-78" y="-25" width="156" height="50" fill="#302823" stroke="#e56550" stroke-width="2.6"/>
+    <rect x="-74" y="-21" width="148" height="42" fill="none" stroke="#e56550" stroke-width="1"/>
+    <text x="0" y="-4" text-anchor="middle" fill="#e56550" font-family="'Courier New', monospace" font-weight="700" font-size="11.5" letter-spacing="0.8">
+      ЛИЧНО ПРЕЗИДЕНТУ
+    </text>
+    <text x="0" y="12" text-anchor="middle" fill="#efe6d0" font-family="'Courier New', monospace" font-weight="700" font-size="11" letter-spacing="0.6">
+      БУДИТЬ НЕМЕДЛЕННО
+    </text>
+  </g>
+
+  <!-- Glued Paper Telegraph Tape Strip 2: Time & Fog Warning -->
+  <g transform="translate(38, 115)">
+    <rect x="0" y="0" width="564" height="30" fill="#302823" stroke="#efe6d0" stroke-width="1.5"/>
+    <text x="282" y="20" text-anchor="middle" fill="#efe6d0" font-family="'Courier New', monospace" font-weight="700" font-size="11.8" letter-spacing="0.2">
+      ПРИНЯТО 03:42 · СВЕДЕНИЯ С МЕСТА ПРОТИВОРЕЧАТ ДРУГ ДРУГУ · ТРЕБУЕТСЯ РЕШЕНИЕ
+    </text>
+  </g>
+</svg>
