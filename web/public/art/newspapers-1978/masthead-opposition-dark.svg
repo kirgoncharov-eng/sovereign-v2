@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 184" width="100%" height="100%">
+  <defs>
+    <pattern id="grain-opp-dark" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="4" fill="#1e1c19"/>
+      <rect x="0" y="0" width="2" height="1" fill="rgba(228, 223, 210, 0.045)"/>
+      <rect x="2" y="2" width="1" height="2" fill="rgba(228, 223, 210, 0.045)"/>
+    </pattern>
+  </defs>
+
+  <rect x="0" y="0" width="640" height="184" fill="url(#grain-opp-dark)"/>
+
+  <!-- Fold crease lines -->
+  <line x1="320" y1="0" x2="320" y2="184" stroke="#5e594e" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
+  <line x1="0" y1="92" x2="640" y2="92" stroke="#5e594e" stroke-width="0.8" stroke-dasharray="6 4" opacity="0.4"/>
+
+  <rect x="8" y="8" width="624" height="4" fill="#ded8c8"/>
+  <circle cx="144" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="144" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="168" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="168" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="192" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="192" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="216" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="216" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="240" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="240" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="264" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="264" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="288" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="288" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="312" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="312" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="336" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="336" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="360" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="360" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="384" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="384" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="408" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="408" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="432" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="432" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="456" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="456" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="480" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="480" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="504" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="504" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="528" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="528" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="552" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="552" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="576" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="576" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="600" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="600" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="624" cy="12" r="1.3" fill="#ded8c8" opacity="0.35"/><circle cx="624" cy="24" r="1.3" fill="#ded8c8" opacity="0.35"/>
+
+  <!-- Left Rotaprint Stamp Block: Secret Folder cut by Pen Nib + "ЕЖЕНЕДЕЛЬНИК" -->
+  <g transform="translate(8, 16)">
+    <rect x="0" y="0" width="124" height="122" fill="#ded8c8"/>
+    <polygon points="0,0 50,0 0,50" fill="#e56a54"/>
+    <text x="6" y="15" fill="#f3ecd8" font-family="'Courier New', monospace" font-weight="700" font-size="9.5" transform="rotate(-45 16 15)">4 СТР.</text>
+
+    <g transform="translate(62, 51)">
+      <path d="M-31,-24 L-7,-24 L-2,-18 L31,-18 L31,22 L-31,22 Z" fill="none" stroke="#1e1c19" stroke-width="2.4"/>
+      <line x1="-23" y1="-7" x2="23" y2="-7" stroke="#1e1c19" stroke-width="1.4" stroke-dasharray="4 2"/>
+      <line x1="-23" y1="11" x2="23" y2="11" stroke="#1e1c19" stroke-width="1.4"/>
+      <rect x="-20" y="-3" width="40" height="12" fill="#e56a54"/>
+      <text x="0" y="5.5" text-anchor="middle" fill="#f4eee1" font-family="'Courier New', monospace" font-weight="700" font-size="9.5" letter-spacing="1.2">ПРОТОКОЛ</text>
+      <path d="M16,-31 L33,-14 L-11,28 L-26,26 L-24,11 Z" fill="#1e1c19" stroke="#ded8c8" stroke-width="2"/>
+      <line x1="-22" y1="22" x2="5" y2="-5" stroke="#ded8c8" stroke-width="2"/>
+      <circle cx="5" cy="-5" r="2.5" fill="#ded8c8"/>
+    </g>
+
+    <rect x="5" y="93" width="114" height="23" fill="#e56a54"/>
+    <text x="62" y="109" text-anchor="middle" fill="#f4eee1" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="13" letter-spacing="1.4">
+      ЕЖЕНЕДЕЛЬНИК
+    </text>
+  </g>
+
+  <!-- Top Right Typewriter Callout -->
+  <text x="144" y="29" fill="#bdb6a5" font-family="'Courier New', 'PT Mono', monospace" font-weight="700" font-size="13" letter-spacing="0.4">
+    НЕЗАВИСИМОЕ ИЗДАНИЕ · ВЫХОДИТ ПО ЧЕТВЕРГАМ
+  </text>
+  <line x1="142" y1="35" x2="632" y2="35" stroke="#ded8c8" stroke-width="2"/>
+
+  <!-- Main Asymmetric Bold Woodtype/Stencil Title: «МИНСКИЙ ЛИСТ» (sized so it ends at x=495, clear of the stamp!) -->
+  <g transform="translate(144, 105) rotate(-0.8)">
+    <text x="2.5" y="2" fill="#e56a54" opacity="0.7" font-family="Impact, 'Arial Narrow', 'PT Sans Narrow', sans-serif" font-weight="900" font-size="56" letter-spacing="2" transform="scale(0.95, 1.16)">
+      МИНСКИЙ ЛИСТ
+    </text>
+    <text x="0" y="0" fill="#e4dfd2" font-family="Impact, 'Arial Narrow', 'PT Sans Narrow', sans-serif" font-weight="900" font-size="56" letter-spacing="2" transform="scale(0.95, 1.16)">
+      МИНСКИЙ ЛИСТ
+    </text>
+    <line x1="0" y1="-26" x2="365" y2="-26" stroke="#1e1c19" stroke-width="2.2" opacity="0.75"/>
+  </g>
+
+  <!-- Angled Stamp on the Far Right (x=568, completely clear of the title!) -->
+  <g transform="translate(568, 84) rotate(-6)">
+    <rect x="-56" y="-22" width="112" height="40" fill="#272420" stroke="#e56a54" stroke-width="2.5" stroke-dasharray="16 2"/>
+    <rect x="-52" y="-18" width="104" height="32" fill="none" stroke="#e56a54" stroke-width="1"/>
+    <text x="0" y="-3" text-anchor="middle" fill="#e56a54" font-family="'Courier New', monospace" font-weight="700" font-size="10.5" letter-spacing="0.8">БЕЗ ЦЕНЗУРЫ</text>
+    <text x="0" y="9" text-anchor="middle" fill="#e56a54" font-family="'Courier New', monospace" font-weight="700" font-size="10.5" letter-spacing="0.8">И ПРОТОКОЛОВ</text>
+  </g>
+
+  <!-- Jagged Double Rule Below Title -->
+  <line x1="142" y1="125" x2="632" y2="122" stroke="#ded8c8" stroke-width="4"/>
+  <line x1="142" y1="131" x2="632" y2="128" stroke="#e56a54" stroke-width="2"/>
+
+  <!-- Bottom Typewriter Issue Strip (larger font for 360px legibility) -->
+  <rect x="8" y="144" width="624" height="31" fill="#171513" stroke="#ded8c8" stroke-width="2"/>
+  <text x="320" y="164" text-anchor="middle" fill="#e4dfd2" font-family="'Courier New', 'PT Mono', monospace" font-weight="700" font-size="14.5" letter-spacing="0.3">
+    1978 г. · № 41 (112) · Бумага газ. II с. · Цена 10 коп.
+  </text>
+</svg>
