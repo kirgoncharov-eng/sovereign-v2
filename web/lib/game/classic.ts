@@ -42,6 +42,7 @@ import { termFinale } from "./term-finale.ts";
 import { PARTY_GENITIVE } from "../content/term-finale.ts";
 import { effectiveLaw, lawDef } from "./laws.ts";
 import { DEEDS, ELECTION_NIGHT, HISTORICAL_PRESS_ELECTION_NIGHT, INTERCUTS, historicalOutsiderPool, outsiderKind, roleGroup } from "../content/roles.ts";
+import { ENVOY_DEEDS, isEnvoyId } from "../content/advisor-voices.ts";
 import { TERMS_TURN, electionKind, fellTrying, isTermEnd, reignOf, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
 import { DIED, FINALE, LOCKED, PATHS, PATHS_AS, TERM_HOW, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
 import { LAW_REACT, MEANWHILE, type LawAct, REACT_BY_TAG, REACT_DIPLOMAT, REACT_FAILURE, REACT_SPECIAL, SAY, SAY_DIPLOMAT, type SpecialAct } from "../content/reactions.ts";
@@ -59,7 +60,7 @@ import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } f
 import { applyDeltas, clampRel, computePolls, dueBeat, hashSeed, initFactions, isFemaleName, isSurvival, loyaltyLabel, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { storyLetters } from "./stories.ts";
 import { ARCHIVE_CARD, archiveDescription } from "./archive-memory.ts";
-import { advisorNews, forecastReview } from "./forecasts.ts";
+import { advisorNews, forecastReview, heardDebate } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { secretaryEnabled, secretarySurname } from './secretary.ts';
 import { announcedHeirs, feminineSurname, surnameBase } from './surnames.ts';
@@ -1345,12 +1346,23 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     return voice(f, sign, envoy ? fresh(REACT_DIPLOMAT[envoy][side], `q${envoy}${side}`, state.turn)
       : fresh(REACT_BY_TAG[tag][side], `q${tag}${side}`, uses));
   };
-  // В 1978 году редактор и лидеры движений получают поступки по своему месту (#310, E03).
-  const deedPool = (id: string, side: "pro" | "con") => roleGroup(id) === "outsider" && state.country === ALTERNATE_COUNTRY
-    ? historicalOutsiderPool(DEEDS.outsider[side], id, side) : DEEDS[roleGroup(id)][side];
+  // В 1978 году редактор и лидеры движений получают поступки по своему месту (#310, E03), послы — каждый свои (#370).
+  const deedPool = (id: string, side: "pro" | "con") => {
+    if (state.country !== ALTERNATE_COUNTRY) return DEEDS[roleGroup(id)][side];
+    if (roleGroup(id) === "outsider") return historicalOutsiderPool(DEEDS.outsider[side], id, side);
+    return isEnvoyId(id) ? ENVOY_DEEDS[id][side] : DEEDS[roleGroup(id)][side];
+  };
   // Если сказать по сути нечего — только поступок, без слов: так реплика не уходит мимо темы.
-  const deed = (sign: number, f: (typeof cast)[number]) =>
-    fill(cycle(deedPool(f.id, sign > 0 ? "pro" : "con"), state.seed, `re${sign}`, state.turn), state, { name: f.name, role: lower(f.role) });
+  const deed = (sign: number, f: (typeof cast)[number]) => {
+    const pool = deedPool(f.id, sign > 0 ? "pro" : "con");
+    const filled = (idx: number) => fill(cycle(pool, state.seed, `re${sign}`, idx), state, { name: f.name, role: lower(f.role) });
+    if (state.country !== ALTERNATE_COUNTRY || !isEnvoyId(f.id)) return filled(state.turn);
+    // 1978: посол не повторяет поступок, пока в его пуле есть ещё не звучавшие (#381) — как реплики через `heard`.
+    const options = [...pool.keys()].map(step => filled(state.turn + step));
+    const chosen = options.find(line => !heard.has(line)) ?? options[0];
+    said.push(chosen);
+    return chosen;
+  };
   const speakers: string[] = [];
   // Эпизод интриги — дело закрытое: публика о нём не знает и не комментирует.
   // По закону говорят стороны: по одному человеку от тех, кто за, и от тех, кто против.
@@ -1454,7 +1466,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   });
   return {
     press: pressLines,
-    heard: said,
+    heard: [...said, ...heardDebate(state)],
     ...(letters.length ? { letters } : {}),
     ...(succession.length ? { succession: succession.map(({ figure, name }) => ({ figure, name })) } : {}),
     ...(forecasts.length ? { forecasts } : {}),
