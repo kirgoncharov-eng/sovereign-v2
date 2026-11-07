@@ -41,6 +41,7 @@ const WAGES_RISKS: Readonly<Record<string, ExecutionRisk>> = {
     reason: 'Покупатель может задержать аванс, потребовав дополнительную гарантию. Завод уже откажется от другого заказа и останется без денег.',
     resources: { economy: -2, internalLegitimacy: -3, politicalCapital: -1, personalResource: -2 },
     stance: { business: -3, russia: -2, regional: -4 },
+    keepsOpposedPenalty: true,
     execution: {
       coordinators: ['economist', 'diplomat'], blocs: ['business', 'russia'],
       responsibility: 'Дирекция и Российская делегация согласуют аванс; координация — у экономического и внешнеполитического советников.',
@@ -51,6 +52,7 @@ const WAGES_RISKS: Readonly<Record<string, ExecutionRisk>> = {
     reason: 'Оборудование может задержаться на таможне после разборки старой линии. Пособия и переоборудование оплачены, выпуска нет.',
     resources: { economy: -6, internalLegitimacy: -3, personalResource: -2 },
     stance: { business: -4, regional: -6, liberal: -3, west: -3 },
+    keepsOpposedPenalty: true,
     execution: {
       coordinators: ['economist', 'diplomat'], blocs: ['business', 'west'],
       responsibility: 'Дирекция и Торговый союз согласуют оборудование; координация — у экономического и внешнеполитического советников.',
