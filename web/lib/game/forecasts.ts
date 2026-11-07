@@ -70,6 +70,7 @@ export interface AdvisorTake {
   favors: string; // id варианта, за который советник
   text: string;
   claims: Claim[];
+  templates?: string[]; // 1978: связки, сказанные в споре к этой реплике включительно (#370)
 }
 
 // Где спор уместен: дело с выбором, в том числе эпизод интриги. Звонки, бюджет и пресс-конференции идут своими формами,
@@ -111,7 +112,12 @@ interface Lines {
 
 const ARCHIVE_AFTER = ["Там же {x}."];
 
-function linesOf(state: GameState, speaker: string, salt: number, used: Set<string>): Lines {
+// Спор виден игроку 1978 года только в «Деле дня»: в обычной партии его место занимает экран резолюции (#381).
+// Там связки, уже прозвучавшие в партии, лежат в `heard` истории вместе с репликами и не повторяются.
+const debateShown = (state: GameState) => state.country === ALTERNATE_COUNTRY && !!state.daily;
+const heardLines = (state: GameState) => new Set(debateShown(state) ? state.history.flatMap(entry => entry.heard ?? []) : []);
+
+function linesOf(state: GameState, speaker: string, salt: number, used: Set<string>, heard: Set<string>): Lines {
   const voice = state.country === ALTERNATE_COUNTRY ? ADVISOR_VOICES[speaker as AdvisorRoleId] : undefined;
   if (!voice) {
     return {
@@ -121,11 +127,12 @@ function linesOf(state: GameState, speaker: string, salt: number, used: Set<stri
       aboutOther: ABOUT_OTHER, admit: ADMIT, downplay: DOWNPLAY, alarm: ALARM, dry: DRY, after: ARCHIVE_AFTER,
     };
   }
-  // По кругу от хода: соседние ходы не повторяют связку. Второй советник в том же споре не берёт ту же строку.
+  // По кругу от хода, пропуская то, что уже звучало в партии или в этом споре; пул исчерпан — просто по кругу.
   const pick = (pool: readonly string[], slot: string) => {
     const start = hashSeed(state.seed, "voice", speaker, slot) + state.turn;
     const order = pool.map((_, step) => pool[(start + step) % pool.length]);
-    const line = order.find(candidate => !used.has(candidate)) ?? order[0];
+    const line = order.find(candidate => !used.has(candidate) && !heard.has(candidate))
+      ?? order.find(candidate => !used.has(candidate)) ?? order[0];
     used.add(line);
     return line;
   };
@@ -214,7 +221,7 @@ export function debate(state: GameState): AdvisorTake[] | null {
   if (speakers.length < 2) return null;
   // Против кого интрига, тот о ней не советует.
   if (event.beat && speakers.some(speaker => speaker.advisor.name === state.arc?.target)) return null;
-  const used = new Set<string>(); // строки, уже сказанные в этом споре (1978)
+  const used = new Set<string>(), heard = heardLines(state); // строки этого спора и уже прозвучавшие в партии (1978)
   const favorites = speakers.map(speaker => favoriteOf(options, speaker.interest, speaker.also, speaker.camp));
   return speakers.map((speaker, position) => {
     const favored = favorites[position];
@@ -227,7 +234,7 @@ export function debate(state: GameState): AdvisorTake[] | null {
     const spun = speaker.disloyal || hashSeed(state.seed, "spin", state.turn, speaker.id) % 100 < chance * 100;
     const agree = position === 1 && rival === favored;
     const salt = hashSeed(state.seed, "debate", state.turn, speaker.id);
-    const lines = linesOf(state, speaker.id, salt, used);
+    const lines = linesOf(state, speaker.id, salt, used, heard);
     const verdict = lines.verdict(agree).replace("{n}", ORDINAL[favored.index]);
     const domain = domainLine(favored, opposed, speaker.interest, salt >>> 3, speaker.disloyal, lines);
     const spin = spinLine(favored, opposed, speaker.interest, speaker.manner, spun, salt >>> 6, domain.claim?.choiceId === opposed.choice.id, lines);
@@ -238,6 +245,7 @@ export function debate(state: GameState): AdvisorTake[] | null {
       favors: favored.choice.id,
       text: campaignText([verdict, domain.line, spin?.line].filter(Boolean).join(" "), state.country),
       claims: [domain.claim, spin?.claim].filter((claim): claim is Claim => !!claim),
+      ...(state.country === ALTERNATE_COUNTRY ? { templates: [...used] } : {}),
     };
   });
 }
@@ -265,6 +273,11 @@ export function forecastChecks(state: GameState, choiceId: string, failed: boole
     const delta = Math.round(actual[claim.resource] ?? 0);
     return { take, claim, delta, right: levelOf(delta) === claim.said };
   }));
+}
+
+// Связки спора, которые игрок услышал на этом ходу: классика кладёт их в `heard` хода (#370).
+export function heardDebate(state: GameState): string[] {
+  return debateShown(state) ? debate(state)?.at(-1)?.templates ?? [] : [];
 }
 
 export function forecastReview(state: GameState, choiceId: string, failed: boolean): string[] {

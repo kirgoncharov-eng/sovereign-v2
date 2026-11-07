@@ -60,7 +60,7 @@ import { MAX_PACTS, PACT_TAG, RIVAL_BLOCS, TRAITS, bondOf, pactBans, traitOf } f
 import { applyDeltas, clampRel, computePolls, dueBeat, hashSeed, initFactions, isFemaleName, isSurvival, loyaltyLabel, planTurn, plural, seededRandom, warningLevel } from "./engine.ts";
 import { storyLetters } from "./stories.ts";
 import { ARCHIVE_CARD, archiveDescription } from "./archive-memory.ts";
-import { advisorNews, forecastReview } from "./forecasts.ts";
+import { advisorNews, forecastReview, heardDebate } from "./forecasts.ts";
 import { LEAKS } from "../content/advisors.ts";
 import { secretaryEnabled, secretarySurname } from './secretary.ts';
 import { announcedHeirs, feminineSurname, surnameBase } from './surnames.ts';
@@ -1353,8 +1353,16 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     return isEnvoyId(id) ? ENVOY_DEEDS[id][side] : DEEDS[roleGroup(id)][side];
   };
   // Если сказать по сути нечего — только поступок, без слов: так реплика не уходит мимо темы.
-  const deed = (sign: number, f: (typeof cast)[number]) =>
-    fill(cycle(deedPool(f.id, sign > 0 ? "pro" : "con"), state.seed, `re${sign}`, state.turn), state, { name: f.name, role: lower(f.role) });
+  const deed = (sign: number, f: (typeof cast)[number]) => {
+    const pool = deedPool(f.id, sign > 0 ? "pro" : "con");
+    const filled = (idx: number) => fill(cycle(pool, state.seed, `re${sign}`, idx), state, { name: f.name, role: lower(f.role) });
+    if (state.country !== ALTERNATE_COUNTRY || !isEnvoyId(f.id)) return filled(state.turn);
+    // 1978: посол не повторяет поступок, пока в его пуле есть ещё не звучавшие (#381) — как реплики через `heard`.
+    const options = [...pool.keys()].map(step => filled(state.turn + step));
+    const chosen = options.find(line => !heard.has(line)) ?? options[0];
+    said.push(chosen);
+    return chosen;
+  };
   const speakers: string[] = [];
   // Эпизод интриги — дело закрытое: публика о нём не знает и не комментирует.
   // По закону говорят стороны: по одному человеку от тех, кто за, и от тех, кто против.
@@ -1458,7 +1466,7 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   });
   return {
     press: pressLines,
-    heard: said,
+    heard: [...said, ...heardDebate(state)],
     ...(letters.length ? { letters } : {}),
     ...(succession.length ? { succession: succession.map(({ figure, name }) => ({ figure, name })) } : {}),
     ...(forecasts.length ? { forecasts } : {}),
