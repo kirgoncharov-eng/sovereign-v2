@@ -63,6 +63,7 @@ jobs:
       - run: npm run playtest:install -- --with-deps
       - run: npm run playtest -- --turns=24 --out=playtest
       - run: node scripts/playtest-advisor-outlook.mjs --out=playtest/advisor-outlook
+      - run: node scripts/playtest-factory-dialogue.mjs --out=playtest/factory-dialogue
       - run: node scripts/playtest-secretary.mjs --out=playtest/secretary
       # Новая партия 1978 года идёт в «Хронике срока» (#302): анкета, пролог вступления, дела и обращения.
       - run: node scripts/playtest-chronicle.mjs --out=playtest/chronicle
