@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 162" width="100%" height="100%">
+      <!-- Drop shadow -->
+      <rect x="8" y="8" width="628" height="150" fill="rgba(0,0,0,0.38)"/>
+      <!-- Main Cipher Card -->
+      <rect x="4" y="4" width="628" height="150" fill="#222925" stroke="#dce6df" stroke-width="2.5"/>
+      <rect x="30" y="10" width="576" height="138" fill="none" stroke="#dce6df" stroke-width="1.2"/>
+
+      <!-- Diagonal Red Security Classification Stripe in Top-Left -->
+      <polygon points="30,10 68,10 30,48" fill="#e36450"/>
+      <polygon points="75,10 85,10 30,65 30,55" fill="#e36450"/>
+
+      <!-- Punch-card Sprocket Holes -->
+      <rect x="10" y="16" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="620" y="16" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="10" y="36" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="620" y="36" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="10" y="56" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="620" y="56" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="10" y="76" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="620" y="76" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="10" y="96" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="620" y="96" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="10" y="116" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="620" y="116" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="10" y="136" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/><rect x="620" y="136" width="10" height="8" rx="1" fill="#111" stroke="#dce6df" stroke-width="1"/>
+
+      <!-- Top Classification Box -->
+      <rect x="30" y="10" width="576" height="30" fill="#1a201c" stroke="#dce6df" stroke-width="1.2"/>
+      <polygon points="30,10 68,10 38,40 30,40" fill="#e36450"/>
+      <text x="80" y="29" fill="#dce6df" font-family="'Courier New', monospace" font-weight="700" font-size="14.5" letter-spacing="0.6">
+        СЛУЖБА ПОРЯДКА · ЗАС-ШИФРОГРАММА
+      </text>
+      <rect x="460" y="14" width="140" height="22" fill="#e36450"/>
+      <text x="530" y="29" text-anchor="middle" fill="#f7efe0" font-family="'Courier New', monospace" font-weight="700" font-size="12" letter-spacing="0.8">
+        СЕКРЕТНО · 03:28
+      </text>
+
+      <foreignObject x="68" y="48" width="526" height="96">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:'Courier New', 'PT Mono', monospace; font-weight:700; font-size:16.5px; line-height:1.38; color:#dce6df;">
+          ЭТО ПРОВЕРКА НАШЕЙ ПВО. САМОЛЁТ И ПИЛОТА НУЖНО ВЕРНУТЬ ДО РАССВЕТА, ПОКА МОСКВА НЕ ПОДНЯЛА ДЕЛЕГАЦИЮ.
+        </div>
+      </foreignObject>
+    </svg>

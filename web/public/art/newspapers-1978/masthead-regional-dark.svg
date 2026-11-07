@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 184" width="100%" height="100%">
+  <defs>
+    <pattern id="grain-reg-dark" width="5" height="5" patternUnits="userSpaceOnUse">
+      <rect width="5" height="5" fill="#25211c"/>
+      <rect x="0" y="0" width="2" height="2" fill="rgba(232, 223, 198, 0.04)"/>
+      <rect x="2.5" y="2.5" width="1.5" height="1.5" fill="rgba(232, 223, 198, 0.04)"/>
+    </pattern>
+  </defs>
+
+  <rect x="0" y="0" width="640" height="184" fill="url(#grain-reg-dark)"/>
+  <rect x="4" y="4" width="632" height="176" fill="none" stroke="#dfd5ba" stroke-width="2.5"/>
+  <polygon points="14,9 626,9 631,14 631,170 626,175 14,175 9,170 9,14" fill="none" stroke="#dfd5ba" stroke-width="1.2"/>
+
+  <ellipse cx="148" cy="14" rx="6" ry="2.2" transform="rotate(-18 148 14)" fill="#8fb56d"/><ellipse cx="156" cy="14" rx="6" ry="2.2" transform="rotate(18 156 14)" fill="#8fb56d"/><ellipse cx="170" cy="14" rx="6" ry="2.2" transform="rotate(-18 170 14)" fill="#8fb56d"/><ellipse cx="178" cy="14" rx="6" ry="2.2" transform="rotate(18 178 14)" fill="#8fb56d"/><ellipse cx="192" cy="14" rx="6" ry="2.2" transform="rotate(-18 192 14)" fill="#8fb56d"/><ellipse cx="200" cy="14" rx="6" ry="2.2" transform="rotate(18 200 14)" fill="#8fb56d"/><ellipse cx="214" cy="14" rx="6" ry="2.2" transform="rotate(-18 214 14)" fill="#8fb56d"/><ellipse cx="222" cy="14" rx="6" ry="2.2" transform="rotate(18 222 14)" fill="#8fb56d"/><ellipse cx="236" cy="14" rx="6" ry="2.2" transform="rotate(-18 236 14)" fill="#8fb56d"/><ellipse cx="244" cy="14" rx="6" ry="2.2" transform="rotate(18 244 14)" fill="#8fb56d"/><ellipse cx="258" cy="14" rx="6" ry="2.2" transform="rotate(-18 258 14)" fill="#8fb56d"/><ellipse cx="266" cy="14" rx="6" ry="2.2" transform="rotate(18 266 14)" fill="#8fb56d"/><ellipse cx="280" cy="14" rx="6" ry="2.2" transform="rotate(-18 280 14)" fill="#8fb56d"/><ellipse cx="288" cy="14" rx="6" ry="2.2" transform="rotate(18 288 14)" fill="#8fb56d"/><ellipse cx="302" cy="14" rx="6" ry="2.2" transform="rotate(-18 302 14)" fill="#8fb56d"/><ellipse cx="310" cy="14" rx="6" ry="2.2" transform="rotate(18 310 14)" fill="#8fb56d"/><ellipse cx="324" cy="14" rx="6" ry="2.2" transform="rotate(-18 324 14)" fill="#8fb56d"/><ellipse cx="332" cy="14" rx="6" ry="2.2" transform="rotate(18 332 14)" fill="#8fb56d"/><ellipse cx="346" cy="14" rx="6" ry="2.2" transform="rotate(-18 346 14)" fill="#8fb56d"/><ellipse cx="354" cy="14" rx="6" ry="2.2" transform="rotate(18 354 14)" fill="#8fb56d"/><ellipse cx="368" cy="14" rx="6" ry="2.2" transform="rotate(-18 368 14)" fill="#8fb56d"/><ellipse cx="376" cy="14" rx="6" ry="2.2" transform="rotate(18 376 14)" fill="#8fb56d"/><ellipse cx="390" cy="14" rx="6" ry="2.2" transform="rotate(-18 390 14)" fill="#8fb56d"/><ellipse cx="398" cy="14" rx="6" ry="2.2" transform="rotate(18 398 14)" fill="#8fb56d"/><ellipse cx="412" cy="14" rx="6" ry="2.2" transform="rotate(-18 412 14)" fill="#8fb56d"/><ellipse cx="420" cy="14" rx="6" ry="2.2" transform="rotate(18 420 14)" fill="#8fb56d"/><ellipse cx="434" cy="14" rx="6" ry="2.2" transform="rotate(-18 434 14)" fill="#8fb56d"/><ellipse cx="442" cy="14" rx="6" ry="2.2" transform="rotate(18 442 14)" fill="#8fb56d"/><ellipse cx="456" cy="14" rx="6" ry="2.2" transform="rotate(-18 456 14)" fill="#8fb56d"/><ellipse cx="464" cy="14" rx="6" ry="2.2" transform="rotate(18 464 14)" fill="#8fb56d"/><ellipse cx="478" cy="14" rx="6" ry="2.2" transform="rotate(-18 478 14)" fill="#8fb56d"/><ellipse cx="486" cy="14" rx="6" ry="2.2" transform="rotate(18 486 14)" fill="#8fb56d"/><ellipse cx="500" cy="14" rx="6" ry="2.2" transform="rotate(-18 500 14)" fill="#8fb56d"/><ellipse cx="508" cy="14" rx="6" ry="2.2" transform="rotate(18 508 14)" fill="#8fb56d"/><ellipse cx="522" cy="14" rx="6" ry="2.2" transform="rotate(-18 522 14)" fill="#8fb56d"/><ellipse cx="530" cy="14" rx="6" ry="2.2" transform="rotate(18 530 14)" fill="#8fb56d"/><ellipse cx="544" cy="14" rx="6" ry="2.2" transform="rotate(-18 544 14)" fill="#8fb56d"/><ellipse cx="552" cy="14" rx="6" ry="2.2" transform="rotate(18 552 14)" fill="#8fb56d"/><ellipse cx="566" cy="14" rx="6" ry="2.2" transform="rotate(-18 566 14)" fill="#8fb56d"/><ellipse cx="574" cy="14" rx="6" ry="2.2" transform="rotate(18 574 14)" fill="#8fb56d"/><ellipse cx="588" cy="14" rx="6" ry="2.2" transform="rotate(-18 588 14)" fill="#8fb56d"/><ellipse cx="596" cy="14" rx="6" ry="2.2" transform="rotate(18 596 14)" fill="#8fb56d"/><ellipse cx="610" cy="14" rx="6" ry="2.2" transform="rotate(-18 610 14)" fill="#8fb56d"/><ellipse cx="618" cy="14" rx="6" ry="2.2" transform="rotate(18 618 14)" fill="#8fb56d"/>
+  <text x="384" y="33" text-anchor="middle" fill="#c4b99d" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="14" letter-spacing="1.8">
+    ОБЛАСТНАЯ ГАЗЕТА ПРИНЕМАНСКОГО КРАЯ · С 1924 ГОДА
+  </text>
+  <line x1="142" y1="39" x2="622" y2="39" stroke="#dfd5ba" stroke-width="1.6"/>
+
+  <!-- Left Prominent Regional Coat of Arms (Prinemanye Region: Bridge + Gear + Rye Sheaves + Mural Crown) -->
+  <g transform="translate(74, 91)">
+    <circle cx="0" cy="0" r="58" fill="#2e2923" stroke="#dfd5ba" stroke-width="2"/>
+    <circle cx="0" cy="0" r="54" fill="none" stroke="#8fb56d" stroke-width="1.2" stroke-dasharray="6 3"/>
+
+    <!-- Rye Sheaves -->
+    <path d="M-43,22 C-52,-4 -45,-30 -26,-43" fill="none" stroke="#c4b99d" stroke-width="3.2"/>
+    <path d="M-47,9 L-36,-2 M-48,-4 L-36,-13 M-43,-17 L-32,-24 M-36,-28 L-24,-34" stroke="#c4b99d" stroke-width="2.3"/>
+    <path d="M43,22 C52,-4 45,-30 26,-43" fill="none" stroke="#c4b99d" stroke-width="3.2"/>
+    <path d="M47,9 L36,-2 M48,-4 L36,-13 M43,-17 L32,-24 M36,-28 L24,-34" stroke="#c4b99d" stroke-width="2.3"/>
+
+    <!-- Mural Crown -->
+    <path d="M-22,-36 L-22,-48 L-14,-48 L-14,-43 L-5,-43 L-5,-48 L5,-48 L5,-43 L14,-43 L14,-48 L22,-48 L22,-36 Z" fill="#e8dfc6" stroke="#dfd5ba" stroke-width="1.2"/>
+
+    <!-- Regional Heraldic Shield -->
+    <path d="M-32,-34 L32,-34 L32,6 C32,25 0,38 0,38 C0,38 -32,25 -32,6 Z" fill="#2e4436" stroke="#dfd5ba" stroke-width="2.4"/>
+    <path d="M-28,-30 L28,-30 L28,5 C28,21 0,33 0,33 C0,33 -28,21 -28,5 Z" fill="none" stroke="#dfcfaa" stroke-width="1"/>
+
+    <!-- Three-Arch Bridge -->
+    <rect x="-27" y="-15" width="54" height="5.5" fill="#dfcfaa"/>
+    <path d="M-27,-9.5 L-27,2 L-21,2 C-21,-6.5 -10,-6.5 -10,2 L-4.5,2 C-4.5,-6.5 4.5,-6.5 4.5,2 L10,2 C10,-6.5 21,-6.5 21,2 L27,2 L27,-9.5 Z" fill="#dfcfaa"/>
+    <path d="M-25,6.5 Q-12,2 0,6.5 T25,6.5" fill="none" stroke="#dfcfaa" stroke-width="1.8"/>
+    <path d="M-22,12 Q-11,7.5 0,12 T22,12" fill="none" stroke="#dfcfaa" stroke-width="1.5"/>
+
+    <!-- Industrial Cog -->
+    <circle cx="0" cy="20" r="9.5" fill="none" stroke="#dfcfaa" stroke-width="3" stroke-dasharray="4 2.2"/>
+    <circle cx="0" cy="20" r="4.5" fill="#2e4436" stroke="#dfcfaa" stroke-width="1.6"/>
+    <polygon points="0,-28 1.8,-23 6.5,-23 2.8,-20 4,-15.5 0,-18.5 -4,-15.5 -2.8,-20 -6.5,-23 -1.8,-23" fill="#dfcfaa"/>
+
+    <!-- Ribbon: ПРИНЕМАНЬЕ -->
+    <path d="M-42,36 L42,36 L36,49 L-36,49 Z" fill="#25211c" stroke="#dfd5ba" stroke-width="1.5"/>
+    <text x="0" y="45.5" text-anchor="middle" fill="#e8dfc6" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="9.5" letter-spacing="1.4">
+      ПРИНЕМАНЬЕ
+    </text>
+  </g>
+
+  <!-- Main Provincial Slab-Serif Shadowed Title: «РАБОЧИЙ ПОЛДЕНЬ» (centered at x=332, clear of right vignette) -->
+  <g transform="translate(332, 0)">
+    <text x="2.5" y="88" text-anchor="middle" fill="#dfd5ba" font-family="Rockwell, 'Roboto Slab', 'PT Serif', Georgia, serif" font-weight="900" font-size="44" letter-spacing="3">
+      РАБОЧИЙ
+    </text>
+    <text x="0" y="85.5" text-anchor="middle" fill="#8fb56d" stroke="#dfd5ba" stroke-width="1.1" font-family="Rockwell, 'Roboto Slab', 'PT Serif', Georgia, serif" font-weight="900" font-size="44" letter-spacing="3">
+      РАБОЧИЙ
+    </text>
+
+    <text x="2.5" y="129" text-anchor="middle" fill="#dfd5ba" font-family="Rockwell, 'Roboto Slab', 'PT Serif', Georgia, serif" font-weight="900" font-size="42" letter-spacing="3.8">
+      ПОЛДЕНЬ
+    </text>
+    <text x="0" y="126.5" text-anchor="middle" fill="#e8dfc6" font-family="Rockwell, 'Roboto Slab', 'PT Serif', Georgia, serif" font-weight="900" font-size="42" letter-spacing="3.8">
+      ПОЛДЕНЬ
+    </text>
+  </g>
+
+  <!-- Right Framed Provincial Panorama Vignette (Elevator, Factory & Bridge — completely clear of title!) -->
+  <g transform="translate(566, 89)">
+    <rect x="-48" y="-41" width="96" height="82" fill="#2e2923" stroke="#dfd5ba" stroke-width="1.6"/>
+    <!-- Elevator silos -->
+    <rect x="-38" y="-20" width="11" height="36" fill="#c4b99d" opacity="0.75"/>
+    <rect x="-25" y="-20" width="11" height="36" fill="#c4b99d" opacity="0.75"/>
+    <polygon points="-40,-20 -12,-20 -18,-28 -34,-28" fill="#e8dfc6" opacity="0.85"/>
+    <!-- Factory & chimneys -->
+    <rect x="-4" y="-8" width="38" height="24" fill="#c4b99d" opacity="0.7"/>
+    <rect x="4" y="-28" width="6" height="20" fill="#e8dfc6"/>
+    <rect x="18" y="-24" width="6" height="16" fill="#e8dfc6"/>
+    <!-- Bridge arches at bottom of vignette -->
+    <line x1="-44" y1="16" x2="44" y2="16" stroke="#dfd5ba" stroke-width="2"/>
+    <path d="M-42,27 Q-22,15 0,27 Q22,15 42,27" fill="none" stroke="#8fb56d" stroke-width="2.2"/>
+    <text x="0" y="36.5" text-anchor="middle" fill="#c4b99d" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="8.5" letter-spacing="0.8">КРАЙ ТРУДА</text>
+  </g>
+
+  <!-- Bottom Provincial Masthead Strip with Editor Vera Verbich (large, clear font for 360px) -->
+  <line x1="142" y1="140" x2="622" y2="140" stroke="#dfd5ba" stroke-width="1.8"/>
+  <rect x="142" y="142" width="480" height="26" fill="#1d1915"/>
+  <line x1="322" y1="140" x2="322" y2="169" stroke="#dfd5ba" stroke-width="1.2"/>
+  <line x1="510" y1="140" x2="510" y2="169" stroke="#dfd5ba" stroke-width="1.2"/>
+  <text x="232" y="160" text-anchor="middle" fill="#e8dfc6" font-family="'PT Serif', Georgia, serif" font-weight="700" font-size="14.5" letter-spacing="0.3">
+    Редактор В. ВЕРБИЧ
+  </text>
+  <text x="416" y="160" text-anchor="middle" fill="#c4b99d" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="14.5" letter-spacing="0.6">
+    1978 г. · № 188 (9412)
+  </text>
+  <text x="566" y="160" text-anchor="middle" fill="#e8dfc6" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="14.5" letter-spacing="0.6">
+    Цена 2 коп.
+  </text>
+  <line x1="142" y1="169" x2="622" y2="169" stroke="#dfd5ba" stroke-width="2"/>
+</svg>
