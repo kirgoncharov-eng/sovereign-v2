@@ -1,7 +1,8 @@
 import { ADVISOR_DIALOGUE, type AdvisorDialogue } from '../content/advisor-dialogue.ts';
 import { campOf, isDisloyal } from '../game/advisors.ts';
 import { isFemaleName } from '../game/engine.ts';
-import { advisorOutlook, sourceFor } from './advisor-outlook.ts';
+import { executionProfile } from '../game/execution-risk.ts';
+import { advisorOutlook, sourceFor, unifiedResolution } from './advisor-outlook.ts';
 import type { Choice, GameState } from '../game/types.ts';
 
 /** Целое авторское предложение; неизвестный слот не превращается в видимый технический текст. */
@@ -14,11 +15,13 @@ export function fillAdvisorSpeech(text: string, values: Record<string, string>):
   return missing ? null : result;
 }
 export function advisorDialogue(state: GameState, choice: Choice, data: AdvisorDialogue = ADVISOR_DIALOGUE) {
+  if (!unifiedResolution(state) || choice.advisor || choice.deal?.pure) return [];
+  if (state.currentEvent?.card === 'alt_wages' && !executionProfile(state, choice)) return [];
   const index = state.currentEvent?.choices.findIndex(option => option.id === choice.id) ?? -1;
   const authored = data[state.currentEvent?.card ?? '']?.[index];
   const forecast = advisorOutlook(state, choice);
   if (!authored || !forecast) return [];
-  const values: Record<string, string> = { risk: forecast.risk.text, ...(state.arc ? { target: state.arc.target } : {}) }; 
+  const values: Record<string, string> = { risk: forecast.risk.text, ...(state.arc ? { target: state.arc.target } : {}) };
   for (const [key, estimate] of Object.entries(forecast.success.resources)) values[`success.${key}`] = estimate.text;
   for (const [key, estimate] of Object.entries(forecast.failure?.resources ?? {})) values[`failure.${key}`] = estimate.text;
   forecast.later.forEach((effect, i) => {
