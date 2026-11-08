@@ -1,6 +1,7 @@
 // #359: настоящая подпись, контрольный расчёт и чтение карточки на телефоне/компьютере.
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
@@ -16,6 +17,14 @@ const root = resolve('.');
 const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6) ?? 'playtest/factory-mandate');
 mkdirSync(out, { recursive: true });
 const html = readFileSync('demo/dist/sovereign.html', 'utf8');
+// Игра — с обычного HTTP-адреса, как выложенная версия: у file:// с init-скриптом Chromium после reload
+// иногда отдаёт пустой localStorage, и сценарий заново клал фикстуру поверх подписанной партии (#391).
+const demoServer = createServer((request, response) => {
+  response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  response.end(html);
+});
+await new Promise(done => demoServer.listen(0, '127.0.0.1', done));
+const demoUrl = `http://127.0.0.1:${demoServer.address().port}/`;
 const styles = html.match(/<style>([\s\S]*?)<\/style>/)[1];
 const component = await build({ stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client';
   import GovernmentPanel from './app/game/GovernmentPanel.jsx';
@@ -60,7 +69,7 @@ async function signInBrowser(game, choice, name) {
     localStorage.setItem('chronicle.speed', 'all');
     sessionStorage.setItem('factory-fixture', '1');
   }, { save, chronicle, key: CHRONICLE_GAME_KEY });
-  await page.goto(`file://${resolve('demo/dist/sovereign.html')}`);
+  await page.goto(demoUrl);
   await page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
   const row = page.locator('button.sv-choice-row').filter({ has: page.getByText(choice.text, { exact: true }) });
   await row.tap();
@@ -140,6 +149,7 @@ try {
   summary.problems.push(error.stack ?? String(error));
 } finally {
   await browser.close();
+  demoServer.close();
   writeFileSync(join(out, 'summary.json'), JSON.stringify(summary, null, 2));
 }
 console.log(JSON.stringify(summary, null, 2));

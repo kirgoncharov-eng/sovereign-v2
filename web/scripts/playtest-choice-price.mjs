@@ -1,7 +1,8 @@
 // #317: реальный экран подтверждения подписи на телефоне. Состояния взяты из движка, без обхода обработчика подписи.
 // npm run build:demo && node scripts/playtest-choice-price.mjs [--out=playtest/choice-price]
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { resolve, join } from 'node:path';
 import { chromium } from 'playwright';
 import { APP_VERSION, SAVE_VERSION } from '../lib/game/data.ts';
@@ -16,6 +17,15 @@ import { parseSave } from '../lib/client/save.ts';
 const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6) ?? 'playtest/choice-price');
 mkdirSync(out, { recursive: true });
 const summary = { checks: [], problems: [] };
+const html = readFileSync('demo/dist/sovereign.html', 'utf8');
+// Игра — с обычного HTTP-адреса, как выложенная версия: у file:// с init-скриптом Chromium после reload
+// иногда отдаёт пустой localStorage, и сценарий заново клал фикстуру поверх подписанной партии (#391).
+const demoServer = createServer((request, response) => {
+  response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  response.end(html);
+});
+await new Promise(done => demoServer.listen(0, '127.0.0.1', done));
+const demoUrl = `http://127.0.0.1:${demoServer.address().port}/`;
 const browser = await chromium.launch();
 
 async function openFixture(game, start) {
@@ -34,7 +44,7 @@ async function openFixture(game, start) {
     localStorage.setItem(key, chronicle);
     sessionStorage.setItem('choice-price-fixture-loaded', '1');
   }, { save, chronicle, key: CHRONICLE_GAME_KEY });
-  await page.goto(`file://${resolve('demo/dist/sovereign.html')}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(demoUrl, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
   await page.getByRole('heading', { name: game.currentEvent.title, exact: true }).waitFor();
   return { page, context, state };
@@ -181,6 +191,7 @@ try {
   summary.problems.push(error.stack ?? String(error));
 } finally {
   await browser.close();
+  demoServer.close();
   writeFileSync(join(out, 'summary.json'), JSON.stringify(summary, null, 2));
 }
 console.log(JSON.stringify({ checks: summary.checks.length, problems: summary.problems }, null, 2));
