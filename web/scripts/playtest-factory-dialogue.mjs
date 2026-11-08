@@ -1,10 +1,12 @@
 // #387: проверяет настоящие реплики ResolutionChoices, без тестовой подмены словаря.
+// #397, часть 3: то же для эпизода расследования — у него нет карточки, реплики ищутся по тексту варианта.
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
-import { newTerm, nextCase, startFromSeed } from '../lib/client/chronicle.ts';
+import { newTerm, nextCase, signChoice, startFromSeed } from '../lib/client/chronicle.ts';
+import { hasInvestigationDebate } from '../lib/content/investigation-debates.ts';
 import { advisorDialogue } from '../lib/client/advisor-dialogue.ts';
 
 const root = resolve('.');
@@ -27,15 +29,21 @@ const bundle = await build({
 const js = bundle.outputFiles.find(file => file.path.endsWith('.js')).text.replace(/<\/script/gi, '<\\/script');
 const css = bundle.outputFiles.find(file => file.path.endsWith('.css')).text;
 const styles = readFileSync('demo/dist/sovereign.html', 'utf8').match(/<style>([\s\S]*?)<\/style>/)[1];
-const base = await nextCase(await newTerm(startFromSeed(7)));
+const factory = await nextCase(await newTerm(startFromSeed(7)));
+let investigation = factory;
+while (!hasInvestigationDebate(investigation) && investigation.turn < 6) {
+  investigation = await nextCase(await signChoice(investigation, investigation.currentEvent.choices[0].id));
+}
+assert.ok(hasInvestigationDebate(investigation), 'в партии встретился эпизод расследования');
 const summary = { checks: [], problems: [] };
 const browser = await chromium.launch();
 try {
+  for (const [caseName, base, lead] of [['factory', factory, 'strategist'], ['investigation', investigation, 'security']])
   for (const width of [320, 390]) for (const diff of ['debut', 'crisis']) for (const team of ['weak', 'strong', 'mixed']) {
     const game = { ...base, diff, advisors: base.advisors.map(advisor => ({
-      ...advisor, loyalty: 80, skill: team === 'strong' ? 3 : team === 'weak' || advisor.id !== 'strategist' ? 1 : 3,
+      ...advisor, loyalty: 80, skill: team === 'strong' ? 3 : team === 'weak' || advisor.id !== lead ? 1 : 3,
     })) };
-    const name = `${width}-${diff}-${team}`, file = join(out, `${name}.html`);
+    const name = `${caseName}-${width}-${diff}-${team}`, file = join(out, `${name}.html`);
     writeFileSync(file, `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <style>${styles}${css}body{margin:0;background:#e4dcbd}#root{max-width:640px;margin:12px auto}</style>
       <div id="root" class="sv-paper"></div><script>window.fixture=${JSON.stringify(game).replace(/</g, '\\u003c')};${js}</script>`);
@@ -63,10 +71,10 @@ try {
       assert.equal(await page.locator('body').getAttribute('data-signed'), null, 'просмотр не подписывает');
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
       await page.screenshot({ path: join(out, `${name}-choice-${index + 1}.png`), fullPage: true });
-      summary.checks.push({ width, diff, team, choice: choice.id, speeches: speeches.length });
+      summary.checks.push({ case: caseName, width, diff, team, choice: choice.id, speeches: speeches.length });
     }
     await choices.getByRole('button', { name: 'Подписать', exact: true }).click();
-    assert.equal(await page.locator('body').getAttribute('data-signed'), game.currentEvent.choices[2].id);
+    assert.equal(await page.locator('body').getAttribute('data-signed'), game.currentEvent.choices.at(-1).id);
     await page.reload();
     await choices.locator('#opt-1').click();
     const restored = await choices.getByRole('group', { name: 'Последствия выбранного решения' }).innerText();

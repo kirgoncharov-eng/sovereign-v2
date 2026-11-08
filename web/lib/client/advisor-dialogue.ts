@@ -1,4 +1,6 @@
 import { ADVISOR_DIALOGUE, type AdvisorDialogue } from '../content/advisor-dialogue.ts';
+import { hasInvestigationDebate } from '../content/investigation-debates.ts';
+import { INVESTIGATION_DIALOGUE, type InvestigationDialogue } from '../content/investigation-dialogue.ts';
 import { campOf, isDisloyal } from '../game/advisors.ts';
 import { isFemaleName } from '../game/engine.ts';
 import { executionProfile } from '../game/execution-risk.ts';
@@ -14,11 +16,13 @@ export function fillAdvisorSpeech(text: string, values: Record<string, string>):
   });
   return missing ? null : result;
 }
-export function advisorDialogue(state: GameState, choice: Choice, data: AdvisorDialogue = ADVISOR_DIALOGUE) {
+export function advisorDialogue(state: GameState, choice: Choice, data: AdvisorDialogue = ADVISOR_DIALOGUE,
+  investigations: InvestigationDialogue = INVESTIGATION_DIALOGUE) {
   if (!unifiedResolution(state) || choice.advisor || choice.deal?.pure) return [];
   if (state.currentEvent?.card === 'alt_wages' && !executionProfile(state, choice)) return [];
   const index = state.currentEvent?.choices.findIndex(option => option.id === choice.id) ?? -1;
-  const authored = data[state.currentEvent?.card ?? '']?.[index];
+  // У эпизодов интриги нет карточки: разговор о расследовании ищется по тексту варианта, как в INVESTIGATION_DEBATES.
+  const authored = hasInvestigationDebate(state) ? investigations[choice.text] : data[state.currentEvent?.card ?? '']?.[index];
   const forecast = advisorOutlook(state, choice);
   if (!authored || !forecast) return [];
   const values: Record<string, string> = { risk: forecast.risk.text, ...(state.arc ? { target: state.arc.target } : {}) };
