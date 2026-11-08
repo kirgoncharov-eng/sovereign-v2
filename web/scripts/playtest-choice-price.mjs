@@ -1,7 +1,8 @@
 // #317: реальный экран подтверждения подписи на телефоне. Состояния взяты из движка, без обхода обработчика подписи.
 // npm run build:demo && node scripts/playtest-choice-price.mjs [--out=playtest/choice-price]
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { resolve, join } from 'node:path';
 import { chromium } from 'playwright';
 import { APP_VERSION, SAVE_VERSION } from '../lib/game/data.ts';
@@ -15,7 +16,16 @@ import { parseSave } from '../lib/client/save.ts';
 
 const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6) ?? 'playtest/choice-price');
 mkdirSync(out, { recursive: true });
-const summary = { checks: [], reloads: [], problems: [] };
+const summary = { checks: [], problems: [] };
+const html = readFileSync('demo/dist/sovereign.html', 'utf8');
+// Игра — с обычного HTTP-адреса, как выложенная версия: у file:// с init-скриптом Chromium после reload
+// иногда отдаёт пустой localStorage, и сценарий заново клал фикстуру поверх подписанной партии (#391).
+const demoServer = createServer((request, response) => {
+  response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  response.end(html);
+});
+await new Promise(done => demoServer.listen(0, '127.0.0.1', done));
+const demoUrl = `http://127.0.0.1:${demoServer.address().port}/`;
 const browser = await chromium.launch();
 
 async function openFixture(game, start) {
@@ -34,7 +44,7 @@ async function openFixture(game, start) {
     localStorage.setItem(key, chronicle);
     sessionStorage.setItem('choice-price-fixture-loaded', '1');
   }, { save, chronicle, key: CHRONICLE_GAME_KEY });
-  await page.goto(`file://${resolve('demo/dist/sovereign.html')}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(demoUrl, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
   await page.getByRole('heading', { name: game.currentEvent.title, exact: true }).waitFor();
   return { page, context, state };
@@ -165,19 +175,9 @@ try {
     assert.deepEqual(actual.pending, expected.pending, 'очередь после настоящей подписи соответствует прогнозу');
     assert.deepEqual(actual.resources, expected.resources);
     assert.equal(actual.history.at(-1).success, rollSuccess(live.state, scenario.choice));
-    // Сохраняем обе записи до и после reload: при сбое видно, где потерян подписанный ход.
-    const readStorage = () => live.page.evaluate(key => ({
-      game: JSON.parse(localStorage.getItem(key)).snapshot.game,
-      common: JSON.parse(localStorage.getItem('sovereign.save')).state,
-      fixtureLoaded: sessionStorage.getItem('choice-price-fixture-loaded'),
-    }), CHRONICLE_GAME_KEY);
-    const reload = { name, expectedTurn: expected.turn, before: await readStorage() };
-    summary.reloads.push(reload);
     await live.page.reload();
-    reload.afterReload = await readStorage();
     await live.page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
-    reload.afterResume = await readStorage();
-    const restored = reload.afterResume.game;
+    const restored = await savedGame(live.page);
     assert.equal(restored.turn, expected.turn, 'reload возвращает подписанный квартал, а не исходную фикстуру');
     assert.deepEqual(restored.pending, expected.pending, 'обязательства сохраняются после reload');
     await live.context.close();
@@ -191,6 +191,7 @@ try {
   summary.problems.push(error.stack ?? String(error));
 } finally {
   await browser.close();
+  demoServer.close();
   writeFileSync(join(out, 'summary.json'), JSON.stringify(summary, null, 2));
 }
 console.log(JSON.stringify({ checks: summary.checks.length, problems: summary.problems }, null, 2));
