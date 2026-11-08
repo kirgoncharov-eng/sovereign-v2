@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 162" width="100%" height="100%">
+      <defs>
+        <pattern id="sq-light" width="18" height="18" patternUnits="userSpaceOnUse">
+          <rect width="18" height="18" fill="#ede6d1"/>
+          <path d="M 18 0 L 0 0 0 18" fill="none" stroke="rgba(52, 92, 148, 0.22)" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <!-- Drop shadow -->
+      <path d="M 6,10 L 14,4 L 22,10 L 30,4 L 38,10 L 46,4 L 54,10 L 62,4 L 70,10 L 78,4 L 86,10 L 94,4 L 102,10 L 110,4 L 118,10 L 126,4 L 134,10 L 142,4 L 150,10 L 158,4 L 166,10 L 174,4 L 182,10 L 190,4 L 198,10 L 206,4 L 214,10 L 222,4 L 230,10 L 238,4 L 246,10 L 254,4 L 262,10 L 270,4 L 278,10 L 286,4 L 294,10 L 302,4 L 310,10 L 318,4 L 326,10 L 334,4 L 342,10 L 350,4 L 358,10 L 366,4 L 374,10 L 382,4 L 390,10 L 398,4 L 406,10 L 414,4 L 422,10 L 430,4 L 438,10 L 446,4 L 454,10 L 462,4 L 470,10 L 478,4 L 486,10 L 494,4 L 502,10 L 510,4 L 518,10 L 526,4 L 534,10 L 542,4 L 550,10 L 558,4 L 566,10 L 574,4 L 582,10 L 590,4 L 598,10 L 606,4 L 614,10 L 622,4 L 630,10 L 638,4 L 646,10 L 634,156 L 6,156 Z" transform="translate(4, 4)" fill="rgba(0,0,0,0.35)"/>
+      <!-- Squared Notebook Sheet -->
+      <path d="M 6,10 L 14,4 L 22,10 L 30,4 L 38,10 L 46,4 L 54,10 L 62,4 L 70,10 L 78,4 L 86,10 L 94,4 L 102,10 L 110,4 L 118,10 L 126,4 L 134,10 L 142,4 L 150,10 L 158,4 L 166,10 L 174,4 L 182,10 L 190,4 L 198,10 L 206,4 L 214,10 L 222,4 L 230,10 L 238,4 L 246,10 L 254,4 L 262,10 L 270,4 L 278,10 L 286,4 L 294,10 L 302,4 L 310,10 L 318,4 L 326,10 L 334,4 L 342,10 L 350,4 L 358,10 L 366,4 L 374,10 L 382,4 L 390,10 L 398,4 L 406,10 L 414,4 L 422,10 L 430,4 L 438,10 L 446,4 L 454,10 L 462,4 L 470,10 L 478,4 L 486,10 L 494,4 L 502,10 L 510,4 L 518,10 L 526,4 L 534,10 L 542,4 L 550,10 L 558,4 L 566,10 L 574,4 L 582,10 L 590,4 L 598,10 L 606,4 L 614,10 L 622,4 L 630,10 L 638,4 L 646,10 L 634,156 L 6,156 Z" fill="url(#sq-light)" stroke="#241f19" stroke-width="2"/>
+      <!-- Vertical Red Notebook Margin Line -->
+      <line x1="56" y1="6" x2="56" y2="156" stroke="#b84a39" stroke-width="2"/>
+      <line x1="60" y1="6" x2="60" y2="156" stroke="#b84a39" stroke-width="0.8"/>
+
+      <!-- Metal Paperclip on Top Left -->
+      <path d="M 24,0 L 24,38 C 24,46 38,46 38,38 L 38,12 C 38,7 28,7 28,12 L 28,32" fill="none" stroke="#555" stroke-width="3.2" stroke-linecap="round"/>
+
+      <!-- Pencil Circle Icon on Margin -->
+      <circle cx="31" cy="88" r="14" fill="none" stroke="#b84a39" stroke-width="2" stroke-dasharray="5 2"/>
+      <text x="31" y="93" text-anchor="middle" fill="#b84a39" font-family="'PT Serif', Georgia, serif" font-weight="700" font-size="15">№1</text>
+
+      <!-- Header & Handwritten/Ballpoint Body -->
+      <text x="74" y="34" fill="#241f19" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="16" letter-spacing="1">
+        КОМАНДИР АВИАБАЗЫ ПОД ЛИДОЙ · ТЕЛЕФОНОГРАММА
+      </text>
+      <text x="616" y="34" text-anchor="end" fill="#b84a39" font-family="'Courier New', monospace" font-weight="700" font-size="13">
+        МЕСТНЫЕ · 03:15
+      </text>
+      <line x1="74" y1="41" x2="618" y2="41" stroke="#241f19" stroke-width="1" stroke-dasharray="3 2"/>
+
+      <foreignObject x="74" y="48" width="544" height="100">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:'PT Serif', Georgia, serif; font-style:italic; font-size:18.5px; line-height:1.38; color:#1d3563;">
+          «Пилот один, топлива ноль. Просит политического убежища — говорит, что домой живым не вернётся».
+        </div>
+      </foreignObject>
+    </svg>

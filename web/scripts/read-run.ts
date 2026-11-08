@@ -1,11 +1,15 @@
 // Партия целиком в виде текста — чтобы прочитать её глазами, как игрок, и найти нелогичности.
 // Игрок выбирает разумно (бережёт самую слабую опору), звонки ведёт подходящим подходом.
+// Под делом печатается то, что видит игрок: сгенерированный спор советников (⚖) — только там, где его показывает стол;
+// в делах с «Разговором в кабинете» (1978 год) — реплики разговора по каждому варианту (🗣 Вариант N).
 //
 //   node scripts/read-run.ts [страна] [зерно] [сложность]
 //   node scripts/read-run.ts Казахстан 21 coalition > run.txt
 import { approachWorks, budgetChoice, callChoice, classicApi, pressChoice } from "../lib/game/classic.ts";
 import { createInitialState, planTurn, resolveTurn, seededRandom, startEvent } from "../lib/game/engine.ts";
 import { debate } from "../lib/game/forecasts.ts";
+import { hasPresidentialCouncil, isPresidentialDiscussion, presidentialConversation } from "../lib/game/presidential-story.ts";
+import { hasInvestigationDebate } from "../lib/content/investigation-debates.ts";
 import type { Choice, DifficultyId, GameState } from "../lib/game/types.ts";
 
 const [country = "Казахстан", seedArg = "21", diffArg = "coalition"] = process.argv.slice(2);
@@ -13,6 +17,9 @@ const seed = Number(seedArg), diff = diffArg as DifficultyId;
 const rand = seededRandom(seed);
 const out: string[] = [];
 const say = (line: string) => out.push(line);
+
+// Та же развилка, что на столе (SovereignGame.jsx): спор скрыт, если открыт совет, обсуждение подписи или разговор о расследовании.
+const debateVisible = (s: GameState) => !hasPresidentialCouncil(s) && !isPresidentialDiscussion(s) && !hasInvestigationDebate(s);
 
 const withChoice = (s: GameState, choice: Choice): GameState =>
   ({ ...s, currentEvent: { ...s.currentEvent!, choices: [choice, s.currentEvent!.choices[1]] } });
@@ -36,7 +43,9 @@ while (!s.ended) {
     s = withChoice(s, budgetChoice(s, { army: 2, social: 3, economy: 3, apparatus: 1, culture: 1 }, false)); id = "p";
   } else {
     ev.choices.forEach(c => say(`  · ${c.text} — ${c.hint}`));
-    debate(s)?.forEach(take => say(`  ⚖ ${take.name}, ${take.role.toLowerCase()}: «${take.text}»`));
+    if (debateVisible(s)) debate(s)?.forEach(take => say(`  ⚖ ${take.name}, ${take.role.toLowerCase()}: «${take.text}»`));
+    else s.currentEvent!.choices.forEach((_, index) => presidentialConversation(s, index)
+      .forEach(line => say(`  🗣 Вариант ${index + 1}: ${line.name}, ${line.role.toLowerCase()}: «${line.text}»`)));
     const score = (c: Choice) => { const plan = planTurn(s, c.id, { assumeSuccess: true }); return Math.min(...Object.values(plan.resources)) + plan.chance * 10 + rand() * 3; };
     id = [...ev.choices].sort((a, b) => score(b) - score(a))[0].id;
   }

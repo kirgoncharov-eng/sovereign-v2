@@ -417,13 +417,21 @@ export function authoredDebate(state: GameState, index: number): DebateExchange 
         : state.country === ALTERNATE_COUNTRY ? HISTORICAL_DEBATES[state.currentEvent?.card ?? '']?.[index] : undefined;
 }
 
+// Подсказка варианта — строчный обрывок без точки («авторы запомнят»). В реплике она звучит отдельной фразой.
+export function hintSentence(hint: string | undefined): string {
+    const text = hint?.trim() ?? '';
+    if (!text) return '';
+    const sentence = text[0].toLocaleUpperCase('ru') + text.slice(1);
+    return /[.!?…]$/.test(sentence) ? sentence : `${sentence}.`;
+}
+
 export function presidentialConversation(state: GameState, index: number) {
     const choice = state.currentEvent?.choices[index];
     if (!choice) return [];
     const authored = authoredDebate(state, index);
     const expert = ADVISOR_ROLES.find(role => role.domain.some(tag => choice.tags.includes(tag)))?.id ?? 'strategist';
     const lines: ReadonlyArray<readonly [string, string]> = authored ?? [
-        [expert, `Перед нами конкретная резолюция: «${choice.text}». ${choice.hint || 'Сначала разберём её цену.'}`],
+        [expert, `Перед нами конкретная резолюция: «${choice.text}». ${hintSentence(choice.hint) || 'Сначала разберём её цену.'}`],
         ['strategist', 'Расчёт — ещё не исполнение. Решайте, готовы ли вы отвечать за этот шаг, если всё пойдёт хуже плана.'],
     ];
     return lines.flatMap(([role, text]) => {

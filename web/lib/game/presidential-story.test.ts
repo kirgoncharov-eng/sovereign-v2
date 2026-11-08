@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { ALTERNATE_COUNTRY, countryName, eraText } from './alternate-world.ts';
 import { classicApi } from './classic.ts';
 import { choiceEffects, conveneCouncil, createInitialState, resolveTurn, seededRandom, startEvent } from './engine.ts';
-import { HISTORICAL_DEBATES, hasAuthoredDebate, hasPresidentialCouncil, presidentialConversation, presidentialCouncil } from './presidential-story.ts';
+import {
+    HISTORICAL_DEBATES, hasAuthoredDebate, hasPresidentialCouncil, hintSentence, presidentialConversation, presidentialCouncil,
+} from './presidential-story.ts';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { parseSave } from '../client/save.ts';
 import { SAVE_VERSION } from './data.ts';
@@ -192,4 +194,32 @@ test('спор о двух поставщиках мазута совпадае�
     assert.match(lines, /не дороже/);
     assert.ok((split.economy ?? 0) >= (western.economy ?? 0) && (split.economy ?? 0) >= (russian.economy ?? 0), 'деньгами раздел не дороже');
     assert.ok((split.politicalCapital ?? 0) < 0 && (split.personalResource ?? 0) < 0, 'зато стоит влияния и личных сил');
+});
+
+// #385: реплика без авторского разговора приклеивала подсказку строчным обрывком: «…». авторы запомнят
+test('каждая реплика разговора в кабинете на партиях 1978 года — законченное предложение', async () => {
+    assert.equal(hintSentence('авторы запомнят'), 'Авторы запомнят.');
+    assert.equal(hintSentence('если хватит голосов — закон заработает со следующего хода'), 'Если хватит голосов — закон заработает со следующего хода.');
+    assert.equal(hintSentence('Риск велик!'), 'Риск велик!');
+    assert.equal(hintSentence('  '), '');
+    const glued = /»\.\s+[а-яёa-z]/;
+    let fallbackLines = 0;
+    for (const [seed, difficulty] of [[3, 'coalition'], [7, 'crisis'], [11, 'debut'], [42, 'ruins']] as const) {
+        const intro = await classicApi.setup(ALTERNATE_COUNTRY, difficulty, 'pragmatist', seed);
+        let state = createInitialState(ALTERNATE_COUNTRY, difficulty, 'pragmatist', intro, seededRandom(seed));
+        for (let turn = 0; !state.ended; turn++) {
+            const before = startEvent(state, await classicApi.event(state));
+            const choices = before.currentEvent!.choices;
+            choices.forEach((choice, index) => presidentialConversation(before, index).forEach(({ text }) => {
+                const where = `${seed}/${difficulty}, ход ${before.turn + 1}, «${choice.text}»: ${text}`;
+                assert.ok(!glued.test(text), `после резолюции строчная буква — ${where}`);
+                assert.match(text, /^[^а-яёa-z]/, `реплика со строчной буквы — ${where}`);
+                assert.match(text, /[.!?…]$/, `реплика без знака конца предложения — ${where}`);
+                if (!hasAuthoredDebate(before, index) && text.startsWith('Перед нами')) fallbackLines++;
+            }));
+            const picked = choices[(turn * 7 + seed) % choices.length];
+            state = resolveTurn(before, picked.id, await classicApi.consequence(before, picked.id));
+        }
+    }
+    assert.ok(fallbackLines > 0, 'партии должны дойти до дел без авторского разговора');
 });
