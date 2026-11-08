@@ -148,6 +148,38 @@ function withoutReportEchoes(echoes: string[], dispatches: WorldDispatch[]): str
   return echoes.filter(text => !reported.has(text.replace(/^(?:Из промышленного региона\.|Районные больницы\.)\s*/, '')));
 }
 
+// Сцена уже сообщила результат. Из газетной строки убираем только точное повторение заголовка;
+// оценка редакции и самостоятельные новости остаются. Без сцены это правило не применяется.
+function pressAfterScene(text: string, headline: string): string {
+  const fact = headline.trim().replace(/[.!?…]+$/, '');
+  if (!fact || !text.startsWith(fact)) return text;
+  const rest = text.slice(fact.length);
+  if (rest && !/^[.!?…](?:\s|$)/u.test(rest)) return text;
+  return rest.replace(/^[.!?…]\s*/u, '').trim();
+}
+
+// Только срочное начало заводской истории: выплата/запрос документов — в день подписи,
+// обещанный аванс — в пятницу. Переоборудование и остальные дела по-прежнему занимают часть квартала.
+function factoryExecutionDay(before: GameState, after: GameState, start: number): number | null {
+  if (before.country !== ALTERNATE_COUNTRY || before.daily) return null;
+  const event = before.currentEvent, report = after.lastTurn;
+  const route = event?.choices.findIndex(choice => choice.text === report?.choiceText) ?? -1;
+  if (!report || route < 0) return null;
+  if (event?.card === 'alt_wages') return route < 2 ? start : null;
+  if (event?.beat?.arcId !== 'alt_contracts' || event.beat.turn !== 1) return null;
+  if (event.title === 'Опись из заводской бухгалтерии') {
+    // Директору прямо дали неделю; при ошибочном обыске расчётные листы не выдавали два дня.
+    return start + (route === 2 ? 7 : route === 1 && !report.success ? 2 : 0);
+  }
+  if (event.title === 'Три копии одного договора') return start + (route === 0 && !report.success ? 1 : 0);
+  const delayedAdvance = event.title === 'Приложение к российскому заказу';
+  if (delayedAdvance && route === 2 && report.success) {
+    return start + (5 - new Date(start * 86_400_000).getUTCDay() + 7) % 7;
+  }
+  const archive = delayedAdvance || event.title === 'Дело выданного аванса';
+  return start + (archive && route === 1 && !report.success ? 1 : 0);
+}
+
 /**
  * Хроника квартала между решением на столе в `before` и следующим делом. Строки датированы днями между двумя решениями:
  * сначала то, что сделала подпись, затем голоса и газеты, затем отклики прежних решений — отдельно от последней подписи.
@@ -157,15 +189,23 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
   if (!report) return { lines: [], memory };
   const dispatches = reports(before, after);
   const from = dateOf(before, before.turn), to = dateOf(after, after.turn);
+  const start = dayNumber(from), span = Math.max(0, dayNumber(to) - start);
+  const execution = factoryExecutionDay(before, after, start);
   // В газете заголовок стоит над текстом, а в хронике — после сцены. Поэтому сцена сохраняет своё начало, иначе следующая фраза
   // («На ней…», «Вместо него…») остаётся без опоры, а совпавший заголовок не печатается второй раз (#310, C02).
   const quarter = splitQuarter(report.narrative);
   const headlineTold = leadsWithHeadline(report.narrative, report.headline);
+  const scenes = paragraphs(quarter.own);
+  const sceneTellsResult = before.country === ALTERNATE_COUNTRY && !before.daily && scenes.length > 0;
+  const press = (report.press ?? []).flatMap(item => {
+    const text = sceneTellsResult ? pressAfterScene(item.headline, report.headline) : item.headline;
+    return text ? [{ kind: 'press' as const, who: item.outlet, text }] : [];
+  });
   const body: Omit<ChronicleLine, 'date' | 'id'>[] = [
-    ...paragraphs(quarter.own).map(text => ({ kind: 'scene' as const, text })),
+    ...scenes.map(text => ({ kind: 'scene' as const, text })),
     ...report.reactions.map(text => ({ kind: 'voice' as const, text })),
-    ...(headlineTold ? [] : [{ kind: 'paper' as const, who: newspaperName(after.country, after.seed, after.turn), text: report.headline }]),
-    ...(report.press ?? []).map(item => ({ kind: 'press' as const, who: item.outlet, text: item.headline })),
+    ...(headlineTold || sceneTellsResult ? [] : [{ kind: 'paper' as const, who: newspaperName(after.country, after.seed, after.turn), text: report.headline }]),
+    ...press,
     ...(report.letters ?? []).filter(letter => !letter.replies?.length)
       .map(letter => ({ kind: 'letter' as const, who: letter.from, text: letter.text })),
     ...dispatches.map(dispatch => ({ kind: 'report' as const, who: dispatch.title, text: dispatch.text })),
@@ -175,16 +215,23 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
   // Личная строка — среди событий квартала, а не приписка в конце; первая ночь — сразу после первой подписи.
   const personal = after.ended ? { text: null, memory } : personalBeat({ before, after, month: to.month }, memory);
   if (personal.text) {
-    const at = personal.first ? 0 : 1 + hashSeed(after.seed, 'personal-at', after.turn) % Math.max(1, body.length);
+    const morning = scenes.findIndex((text, i) => i > 0 && text.startsWith('Наутро '));
+    const at = personal.first ? execution === start ? morning < 0 ? scenes.length : morning : 0
+      : 1 + hashSeed(after.seed, 'personal-at', after.turn) % Math.max(1, body.length);
     body.splice(Math.min(at, body.length), 0, { kind: 'personal', text: personal.text });
   }
   if (usesAdvisorOutlook(before) && report.forecasts?.length) body.push({ kind: 'report', who: report.forecasts[0], text: report.forecasts.slice(1).join('\n') });
   body.push({ kind: 'ledger', text: quarterLedger(before, after) });
-  const start = dayNumber(from), span = Math.max(0, dayNumber(to) - start);
+  let previous = start;
   const lines: ChronicleLine[] = [
     { id: `q${before.turn}-signed`, kind: 'signed', date: plain(from), text: report.choiceText },
-    ...body.map((line, i) => ({ ...line, id: `q${before.turn}-${i}`,
-      date: personal.first && i === 0 ? plain(from) : fromDayNumber(start + Math.round((i + 1) * span / (body.length + 1))) })),
+    ...body.map((line, i) => {
+      const scheduled = personal.first && line.kind === 'personal' ? start
+        : line.kind === 'scene' && execution !== null ? execution + (line.text.startsWith('Наутро ') ? 1 : 0)
+          : start + Math.round((i + 1) * span / (body.length + 1));
+      previous = Math.max(previous, Math.min(start + span, scheduled));
+      return { ...line, id: `q${before.turn}-${i}`, date: fromDayNumber(previous) };
+    }),
   ];
   return { lines, memory: personal.memory };
 }

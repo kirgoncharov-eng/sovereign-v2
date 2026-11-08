@@ -855,8 +855,21 @@ function Line({ line, dated }: { line: ChronicleLine; dated: string }) {
     case "paper": return <p className={styles.paperLine}><small>{line.who}</small>{line.text}</p>;
     case "press": return <p className={styles.press}><small>{line.who}</small> {line.text}</p>;
     case "letter": return <p className={styles.letter}><small>Письмо{who ? ` · ${who}` : ""}</small>{line.text}</p>;
-    case "report": return isForecastReview(line.who)
-      ? <ForecastReview lines={[line.who!, ...line.text.split("\n")]}/> : <p className={styles.letter}><small>{line.who ?? "Доклад"}</small>{line.text}</p>;
+    case "report": {
+      if (isForecastReview(line.who)) return <ForecastReview lines={[line.who!, ...line.text.split("\n")]}/>;
+      if (line.who === "Контроль заводской подписи") {
+        const { summary, details } = ledgerParts(line.text);
+        return <div className={styles.letter}>
+          <small>{line.who}</small>
+          <p>{summary}</p>
+          {details.length > 0 && <details className={styles.ledgerDetails} onClick={event => event.stopPropagation()}>
+            <summary>Условия заводской подписи</summary>
+            {details.map((text, index) => <p key={index}>{text}</p>)}
+          </details>}
+        </div>;
+      }
+      return <p className={styles.letter}><small>{line.who ?? "Доклад"}</small>{line.text}</p>;
+    }
     case "secretary": return <p className={styles.echo}><small>Приёмная · {line.who}</small>{line.text}</p>;
     case "echo": return <p className={styles.echo}><small>Отклик прежних решений</small>{line.text}</p>;
     case "personal": return <p className={styles.personal}>{line.text}</p>;
