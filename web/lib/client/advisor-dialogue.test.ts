@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { advisorDialogue, fillAdvisorSpeech } from './advisor-dialogue.ts';
 import { advisorOutlook, resolutionPeople, unifiedResolution } from './advisor-outlook.ts';
 import { ADVISOR_DIALOGUE } from '../content/advisor-dialogue.ts';
+import { HISTORICAL_DEBATES } from '../game/presidential-story.ts';
 import { newTerm, nextCase, signChoice, startFromSeed } from './chronicle.ts';
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES } from '../game/alternate-world.ts';
 import type { AdvisorDialogue } from '../content/advisor-dialogue.ts';
@@ -109,7 +110,10 @@ test('авторская речь выбирается по делу, вариа
 // Базовое alt_fuel в первом сроке почти всегда заменяет версия (#214), поэтому в партиях проверяются версии; речи базового — структурно.
 const FIRST_TERM_SEEN = ['alt_harvest', 'alt_fuel_advance', 'alt_fuel_audit', 'alt_fuel_west', 'alt_radio', 'alt_rail', 'alt_district',
   'alt_standards', 'alt_archive'];
-const FIRST_TERM_DIALOGUE = [...FIRST_TERM_SEEN, 'alt_fuel'];
+// Часть 2: версии дел #214 и региональные дела. В партиях проверяются частые; редкие версии — структурно.
+const SECOND_PART_SEEN = ['alt_district_court', 'alt_region_walkers', 'alt_region_factory_strike',
+  'alt_region_customs', 'alt_region_governors', 'alt_region_border_rift'];
+const SEEN_IN_RUNS = [...FIRST_TERM_SEEN, ...SECOND_PART_SEEN];
 
 test('дела первого срока: под каждым вариантом говорят те, кто его предлагает и оспаривает, — без слотов, цифр и обрывков', async () => {
   const seen = new Set<string>();
@@ -117,7 +121,7 @@ test('дела первого срока: под каждым вариантом
     let state = await nextCase(await newTerm(startFromSeed(seed, diff)));
     while (!state.ended && state.turn < 20) {
       const card = state.currentEvent?.card ?? '';
-      if (FIRST_TERM_SEEN.includes(card) && unifiedResolution(state)) {
+      if (SEEN_IN_RUNS.includes(card) && unifiedResolution(state)) {
         seen.add(card);
         for (const skill of [1, 3] as const) {
           const team = { ...state, advisors: state.advisors.map(advisor => ({ ...advisor, skill, loyalty: 80 })) };
@@ -141,11 +145,13 @@ test('дела первого срока: под каждым вариантом
       state = await nextCase(await signChoice(state, choice.id));
     }
   }
-  assert.deepEqual([...seen].sort(), [...FIRST_TERM_SEEN].sort(), 'каждое дело встречается в партиях');
+  assert.deepEqual([...seen].sort(), [...SEEN_IN_RUNS].sort(), 'каждое дело встречается в партиях');
 });
 
-test('дела первого срока: сильный тон дольше слабого и называет, на чём сорвётся; поправка — от сильного критика слабому автору', () => {
-  for (const card of FIRST_TERM_DIALOGUE) for (const [index, speakers] of Object.entries(ADVISOR_DIALOGUE[card]!)) {
+test('все речи: говорят участники разговора; сильный тон длиннее и называет, на чём сорвётся; поправка — автору', () => {
+  assert.ok(Object.keys(ADVISOR_DIALOGUE).length >= 22, 'перенесены дела частей 1 и 2');
+  for (const [card, variants] of Object.entries(ADVISOR_DIALOGUE)) for (const [index, speakers] of Object.entries(variants!)) {
+    assert.deepEqual(Object.keys(speakers!), HISTORICAL_DEBATES[card]![Number(index)].slice(0, 2).map(([who]) => who), `${card}/${index}: участники разговора`);
     const [author, critic] = Object.keys(speakers!);
     for (const [who, speech] of Object.entries(speakers!)) {
       assert.ok(speech.strong && speech.weak && speech.strong !== speech.weak, `${card}/${index}/${who}`);
