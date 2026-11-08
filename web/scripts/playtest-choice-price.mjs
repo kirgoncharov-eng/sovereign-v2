@@ -15,7 +15,7 @@ import { parseSave } from '../lib/client/save.ts';
 
 const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6) ?? 'playtest/choice-price');
 mkdirSync(out, { recursive: true });
-const summary = { checks: [], problems: [] };
+const summary = { checks: [], reloads: [], problems: [] };
 const browser = await chromium.launch();
 
 async function openFixture(game, start) {
@@ -165,9 +165,19 @@ try {
     assert.deepEqual(actual.pending, expected.pending, 'очередь после настоящей подписи соответствует прогнозу');
     assert.deepEqual(actual.resources, expected.resources);
     assert.equal(actual.history.at(-1).success, rollSuccess(live.state, scenario.choice));
+    // Сохраняем обе записи до и после reload: при сбое видно, где потерян подписанный ход.
+    const readStorage = () => live.page.evaluate(key => ({
+      game: JSON.parse(localStorage.getItem(key)).snapshot.game,
+      common: JSON.parse(localStorage.getItem('sovereign.save')).state,
+      fixtureLoaded: sessionStorage.getItem('choice-price-fixture-loaded'),
+    }), CHRONICLE_GAME_KEY);
+    const reload = { name, expectedTurn: expected.turn, before: await readStorage() };
+    summary.reloads.push(reload);
     await live.page.reload();
+    reload.afterReload = await readStorage();
     await live.page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
-    const restored = await savedGame(live.page);
+    reload.afterResume = await readStorage();
+    const restored = reload.afterResume.game;
     assert.equal(restored.turn, expected.turn, 'reload возвращает подписанный квартал, а не исходную фикстуру');
     assert.deepEqual(restored.pending, expected.pending, 'обязательства сохраняются после reload');
     await live.context.close();
