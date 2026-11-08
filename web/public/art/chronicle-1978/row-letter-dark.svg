@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 124" width="100%" height="100%">
+      <rect width="640" height="124" fill="#1c1915"/>
+      <rect x="8" y="6" width="624" height="112" fill="#27221c" stroke="#6b5f4a" stroke-width="1.6"/>
+      <!-- Horizontal notebook ruling lines -->
+      <line x1="9" y1="42" x2="631" y2="42" stroke="rgba(130, 170, 220, 0.16)" stroke-width="1"/>
+      <line x1="9" y1="66" x2="631" y2="66" stroke="rgba(130, 170, 220, 0.16)" stroke-width="1"/>
+      <line x1="9" y1="90" x2="631" y2="90" stroke="rgba(130, 170, 220, 0.16)" stroke-width="1"/>
+      <!-- Vertical red margin rule -->
+      <line x1="68" y1="12" x2="68" y2="117" stroke="#d16654" stroke-width="1.5"/>
+
+      <!-- Postal envelope border ticks across top edge -->
+      <g><polygon points="14,6 26,6 20,12 8,12" fill="#df6e5d"/><polygon points="32,6 44,6 38,12 26,12" fill="#7ca6de"/><polygon points="50,6 62,6 56,12 44,12" fill="#df6e5d"/><polygon points="68,6 80,6 74,12 62,12" fill="#7ca6de"/><polygon points="86,6 98,6 92,12 80,12" fill="#df6e5d"/><polygon points="104,6 116,6 110,12 98,12" fill="#7ca6de"/><polygon points="122,6 134,6 128,12 116,12" fill="#df6e5d"/><polygon points="140,6 152,6 146,12 134,12" fill="#7ca6de"/><polygon points="158,6 170,6 164,12 152,12" fill="#df6e5d"/><polygon points="176,6 188,6 182,12 170,12" fill="#7ca6de"/><polygon points="194,6 206,6 200,12 188,12" fill="#df6e5d"/><polygon points="212,6 224,6 218,12 206,12" fill="#7ca6de"/><polygon points="230,6 242,6 236,12 224,12" fill="#df6e5d"/><polygon points="248,6 260,6 254,12 242,12" fill="#7ca6de"/><polygon points="266,6 278,6 272,12 260,12" fill="#df6e5d"/><polygon points="284,6 296,6 290,12 278,12" fill="#7ca6de"/><polygon points="302,6 314,6 308,12 296,12" fill="#df6e5d"/><polygon points="320,6 332,6 326,12 314,12" fill="#7ca6de"/><polygon points="338,6 350,6 344,12 332,12" fill="#df6e5d"/><polygon points="356,6 368,6 362,12 350,12" fill="#7ca6de"/><polygon points="374,6 386,6 380,12 368,12" fill="#df6e5d"/><polygon points="392,6 404,6 398,12 386,12" fill="#7ca6de"/><polygon points="410,6 422,6 416,12 404,12" fill="#df6e5d"/><polygon points="428,6 440,6 434,12 422,12" fill="#7ca6de"/><polygon points="446,6 458,6 452,12 440,12" fill="#df6e5d"/><polygon points="464,6 476,6 470,12 458,12" fill="#7ca6de"/><polygon points="482,6 494,6 488,12 476,12" fill="#df6e5d"/><polygon points="500,6 512,6 506,12 494,12" fill="#7ca6de"/><polygon points="518,6 530,6 524,12 512,12" fill="#df6e5d"/><polygon points="536,6 548,6 542,12 530,12" fill="#7ca6de"/><polygon points="554,6 566,6 560,12 548,12" fill="#df6e5d"/><polygon points="572,6 584,6 578,12 566,12" fill="#7ca6de"/><polygon points="590,6 602,6 596,12 584,12" fill="#df6e5d"/><polygon points="608,6 620,6 614,12 602,12" fill="#7ca6de"/></g>
+      <line x1="8" y1="12.5" x2="632" y2="12.5" stroke="#6b5f4a" stroke-width="1"/>
+
+      <!-- Left Circular Postmark & Envelope Icon (recognizable without reading) -->
+      <g transform="translate(18, 24)">
+        
+      <circle cx="18" cy="20" r="15" fill="none" stroke="#e28876" stroke-width="1.8"/>
+      <circle cx="18" cy="20" r="11.5" fill="none" stroke="#e28876" stroke-width="1" stroke-dasharray="4 2"/>
+      <path d="M 10,15 L 26,15 L 26,25 L 10,25 Z" fill="none" stroke="#e28876" stroke-width="1.4"/>
+      <path d="M 10,15 L 18,21 L 26,15" fill="none" stroke="#e28876" stroke-width="1.4"/>
+      <path d="M 28,13 Q 33,11 38,13 M 28,20 Q 33,18 38,20 M 28,27 Q 33,25 38,27" fill="none" stroke="#e28876" stroke-width="1.4"/>
+      </g>
+      <text x="38" y="84" text-anchor="middle" fill="#df6e5d" font-family="'Courier New', monospace" font-weight="700" font-size="10">ШТЕМПЕЛЬ</text>
+      <text x="38" y="96" text-anchor="middle" fill="#df6e5d" font-family="'Courier New', monospace" font-weight="700" font-size="10">1978 · НР</text>
+
+      <!-- Sender & Handwritten Letter Body -->
+      <text x="80" y="29" fill="#df6e5d" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="12" letter-spacing="1.1">
+        ПИСЬМО В ПРИЁМНУЮ · ВОЗВРАЩЕНИЕ ЧЕЛОВЕКА (ХОД 4 → ЧЕРЕЗ ГОД)
+      </text>
+      <foreignObject x="80" y="33" width="540" height="82">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:'PT Serif', Georgia, serif; font-style:italic; font-size:15px; line-height:1.36; color:#d8e3f5;">
+          «Товарищ президент, год назад моё письмо с комвольного комбината прочитали в вечернем эфире. Цех тогда починили — а теперь меня саму выдвинули в горсовет».
+          <span style="display:block; text-align:right; font-style:normal; font-family:'PT Sans Narrow', sans-serif; font-weight:700; font-size:12.5px; color:#df6e5d; margin-top:2px;">
+            — Елена Корзун, прядильщица, Минск
+          </span>
+        </div>
+      </foreignObject>
+    </svg>

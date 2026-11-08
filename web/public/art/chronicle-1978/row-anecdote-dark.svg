@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 124" width="100%" height="100%">
+      <rect width="640" height="124" fill="#1c1915"/>
+      <!-- Second carbon-copy sheet peeking underneath -->
+      <path d="M 10,8 L 626,6 L 630,34 L 625,62 L 629,94 L 624,114 L 10,116 L 7,82 L 11,44 Z" transform="translate(4, 3) rotate(0.35 320 60)" fill="#18151a" stroke="#786b86" stroke-width="1" stroke-dasharray="4 2"/>
+      <!-- Main cigarette-paper samizdat slip -->
+      <path d="M 10,8 L 626,6 L 630,34 L 625,62 L 629,94 L 624,114 L 10,116 L 7,82 L 11,44 Z" fill="#262328" stroke="#786b86" stroke-width="1.5"/>
+      <!-- Double purple carbon-paper vertical fold line on left -->
+      <line x1="62" y1="7" x2="62" y2="115" stroke="#786b86" stroke-width="1.2" stroke-dasharray="6 3"/>
+
+      <!-- Left visual identifier (no reading required): Typewriter key ring + struck typo -->
+      <g transform="translate(15, 18)">
+        
+      <circle cx="20" cy="20" r="17" fill="#322b38" stroke="#c6b4dc" stroke-width="2.2"/>
+      <circle cx="20" cy="20" r="13.5" fill="none" stroke="#c6b4dc" stroke-width="1" stroke-dasharray="3 2"/>
+      <text x="20" y="22" text-anchor="middle" fill="#c6b4dc" font-family="'Courier New', monospace" font-weight="700" font-size="16">«»</text>
+      <text x="20" y="31" text-anchor="middle" fill="#c6b4dc" font-family="'Courier New', monospace" font-weight="700" font-size="7.5" letter-spacing="0.8">САМ</text>
+      </g>
+      <!-- Struck-out typewriter correction mark ("ххх") below icon -->
+      <text x="35" y="77" text-anchor="middle" fill="#9f90b3" font-family="'Courier New', monospace" font-weight="700" font-size="11.5" letter-spacing="0.8">экз.4</text>
+      <text x="35" y="94" text-anchor="middle" fill="#d8caee" font-family="'Courier New', monospace" font-weight="700" font-size="12" text-decoration="line-through">ххх</text>
+
+      <!-- Optional tiny metadata + typewriter joke text -->
+      <text x="76" y="25" fill="#9f90b3" font-family="'Courier New', monospace" font-weight="700" font-size="11.5" letter-spacing="1.4">
+        АНЕКДОТ КВАРТАЛА · МАШИНОПИСЬ ЧЕРЕЗ КОПИРКУ
+      </text>
+      <foreignObject x="76" y="31" width="540" height="80">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:'Courier New', 'PT Mono', monospace; font-size:15.2px; line-height:1.38; color:#d8caee; letter-spacing:0.1px;">
+          — Почему в приёмной президента сняли часы с кукушкой?<br/>
+          — Чтобы птица без согласования не высказывалась о пятилетке.
+        </div>
+      </foreignObject>
+    </svg>
