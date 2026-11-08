@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 328 148" width="100%" height="100%">
+    <rect width="328" height="148" fill="#1c1915"/>
+    <!-- Departmental bracketed strip -->
+    <rect x="5" y="6" width="318" height="136" fill="#28201d" stroke="#e06c5a" stroke-width="1.6"/>
+    <rect x="5" y="6" width="7" height="136" fill="#e06c5a"/>
+
+    <!-- Left Faction Shield Seal -->
+    <g transform="translate(16, 18) scale(0.95)">
+      
+    <polygon points="20,3 35,9 35,21 20,37 5,21 5,9" fill="#2c221e" stroke="#df6b5b" stroke-width="2.2"/>
+    <polygon points="20,6.5 31.5,11 31.5,20 20,33 8.5,20 8.5,11" fill="none" stroke="#df6b5b" stroke-width="1"/>
+    <path d="M 20,10 L 22.4,16.2 L 29,16.5 L 23.8,20.4 L 25.6,26.8 L 20,23 L 14.4,26.8 L 16.2,20.4 L 11,16.5 L 17.6,16.2 Z" fill="#df6b5b"/>
+    </g>
+    <text x="35" y="76" text-anchor="middle" fill="#e06c5a" font-family="'PT Sans Narrow', sans-serif" font-weight="700" font-size="11">ЛАГЕРЬ</text>
+    <text x="35" y="89" text-anchor="middle" fill="#b8a392" font-family="'Courier New', monospace" font-weight="700" font-size="10">САМ</text>
+
+    <!-- Stamp pill: "ХОД ЛАГЕРЯ · СЛУЖБА ПОРЯДКА" -->
+    <rect x="62" y="13" width="188" height="19" fill="#e06c5a"/>
+    <text x="156" y="26" text-anchor="middle" fill="#f8f0df" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="11.5" letter-spacing="0.8">
+      ХОД ЛАГЕРЯ · СЛУЖБА ПОРЯДКА
+    </text>
+
+    <foreignObject x="62" y="37" width="252" height="100">
+      <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:'PT Serif', Georgia, serif; font-size:14.6px; line-height:1.36; color:#eee3ce;">
+        <strong>Без вашей визы</strong> ведомство передало в вечернюю сводку список «неблагонадёжных лекторов» — ректорат ждёт разъяснений кабинета.
+      </div>
+    </foreignObject>
+  </svg>

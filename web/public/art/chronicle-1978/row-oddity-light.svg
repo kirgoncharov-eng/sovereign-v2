@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 328 144" width="100%" height="100%">
+      <rect width="328" height="144" fill="#dfd5b6"/>
+      <!-- Quiet inset strip with double left nocturnal bar -->
+      <rect x="6" y="6" width="316" height="132" fill="#d4d0be" stroke="#2a5c47" stroke-width="1.1" stroke-dasharray="3 3"/>
+      <rect x="6" y="6" width="5" height="132" fill="#2a5c47"/>
+      <line x1="15" y1="6" x2="15" y2="138" stroke="#2a5c47" stroke-width="1.1"/>
+
+      <!-- Left Tuning-Eye / Radio Dial Icon -->
+      <g transform="translate(20, 18) scale(0.95)">
+        
+      <circle cx="20" cy="20" r="16" fill="#182922" stroke="#2a4a3e" stroke-width="2"/>
+      <path d="M 8,14 A 13,13 0 1,0 32,14 L 24,18 A 5,5 0 1,1 16,18 Z" fill="#2d7a53" opacity="0.88"/>
+      <circle cx="20" cy="20" r="4.5" fill="#2a4a3e"/>
+      <circle cx="20" cy="20" r="1.8" fill="#e9f7ef"/>
+      </g>
+      <!-- Sine-wave whisper line under icon -->
+      <path d="M 21,68 Q 27,63 33,68 T 45,68 T 57,68" fill="none" stroke="#2a5c47" stroke-width="1.5"/>
+      <text x="39" y="84" text-anchor="middle" fill="#506158" font-family="'Courier New', monospace" font-weight="700" font-size="10">00:15</text>
+
+      <text x="66" y="24" fill="#506158" font-family="'Courier New', monospace" font-weight="700" font-size="11" letter-spacing="0.8">
+        СТРАННОСТЬ · ЗАМЕТКА НА ПОЛЯХ
+      </text>
+      <foreignObject x="66" y="30" width="248" height="104">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:'PT Serif', Georgia, serif; font-style:italic; font-size:14.5px; line-height:1.36; color:#242c28;">
+          — После полуночи на частоте радио женский голос четверть часа читал двузначные числа; дежурный клянётся, что передатчик был выключен.
+        </div>
+      </foreignObject>
+    </svg>

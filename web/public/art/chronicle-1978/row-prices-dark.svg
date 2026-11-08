@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 328 134" width="100%" height="100%">
+      <rect width="328" height="134" fill="#1c1915"/>
+      <!-- Chamfered cardboard shop price-tag silhouette -->
+      <polygon points="22,6 322,6 322,128 22,128 6,67" fill="#2c261c" stroke="#a89878" stroke-width="1.8"/>
+      <polygon points="25,10 318,10 318,124 25,124 11,67" fill="none" stroke="#a89878" stroke-width="1" stroke-dasharray="4 3"/>
+
+      <!-- Punched tag eyelet & twine string on left -->
+      <circle cx="22" cy="67" r="6.5" fill="#1c1915" stroke="#a89878" stroke-width="2"/>
+      <path d="M 1,52 Q 11,60 18,65 M 1,82 Q 11,74 18,69" fill="none" stroke="#b89f72" stroke-width="2" stroke-linecap="round"/>
+
+      <!-- Top Header inside Tag -->
+      <text x="38" y="26" fill="#9dc0ee" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="11.5" letter-spacing="0.8">
+        ГАСТРОНОМ № 4 · ПРЕЙСКУРАНТ И ОЧЕРЕДЬ
+      </text>
+
+      <!-- 3 Tabular Price Cells (Bread, Petrol, Queue) with full readable 15px figures -->
+      <!-- Cell 1: Bread -->
+      <g transform="translate(36, 34)">
+        <rect x="0" y="0" width="88" height="82" fill="#221d15" stroke="#a89878" stroke-width="1.3"/>
+        <text x="44" y="17" text-anchor="middle" fill="#9dc0ee" font-family="'PT Sans Narrow', sans-serif" font-weight="700" font-size="11.5">ХЛЕБ РЖАНОЙ</text>
+        <line x1="6" y1="23" x2="82" y2="23" stroke="#a89878" stroke-width="1" stroke-dasharray="3 2"/>
+        <text x="44" y="49" text-anchor="middle" fill="#eee3ca" font-family="'Courier New', monospace" font-weight="700" font-size="16">18 коп.</text>
+        <text x="44" y="70" text-anchor="middle" fill="#e5705c" font-family="'Courier New', monospace" font-weight="700" font-size="11.5">▲ +2 коп.</text>
+      </g>
+
+      <!-- Cell 2: Petrol AI-76 -->
+      <g transform="translate(129, 34)">
+        <rect x="0" y="0" width="90" height="82" fill="#221d15" stroke="#a89878" stroke-width="1.3"/>
+        <text x="45" y="17" text-anchor="middle" fill="#9dc0ee" font-family="'PT Sans Narrow', sans-serif" font-weight="700" font-size="11.5">АИ-76 (10 Л)</text>
+        <line x1="6" y1="23" x2="84" y2="23" stroke="#a89878" stroke-width="1" stroke-dasharray="3 2"/>
+        <text x="45" y="49" text-anchor="middle" fill="#eee3ca" font-family="'Courier New', monospace" font-weight="700" font-size="15.5">1 р. 60 к.</text>
+        <text x="45" y="70" text-anchor="middle" fill="#e5705c" font-family="'Courier New', monospace" font-weight="700" font-size="11.5">▲ +10 коп.</text>
+      </g>
+
+      <!-- Cell 3: Queue -->
+      <g transform="translate(224, 34)">
+        <rect x="0" y="0" width="88" height="82" fill="#221d15" stroke="#a89878" stroke-width="1.3"/>
+        <text x="44" y="17" text-anchor="middle" fill="#9dc0ee" font-family="'PT Sans Narrow', sans-serif" font-weight="700" font-size="11.5">ОЧЕРЕДЬ</text>
+        <line x1="6" y1="23" x2="82" y2="23" stroke="#a89878" stroke-width="1" stroke-dasharray="3 2"/>
+        <text x="44" y="49" text-anchor="middle" fill="#eee3ca" font-family="'Courier New', monospace" font-weight="700" font-size="16">45 мин.</text>
+        <text x="44" y="70" text-anchor="middle" fill="#9dc0ee" font-family="'Courier New', monospace" font-weight="700" font-size="11.5">утро · 30 чел.</text>
+      </g>
+    </svg>
