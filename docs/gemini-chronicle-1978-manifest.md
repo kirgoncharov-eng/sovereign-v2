@@ -8,58 +8,61 @@
 
 ## 1. Состав пакета и структура каталогов
 
-- **Контактный лист (для приёмки в один экран):**
-  - `docs/gemini-chronicle-1978-contact.jpg` (`1600×1800`, `462 554` байт, SHA-256 `5ac3f7f100509b51860b8acf8e558463aa97e0700e99dc4dc1605846e9710c4d`)
-- **Часть 1 — 5 видов строк быта в хронике (масштабируемые SVG + рабочие WebP + архивные JPEG в светлой `.paper` и тёмной `:root` темах):**
-  - `row-anecdote-{light,dark}.{svg,webp,jpg}` — Анекдот квартала (машинописный листок «самиздат» через фиолетовую копирку);
-  - `row-prices-{light,dark}.{svg,webp,jpg}` — Цены и очередь (картонный магазинный ценник с люверсом, бечёвкой и 3 графами: хлеб, бензин, очередь);
-  - `row-letter-{light,dark}.{svg,webp,jpg}` — Письмо обычного человека (разлинованный тетрадный лист с красно-синей почтовой каймой конверта и круглым почтовым штемпелем);
-  - `row-oddity-{light,dark}.{svg,webp,jpg}` — Странность в хронике (тихая ночная заметка на полях со светящимся зелёным глазком радиолы `6Е1П`);
-  - `row-faction-move-{light,dark}.{svg,webp,jpg}` — Ход лагеря (ведомственный щит-печать, двойная скобка досье и штамп «Без вашей визы»).
+- **Контактный лист (для приёмки в масштабе `1×` на `360 CSS px`):**
+  - `docs/gemini-chronicle-1978-contact.jpg` (`1620×1520`, `576 353` байт, SHA-256 `7988d05777d95764157fa989a509ecf159f02809f7ed789d5c6bae6b7201f3bc`)
+- **Часть 1 — 5 видов строк быта в хронике (масштаб `1×` колонки мобильного экрана `viewBox="0 0 328 H"`, шрифт `14.2–16 CSS px`, естественный перенос и высота `134–164 px`):**
+  - `row-anecdote-{light,dark}.{svg,webp,jpg}` — Анекдот квартала (машинописный листок «самиздат» через фиолетовую копирку, `328×138` CSS px);
+  - `row-prices-{light,dark}.{svg,webp,jpg}` — Цены и очередь (картонный магазинный ценник с люверсом, бечёвкой и 3 графами: хлеб, бензин, очередь, `328×134` CSS px);
+  - `row-letter-{light,dark}.{svg,webp,jpg}` — Письмо обычного человека (разлинованный тетрадный лист с красно-синей почтовой каймой конверта и круглым почтовым штемпелем, `328×164` CSS px);
+  - `row-oddity-{light,dark}.{svg,webp,jpg}` — Странность в хронике (тихая ночная заметка на полях со светящимся зелёным глазком радиолы `6Е1П`, `328×144` CSS px);
+  - `row-faction-move-{light,dark}.{svg,webp,jpg}` — Ход лагеря (ведомственный щит-печать, двойная скобка досье и штамп «Без вашей визы», `328×148` CSS px).
 - **Отдельные векторные значки полей (`40×40` SVG) и набор из 5 печатей лагерей (#375):**
   - `web/public/art/chronicle-1978/icon-{anecdote,prices,letter,oddity,faction}.svg`
   - `faction-seals-{light,dark}.{svg,webp,jpg}` (Силовики, Совет приходов, Торговая палата, Промышленники, Союз республики)
-- **Часть 2 — Макеты непрерывной ленты «Хроники срока» на экране телефона `360 px`:**
-  - `chronicle-feed-360px-light.{webp,jpg}` и `chronicle-feed-360px-dark.{webp,jpg}` (`720×2080`, 2x от `360 px`).
+- **Часть 2 — Контрольные макеты непрерывной ленты «Хроники срока» на экране телефона `360 px` в масштабе `1×` (`deviceScaleFactor: 1`, HTML-текст `14.5 CSS px` отдельно от SVG-декора):**
+  - `chronicle-feed-360px-light.{webp,jpg}` (`360×1345`, `1×`) и `chronicle-feed-360px-dark.{webp,jpg}` (`360×1330`, `1×`).
 
 ---
 
-## 2. Как 5 видов строк различаются на телефоне `360 px` без чтения подписи
+## 2. Как 5 видов строк различаются на телефоне `360 px` без чтения подписи и сохраняют читаемость `14.5–16 CSS px`
 
-Главное правило #380: **строки не тяжелее текста** (высота каждой строки на экране `360 px` — всего `53–62 px`, без тяжёлых картинок во всю высоту экрана), но каждая строка мгновенно узнаётся боковым зрением за счёт собственной формы края, бумаги, левого знака и гарнитуры:
+1. **Читаемый размер текста на `360 px` (`1×`):**
+   - И в контрольных макетах `chronicle-feed-360px-{light,dark}` (свёрстанных реальным HTML-текстом отдельно от SVG-декора), и в автономных шаблонах `row-*-{light,dark}.svg` (`viewBox="0 0 328 H"`, где `1 ед. SVG = 1 CSS px` колонки на экране `360 px`) основной текст имеет размер **`14.2–16 CSS px`** (вровень с основным текстом хроники `.scene { font-size: 14.5px }`), а подписи и рубрики — **`11.5–12.5 CSS px`**.
+   - Каждая вставка переносится естественно в 3–4 строки с собственной высотой (`115–164 CSS px`), без сжатия широкой полосы и без потери читаемости.
+2. **Узнаваемость боковым зрением без чтения подписи:**
 
-| Вид строки (`LineKind`) | Материал и силуэт полосы | Левый знак (узнаваем без текста) | Типографика |
+| Вид строки (`LineKind`) | Материал и силуэт полосы | Левый знак (`icon-*.svg`, узнаваем без текста) | Типографика (`1×` на `360 px`) |
 | --- | --- | --- | --- |
-| **1. Анекдот квартала** (`anecdote`) | Полупрозрачный серо-лиловый листок папиросной бумаги («четвёртая закладка через копирку») с неровным правым обрывом и вторым листком снизу | Круглое кольцо клавиши пишущей машинки `«» САМ`, пометка `экз.4` и забитая иксами опечатка `ххх` | Фиолетово-серая машинопись (`Courier New`, `15px`) |
-| **2. Цены и очередь** (`prices`) | Скошенный слева картонный магазинный ценник / доска прейскуранта, разбитый на **3 табличные ячейки** (хлеб, бензин АИ-76, очередь) | Пробитый круглый **люверс с петелькой шпагата** на левом мысе ярлыка | Крупные магазинные цифры (`18 коп.`, `1 р. 60 к.`, `45 мин.`) со стрелками динамики `▲` |
-| **3. Письмо человека** (`letter`) | Тетрадный лист в синюю линейку с вертикальной красной чертой полей и **красно-синей диагональной каймой почтового конверта** по верхнему краю | Круглый **почтовый штемпель с волнами гашения** и контуром конверта | Живой курсив (`PT Serif Italic`) + подпись отправителя справа внизу |
-| **4. Странность** (`oddity`) | Тихая приглушённая полоса с двойной тёмно-зелёной чертой на полях и пунктирным контуром | Круглый **«зелёный глазок» лампового радиоприёмника (`6Е1П`)** и тонкая синусоида волны | Спокойный разреженный курсив с длинным тире `—` |
-| **5. Ход лагеря** (`faction-move`) | Плотная карточка ведомственной сводки с широким красным корешком слева | **Пятиугольный щит-печать со звездой** (или один из 5 гербов лагерей из `faction-seals-*`) | Красная плашка лагеря сверху + основной текст с жирным зачином **«Без вашей визы…»** |
+| **1. Анекдот квартала** (`anecdote`) | Серо-лиловый листок папиросной бумаги («четвёртая закладка через копирку») с пунктирным сгибом и тенью второго листка | Круглое кольцо клавиши пишущей машинки `«» САМ`, пометка `экз.4` и забитая иксами опечатка `ххх` | Фиолетово-серая машинопись (`Courier New`, `14.2 CSS px`, `line-height: 1.36`) |
+| **2. Цены и очередь** (`prices`) | Картонный магазинный ценник / доска прейскуранта, разбитый на **3 табличные ячейки** (хлеб, бензин АИ-76, очередь) | Пробитый круглый **люверс с петелькой шпагата** и ярлык `РУБ / КОП` | Крупные магазинные цифры (`18 коп.`, `1р. 60к.`, `45 мин.`, `14.5–16 CSS px`) со стрелками `▲` |
+| **3. Письмо человека** (`letter`) | Тетрадный лист в синюю линейку с вертикальной красной чертой полей и верхней почтовой каймой | Круглый **почтовый штемпель с волнами гашения** и контуром конверта | Живой курсив (`PT Serif Italic`, `14.6 CSS px`) + подпись отправителя справа внизу (`12.5 CSS px`) |
+| **4. Странность** (`oddity`) | Приглушённая полоса с тёмно-зелёным корешком на полях и пунктирным контуром | Круглый **«зелёный глазок» лампового радиоприёмника (`6Е1П`)** и отметка `00:15 МГЦ` | Спокойный курсив с длинным тире (`PT Serif Italic`, `14.5 CSS px`) |
+| **5. Ход лагеря** (`faction-move`) | Плотная карточка ведомственной сводки с широким красным корешком слева | **Пятиугольный щит-печать со звездой** (или один из 5 гербов лагерей из `faction-seals-*`) | Красная плашка лагеря (`11.5 CSS px`) + основной текст (`14.6 CSS px`) с зачином **«Без вашей визы…»** |
 
 ---
 
 ## 3. Таблица файлов, размеров и SHA-256
 
-### 3.1. Шаблоны строк хроники (`640 px` SVG / `1280 px` 2x WebP и JPEG)
+### 3.1. Шаблоны строк хроники (`viewBox 328×H` SVG / `656×2H` 2x WebP и JPEG) и контрольные экраны `360 px` (`1×`)
 
 | ID | Тема | Рабочий WebP (`web/public/art/chronicle-1978/`) | Байты WebP | SHA-256 WebP | Вектор SVG (`web/public/art/chronicle-1978/`) | SHA-256 SVG | Архивный JPEG (`art-source/chronicle-1978/`) | SHA-256 JPEG |
 | --- | --- | --- | ---: | --- | --- | --- | --- | --- |
-| `row-anecdote-light` | `.paper` | `row-anecdote-light.webp` (`1280×256`) | 28 434 | `bb938edef781caf8267db67a8792cf3d1551e9be1d277c48ee9488b86f42d068` | `row-anecdote-light.svg` (`2 718` Б) | `57043cbfa333d0a95202650f8301be4cd5ee9b25c22e7aa49e7dd7a5136e5143` | `row-anecdote-light.jpg` (`66 589` Б) | `7a777d8758e343e6729ab25290818ebb54ca60501a299e5bec45e7d40a81ab4f` |
-| `row-anecdote-dark` | `:root` | `row-anecdote-dark.webp` (`1280×256`) | 27 586 | `de4e817b06bbacc32dac340400b3a3747bfebb760d2a867cf91612209bc94711` | `row-anecdote-dark.svg` (`2 718` Б) | `8628736b82c0db0c383391a2f8b4a6a372edf1b32e1de6185bfe8996b1ef90f4` | `row-anecdote-dark.jpg` (`64 874` Б) | `eb6516b9c43ae577e0787e8f7b2b30c7bc017f2e2a0041275cc9c0ef46edfb57` |
-| `row-prices-light` | `.paper` | `row-prices-light.webp` (`1280×232`) | 29 948 | `ac5248c04e76df39ad4bff24c9e49d322021932aae5974766745c073c0d0328e` | `row-prices-light.svg` (`3 984` Б) | `59381889a8be552c77dd120ac2d1aca05278ac261ca1966931ba8da51d48700b` | `row-prices-light.jpg` (`79 173` Б) | `e89c80e066bab8799fa80dc8787527effdb9c38306960ed63dd2eb64e73c39eb` |
-| `row-prices-dark` | `:root` | `row-prices-dark.webp` (`1280×232`) | 29 822 | `6517b5e30a400a6275483f528f0f5d3a84b2b63810b3ba8a692649273464180b` | `row-prices-dark.svg` (`3 984` Б) | `0382dabc6dd5c7395f096db0d9745367c258d2b70689a7903cb2392748e438f3` | `row-prices-dark.jpg` (`79 099` Б) | `c857ec2138ec5848b214a7b326c48e95a1d334d756fd578783733b8ef18bd474` |
-| `row-letter-light` | `.paper` | `row-letter-light.webp` (`1280×256`) | 44 302 | `19c40f5a310116e333fa1eee104ae4c906374d4b3512c5c2a4938d9b1f458da5` | `row-letter-light.svg` (`5 044` Б) | `52f0b413d58375ba069d1e95267d5c9993217cbcdd02fc7211daec434212f97e` | `row-letter-light.jpg` (`89 765` Б) | `80ea78ac127516023f9941596491a0f3b0a9d75e91b5089dcf08790839f04e4b` |
-| `row-letter-dark` | `:root` | `row-letter-dark.webp` (`1280×256`) | 42 986 | `539d6480eabfdba7c74f8d3ae0b2c725a5d4d67bd3e917dfbef2b559ae95c918` | `row-letter-dark.svg` (`5 050` Б) | `0847775b939e4269c36fe842c8bbb14de785e821964fc5fff8d70a987b9a3132` | `row-letter-dark.jpg` (`88 355` Б) | `19431faa2f8e27aa85761cd8ce51c29c2c4f026be05614da5d4390a68fd531e0` |
-| `row-oddity-light` | `.paper` | `row-oddity-light.webp` (`1280×220`) | 41 252 | `ec0d5f9fc2be5619cb49ac679d78a469ba4bebfbd8303dfd41e604b46831836a` | `row-oddity-light.svg` (`1 889` Б) | `5eecff050fe9d7cf95b8605d5ba4324029fcae8ab34918069bd94882c7ef6269` | `row-oddity-light.jpg` (`82 884` Б) | `5ebc0c08158966727e286b9a78bd5ad71ca23b0dcbbf49854472671217d26e13` |
-| `row-oddity-dark` | `:root` | `row-oddity-dark.webp` (`1280×220`) | 41 734 | `b9dbc8acba1f71640e46d54665ac65761078875c6daddef2335684513b1d440f` | `row-oddity-dark.svg` (`1 889` Б) | `fa4021f9c361e9a800585574345c23fcfd101c43883509f44832ea981b4d467f` | `row-oddity-dark.jpg` (`85 107` Б) | `6c2b796637b3c04b7394a4e545775b496614798061c1d3c0d145f7180e34d7d2` |
-| `row-faction-move-light` | `.paper` | `row-faction-move-light.webp` (`1280×240`) | 30 200 | `981f1e3f39485ddbf1f74d1dcfb0c41da08c05dfdaa69ad4f42452357531bc5b` | `row-faction-move-light.svg` (`2 270` Б) | `8620fa90196f1b1f199b8383c7af921984da726732cb8b552896456c14a644f2` | `row-faction-move-light.jpg` (`72 583` Б) | `55fe99304effeef9a4becace9b66dd0390a7d89b31849e4703bcb0851283f143` |
-| `row-faction-move-dark` | `:root` | `row-faction-move-dark.webp` (`1280×240`) | 30 376 | `affb2f717b1848c7faafd1da496db4eccb51b4ba44c199b80f0e51fecd92889c` | `row-faction-move-dark.svg` (`2 270` Б) | `64decf3f291480e4f1205c2d6d19e09f3e02ab0bc4b9c7dd0cbad3f9a7f49419` | `row-faction-move-dark.jpg` (`73 378` Б) | `c0d9bffb68b82621e8528ef2b45b8f7368c421f6523d6d066ae467c9f5e0b4a1` |
-| `faction-seals-light` | `.paper` | `faction-seals-light.webp` (`1280×208`) | 19 746 | `7a471346da1e4caca3168659fbadb8fcd449eace58302102a1a17dce1f67cdc6` | `faction-seals-light.svg` (`4 871` Б) | `fc18248f4084ff5227ebe549e53dd7f581f414fd74faa28af12c4a2371c1d508` | `faction-seals-light.jpg` (`52 916` Б) | `6da60501de07054a41ec5a6bf541f46535631c34ab45eff4b57bb69246fad8b8` |
-| `faction-seals-dark` | `:root` | `faction-seals-dark.webp` (`1280×208`) | 20 016 | `a7adb4f9de6c08feebaf62c01d48d0f51864b6ced6b4526dfbd9344be8ce103b` | `faction-seals-dark.svg` (`4 871` Б) | `02f1a023070d6bf1232c8cee3cb875ad64bbeb598a103a0c20e9be1de8a39c19` | `faction-seals-dark.jpg` (`54 195` Б) | `2674f39e6f4335b02a665ab241599e35fb9ac7714a7d0d636a88921acb20c83d` |
-| `chronicle-feed-360px-light` | `.paper` | `chronicle-feed-360px-light.webp` (`720×2080`) | 144 468 | `5148773d2e767015310c235ab76b4d0d21c4063b182478cc646aaafabcfe5c0d` | — | — | `chronicle-feed-360px-light.jpg` (`303 289` Б) | `2bc4170f902e27729f7c8eac13a31b1ac40aeb8b846dc29b86ea5d7e4b77bed5` |
-| `chronicle-feed-360px-dark` | `:root` | `chronicle-feed-360px-dark.webp` (`720×2080`) | 146 220 | `b1b15dbd41b97da60c7270c952fe91a619a8f6f2ab851e0fedd64ec08cb55205` | — | — | `chronicle-feed-360px-dark.jpg` (`302 537` Б) | `35f04b091abfe73e63b6099d048d2523c2e9603da0c1ef222a28820b7db9483b` |
+| `row-anecdote-light` | `.paper` | `row-anecdote-light.webp` (`656×284`) | 22 068 | `302c3350a852dba4fcb53acf492e95856b3220ad687e369a3b4d3134d8b6e172` | `row-anecdote-light.svg` (`2 476` Б, `328×138`) | `b1e75921ad42a396fe718123f0627f15c7c1af8f07f43659a8e03aad47d13e7a` | `row-anecdote-light.jpg` (`46 355` Б) | `7327120f165ee9ca5c1f47a4ee40a8f61ba649d802c0cda92f3f0398119f1d3e` |
+| `row-anecdote-dark` | `:root` | `row-anecdote-dark.webp` (`656×284`) | 21 552 | `43f84c5675a6b4f3a1b17f056c1718a105c386d9fa855e114fae3d41a9f87070` | `row-anecdote-dark.svg` (`2 476` Б, `328×138`) | `c681d8278f8423d9413ccae845170a7b4c29ab8bd9514c82e7aa22bc01b0fb16` | `row-anecdote-dark.jpg` (`45 296` Б) | `22390bbc849df7b2b19e09a6bdd5a5551680b24304c3e06ad0e79580d68ef3e8` |
+| `row-prices-light` | `.paper` | `row-prices-light.webp` (`656×276`) | 23 002 | `61a51e581fafd00ddad04b03d475404a689ba95fa231f10e65eff91925fcb069` | `row-prices-light.svg` (`3 431` Б, `328×134`) | `38ce58315b65ea647fecb7f529f3f00fd854389ad1ff346869e9a4a4d49b9188` | `row-prices-light.jpg` (`54 049` Б) | `9b68f2ac9da1f8b799f69ad6ffc07533a145a360aad2e7db231b044770272d69` |
+| `row-prices-dark` | `:root` | `row-prices-dark.webp` (`656×276`) | 23 146 | `43fb92b93ecfbec2e598ca4743a49e9e36918dbfd7fe2db23ce813ddf4da844c` | `row-prices-dark.svg` (`3 431` Б, `328×134`) | `c2b141fe13e22e12770d2eafebeb44b57e8499be23000ed10392aecac652abcf` | `row-prices-dark.jpg` (`53 853` Б) | `42a39a5c4fdb73153e992985fdc7ad3df2c248adb1d937bb8f215a75aaa63d16` |
+| `row-letter-light` | `.paper` | `row-letter-light.webp` (`656×336`) | 35 376 | `ce32c27cc95adcd18d67efda658e7e352175999fc41abd264ca66cc55aa9e292` | `row-letter-light.svg` (`4 413` Б, `328×164`) | `b2d7e8b6601723d23f85f3cf8dcdd2ee8f2c17b6caf7bb6e93c0ae1c175cf45a` | `row-letter-light.jpg` (`71 303` Б) | `76b5ce59026873298f7c1e5a0fb1cdca035494ee45d7e4828b9522febae97f73` |
+| `row-letter-dark` | `:root` | `row-letter-dark.webp` (`656×336`) | 34 752 | `e40658d453771a031c4b956fb4e6675e443ff98cb0603343928fb64da926c814` | `row-letter-dark.svg` (`4 423` Б, `328×164`) | `d2fc04894cfedbeec6793d6377bd41095edbaea5d02beef84269858c1d8edb14` | `row-letter-dark.jpg` (`68 913` Б) | `623091c21aca5a67611a6818c6eca1c15b8527beb5d885a3a474a617eb08cc4b` |
+| `row-oddity-light` | `.paper` | `row-oddity-light.webp` (`656×296`) | 29 902 | `babf7b2a5899dcac8a5c27a18f5fbbf18e4b958f25653a285bdb3b363e54a481` | `row-oddity-light.svg` (`1 950` Б, `328×144`) | `5ede76edc2e5cd05eee25db29749c28626ea8618574d71e8cb6abd0b3d211f61` | `row-oddity-light.jpg` (`52 760` Б) | `598d10d9767031929bf16399491756937aaa579724746d0b319e6831d1d72762` |
+| `row-oddity-dark` | `:root` | `row-oddity-dark.webp` (`656×296`) | 30 124 | `92172ac11a58dc20b95e51a1a9bd79f0667128c74ac661e566f267329fa8473c` | `row-oddity-dark.svg` (`1 950` Б, `328×144`) | `9ee6e6d8101f9ba07eaadeeca35c47cd7320d303c70c5b870ca906410f1e8660` | `row-oddity-dark.jpg` (`54 539` Б) | `46db96d898b12d61148b620faae94aa34d29c3453bb05f23093570e66c7cb612` |
+| `row-faction-move-light` | `.paper` | `row-faction-move-light.webp` (`656×304`) | 23 724 | `11719d71568c158d827636020eb9cc86a2e13bfb9e3bbf27399f4cfc00b92377` | `row-faction-move-light.svg` (`2 010` Б, `328×148`) | `960faa7f3d7a76e2077e64aa3e70e3ed172b964b61cbb55f734580b91e62b147` | `row-faction-move-light.jpg` (`47 232` Б) | `f0aa2c6e06e46d67fc268e9b36adbcbf3d9a4bbc1e15d7fc415c0b5c462699ad` |
+| `row-faction-move-dark` | `:root` | `row-faction-move-dark.webp` (`656×304`) | 24 180 | `80c16488da74399f76875d0dc1a38f4b3b73a7241112c203c6d8eca2e1df1ac4` | `row-faction-move-dark.svg` (`2 010` Б, `328×148`) | `57d90582b42e72eddf02eecd8f19b2ccd2af98743d3a4961e2abf54798494604` | `row-faction-move-dark.jpg` (`48 271` Б) | `515a951e314f7cc31c7922516a738364b35e10203b23045427721959f9b21504` |
+| `faction-seals-light` | `.paper` | `faction-seals-light.webp` (`1280×208`) | 20 338 | `95e826c3b77a40ac0d539ed163da0527ff6566875d860ddf04bf881e7946cfa0` | `faction-seals-light.svg` (`4 856` Б, `640×100`) | `b7ddc7b13eb268819e2ed0ee9244d9b610188ef4f7a77c01a40d373478ffaefe` | `faction-seals-light.jpg` (`54 224` Б) | `1a0096cdcb879a1f6831b78e13c7f646a7b0371cae6ab95388c39dbb41e7d32e` |
+| `faction-seals-dark` | `:root` | `faction-seals-dark.webp` (`1280×208`) | 20 684 | `aa360721da2d16163e55bda20bc1ffdb31a205e422f962a9278849b966d371af` | `faction-seals-dark.svg` (`4 856` Б, `640×100`) | `5ffd8aea932dd09f8f5840382efb3c82d2123a475cb3f920939932748cd67e2d` | `faction-seals-dark.jpg` (`55 177` Б) | `18f014006c7f95ccdb780b28c918f70cada5d85dd48ff54069120ecd4523b6dd` |
+| `chronicle-feed-360px-light` | `.paper` | `chronicle-feed-360px-light.webp` (`360×1345`, `1×`) | 83 964 | `54161210bb562e2c1014f91d5931f6109ba59a5e3e43ece846c9f20b4e557315` | — | — | `chronicle-feed-360px-light.jpg` (`163 412` Б) | `de6705e78ad336f25ee10e5ac8650ec04b26e174e4219292eca743916cbd7b7b` |
+| `chronicle-feed-360px-dark` | `:root` | `chronicle-feed-360px-dark.webp` (`360×1330`, `1×`) | 84 474 | `af5e7133e2b7a4503b11a2ba9dbdd65086f53cb540048ffecd402b781b4f2bec` | — | — | `chronicle-feed-360px-dark.jpg` (`160 019` Б) | `55e5dbff1da501262b06f9e21559ff1202d95caebf910785692592ddf404b75a` |
 
-### 3.2. Векторные значки полей (`40×40` SVG для встраивания в CSS/JSX строк)
+### 3.2. Векторные значки полей (`40×40` SVG для встраивания в CSS/JSX строк отдельно от HTML-текста)
 
 | ID | Файл (`web/public/art/chronicle-1978/`) | Байты | SHA-256 |
 | --- | --- | ---: | --- |
@@ -71,13 +74,13 @@
 
 ---
 
-## 4. Правила интеграции в `web/app/chronicle/` (для GPT, класс B)
+## 4. Правила интеграции в `web/app/chronicle/` (для GPT, класс B — HTML-текст отдельно от SVG-декора)
 
-1. **Лёгкая вёрстка (HTML/CSS + встроенный левый SVG-значок `icon-*.svg`):**
-   - В `web/lib/client/chronicle.ts` добавить виды строк `anecdote | prices | oddity | factionMove` (и обновить существующий `.letter` в `web/app/chronicle/chronicle.module.css`).
-   - Каждая строка рендерится как компактный flex/grid-блок с левым полем `44 px` (в котором стоит соответствующий `icon-*.svg` и вертикальный разделитель) и правой текстовой колонкой:
-     - `.anecdote`: фон `#ebe7dc` (в тёмной `#262328`), пунктирная левая линия `#7a6e7d`, шрифт `'Courier New', monospace`, цвет `#352947` / `#d8caee`;
-     - `.prices`: фон ярлыка `#d4c39b` (`#2c261c`), скошенный левый край `clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%)` с люверсом и `display: grid; grid-template-columns: repeat(3, 1fr)` для трёх ячеек цен;
-     - `.letter`: фон `#eee6cf` (`#27221c`) с верхней почтовой каймой `repeating-linear-gradient(-45deg, #8f2c20 0 6px, transparent 6px 10px, #24436e 10px 16px, transparent 16px 20px)` высотой `4px` и линейкой `repeating-linear-gradient(to bottom, transparent 0 21px, rgba(56,98,150,.2) 21px 22px)`;
-     - `.oddity`: фон `#d4d0be` (`#18201d`), двойная левая граница `4px double #2a5c47`, курсивный текст и значок `icon-oddity.svg`;
-     - `.factionMove`: фон `#e5dac0` (`#28201d`), левый корешок `6px solid #8c2b20`, плашка имени лагеря сверху и соответствующая печать из `faction-seals-*.svg`.
+1. **HTML-текст (`14.5–15.5 CSS px`) отдельно от SVG-декора (`icon-*.svg`):**
+   - При интеграции в React/Next.js текст строк рендерится обычным HTML/DOM (а не запечённой картинкой), чтобы на любом мобильном экране `360 px` кегль оставался `14.5–15.5 CSS px` с естественным переносом и естественной высотой карточки.
+   - Каждая строка использует двухколоночную сетку `display: grid; grid-template-columns: 48px 1fr; gap: 9px; padding: 9px 10px;` с левым SVG-значком (`36×36 px` из `icon-*.svg`) и правой HTML-колонкой:
+     - `.anecdote`: фон `#ebe7dc` (в тёмной `#262328`), пунктирный правый бордер левой колонки `1px dashed #7a6e7d`, шрифт `'Courier New', monospace`, `font-size: 14px; line-height: 1.36`, цвет `#352947` / `#d8caee`;
+     - `.prices`: фон ярлыка `#d4c39b` (`#2c261c`), значок `icon-prices.svg` слева и `display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px` для трёх ячеек цен (`font-size: 14.5px` для цены, `11px` для товара и сдвига);
+     - `.letter`: фон `#eee6cf` (`#27221c`) с верхней почтовой полосой `border-top: 4px solid #8f2c20`, вертикальной красной чертой полей `border-right: 1.5px solid #b84b3a`, тетрадной линейкой `repeating-linear-gradient(to bottom, transparent 0 21px, rgba(56,98,150,.2) 21px 22px)`, курсивным текстом `14.6px` и подписью `12.5px`;
+     - `.oddity`: фон `#d4d0be` (`#18201d`), левый корешок `5px solid #2a5c47`, пунктирный контур, значок `icon-oddity.svg` и курсивный текст `14.5px`;
+     - `.factionMove`: фон `#e5dac0` (`#28201d`), левый корешок `6px solid #8c2b20`, плашка имени лагеря (`11.5px`) сверху, текст `14.6px` и печать из `icon-faction.svg` / `faction-seals-*.svg`.
