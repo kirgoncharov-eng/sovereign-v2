@@ -7,6 +7,7 @@ import { parseSave } from './save.ts';
 import { rollSuccess } from '../game/engine.ts';
 import { LEGACY_COUNTRIES } from '../game/alternate-world.ts';
 import { SAVE_VERSION } from '../game/data.ts';
+import { ledgerParts } from './chronicle-ledger.ts';
 
 async function signedFactory(route: number, success = true) {
   for (let seed = 1; seed <= 100; seed++) {
@@ -41,6 +42,24 @@ test('срыв не становится успешным проектом и н
     assert.ok(brief.lines.some(line => line.includes('Цель не достигнута')));
     assert.equal(brief.mandate.followUp, null);
     assert.ok(!brief.lines.some(line => line.startsWith('Контрольный срок:')));
+  }
+});
+
+test('первый заводской доклад кратко показывает расчёт, все условия остаются в подробностях (#401)', async () => {
+  for (const route of [0, 1, 2]) for (const success of [true, false]) {
+    const { before, after } = await signedFactory(route, success);
+    const brief = factoryMandateBrief(after)!;
+    const snapshot = structuredClone(after);
+    const [report] = factoryQuarterReports(before, after);
+    assert.equal(report.title, 'Контроль заводской подписи');
+    const { summary, details } = ledgerParts(report.text);
+    assert.match(summary, /^При подписи списано:/);
+    assert.equal(summary.includes('Контрольный срок:'), success && route > 0);
+    assert.ok(!summary.includes('Цель:') && !summary.includes('Цель не достигнута'));
+    for (const line of brief.lines) assert.ok(report.text.includes(line), `не потеряно: ${line}`);
+    assert.ok(details.some(line => line.startsWith('Цель:')));
+    if (!success) assert.ok(details.some(line => line.startsWith('Цель не достигнута.')));
+    assert.deepEqual(after, snapshot);
   }
 });
 
