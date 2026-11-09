@@ -55,7 +55,8 @@ test('опытная линия платит казной сейчас, росс
       const contest = byText[BASE_CHOICES.contest];
       const label = `${seed}/${diff}/${ideo}`;
       // «Казна платит за образцы»: опытная линия стоит казне больше остальных вариантов дела.
-      assert.ok(pilot.success.resources.economy! <= -5, `${label}: масштаб соседних версий`);
+      // #403: дела первой главы вдвое дешевле; опытная линия по-прежнему дороже остальных вариантов.
+      assert.ok(pilot.success.resources.economy! <= -2, `${label}: масштаб соседних версий`);
       assert.ok(pilot.success.resources.economy! < russian.success.resources.economy!
         && pilot.success.resources.economy! < contest.success.resources.economy!, `${label}: казна опытной линии`);
       // «Большой договор — потом»: выручка остаётся отложенным эффектом, а не приходит сразу.

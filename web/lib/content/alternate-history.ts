@@ -20,7 +20,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['social'],
                 politicalTags: ['social', 'anticorruption'],
                 policyEffect: {
-                    economy: -7,
+                    economy: -3,
                     internalLegitimacy: 6,
                     politicalCapital: 2,
                     personalResource: -1
@@ -85,7 +85,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['investment'],
                 politicalTags: ['investment', 'social'],
                 policyEffect: {
-                    economy: -6,
+                    economy: -3,
                     internalLegitimacy: 3,
                     externalReputation: 3,
                     personalResource: -2
@@ -139,7 +139,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 politicalTags: ['pro_russia', 'investment'],
                 // Скидка приходит эхом тега investment; сейчас платят очередью своих грузов и частью транзитного суверенитета.
                 policyEffect: {
-                    economy: -2,
+                    economy: -1,
                     externalReputation: -2
                 },
                 costReasons: {
@@ -160,7 +160,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 politicalTags: ['investment', 'pro_west'],
                 // Масштаб соседних версий (мазут с запада −5, мазут деньгами −6): независимость графика оплачивает казна.
                 policyEffect: {
-                    economy: -6,
+                    economy: -3,
                     externalReputation: 2
                 },
                 costReasons: {
@@ -178,7 +178,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 camps: { nationalist: 5, church: 3, regional: 2, business: -4, russia: -2 },
                 // Счета за ремонт приходят позже эхом тега social; сейчас платят выпуском заводов на коротких сменах.
                 policyEffect: {
-                    economy: -3,
+                    economy: -1,
                     internalLegitimacy: 3,
                     politicalCapital: -1
                 },
@@ -214,7 +214,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 politicalTags: ['investment', 'pro_west'],
                 // Масштаб «Зимы по новой цене» и версий дела: образцы оплачивает казна сейчас, выручка приходит эхом тега investment.
                 policyEffect: {
-                    economy: -5,
+                    economy: -2,
                     externalReputation: 3,
                     politicalCapital: -1
                 },
@@ -384,10 +384,10 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['investment'],
                 politicalTags: ['pro_west', 'investment'],
                 policyEffect: {
-                    economy: -5,
+                    economy: -2,
                     externalReputation: 4
                 },
-                stance: {
+                camps: {
                     west: 8,
                     liberal: 2,
                     russia: -8,
@@ -408,10 +408,10 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['delay'],
                 politicalTags: ['pro_russia'],
                 policyEffect: {
-                    economy: -6,
+                    economy: -3,
                     internalLegitimacy: 1
                 },
-                stance: {
+                camps: {
                     russia: 4,
                     nationalist: 3,
                     west: -4
@@ -430,11 +430,11 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'никому не отдать всю зиму, вести два договора',
                 tags: ['dialogue'],
                 policyEffect: {
-                    economy: -4,
+                    economy: -2,
                     politicalCapital: -2,
                     personalResource: -2
                 },
-                stance: {
+                camps: {
                     west: 3,
                     russia: 3
                 },
@@ -475,7 +475,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     internalLegitimacy: 2,
                     externalReputation: -2
                 },
-                stance: {
+                camps: {
                     russia: 8,
                     regional: 2,
                     business: -2,
@@ -507,10 +507,10 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'заказ отдельно, зима отдельно',
                 tags: ['austerity'],
                 policyEffect: {
-                    economy: -6,
+                    economy: -3,
                     politicalCapital: 2
                 },
-                stance: {
+                camps: {
                     nationalist: 4,
                     liberal: 2,
                     business: 2,
@@ -531,11 +531,11 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['security', 'austerity'],
                 // Как проверки #196: Служба порядка получает дело, а не силу — армия не растёт.
                 policyEffect: {
-                    economy: -2,
+                    economy: -1,
                     internalLegitimacy: -3,
                     personalResource: -2
                 },
-                stance: {
+                camps: {
                     security: 8,
                     nationalist: 4,
                     liberal: -6,
@@ -573,11 +573,11 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['anticorruption'],
                 politicalTags: ['anticorruption', 'pro_russia'],
                 policyEffect: {
-                    economy: -3,
+                    economy: -1,
                     internalLegitimacy: 4,
                     personalResource: -2
                 },
-                stance: {
+                camps: {
                     liberal: 6,
                     russia: 4,
                     business: -8
@@ -597,12 +597,12 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'склад опечатают, зима пройдёт по старой цене',
                 tags: ['anticorruption', 'security'],
                 policyEffect: {
-                    economy: -4,
+                    economy: -2,
                     internalLegitimacy: 3,
                     politicalCapital: 2,
                     personalResource: -2
                 },
-                stance: {
+                camps: {
                     security: 8,
                     nationalist: 4,
                     business: -6,
@@ -623,10 +623,10 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'зима без перебоев, наценка остаётся',
                 tags: ['delay'],
                 policyEffect: {
-                    economy: -6,
+                    economy: -3,
                     politicalCapital: 2
                 },
-                stance: {
+                camps: {
                     business: 6,
                     regional: 2,
                     liberal: -6
@@ -668,7 +668,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     externalReputation: -4,
                     personalResource: -3
                 },
-                stance: {
+                camps: {
                     nationalist: 8,
                     regional: 5,
                     liberal: 3,
@@ -695,7 +695,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     internalLegitimacy: -4,
                     politicalCapital: 2
                 },
-                stance: {
+                camps: {
                     security: 10,
                     west: 4,
                     nationalist: -10,
@@ -721,7 +721,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     externalReputation: 3,
                     politicalCapital: -2
                 },
-                stance: {
+                camps: {
                     west: 6,
                     regional: 4,
                     business: 2,
@@ -761,7 +761,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     politicalCapital: 2,
                     internalLegitimacy: -2
                 },
-                stance: {
+                camps: {
                     business: 10,
                     regional: 2,
                     liberal: -6
@@ -785,7 +785,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     politicalCapital: -3,
                     externalReputation: -3
                 },
-                stance: {
+                camps: {
                     security: 6,
                     nationalist: 3,
                     business: -12,
@@ -810,7 +810,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     economy: 1,
                     externalReputation: -2
                 },
-                stance: {
+                camps: {
                     russia: 8,
                     business: -4,
                     nationalist: -6,
@@ -850,7 +850,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     internalLegitimacy: -3,
                     politicalCapital: 2
                 },
-                stance: {
+                camps: {
                     security: 8,
                     regional: -2,
                     liberal: -4
@@ -873,7 +873,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     politicalCapital: -3,
                     personalResource: -2
                 },
-                stance: {
+                camps: {
                     security: -8,
                     liberal: 6,
                     regional: -3
@@ -896,7 +896,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     economy: -5,
                     internalLegitimacy: 4
                 },
-                stance: {
+                camps: {
                     regional: 4,
                     church: 3,
                     security: 2
@@ -936,7 +936,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     economy: -1,
                     personalResource: -2
                 },
-                stance: {
+                camps: {
                     business: -8,
                     liberal: 6,
                     regional: -2
@@ -960,7 +960,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     internalLegitimacy: -2,
                     politicalCapital: 2
                 },
-                stance: {
+                camps: {
                     business: 8,
                     regional: 2,
                     liberal: -5
@@ -984,7 +984,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     internalLegitimacy: 3,
                     politicalCapital: -3
                 },
-                stance: {
+                camps: {
                     regional: 6,
                     church: 2,
                     business: -4
@@ -1022,7 +1022,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     economy: 2,
                     externalReputation: -3
                 },
-                stance: {
+                camps: {
                     business: 8,
                     regional: 3,
                     west: -8
@@ -1045,7 +1045,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     externalReputation: 3,
                     politicalCapital: -2
                 },
-                stance: {
+                camps: {
                     west: 8,
                     liberal: 2,
                     business: -8
@@ -1064,10 +1064,10 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'никто не проиграет сразу, никто не выиграет',
                 tags: ['dialogue'],
                 policyEffect: {
-                    economy: -2,
+                    economy: -1,
                     politicalCapital: 1
                 },
-                stance: {
+                camps: {
                     business: 2,
                     west: 2
                 },
@@ -1103,7 +1103,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     externalReputation: 2,
                     personalResource: -2
                 },
-                stance: {
+                camps: {
                     west: 6,
                     liberal: 3,
                     nationalist: -6
@@ -1122,11 +1122,11 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'улица довольна, валюты не будет',
                 tags: ['patriotism'],
                 policyEffect: {
-                    economy: -4,
+                    economy: -2,
                     externalReputation: -4,
                     internalLegitimacy: 2
                 },
-                stance: {
+                camps: {
                     nationalist: 8,
                     business: 2,
                     west: -8
@@ -1149,7 +1149,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                     politicalCapital: -2,
                     externalReputation: 2
                 },
-                stance: {
+                camps: {
                     business: 3,
                     west: 2,
                     nationalist: -2
@@ -1193,7 +1193,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['anticorruption', 'security'],
                 // #221: проверка силами Службы порядка
                 camps: { security: 8, liberal: 4, nationalist: 4, business: -6 },
-                policyEffect: { internalLegitimacy: 6, politicalCapital: 2, personalResource: -4, economy: -3 },
+                policyEffect: { internalLegitimacy: 6, politicalCapital: 2, personalResource: -4, economy: -1 },
                 costReasons: {
                     economy: 'выезд Службы порядка оплачивает казна, а торговые базы придерживают товар'
                 },
@@ -1315,7 +1315,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Перенести часть столичной программы на мелиорацию Полесья',
                 hint: 'село получит деньги, столица — меньше',
                 tags: ['social'],
-                stance: { regional: 6, church: 4, business: -4 },
+                camps: { regional: 6, church: 4, business: -4 },
                 policyEffect: { economy: -2, internalLegitimacy: 3, personalResource: -1 },
                 scene: ("Часть столичной программы ушла в районные казначейства Полесья. Шлюзы начали чистить, ходоки вернулись в Лунинец " +
                     "с бумагой за вашей подписью, а в Минске отложили один из проспектов."),
@@ -1326,7 +1326,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Дать земствам Полесья право самим составить смету',
                 hint: 'нужды решают на месте; деньги — только после сметы',
                 tags: ['reform'],
-                stance: { liberal: 4, regional: 3, business: -2 },
+                camps: { liberal: 4, regional: 3, business: -2 },
                 policyEffect: { politicalCapital: 2, personalResource: -1 },
                 scene: 'Комиссия выехала в районы. Земства впервые получили право составить смету ремонта вместе со столичными инженерами.',
                 fail: 'Инженеры разошлись во взглядах с председателями хозяйств. Составление сметы затянулось, а ходоки сочли поездку отпиской.',
@@ -1336,7 +1336,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Напомнить о плане поставок и отправить делегацию к прокурору',
                 hint: 'жёсткая дисциплина ценой крестьянского ропота',
                 tags: ['austerity'],
-                stance: { business: 4, security: 4, regional: -8, church: -4 },
+                camps: { business: 4, security: 4, regional: -8, church: -4 },
                 policyEffect: { internalLegitimacy: -3, politicalCapital: 2 },
                 scene: 'Ходоков развернули. Зерновые отгрузки в столицу пошли по графику, но в приходах Лунинца читают сельские протестные листки.',
                 fail: 'Ходоки отказались уезжать и вышли на привокзальную площадь Минска. Столичные газеты написали о «крестьянском бунте».',
@@ -1363,7 +1363,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Удовлетворить требования стачкома за счёт резерва предприятий',
                 hint: 'мир в цехах ценой заморозки переоборудования',
                 tags: ['social'],
-                stance: { liberal: 6, regional: 2, business: -6 },
+                camps: { liberal: 6, regional: 2, business: -6 },
                 policyEffect: { economy: -3, internalLegitimacy: 4, personalResource: -2 },
                 scene: 'Гудки дали отбой. Смены вернулись к станкам; стачком празднует победу, а директора считают замороженные инвестиции.',
                 fail: 'Другие заводы Минска посчитали уступку слабостью и тоже остановили конвейеры. Забастовка перекинулась на автозавод.',
@@ -1373,7 +1373,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Использовать продовольственные запасы села как рычаг для переговоров',
                 hint: 'дополнительное снабжение рабочим столовым',
                 tags: ['reform'],
-                stance: { business: 4, regional: -3, liberal: 2 },
+                camps: { business: 4, regional: -3, liberal: 2 },
                 policyEffect: { economy: -2, politicalCapital: 2 },
                 scene: 'Горячее питание и гарантированные пайки сбили накал в цехах. Умеренное крыло стачкома согласилось возобновить смену.',
                 fail: 'Снабжение пришло с опозданием; рабочие усмотрели в продпайках подачку и отказались разговаривать с министерством.',
@@ -1383,7 +1383,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Ввести полицейское оцепление и задержать зачинщиков',
                 hint: 'силовой порядок ценой затяжной вражды с цехами',
                 tags: ['security'],
-                stance: { security: 8, business: 2, liberal: -8, nationalist: -2 },
+                camps: { security: 8, business: 2, liberal: -8, nationalist: -2 },
                 policyEffect: { internalLegitimacy: -5, politicalCapital: 3 },
                 scene: 'Проходные взяты под контроль, зачинщики изолированы. Утренний выпуск пошёл, но у станков дежурят молчаливые патрули.',
                 fail: 'Задержание привело к стычкам у заводских ворот. К тракторостроителям присоединились железнодорожные ремонтники.',
@@ -1410,7 +1410,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Направить ревизоров из Минска со спецполномочиями',
                 hint: 'чистка пограничных узлов руками центра',
                 tags: ['anticorruption'],
-                stance: { liberal: 6, west: 4, security: -4, russia: 2 },
+                camps: { liberal: 6, west: 4, security: -4, russia: 2 },
                 policyEffect: { politicalCapital: 2, personalResource: -2, economy: 2 },
                 scene: 'Ревизоры вскрыли серые кассы на станциях. Пропуск эшелонов возобновился, начальники трёх постов отстранены от должностей.',
                 fail: 'Местные таможенники объявили «итальянскую забастовку». Очередь из цистерн растянулась до Барановичей.',
@@ -1420,7 +1420,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Легализовать региональный сбор на модернизацию терминалов',
                 hint: 'доля таможенных доходов остаётся на местах',
                 tags: ['reform'],
-                stance: { regional: 6, business: 2, liberal: -4 },
+                camps: { regional: 6, business: 2, liberal: -4 },
                 policyEffect: { economy: -3, internalLegitimacy: 2 },
                 scene: 'Официальный сбор прекратил вымогательство. На терминалах закипели работы, пограничные составы пошли по графику.',
                 fail: 'Новый сбор вызвал протест у торговых партнёров: перевозчики подняли тарифы на провоз грузов через республику.',
@@ -1430,7 +1430,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Передать пограничный контроль Службе порядка',
                 hint: 'военизация контрольных пунктов и жёсткий надзор',
                 tags: ['security'],
-                stance: { security: 8, nationalist: 3, west: -6, liberal: -4 },
+                camps: { security: 8, nationalist: 3, west: -6, liberal: -4 },
                 policyEffect: { internalLegitimacy: -2, politicalCapital: 2 },
                 scene: 'Офицеры Службы порядка встали на рампы. Сортировка пошла по армейскому уставу, серые схемы на станциях свернулись.',
                 fail: 'Военные перекрыли транзит на досмотр военных грузов. Союз заявил ноту протеста о задержке гражданских товаров.',
@@ -1456,7 +1456,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Подписать хартию бюджетной децентрализации',
                 hint: 'мир с областями ценой ослабления казны республики',
                 tags: ['reform'],
-                stance: { regional: 10, church: 4, business: -6, security: -4 },
+                camps: { regional: 10, church: 4, business: -6, security: -4 },
                 policyEffect: { economy: -3, internalLegitimacy: 5, politicalCapital: -2 },
                 scene: 'Хартия подписана. Областные центры получили деньги на больницы и дороги; угроза налогового бойкота снята.',
                 fail: 'Регионы забрали налоги, но сорвали республиканские программы. Столице нечем платить пенсии в центральных районах.',
@@ -1466,7 +1466,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Предложить пакт о совместных инфраструктурных фондах',
                 hint: 'компромисс: целевое софинансирование под общим надзором',
                 tags: ['investment'],
-                stance: { regional: 5, liberal: 4, business: 2 },
+                camps: { regional: 5, liberal: 4, business: 2 },
                 policyEffect: { economy: -3, politicalCapital: 3 },
                 scene: 'Компромисс принят. Создан совместный фонд дорог и мелиорации, губернаторы вернулись в области с твёрдыми гарантиями.',
                 fail: 'Губернаторы обвинили центр в бюрократической уловке. Брест и Гродно отказались подписывать протокол фонда.',
@@ -1476,7 +1476,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Отклонить ультиматум и ввести прямое управление через комиссаров',
                 hint: 'жёсткая централизация ценой острого регионального кризиса',
                 tags: ['security'],
-                stance: { security: 8, business: 4, regional: -12, church: -4 },
+                camps: { security: 8, business: 4, regional: -12, church: -4 },
                 policyEffect: { internalLegitimacy: -6, politicalCapital: 4 },
                 scene: 'В областные центры направлены президентские комиссары. Угрозу задержать сборы сняли, финансовые потоки замкнуты на Минск.',
                 fail: 'Областные советы объявили решения комиссаров недействительными. В Полесье и Гродно начались сходы протеста.',
@@ -1502,7 +1502,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Уравнять железнодорожные тарифы и дотировать Брестский узел',
                 hint: 'поддержка южного узла за счёт таможенных сборов севера',
                 tags: ['investment'],
-                stance: { russia: 5, security: 3, west: -4, business: 2 },
+                camps: { russia: 5, security: 3, west: -4, business: 2 },
                 policyEffect: { economy: -3, internalLegitimacy: 2 },
                 scene: 'Тарифная компенсация сняла напряжение в Бресте. Путейцы вернулись к ремонтам, составы распределены поровну.',
                 fail: 'Гродненские грузоотправители возмутились поборами и увели часть контрактов на польские склады.',
@@ -1512,7 +1512,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Перепрофилировать брестские терминалы под контейнерный поток Торгового союза',
                 hint: 'интеграция обоих узлов в западный коридор',
                 tags: ['reform'],
-                stance: { west: 6, liberal: 4, russia: -6, regional: 2 },
+                camps: { west: 6, liberal: 4, russia: -6, regional: 2 },
                 policyEffect: { economy: -4, externalReputation: 3 },
                 scene: 'Начались работы по укладке совмещённой колеи в Бресте. Железнодорожники получили новые заказы и надбавки.',
                 fail: 'Восточная делегация расценила перепрофилирование как враждебный шаг и закрыла обратный порожний пробег вагонов.',
@@ -1522,7 +1522,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 text: 'Оставить распределение заказов рыночной конкуренции станций',
                 hint: 'свободный выбор маршрутов без государственного вмешательства',
                 tags: ['reform'],
-                stance: { business: 4, liberal: 3, regional: -4, russia: -2 },
+                camps: { business: 4, liberal: 3, regional: -4, russia: -2 },
                 policyEffect: { economy: 2, internalLegitimacy: -3 },
                 scene: 'Станции начали конкурировать за скорость разгрузки. Стоимость перевозок снизилась, оборот вырос.',
                 fail: 'Брестский узел окончательно проиграл конкуренцию. Начались массовые сокращения стрелочников и сцепщиков.',

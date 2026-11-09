@@ -269,7 +269,11 @@ test('ничего не теряется: каждое обращение, жд�
   for (const [seed, diff] of SEEDS) {
     const { log, open } = await chronicleTerm(seed, diff, false);
     for (const item of open) {
-      const shown = log.some(quarter => quarter.stops.some(stop => stop.key === item.key && stop.token === item.token));
+      // Меры у порога: в том же году остановка с теми же или более широкими опорами уже показана (dueStops не повторяет её).
+      const covers = (stop: Stop) => stop.token === item.token || item.key === 'initiatives' && stop.key === item.key
+        && stop.token.split('|')[0] === item.token.split('|')[0]
+        && item.token.split('|')[1].split(',').every(key => stop.token.split('|')[1].split(',').includes(key));
+      const shown = log.some(quarter => quarter.stops.some(stop => stop.key === item.key && covers(stop)));
       assert.ok(shown, `зерно ${seed}: ${item.key} (${item.token}) ждал ответа с хода ${item.turn}, но не остановил ленту`);
     }
   }

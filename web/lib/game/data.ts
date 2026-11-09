@@ -3,7 +3,7 @@ import { ALTERNATE_CONTEXT, ALTERNATE_COUNTRY } from "./alternate-world.ts";
 // Статические данные мира: страны, фракции, фигуры, стартовые параметры.
 import type { ActionTag, Bloc, DifficultyId, IdeologyId, Loyalty, ResourceDelta, ResourceKey, Resources, TermRule } from "./types.ts";
 
-export const APP_VERSION = "8.65";
+export const APP_VERSION = "8.68";
 export const SAVE_VERSION = 7; // 7: сквозные интриги
 // Срок — двадцать ходов (пять лет). Правление не ограничено сроком: партия идёт, пока лидер у власти.
 export const TERM = 20;
@@ -484,6 +484,11 @@ export const IDEOLOGY_ACTIONS: Record<IdeologyId, { aligned: ActionTag[]; oppose
 
 // Цена решений: потери ресурсов весят больше выгод — бесплатных решений почти не бывает.
 export const COSTS = { weight: 1.3 };
+// Общий срыв решения без авторского профиля (#403, находка 5): польза уменьшается, цена растёт, тёплые отношения — вдвое.
+export const FAILURE_EFFECT = { gain: 0.5, cost: 1.15, warmth: 0.5 };
+// #403: в обычной партии 1978 года сорванное решение пользы не приносит — сцена срыва описывает провал. Частичный
+// результат задаёт авторский профиль срыва (execution-risk.ts). «Дело дня» и архив сохраняют общую формулу.
+export const ALTERNATE_FAILURE = { gain: 0 };
 export const IDEOLOGY_BONUS: ResourceDelta = { personalResource:2, internalLegitimacy:1 };
 export const IDEOLOGY_PENALTY: ResourceDelta = { personalResource:-4, politicalCapital:-2 };
 
@@ -574,8 +579,12 @@ export const RECOVERY_RATE = 1;
 // С каждой главой мандата (ход 7, 14) давление растёт: страна устаёт от власти.
 export const DIFF_PRESSURE: Record<DifficultyId, number> = { debut:1, coalition:2, crisis:3, ruins:2 };
 export const PRESSURE_GROWTH = { every: 7, by: 1 };
-export const pressureAt = (diff: DifficultyId, turn: number) =>
-  (DIFF_PRESSURE[diff] ?? 0) + Math.floor(turn / PRESSURE_GROWTH.every) * PRESSURE_GROWTH.by;
+// #403: в кампании 1978 года «Коалиция» давит слабее — со стартовой экономикой 40 случайный игрок падал до хода 10
+// в трети партий. Архивные страны сохраняют прежнее давление.
+export const ALTERNATE_PRESSURE: Partial<Record<DifficultyId, number>> = { coalition: 1 };
+export const pressureAt = (diff: DifficultyId, turn: number, country?: string) =>
+  ((country === ALTERNATE_COUNTRY ? ALTERNATE_PRESSURE[diff] : undefined) ?? DIFF_PRESSURE[diff] ?? 0)
+  + Math.floor(turn / PRESSURE_GROWTH.every) * PRESSURE_GROWTH.by;
 
 // Враждебные фракции (отношение ниже порога) вредят каждый ход.
 export const HOSTILE_RELATION = -60;

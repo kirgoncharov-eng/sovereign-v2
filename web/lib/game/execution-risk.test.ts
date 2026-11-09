@@ -60,12 +60,13 @@ test('срыв заводской подписи по-прежнему не пр
   for (const ideo of ['liberal', 'nationalist', 'pragmatist', 'leftist'] as const) {
     const state = { ...initial, ideo };
     const [pay, ...investments] = state.currentEvent!.choices;
+    // #403: выплата и переоборудование вдвое дешевле — срыв стоит казне столько же, сколько исполнение.
     assert.deepEqual(choiceEffects(state, pay, true).resources,
-      { economy: -9, internalLegitimacy: -4, politicalCapital: -3, personalResource: -1 }, 'выплата без нового бонуса или штрафа');
+      { economy: -4, internalLegitimacy: -4, politicalCapital: -3, personalResource: -1 }, 'выплата без нового бонуса или штрафа');
     if (ideo === 'leftist') continue;
     assert.deepEqual(investments.map(choice => choiceEffects(state, choice, true).resources), [
       { economy: -3, internalLegitimacy: -4, politicalCapital: -1, personalResource: -3 },
-      { economy: -8, internalLegitimacy: -4, personalResource: -3 },
+      { economy: -4, internalLegitimacy: -4, personalResource: -3 },
     ], `${ideo}: остальные курсы не меняются`);
   }
 });
@@ -73,9 +74,9 @@ test('срыв заводской подписи по-прежнему не пр
 test('три срыва соответствуют сценам: деньги ушли банку, аванса нет, новая линия не запущена', async () => {
   const state = await first();
   const expected = [
-    { economy: -9, internalLegitimacy: -4, politicalCapital: -3, personalResource: -1 },
+    { economy: -4, internalLegitimacy: -4, politicalCapital: -3, personalResource: -1 },
     { economy: -3, internalLegitimacy: -4, politicalCapital: -1, personalResource: -3 },
-    { economy: -8, internalLegitimacy: -4, personalResource: -3 },
+    { economy: -4, internalLegitimacy: -4, personalResource: -3 },
   ];
   for (const [index, choice] of state.currentEvent!.choices.entries()) {
     const effects = choiceEffects(state, choice, true);
