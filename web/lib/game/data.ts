@@ -486,6 +486,9 @@ export const IDEOLOGY_ACTIONS: Record<IdeologyId, { aligned: ActionTag[]; oppose
 export const COSTS = { weight: 1.3 };
 // Общий срыв решения без авторского профиля (#403, находка 5): польза уменьшается, цена растёт, тёплые отношения — вдвое.
 export const FAILURE_EFFECT = { gain: 0.5, cost: 1.15, warmth: 0.5 };
+// #403: в обычной партии 1978 года сорванное решение пользы не приносит — сцена срыва описывает провал. Частичный
+// результат задаёт авторский профиль срыва (execution-risk.ts). «Дело дня» и архив сохраняют общую формулу.
+export const ALTERNATE_FAILURE = { gain: 0 };
 export const IDEOLOGY_BONUS: ResourceDelta = { personalResource:2, internalLegitimacy:1 };
 export const IDEOLOGY_PENALTY: ResourceDelta = { personalResource:-4, politicalCapital:-2 };
 

@@ -93,7 +93,56 @@ const STANDARDS_FAILURES: CardRisks = {
   },
 };
 
-const CARD_RISKS: Readonly<Record<string, CardRisks>> = { alt_wages: WAGES_RISKS, alt_standards: STANDARDS_FAILURES };
+// #403, находка 5: общий срыв 1978 года не приносит пользы (ALTERNATE_FAILURE). Где сцена срыва описывает частичный
+// результат — половину вагонов, оплату частями, состав с опозданием, — авторский профиль оставляет ровно эту часть.
+const PARTIAL_FAILURES: Readonly<Record<string, CardRisks>> = {
+  // «Предписание исполнили наполовину: часть вагонов ушла на ремонт ещё ночью… палата показывает депутатам копию».
+  alt_rail_chamber: { b: {
+    forPolicy: { economy: 5, politicalCapital: -3, externalReputation: -3 },
+    resources: { economy: 2, politicalCapital: -4, externalReputation: -3 },
+    stance: { security: 3, nationalist: 2, business: -12, west: -4, liberal: -3 },
+    keepsOpposedPenalty: true,
+  } },
+  // «Палата забрала линию, но заказ оплачивает по частям… Торговый союз уже разговаривает с соседним заводом».
+  alt_standards_chamber: { a: {
+    forPolicy: { economy: 2, externalReputation: -3 },
+    resources: { economy: 1, externalReputation: -3, internalLegitimacy: -1 },
+    stance: { business: 4, regional: 2, west: -8 },
+    keepsOpposedPenalty: true,
+  } },
+  // «Делегация засчитала мазут, но сдвинула первые поставки… котельные встречают морозы на остатках»: казна не платит, дома холодно.
+  alt_fuel_advance: { a: {
+    forPolicy: { economy: 2, internalLegitimacy: 2, externalReputation: -2 },
+    resources: { economy: 2, internalLegitimacy: -2, externalReputation: -2 },
+    stance: { russia: 4, regional: 1, business: -2, west: -4, nationalist: -6 },
+    keepsOpposedPenalty: true,
+  } },
+  alt_rail_blockade: {
+    // «Состав задержали на таможне, пока шла проверка жалоб»: выручка придёт позже и меньше, плёнку показывают в клубах.
+    b: {
+      forPolicy: { economy: 7, internalLegitimacy: -4, politicalCapital: 2 },
+      resources: { economy: 3, internalLegitimacy: -5, politicalCapital: -1 },
+      stance: { security: 5, west: 2, nationalist: -10, liberal: -8, regional: -4 },
+      keepsOpposedPenalty: true,
+    },
+    // «Резервное зерно оказалось прошлогодним… Состав уходит с опозданием»: договор исполнен поздно, сёла обижены.
+    c: {
+      forPolicy: { economy: -4, internalLegitimacy: 2, externalReputation: 3, politicalCapital: -2 },
+      resources: { economy: -4, internalLegitimacy: -2, externalReputation: 1, politicalCapital: -2 },
+      stance: { west: 3, business: 1, regional: -2, nationalist: -4 },
+      keepsOpposedPenalty: true,
+    },
+  },
+  // «Вас слушают, но не верят. Образцы уходят под охраной…»: образцы у покупателя, валюты пока нет, у Союза республики фотография.
+  alt_standards_patriots: { a: {
+    forPolicy: { economy: 3, externalReputation: 2, personalResource: -2 },
+    resources: { externalReputation: 1, internalLegitimacy: -2, personalResource: -2 },
+    stance: { west: 3, liberal: 1, nationalist: -8 },
+    keepsOpposedPenalty: true,
+  } },
+};
+
+const CARD_RISKS: Readonly<Record<string, CardRisks>> = { alt_wages: WAGES_RISKS, alt_standards: STANDARDS_FAILURES, ...PARTIAL_FAILURES };
 
 type ExecutionChoice = Pick<Choice, 'id' | 'advisor' | 'deal' | 'policyEffect'>;
 
