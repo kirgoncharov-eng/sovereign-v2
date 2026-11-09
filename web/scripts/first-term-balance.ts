@@ -8,7 +8,11 @@
 //   breath   — победа на парламентских выборах даёт ещё и личный ресурс +4 (находка 3);
 //   richer   — экономика на старте +8 (главная причина падений — обвал экономики);
 //   calm     — давление обстоятельств на «Коалиции» и «Кризисе» на единицу ниже (2 → 1, 3 → 2);
-//   flat     — давление не растёт к ходам 7 и 14.
+//   flat     — давление не растёт к ходам 7 и 14;
+//   calmc    — то же, что calm, но только на «Коалиции»;
+//   wages    — первое дело (`alt_wages`) стоит вдвое меньше экономики при исполнении;
+//   cheap    — все авторские дела ходов 1–6 стоят вдвое меньше экономики при исполнении.
+//   Цена срыва идёт из профиля риска (`execution-risk.ts`) и в wages/cheap не меняется.
 // Части складываются через «+»: calm+delayed — мягче давление и вернуть отложенные последствия.
 // Запуск: node scripts/first-term-balance.ts  (N=60 — больше зёрен; VARIANTS=base,calm,flat+delayed — свой набор)
 import { newTerm, nextCase, signChoice, startFromSeed } from '../lib/client/chronicle.ts';
@@ -20,6 +24,8 @@ const N = Number(process.env.N ?? 30);
 const VARIANTS = (process.env.VARIANTS ?? 'base,delayed,breath,richer,calm,flat,calm+delayed').split(',');
 const has = (variant: string, part: string) => variant.split('+').includes(part);
 const RICHER = 8;
+const CHEAP_UNTIL = 6; // последний ход, дела которого дешевеют в варианте cheap
+const CHEAPER = 0.5;
 const DIFFS: DifficultyId[] = ['debut', 'coalition', 'crisis'];
 const MIDTERM = TERM / 2;
 // Конец срока на ходу 20 (выборы, уход, обнуление) — срок дожит; эти концы — падение.
@@ -37,10 +43,19 @@ const BOTS: Record<string, Bot> = {
 const losesDelayed = (choice: Choice) => !!choice.stance && !choice.tagDelayed && !choice.deal && !choice.arc
   && choice.tags.some(tag => DELAYED[tag]);
 
+// Экономика при исполнении — из `policyEffect` авторского дела; урезается только расход, выгода не трогается.
+const cheaper = (choice: Choice): Choice => (choice.policyEffect?.economy ?? 0) < 0
+  ? { ...choice, policyEffect: { ...choice.policyEffect, economy: Math.round(choice.policyEffect!.economy! * CHEAPER) } } : choice;
+
 function patch(variant: string, state: GameState): GameState {
-  if (!has(variant, 'delayed') || !state.currentEvent?.card) return state;
-  const choices = state.currentEvent.choices.map(choice => (losesDelayed(choice) ? { ...choice, tagDelayed: true } : choice));
-  return { ...state, currentEvent: { ...state.currentEvent, choices } };
+  const card = state.currentEvent?.card;
+  if (!card) return state;
+  const cheap = has(variant, 'cheap') && state.turn + 1 <= CHEAP_UNTIL || has(variant, 'wages') && card === 'alt_wages';
+  const choices = state.currentEvent!.choices.map(choice => {
+    const priced = cheap ? cheaper(choice) : choice;
+    return has(variant, 'delayed') && losesDelayed(priced) ? { ...priced, tagDelayed: true } : priced;
+  });
+  return { ...state, currentEvent: { ...state.currentEvent!, choices } };
 }
 
 interface Run {
@@ -113,7 +128,8 @@ const winBonus = { ...ELECTION_WIN_BONUS }, pressure = { ...DIFF_PRESSURE }, gro
 function configure(variant: string) {
   for (const key of Object.keys(ELECTION_WIN_BONUS) as ResourceKey[]) delete ELECTION_WIN_BONUS[key];
   Object.assign(ELECTION_WIN_BONUS, winBonus, has(variant, 'breath') ? { personalResource: 4 } : {});
-  Object.assign(DIFF_PRESSURE, pressure, has(variant, 'calm') ? { coalition: pressure.coalition - 1, crisis: pressure.crisis - 1 } : {});
+  Object.assign(DIFF_PRESSURE, pressure, has(variant, 'calm') ? { coalition: pressure.coalition - 1, crisis: pressure.crisis - 1 }
+    : has(variant, 'calmc') ? { coalition: pressure.coalition - 1 } : {});
   Object.assign(PRESSURE_GROWTH, growth, has(variant, 'flat') ? { by: 0 } : {});
 }
 for (const variant of VARIANTS) {
