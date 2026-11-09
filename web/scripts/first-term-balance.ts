@@ -6,15 +6,19 @@
 //   base     — как в main;
 //   delayed  — версии и региональные дела с `stance` сохраняют отложенные последствия по тегам (находка 1);
 //   breath   — победа на парламентских выборах даёт ещё и личный ресурс +4 (находка 3);
-//   richer   — экономика на старте +8 (главная причина падений — обвал экономики).
-// Запуск: node scripts/first-term-balance.ts  (N=60 — больше зёрен; VARIANTS=base,delayed — часть вариантов)
+//   richer   — экономика на старте +8 (главная причина падений — обвал экономики);
+//   calm     — давление обстоятельств на «Коалиции» и «Кризисе» на единицу ниже (2 → 1, 3 → 2);
+//   flat     — давление не растёт к ходам 7 и 14.
+// Части складываются через «+»: calm+delayed — мягче давление и вернуть отложенные последствия.
+// Запуск: node scripts/first-term-balance.ts  (N=60 — больше зёрен; VARIANTS=base,calm,flat+delayed — свой набор)
 import { newTerm, nextCase, signChoice, startFromSeed } from '../lib/client/chronicle.ts';
-import { DELAYED, ELECTION_WIN_BONUS, LIMITS, RESOURCE_KEYS, TERM } from '../lib/game/data.ts';
+import { DELAYED, DIFF_PRESSURE, ELECTION_WIN_BONUS, LIMITS, PRESSURE_GROWTH, RESOURCE_KEYS, TERM } from '../lib/game/data.ts';
 import { planTurn, seededRandom } from '../lib/game/engine.ts';
 import type { Choice, DifficultyId, GameState, ResourceKey } from '../lib/game/types.ts';
 
 const N = Number(process.env.N ?? 30);
-const VARIANTS = (process.env.VARIANTS ?? 'base,delayed,breath,richer').split(',');
+const VARIANTS = (process.env.VARIANTS ?? 'base,delayed,breath,richer,calm,flat,calm+delayed').split(',');
+const has = (variant: string, part: string) => variant.split('+').includes(part);
 const RICHER = 8;
 const DIFFS: DifficultyId[] = ['debut', 'coalition', 'crisis'];
 const MIDTERM = TERM / 2;
@@ -34,7 +38,7 @@ const losesDelayed = (choice: Choice) => !!choice.stance && !choice.tagDelayed &
   && choice.tags.some(tag => DELAYED[tag]);
 
 function patch(variant: string, state: GameState): GameState {
-  if (variant !== 'delayed' || !state.currentEvent?.card) return state;
+  if (!has(variant, 'delayed') || !state.currentEvent?.card) return state;
   const choices = state.currentEvent.choices.map(choice => (losesDelayed(choice) ? { ...choice, tagDelayed: true } : choice));
   return { ...state, currentEvent: { ...state.currentEvent, choices } };
 }
@@ -55,7 +59,7 @@ function endOf(state: GameState): string {
 async function play(variant: string, bot: Bot, diff: DifficultyId, seed: number): Promise<Run> {
   const random = seededRandom(seed * 7 + 1);
   const candidate = await newTerm(startFromSeed(seed, diff));
-  const opening = variant === 'richer'
+  const opening = has(variant, 'richer')
     ? { ...candidate, resources: { ...candidate.resources, economy: candidate.resources.economy + RICHER } } : candidate;
   let state = patch(variant, await nextCase(opening));
   const run: Run = { survived: false, turn: 0, end: '', personalEnd: 0, failed: 0, failedWithGain: 0, lostDelayed: 0, fellAfterMidterm: false,
@@ -104,10 +108,16 @@ const economyRows: string[] = [];
 const start: Partial<Record<DifficultyId, number>> = {};
 for (const diff of DIFFS) start[diff] = (await newTerm(startFromSeed(1, diff))).resources.economy;
 
-const winBonus = { ...ELECTION_WIN_BONUS };
-for (const variant of VARIANTS) {
+// Подмена констант движка на время варианта; после прогона всё возвращается как в main.
+const winBonus = { ...ELECTION_WIN_BONUS }, pressure = { ...DIFF_PRESSURE }, growth = { ...PRESSURE_GROWTH };
+function configure(variant: string) {
   for (const key of Object.keys(ELECTION_WIN_BONUS) as ResourceKey[]) delete ELECTION_WIN_BONUS[key];
-  Object.assign(ELECTION_WIN_BONUS, winBonus, variant === 'breath' ? { personalResource: 4 } : {});
+  Object.assign(ELECTION_WIN_BONUS, winBonus, has(variant, 'breath') ? { personalResource: 4 } : {});
+  Object.assign(DIFF_PRESSURE, pressure, has(variant, 'calm') ? { coalition: pressure.coalition - 1, crisis: pressure.crisis - 1 } : {});
+  Object.assign(PRESSURE_GROWTH, growth, has(variant, 'flat') ? { by: 0 } : {});
+}
+for (const variant of VARIANTS) {
+  configure(variant);
   console.log(`\n## ${variant} · ${N} зёрен · ход ${TERM} = конец первого срока`);
   console.log('| бот | сложность | дожили до 20 | пали до 10 | пали после выборов 10 | чем кончилось | выборы 10: победа · личный после выборов → в конце | срывы с выгодой | потеряно отложенных |');
   console.log('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
@@ -128,4 +138,4 @@ for (const variant of VARIANTS) {
   if (economyRows.length) console.log(`\nЭкономика за партию, в среднем на зерно (крупные источники):\n${economyRows.map(row => `- ${row}`).join('\n')}`);
   economyRows.length = 0;
 }
-Object.assign(ELECTION_WIN_BONUS, winBonus);
+configure('base');
