@@ -1,8 +1,14 @@
 import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { RESOURCE_KEYS } from '../game/data.ts';
-import { applyDeltas, choiceEffects, clampRel, delayedEffects, successChance } from '../game/engine.ts';
+import { applyDeltas, choiceEffects, choiceFollowUps, clampRel, successChance, type FollowUpWhen } from '../game/engine.ts';
 import { executionRisk } from '../game/execution-risk.ts';
 import type { Choice, GameState, ResourceDelta } from '../game/types.ts';
+
+export const FOLLOW_UP_CONDITION: Record<FollowUpWhen, string> = {
+  success: 'При исполнении.',
+  failure: 'Только при срыве.',
+  both: 'Сохраняется при срыве.',
+};
 
 /** Прогноз самой резолюции, включая пользу. Долг и фон квартала сюда не подмешиваются. */
 export function choiceOutcomes(state: GameState, choice: Choice) {
@@ -19,14 +25,10 @@ export function choiceOutcomes(state: GameState, choice: Choice) {
     };
   };
   const failurePercent = Math.round((1 - successChance(state, choice)) * 100);
-  // Движок ставит эхо в очередь от конца подписываемого квартала. Срыв отменяет пользу по тегам,
-  // но сохраняет отложенный вред; особое условие сделки вступает в силу только при исполнении.
-  const tagged = delayedEffects(choice, state).map(effect => ({
-    label: effect.label, res: effect.res, due: state.turn + 1 + effect.turns,
-    onFailure: Object.values(effect.res).reduce((sum, value) => sum + (value ?? 0), 0) < 0,
+  // Движок считает сроки от конца подписываемого квартала.
+  const later = choiceFollowUps(state, choice).map(({ label, res, turns, when, payment }) => ({
+    label, res, due: state.turn + 1 + turns, when, payment,
   }));
-  const deal = choice.deal?.later;
-  const later = [...tagged, ...(deal ? [{ label: deal.label, res: deal.res, due: state.turn + 1 + deal.turns, onFailure: false }] : [])];
   return { success: outcome(false), failure: failurePercent ? outcome(true) : null, failurePercent,
     reason: executionRisk(state, choice)?.reason ?? null, later };
 }

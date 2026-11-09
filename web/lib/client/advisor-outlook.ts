@@ -115,10 +115,9 @@ export function advisorOutlook(state: GameState, choice: Choice) {
     risk: { text: riskText, value: percent, source: riskSource,
       reason },
     payment: (choice.deal?.res?.economy ?? 0) < 0 ? choice.deal!.res!.economy! : null,
-    later: raw.later.map((effect, index) => ({ ...effect,
+    later: raw.later.map(effect => ({ ...effect,
       resources: Object.fromEntries(RESOURCE_KEYS.filter(key => effect.res[key]).map(key => [key,
-        estimateDelta(state, sources[key], effect.res[key]!,
-          index === raw.later.length - 1 && !!choice.deal?.later && key === 'economy'),
+        estimateDelta(state, sources[key], effect.res[key]!, !!effect.payment && key === 'economy'),
       ])) as Partial<Record<ResourceKey, Estimate>>,
     })),
   };

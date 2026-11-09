@@ -2,6 +2,7 @@
 // Нет нового состояния: профиль выбирается по уже сохранённым кампании, карточке и варианту решения.
 // Тот же механизм даёт авторский срыв делам без собственного профиля исполнения (alt_standards, #365).
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
+import type { DelayedInfo } from './data.ts';
 import type { Bloc, Choice, GameState, ResourceDelta } from './types.ts';
 
 export type ExecutionContext = Partial<Pick<GameState, 'country' | 'currentEvent' | 'daily'>>;
@@ -21,6 +22,7 @@ interface ExecutionRisk {
   stance: Partial<Record<Bloc, number>>;
   execution: ExecutionProfile;
   keepsOpposedPenalty?: true; // решение против курса стоит президенту и при срыве: срыв не должен быть дешевле исполнения
+  laterOnFailure?: 'deal' | DelayedInfo; // уже принятый долг сделки или платёж только при частичном исполнении
 }
 
 // Авторский срыв без отдельного профиля исполнения: шанс, координаторы и прогноз причины остаются общими.
@@ -116,14 +118,21 @@ const PARTIAL_FAILURES: Readonly<Record<string, CardRisks>> = {
     resources: { economy: 2, internalLegitimacy: -2, externalReputation: -2 },
     stance: { russia: 4, regional: 1, business: -2, west: -4, nationalist: -6 },
     keepsOpposedPenalty: true,
+    laterOnFailure: 'deal',
   } },
   alt_rail_blockade: {
     // «Состав задержали на таможне, пока шла проверка жалоб»: выручка придёт позже и меньше, плёнку показывают в клубах.
     b: {
       forPolicy: { economy: 7, internalLegitimacy: -4, politicalCapital: 2 },
-      resources: { economy: 3, internalLegitimacy: -5, politicalCapital: -1 },
+      resources: { internalLegitimacy: -5, politicalCapital: -1 },
       stance: { security: 5, west: 2, nationalist: -10, liberal: -8, regional: -4 },
       keepsOpposedPenalty: true,
+      laterOnFailure: {
+        turns: 1,
+        label: 'Выручка за задержанный состав',
+        res: { economy: 3 },
+        story: 'Таможня закончила проверку и пропустила состав. Покупатель перечислил только часть суммы по договору.',
+      },
     },
     // «Резервное зерно оказалось прошлогодним… Состав уходит с опозданием»: договор исполнен поздно, сёла обижены.
     c: {
