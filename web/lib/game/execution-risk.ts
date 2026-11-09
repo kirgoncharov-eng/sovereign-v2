@@ -14,6 +14,8 @@ export interface ExecutionProfile {
 
 interface ExecutionRisk {
   forPolicy: ResourceDelta; // профиль действует только для исходной редакции варианта, не для переделанного предложения
+  // #403: прежняя редакция. Дело, начатое до удешевления, исполняется по прежней цене — и срывается по прежней цене.
+  legacy?: { policy: ResourceDelta; resources: ResourceDelta };
   reason: string;
   resources: ResourceDelta; // как policyEffect: до общего веса цены и качества советника
   stance: Partial<Record<Bloc, number>>;
@@ -27,9 +29,13 @@ type CardRisks = Readonly<Record<string, ExecutionRisk | AuthoredFailure>>;
 
 const WAGES_RISKS: Readonly<Record<string, ExecutionRisk>> = {
   a: {
-    forPolicy: { economy: -7, internalLegitimacy: 6, politicalCapital: 2, personalResource: -1 },
+    forPolicy: { economy: -3, internalLegitimacy: 6, politicalCapital: 2, personalResource: -1 },
+    legacy: {
+      policy: { economy: -7, internalLegitimacy: 6, politicalCapital: 2, personalResource: -1 },
+      resources: { economy: -7, internalLegitimacy: -3, politicalCapital: -2, personalResource: -1 },
+    },
     reason: 'Банк может списать помощь в счёт старой ссуды раньше выплаты зарплаты. Казна потратит деньги, рабочие их не получат.',
-    resources: { economy: -7, internalLegitimacy: -3, politicalCapital: -2, personalResource: -1 },
+    resources: { economy: -3, internalLegitimacy: -3, politicalCapital: -2, personalResource: -1 },
     stance: { business: -4, liberal: -3, regional: -6 },
     execution: {
       coordinators: ['economist'], blocs: ['business'],
@@ -48,9 +54,13 @@ const WAGES_RISKS: Readonly<Record<string, ExecutionRisk>> = {
     },
   },
   c: {
-    forPolicy: { economy: -6, internalLegitimacy: 3, externalReputation: 3, personalResource: -2 },
+    forPolicy: { economy: -3, internalLegitimacy: 3, externalReputation: 3, personalResource: -2 },
+    legacy: {
+      policy: { economy: -6, internalLegitimacy: 3, externalReputation: 3, personalResource: -2 },
+      resources: { economy: -6, internalLegitimacy: -3, personalResource: -2 },
+    },
     reason: 'Оборудование может задержаться на таможне после разборки старой линии. Пособия и переоборудование оплачены, выпуска нет.',
-    resources: { economy: -6, internalLegitimacy: -3, personalResource: -2 },
+    resources: { economy: -3, internalLegitimacy: -3, personalResource: -2 },
     stance: { business: -4, regional: -6, liberal: -3, west: -3 },
     keepsOpposedPenalty: true,
     execution: {
@@ -65,8 +75,12 @@ const WAGES_RISKS: Readonly<Record<string, ExecutionRisk>> = {
 const STANDARDS_FAILURES: CardRisks = {
   // «Образцы не прошли испытания. Деньги потрачены…»: казна заплатила, Торговый союз увидел брак, спор проигран.
   a: {
-    forPolicy: { economy: -5, externalReputation: 3, politicalCapital: -1 },
-    resources: { economy: -5, externalReputation: -1, politicalCapital: -2 },
+    forPolicy: { economy: -2, externalReputation: 3, politicalCapital: -1 },
+    legacy: {
+      policy: { economy: -5, externalReputation: 3, politicalCapital: -1 },
+      resources: { economy: -5, externalReputation: -1, politicalCapital: -2 },
+    },
+    resources: { economy: -2, externalReputation: -1, politicalCapital: -2 },
     stance: { west: 2, business: -3, russia: -4 },
     keepsOpposedPenalty: true,
   },
@@ -90,9 +104,11 @@ function originalRisk(state: ExecutionContext, choice: ExecutionChoice): Executi
   const risks = CARD_RISKS[card];
   const risk = Object.hasOwn(risks, choice.id) ? risks[choice.id] : undefined;
   const policy = choice.policyEffect;
-  if (!risk || !policy || Object.keys(policy).length !== Object.keys(risk.forPolicy).length
-    || Object.entries(risk.forPolicy).some(([key, value]) => policy[key as keyof ResourceDelta] !== value)) return null;
-  return risk;
+  const same = (edition: ResourceDelta | undefined) => !!edition && !!policy && Object.keys(policy).length === Object.keys(edition).length
+    && Object.entries(edition).every(([key, value]) => policy[key as keyof ResourceDelta] === value);
+  if (!risk) return null;
+  if (same(risk.forPolicy)) return risk;
+  return risk.legacy && same(risk.legacy.policy) ? { ...risk, resources: risk.legacy.resources } : null;
 }
 
 const hasExecution = (risk: ExecutionRisk | AuthoredFailure | null): risk is ExecutionRisk => !!risk && 'execution' in risk;

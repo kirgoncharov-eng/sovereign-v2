@@ -48,7 +48,8 @@ test('покупка у другого поставщика бьёт по каз
       const label = `${seed}/${diff}`;
       // «Дороже сейчас»: деньги за независимость графика платит казна, и платит больше остальных.
       assert.ok(supplier.economy! < transit.economy! && supplier.economy! < savings.economy!, `${label}: казна поставщика`);
-      assert.ok(supplier.economy! <= -6, `${label}: масштаб соседних версий`);
+      // #403: дела первой главы вдвое дешевле; масштаб — как у соседних версий после удешевления.
+      assert.ok(supplier.economy! <= -3, `${label}: масштаб соседних версий`);
       // «Очередь для своих заводов»: свои грузы ждут, транзит уходит соседу.
       assert.ok(transit.economy! < 0, `${label}: грузы ждут`);
       assert.ok(transit.externalReputation! < 0 && supplier.externalReputation! > 0, `${label}: репутация`);
