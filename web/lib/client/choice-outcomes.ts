@@ -4,6 +4,20 @@ import { applyDeltas, choiceEffects, clampRel, delayedEffects, successChance } f
 import { executionRisk } from '../game/execution-risk.ts';
 import type { Choice, GameState, ResourceDelta } from '../game/types.ts';
 
+/** Известные расходы квартала отдельно от прогноза по новой подписи. */
+export function quarterEconomyCosts(state: GameState) {
+  if (state.country !== ALTERNATE_COUNTRY || state.daily || state.turn === 0) return null;
+  const due = (state.pending ?? []).flatMap(entry => {
+    const delta = entry.res.economy ?? 0;
+    return entry.due <= state.turn + 1 && delta < 0 ? [{ id: entry.id, label: entry.label, delta }] : [];
+  });
+  const crises = state.activeCrises.flatMap(crisis => {
+    const delta = crisis.resourceDrain.economy ?? 0;
+    return delta < 0 ? [{ id: crisis.id, label: crisis.title, delta }] : [];
+  });
+  return due.length || crises.length ? { due, crises } : null;
+}
+
 /** Прогноз самой резолюции, включая пользу. Долг и фон квартала сюда не подмешиваются. */
 export function choiceOutcomes(state: GameState, choice: Choice) {
   if (state.country !== ALTERNATE_COUNTRY) return null;

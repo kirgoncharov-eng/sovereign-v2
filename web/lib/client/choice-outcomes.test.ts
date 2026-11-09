@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { choiceOutcomes } from './choice-outcomes.ts';
+import { choiceOutcomes, quarterEconomyCosts } from './choice-outcomes.ts';
 import { newTerm, nextCase, signChoice, startFromSeed } from './chronicle.ts';
 import { quarterDeadline } from './initiative-note.ts';
 import { planTurn, rollSuccess } from '../game/engine.ts';
@@ -69,6 +69,29 @@ test('в прогноз не входят старый долг и кризис;
   assert.equal(choiceOutcomes(state, guaranteed)!.failurePercent, 0);
   assert.deepEqual(choiceOutcomes(state, guaranteed)!.later, []);
   for (const country of LEGACY_COUNTRIES) assert.equal(choiceOutcomes({ ...state, country }, choice), null);
+});
+
+test('на зерне 12 цена аванса и банковская паника видны до оплаты мазута', async () => {
+  const start = startFromSeed(12, 'coalition');
+  let state = await nextCase(await newTerm(start));
+  assert.equal(quarterEconomyCosts(state), null);
+  for (const id of ['b', 'b', 'c', 'a']) state = await nextCase(await signChoice(state, id));
+  assert.equal(state.currentEvent?.card, 'alt_fuel_advance');
+  assert.equal(state.resources.economy, 18);
+  const costs = quarterEconomyCosts(state)!;
+  assert.deepEqual(costs.due.map(({ label, delta }) => [label, delta]), [['Цена экспортного аванса', -7]]);
+  assert.deepEqual(costs.crises.map(({ label, delta }) => [label, delta]), [['Банковская паника', -2]]);
+  const choice = state.currentEvent!.choices[1];
+  assert.equal(choiceOutcomes(state, choice)!.success.resources.economy, -8);
+  const after = await signChoice(state, choice.id);
+  assert.equal(after.resources.economy, 2);
+  assert.equal(after.endType, 'collapse');
+
+  const future = { ...costs.due[0], id: 'future', due: state.turn + 2, res: { economy: -10 }, source: 'Срок позже' };
+  const income = { ...future, id: 'income', due: state.turn + 1, res: { economy: 5 } };
+  assert.deepEqual(quarterEconomyCosts({ ...state, pending: [...state.pending, future, income] }), costs);
+  assert.equal(quarterEconomyCosts({ ...state, daily: '2026-11-09' }), null);
+  assert.equal(quarterEconomyCosts({ ...state, country: LEGACY_COUNTRIES[0] }), null);
 });
 
 test('будущие последствия реальных решений совпадают с очередью движка при исполнении и срыве', async () => {

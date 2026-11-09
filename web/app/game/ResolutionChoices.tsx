@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import ResIcon from './ResourceIcon.jsx';
 import { advisorOutlook, resolutionOptions, hardOutlook, signedEstimate, type Estimate, type OutlookSource } from '@/lib/client/advisor-outlook.ts';
+import { quarterEconomyCosts } from '@/lib/client/choice-outcomes.ts';
 import type { AdvisorDialogue } from '@/lib/content/advisor-dialogue.ts';
 import { advisorDialogue } from '@/lib/client/advisor-dialogue.ts';
 import { quarterDeadline } from '@/lib/client/initiative-note.ts';
@@ -42,7 +43,15 @@ export default function ResolutionChoices({ game, busy, onSign, dialogue }: {
   const [selected, setSelected] = useState<string | null>(null);
   const groupId = useId();
   const hard = hardOutlook(game);
+  const costs = quarterEconomyCosts(game);
   return <div className={styles.choices} data-resolution-choices>
+    {costs && <p className={styles.quarterCosts}>
+      <strong>Уже в расчёте казны</strong>
+      {costs.due.map(({ id, label, delta }) => <span key={`due:${id}`}>{label} <b>{signedEstimate(delta)}</b></span>)}
+      {costs.crises.map(({ id, label, delta }) => <span key={`crisis:${id}`}>
+        «{label}» <b>{signedEstimate(delta)}</b>, пока кризис действует
+      </span>)}
+    </p>}
     {resolutionOptions(game).map((choice, index) => {
       const forecast = advisorOutlook(game, choice)!;
       const expanded = selected === choice.id;
