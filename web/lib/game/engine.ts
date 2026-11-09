@@ -685,7 +685,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 
   // Давление обстоятельств (по сложности) и вредительство враждебных фракций.
   const turn = state.turn + 1;
-  const pressure = pressureAt(state.diff, turn);
+  const pressure = pressureAt(state.diff, turn, state.country);
   if (pressure) {
     add("давление обстоятельств", {
       [RESOURCE_KEYS[turn % RESOURCE_KEYS.length]]: -Math.ceil(pressure / 2),

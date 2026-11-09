@@ -3,7 +3,7 @@
 //   random  — подписывает вариант наугад (зерно партии задаёт и его выбор);
 //   careful — выбирает вариант с наибольшей самой слабой опорой после хода, если решение исполнят.
 // Варианты движка проверяются без правки кода, подменой на время прогона:
-//   base     — как в main;
+//   base     — как в main (с #403: дешевле первые дела, давление «Коалиции» 1978 года — 1);
 //   delayed  — версии и региональные дела с `stance` сохраняют отложенные последствия по тегам (находка 1);
 //   breath   — победа на парламентских выборах даёт ещё и личный ресурс +4 (находка 3);
 //   richer   — экономика на старте +8 (главная причина падений — обвал экономики);
@@ -16,7 +16,7 @@
 // Части складываются через «+»: calm+delayed — мягче давление и вернуть отложенные последствия.
 // Запуск: node scripts/first-term-balance.ts  (N=60 — больше зёрен; VARIANTS=base,calm,flat+delayed — свой набор)
 import { newTerm, nextCase, signChoice, startFromSeed } from '../lib/client/chronicle.ts';
-import { DELAYED, DIFF_PRESSURE, ELECTION_WIN_BONUS, LIMITS, PRESSURE_GROWTH, RESOURCE_KEYS, TERM } from '../lib/game/data.ts';
+import { ALTERNATE_PRESSURE, DELAYED, DIFF_PRESSURE, ELECTION_WIN_BONUS, LIMITS, PRESSURE_GROWTH, RESOURCE_KEYS, TERM } from '../lib/game/data.ts';
 import { planTurn, seededRandom } from '../lib/game/engine.ts';
 import type { Choice, DifficultyId, GameState, ResourceKey } from '../lib/game/types.ts';
 
@@ -125,11 +125,16 @@ for (const diff of DIFFS) start[diff] = (await newTerm(startFromSeed(1, diff))).
 
 // Подмена констант движка на время варианта; после прогона всё возвращается как в main.
 const winBonus = { ...ELECTION_WIN_BONUS }, pressure = { ...DIFF_PRESSURE }, growth = { ...PRESSURE_GROWTH };
+const alternatePressure = { ...ALTERNATE_PRESSURE };
+// Давление 1978 года: своё значение сложности, если есть, иначе общее.
+const pressureOf = (diff: DifficultyId) => alternatePressure[diff] ?? pressure[diff];
 function configure(variant: string) {
   for (const key of Object.keys(ELECTION_WIN_BONUS) as ResourceKey[]) delete ELECTION_WIN_BONUS[key];
   Object.assign(ELECTION_WIN_BONUS, winBonus, has(variant, 'breath') ? { personalResource: 4 } : {});
-  Object.assign(DIFF_PRESSURE, pressure, has(variant, 'calm') ? { coalition: pressure.coalition - 1, crisis: pressure.crisis - 1 }
-    : has(variant, 'calmc') ? { coalition: pressure.coalition - 1 } : {});
+  for (const key of Object.keys(ALTERNATE_PRESSURE) as DifficultyId[]) delete ALTERNATE_PRESSURE[key];
+  Object.assign(ALTERNATE_PRESSURE, alternatePressure, has(variant, 'calm')
+    ? { coalition: pressureOf('coalition') - 1, crisis: pressureOf('crisis') - 1 }
+    : has(variant, 'calmc') ? { coalition: pressureOf('coalition') - 1 } : {});
   Object.assign(PRESSURE_GROWTH, growth, has(variant, 'flat') ? { by: 0 } : {});
 }
 for (const variant of VARIANTS) {

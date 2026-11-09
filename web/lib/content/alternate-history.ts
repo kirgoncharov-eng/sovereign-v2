@@ -20,7 +20,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['social'],
                 politicalTags: ['social', 'anticorruption'],
                 policyEffect: {
-                    economy: -7,
+                    economy: -3,
                     internalLegitimacy: 6,
                     politicalCapital: 2,
                     personalResource: -1
@@ -85,7 +85,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['investment'],
                 politicalTags: ['investment', 'social'],
                 policyEffect: {
-                    economy: -6,
+                    economy: -3,
                     internalLegitimacy: 3,
                     externalReputation: 3,
                     personalResource: -2
@@ -139,7 +139,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 politicalTags: ['pro_russia', 'investment'],
                 // Скидка приходит эхом тега investment; сейчас платят очередью своих грузов и частью транзитного суверенитета.
                 policyEffect: {
-                    economy: -2,
+                    economy: -1,
                     externalReputation: -2
                 },
                 costReasons: {
@@ -160,7 +160,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 politicalTags: ['investment', 'pro_west'],
                 // Масштаб соседних версий (мазут с запада −5, мазут деньгами −6): независимость графика оплачивает казна.
                 policyEffect: {
-                    economy: -6,
+                    economy: -3,
                     externalReputation: 2
                 },
                 costReasons: {
@@ -178,7 +178,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 camps: { nationalist: 5, church: 3, regional: 2, business: -4, russia: -2 },
                 // Счета за ремонт приходят позже эхом тега social; сейчас платят выпуском заводов на коротких сменах.
                 policyEffect: {
-                    economy: -3,
+                    economy: -1,
                     internalLegitimacy: 3,
                     politicalCapital: -1
                 },
@@ -214,7 +214,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 politicalTags: ['investment', 'pro_west'],
                 // Масштаб «Зимы по новой цене» и версий дела: образцы оплачивает казна сейчас, выручка приходит эхом тега investment.
                 policyEffect: {
-                    economy: -5,
+                    economy: -2,
                     externalReputation: 3,
                     politicalCapital: -1
                 },
@@ -384,7 +384,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['investment'],
                 politicalTags: ['pro_west', 'investment'],
                 policyEffect: {
-                    economy: -5,
+                    economy: -2,
                     externalReputation: 4
                 },
                 stance: {
@@ -408,7 +408,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['delay'],
                 politicalTags: ['pro_russia'],
                 policyEffect: {
-                    economy: -6,
+                    economy: -3,
                     internalLegitimacy: 1
                 },
                 stance: {
@@ -430,7 +430,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'никому не отдать всю зиму, вести два договора',
                 tags: ['dialogue'],
                 policyEffect: {
-                    economy: -4,
+                    economy: -2,
                     politicalCapital: -2,
                     personalResource: -2
                 },
@@ -507,7 +507,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'заказ отдельно, зима отдельно',
                 tags: ['austerity'],
                 policyEffect: {
-                    economy: -6,
+                    economy: -3,
                     politicalCapital: 2
                 },
                 stance: {
@@ -531,7 +531,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['security', 'austerity'],
                 // Как проверки #196: Служба порядка получает дело, а не силу — армия не растёт.
                 policyEffect: {
-                    economy: -2,
+                    economy: -1,
                     internalLegitimacy: -3,
                     personalResource: -2
                 },
@@ -573,7 +573,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['anticorruption'],
                 politicalTags: ['anticorruption', 'pro_russia'],
                 policyEffect: {
-                    economy: -3,
+                    economy: -1,
                     internalLegitimacy: 4,
                     personalResource: -2
                 },
@@ -597,7 +597,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'склад опечатают, зима пройдёт по старой цене',
                 tags: ['anticorruption', 'security'],
                 policyEffect: {
-                    economy: -4,
+                    economy: -2,
                     internalLegitimacy: 3,
                     politicalCapital: 2,
                     personalResource: -2
@@ -623,7 +623,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'зима без перебоев, наценка остаётся',
                 tags: ['delay'],
                 policyEffect: {
-                    economy: -6,
+                    economy: -3,
                     politicalCapital: 2
                 },
                 stance: {
@@ -1064,7 +1064,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'никто не проиграет сразу, никто не выиграет',
                 tags: ['dialogue'],
                 policyEffect: {
-                    economy: -2,
+                    economy: -1,
                     politicalCapital: 1
                 },
                 stance: {
@@ -1122,7 +1122,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 hint: 'улица довольна, валюты не будет',
                 tags: ['patriotism'],
                 policyEffect: {
-                    economy: -4,
+                    economy: -2,
                     externalReputation: -4,
                     internalLegitimacy: 2
                 },
@@ -1193,7 +1193,7 @@ const HISTORICAL_EVENTS: EventCard[] = [
                 tags: ['anticorruption', 'security'],
                 // #221: проверка силами Службы порядка
                 camps: { security: 8, liberal: 4, nationalist: 4, business: -6 },
-                policyEffect: { internalLegitimacy: 6, politicalCapital: 2, personalResource: -4, economy: -3 },
+                policyEffect: { internalLegitimacy: 6, politicalCapital: 2, personalResource: -4, economy: -1 },
                 costReasons: {
                     economy: 'выезд Службы порядка оплачивает казна, а торговые базы придерживают товар'
                 },
