@@ -5,7 +5,8 @@
 // Варианты движка проверяются без правки кода, подменой на время прогона:
 //   base     — как в main;
 //   delayed  — версии и региональные дела с `stance` сохраняют отложенные последствия по тегам (находка 1);
-//   breath   — победа на парламентских выборах даёт ещё и личный ресурс +4 (находка 3).
+//   breath   — победа на парламентских выборах даёт ещё и личный ресурс +4 (находка 3);
+//   richer   — экономика на старте +8 (главная причина падений — обвал экономики).
 // Запуск: node scripts/first-term-balance.ts  (N=60 — больше зёрен; VARIANTS=base,delayed — часть вариантов)
 import { newTerm, nextCase, signChoice, startFromSeed } from '../lib/client/chronicle.ts';
 import { DELAYED, ELECTION_WIN_BONUS, LIMITS, RESOURCE_KEYS, TERM } from '../lib/game/data.ts';
@@ -13,7 +14,8 @@ import { planTurn, seededRandom } from '../lib/game/engine.ts';
 import type { Choice, DifficultyId, GameState, ResourceKey } from '../lib/game/types.ts';
 
 const N = Number(process.env.N ?? 30);
-const VARIANTS = (process.env.VARIANTS ?? 'base,delayed,breath').split(',');
+const VARIANTS = (process.env.VARIANTS ?? 'base,delayed,breath,richer').split(',');
+const RICHER = 8;
 const DIFFS: DifficultyId[] = ['debut', 'coalition', 'crisis'];
 const MIDTERM = TERM / 2;
 // Конец срока на ходу 20 (выборы, уход, обнуление) — срок дожит; эти концы — падение.
@@ -52,7 +54,10 @@ function endOf(state: GameState): string {
 
 async function play(variant: string, bot: Bot, diff: DifficultyId, seed: number): Promise<Run> {
   const random = seededRandom(seed * 7 + 1);
-  let state = patch(variant, await nextCase(await newTerm(startFromSeed(seed, diff))));
+  const candidate = await newTerm(startFromSeed(seed, diff));
+  const opening = variant === 'richer'
+    ? { ...candidate, resources: { ...candidate.resources, economy: candidate.resources.economy + RICHER } } : candidate;
+  let state = patch(variant, await nextCase(opening));
   const run: Run = { survived: false, turn: 0, end: '', personalEnd: 0, failed: 0, failedWithGain: 0, lostDelayed: 0, fellAfterMidterm: false,
     economy: {} };
   while (!state.ended && state.turn < TERM) {
