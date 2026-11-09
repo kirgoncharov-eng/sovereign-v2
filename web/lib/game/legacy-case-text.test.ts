@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
+import { ALTERNATE_COUNCIL } from '../content/alternate-history-extras.ts';
 import { HISTORICAL_DELAYED_LABELS, HISTORICAL_ECHOES } from '../content/historical-echoes.ts';
 import { TERM_MEMORY } from '../content/term-finale.ts';
 import { parseSave } from '../client/save.ts';
@@ -9,9 +10,11 @@ import { ALTERNATE_COUNTRY } from './alternate-world.ts';
 import { SAVE_VERSION } from './data.ts';
 import { createInitialState, seededRandom, startEvent } from './engine.ts';
 import { LEGACY_CHOICE_TEXT, migrateLegacyCaseText } from './legacy-case-text.ts';
+import { termMemories } from './term-finale.ts';
 import type { GameState } from './types.ts';
 
-const choiceTexts = new Set(ALTERNATE_EVENTS.flatMap(card => card.choices.map(choice => choice.text)));
+const choiceTexts = new Set([...ALTERNATE_EVENTS.flatMap(card => card.choices.map(choice => choice.text)),
+  ...Object.values(ALTERNATE_COUNCIL).flatMap(card => Object.values(card).map(proposal => proposal![1]))]);
 
 async function fresh(country = ALTERNATE_COUNTRY, seed = 3): Promise<GameState> {
   const intro = await classicApi.setup(country, 'debut', 'pragmatist', seed);
@@ -70,4 +73,20 @@ test('архивные страны и нынешние партии не мен
   const withOldText = { ...archive, history: [{ year: 2000, title: 'Указ', choice: 'Передать деньги районному совету',
     headline: '', historianNote: '' }] };
   assert.equal(migrateLegacyCaseText(withOldText), withOldText);
+});
+
+test('#404: подпись «милицейского оцепления» из старой партии загружается как полицейское и не теряет память срока', async () => {
+  const strike = ALTERNATE_EVENTS.find(card => card.id === 'alt_region_factory_strike')!;
+  const current = strike.choices[2].text;
+  assert.equal(current, 'Ввести полицейское оцепление и задержать зачинщиков');
+  const base = await fresh();
+  const saved: GameState = { ...base, turn: 2, history: [
+    { year: 1978, title: strike.title, choice: 'Ввести милицейское оцепление и задержать зачинщиков', headline: '', historianNote: '', success: false },
+  ] };
+  const loaded = reload(saved);
+  assert.equal(loaded.history[0].choice, current);
+  assert.deepEqual(termMemories(loaded), [TERM_MEMORY.alt_region_factory_strike[current].failed]);
+  assert.match(termMemories(loaded)[0], /с полицией/u);
+  const proposal = reload({ ...saved, history: [{ ...saved.history[0], choice: 'Ввести усиленные патрули милиции у проходных' }] });
+  assert.equal(proposal.history[0].choice, ALTERNATE_COUNCIL.alt_region_factory_strike.security![1]);
 });

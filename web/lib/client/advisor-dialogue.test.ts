@@ -3,9 +3,12 @@ import { test } from 'node:test';
 import { advisorDialogue, fillAdvisorSpeech } from './advisor-dialogue.ts';
 import { advisorOutlook, resolutionPeople, unifiedResolution } from './advisor-outlook.ts';
 import { ADVISOR_DIALOGUE } from '../content/advisor-dialogue.ts';
+import { HISTORICAL_DEBATES } from '../game/presidential-story.ts';
 import { newTerm, nextCase, signChoice, startFromSeed } from './chronicle.ts';
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES } from '../game/alternate-world.ts';
 import type { AdvisorDialogue } from '../content/advisor-dialogue.ts';
+import { hasInvestigationDebate } from '../content/investigation-debates.ts';
+import { INVESTIGATION_DIALOGUE } from '../content/investigation-dialogue.ts';
 
 test('без вычитанного текста нет шаблонных речей; неизвестный слот не попадает к игроку', async () => {
   const state = await nextCase(await newTerm(startFromSeed(7)));
@@ -109,7 +112,10 @@ test('авторская речь выбирается по делу, вариа
 // Базовое alt_fuel в первом сроке почти всегда заменяет версия (#214), поэтому в партиях проверяются версии; речи базового — структурно.
 const FIRST_TERM_SEEN = ['alt_harvest', 'alt_fuel_advance', 'alt_fuel_audit', 'alt_fuel_west', 'alt_radio', 'alt_rail', 'alt_district',
   'alt_standards', 'alt_archive'];
-const FIRST_TERM_DIALOGUE = [...FIRST_TERM_SEEN, 'alt_fuel'];
+// Часть 2: версии дел #214 и региональные дела. В партиях проверяются частые; редкие версии — структурно.
+const SECOND_PART_SEEN = ['alt_district_court', 'alt_region_walkers', 'alt_region_factory_strike',
+  'alt_region_customs', 'alt_region_governors', 'alt_region_border_rift'];
+const SEEN_IN_RUNS = [...FIRST_TERM_SEEN, ...SECOND_PART_SEEN];
 
 test('дела первого срока: под каждым вариантом говорят те, кто его предлагает и оспаривает, — без слотов, цифр и обрывков', async () => {
   const seen = new Set<string>();
@@ -117,7 +123,7 @@ test('дела первого срока: под каждым вариантом
     let state = await nextCase(await newTerm(startFromSeed(seed, diff)));
     while (!state.ended && state.turn < 20) {
       const card = state.currentEvent?.card ?? '';
-      if (FIRST_TERM_SEEN.includes(card) && unifiedResolution(state)) {
+      if (SEEN_IN_RUNS.includes(card) && unifiedResolution(state)) {
         seen.add(card);
         for (const skill of [1, 3] as const) {
           const team = { ...state, advisors: state.advisors.map(advisor => ({ ...advisor, skill, loyalty: 80 })) };
@@ -141,11 +147,13 @@ test('дела первого срока: под каждым вариантом
       state = await nextCase(await signChoice(state, choice.id));
     }
   }
-  assert.deepEqual([...seen].sort(), [...FIRST_TERM_SEEN].sort(), 'каждое дело встречается в партиях');
+  assert.deepEqual([...seen].sort(), [...SEEN_IN_RUNS].sort(), 'каждое дело встречается в партиях');
 });
 
-test('дела первого срока: сильный тон дольше слабого и называет, на чём сорвётся; поправка — от сильного критика слабому автору', () => {
-  for (const card of FIRST_TERM_DIALOGUE) for (const [index, speakers] of Object.entries(ADVISOR_DIALOGUE[card]!)) {
+test('все речи: говорят участники разговора; сильный тон длиннее и называет, на чём сорвётся; поправка — автору', () => {
+  assert.ok(Object.keys(ADVISOR_DIALOGUE).length >= 22, 'перенесены дела частей 1 и 2');
+  for (const [card, variants] of Object.entries(ADVISOR_DIALOGUE)) for (const [index, speakers] of Object.entries(variants!)) {
+    assert.deepEqual(Object.keys(speakers!), HISTORICAL_DEBATES[card]![Number(index)].slice(0, 2).map(([who]) => who), `${card}/${index}: участники разговора`);
     const [author, critic] = Object.keys(speakers!);
     for (const [who, speech] of Object.entries(speakers!)) {
       assert.ok(speech.strong && speech.weak && speech.strong !== speech.weak, `${card}/${index}/${who}`);
@@ -154,4 +162,42 @@ test('дела первого срока: сильный тон дольше с�
     assert.equal(speakers![critic].challenge?.after, author, `${card}/${index}: поправка обращена к автору`);
     assert.match(speakers![author].strong!, /(?:^|[\s,:—])(?:Но|если|Если|иначе|Иначе)[\s,:]/u, `${card}/${index}: автор называет условие`);
   }
+});
+
+// Часть 3: эпизоды «Четвёртого экземпляра» — без карточки, разговор ищется по тексту варианта.
+test('эпизоды расследования: в партиях говорят автор и критик, слабому автору отвечает поправка, нелояльный защищает лагерь', async () => {
+  const seen = new Set<string>();
+  for (const diff of ['debut', 'crisis'] as const) for (const seed of [3, 7, 11, 19, 23]) for (const route of [0, 1, 2]) {
+    let state = await nextCase(await newTerm(startFromSeed(seed, diff)));
+    while (!state.ended && state.turn < 20) {
+      if (hasInvestigationDebate(state) && unifiedResolution(state)) {
+        for (const choice of state.currentEvent!.choices) {
+          seen.add(choice.text);
+          const people = resolutionPeople(state, choice);
+          const [author, critic] = [people.proponent!.id, people.critic!.id];
+          for (const skill of [1, 3] as const) {
+            const team = { ...state, advisors: state.advisors.map(advisor => ({ ...advisor, skill, loyalty: 80 })) };
+            const before = structuredClone(team), forecast = advisorOutlook(team, choice);
+            const lines = advisorDialogue(team, choice);
+            assert.deepEqual(lines.map(line => line.source.id), [author, critic], `${choice.text}: кто говорит`);
+            assert.equal(lines[0].text, INVESTIGATION_DIALOGUE[choice.text][author][skill === 1 ? 'weak' : 'strong']);
+            for (const line of lines) assert.doesNotMatch(line.text, /\{[^}]*\}|\d|undefined/u, `${choice.text}: ${line.text}`);
+            assert.deepEqual(advisorOutlook(team, choice), forecast, 'чтение не меняет справку');
+            assert.deepEqual(team, before, 'чтение не меняет состояние');
+          }
+          const mixed = { ...state, advisors: state.advisors.map(advisor => ({
+            ...advisor, skill: advisor.id === author ? 1 as const : 3 as const, loyalty: 80 })) };
+          assert.equal(advisorDialogue(mixed, choice)[1].correction, INVESTIGATION_DIALOGUE[choice.text][critic].challenge!.text);
+          const disloyal = { ...state, advisors: state.advisors.map(advisor => advisor.id === 'economist'
+            ? { ...advisor, skill: 3 as const, loyalty: 0, camp: 'business' as const } : advisor) };
+          const lobby = INVESTIGATION_DIALOGUE[choice.text].economist.lobby?.business;
+          if (lobby) assert.ok(advisorDialogue(disloyal, choice).some(line => line.text === lobby), `${choice.text}: лагерь Палаты`);
+          assert.deepEqual(advisorDialogue({ ...state, daily: '2026-11-08' }, choice), [], 'в «Деле дня» реплик нет');
+        }
+      }
+      const choice = state.currentEvent!.choices[Math.min(route, state.currentEvent!.choices.length - 1)];
+      state = await nextCase(await signChoice(state, choice.id));
+    }
+  }
+  assert.ok(seen.size >= 18, `в партиях встретились варианты расследования: ${seen.size}`);
 });
