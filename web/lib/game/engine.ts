@@ -3,7 +3,7 @@ import { reviewAdvisorOutlook } from "../client/advisor-outlook.ts";
 // Модель пишет текст и предлагает изменения, а считает и применяет их этот модуль.
 import { historicalDelayedLabel } from "../content/historical-echoes.ts";
 import {
-  ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, COSTS, CRISIS_DRAIN, pressureAt,
+  ACTIONS, ADVISOR_ROLES, BIOGRAPHIES, BIO_CHANCE, BIO_RES, DELAYED, WEAK_ADVISOR_DELAYED, type DelayedInfo, ADVISOR_SKILL, COUNCIL_CHARGES, COUNCIL_ELECTION_BONUS, COUNTRIES, COUP_FROM_TURN, COUP_MILITARY, COUP_RELATION, COSTS, CRISIS_DRAIN, FAILURE_EFFECT, pressureAt,
   ELECTION_LOSS_PENALTY, ELECTION_WIN_BONUS, HOSTILE_DRAIN, HOSTILE_RELATION, IMPEACH_RATING, NON_VOTING_BLOCS, PARTIES, CRISIS_LIFETIME, CRISIS_THRESHOLD, DIFF_REL_MOD, FACTIONS_DATA, FIGURE_ROLES,
   IDEOLOGY_ACTIONS, IDEOLOGY_BONUS, IDEOLOGY_PENALTY, IDEOLOGY_REL, LIMITS, RECOVERY_BELOW, RECOVERY_RATE,
   RES_CONFIG, RESOURCE_KEYS, SAVE_VERSION, START_RES, SURVIVAL_ENDS, CONTINUE_ENDS, TERM_FATIGUE, DEATH_FROM, DEATH_STEP, localTurn,
@@ -505,8 +505,8 @@ export function choiceEffects(
   if (skill) for (const k of Object.keys(res)) res[k] *= res[k] < 0 ? skill.cost : skill.gain;
   // Общий срыв: польза уменьшается, цена растёт. Авторский профиль уже описывает собственные потери сцены.
   if (failed && !risk) {
-    for (const k of Object.keys(res)) res[k] *= res[k] < 0 ? 1.15 : 0.5;
-    for (const k of Object.keys(rel)) if (rel[k] > 0) rel[k] *= 0.5;
+    for (const k of Object.keys(res)) res[k] *= res[k] < 0 ? FAILURE_EFFECT.cost : FAILURE_EFFECT.gain;
+    for (const k of Object.keys(rel)) if (rel[k] > 0) rel[k] *= FAILURE_EFFECT.warmth;
   }
   // Сделки и союзы идут поверх обычной цены решения.
   const relOut = limitDelta(rel, LIMITS.factionRelDelta), apprOut = limitDelta(appr, LIMITS.factionApprDelta);

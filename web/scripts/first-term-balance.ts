@@ -11,12 +11,14 @@
 //   flat     — давление не растёт к ходам 7 и 14;
 //   calmc    — то же, что calm, но только на «Коалиции»;
 //   wages    — первое дело (`alt_wages`) стоит вдвое меньше экономики при исполнении;
-//   cheap    — все авторские дела ходов 1–6 стоят вдвое меньше экономики при исполнении.
+//   cheap    — все авторские дела ходов 1–6 стоят вдвое меньше экономики при исполнении;
+//   nogain   — общий срыв (без авторского профиля) не даёт выгоды: польза ×0 вместо ×0.5 (находка 5);
+//   quarter  — общий срыв даёт четверть пользы вместо половины.
 //   Цена срыва идёт из профиля риска (`execution-risk.ts`) и в wages/cheap не меняется.
 // Части складываются через «+»: calm+delayed — мягче давление и вернуть отложенные последствия.
 // Запуск: node scripts/first-term-balance.ts  (N=60 — больше зёрен; VARIANTS=base,calm,flat+delayed — свой набор)
 import { newTerm, nextCase, signChoice, startFromSeed } from '../lib/client/chronicle.ts';
-import { ALTERNATE_PRESSURE, DELAYED, DIFF_PRESSURE, ELECTION_WIN_BONUS, LIMITS, PRESSURE_GROWTH, RESOURCE_KEYS, TERM } from '../lib/game/data.ts';
+import { ALTERNATE_PRESSURE, DELAYED, DIFF_PRESSURE, ELECTION_WIN_BONUS, FAILURE_EFFECT, LIMITS, PRESSURE_GROWTH, RESOURCE_KEYS, TERM } from '../lib/game/data.ts';
 import { planTurn, seededRandom } from '../lib/game/engine.ts';
 import type { Choice, DifficultyId, GameState, ResourceKey } from '../lib/game/types.ts';
 
@@ -125,7 +127,7 @@ for (const diff of DIFFS) start[diff] = (await newTerm(startFromSeed(1, diff))).
 
 // Подмена констант движка на время варианта; после прогона всё возвращается как в main.
 const winBonus = { ...ELECTION_WIN_BONUS }, pressure = { ...DIFF_PRESSURE }, growth = { ...PRESSURE_GROWTH };
-const alternatePressure = { ...ALTERNATE_PRESSURE };
+const alternatePressure = { ...ALTERNATE_PRESSURE }, failure = { ...FAILURE_EFFECT };
 // Давление 1978 года: своё значение сложности, если есть, иначе общее.
 const pressureOf = (diff: DifficultyId) => alternatePressure[diff] ?? pressure[diff];
 function configure(variant: string) {
@@ -136,6 +138,7 @@ function configure(variant: string) {
     ? { coalition: pressureOf('coalition') - 1, crisis: pressureOf('crisis') - 1 }
     : has(variant, 'calmc') ? { coalition: pressureOf('coalition') - 1 } : {});
   Object.assign(PRESSURE_GROWTH, growth, has(variant, 'flat') ? { by: 0 } : {});
+  Object.assign(FAILURE_EFFECT, failure, has(variant, 'nogain') ? { gain: 0 } : has(variant, 'quarter') ? { gain: 0.25 } : {});
 }
 for (const variant of VARIANTS) {
   configure(variant);
