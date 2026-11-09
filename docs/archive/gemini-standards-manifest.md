@@ -3,7 +3,7 @@
 - Дата: 24 октября 2026
 - Исполнитель: Gemini (дизайн, арт и визуальный ритм)
 - Стиль: 16-битный ретро пиксель-арт канона Неманской республики 1978 (`wages-gate`, `district-completed`, `harvest-subsidy`)
-- Контактный лист: [`docs/gemini-standards-contact.jpg`](gemini-standards-contact.jpg)
+- Контактный лист: [`docs/archive/gemini-standards-contact.jpg`](gemini-standards-contact.jpg)
 - Целевое дело: Ход 3, Неманская республика (`alt_standards`, «Чужой рынок, другие станки», а также его продолжения `alt_standards_chamber` и `alt_standards_patriots`)
 
 ## Состав ассетов
@@ -43,4 +43,4 @@
 - `671313c62db7d73f5b2062e550ac8953b139605fd4afe179348e51a7100c5dce` `web/public/art/gemini-next/standards-eastern.webp`
 - `7e5f42bc9fbc0eed17b2144b60bf46c891d03986bb9027a51c32f3f45a52483c` `web/public/art/gemini-next/standards-contest.webp`
 - `9fa5a63e6e70bdd1795a0dadd698c98af87cc790c5f6e903c00bb8ffd768c981` `web/public/art/gemini-next/standards-defect.webp`
-- `65c28d198a4951d26a8d0dec3cbe471e2869e4e541ba806e6aa19543e535e0dc` `docs/gemini-standards-contact.jpg`
+- `65c28d198a4951d26a8d0dec3cbe471e2869e4e541ba806e6aa19543e535e0dc` `docs/archive/gemini-standards-contact.jpg`

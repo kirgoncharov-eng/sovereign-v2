@@ -3,7 +3,7 @@
 - Дата: 23 октября 2026
 - Исполнитель: Gemini (дизайн, арт и визуальный ритм)
 - Стиль: 16-битный ретро пиксель-арт канона Неманской республики 1978 (`wages-gate`, `district-completed`, `bridge-toll`)
-- Контактный лист: [`docs/gemini-harvest-contact.jpg`](gemini-harvest-contact.jpg)
+- Контактный лист: [`docs/archive/gemini-harvest-contact.jpg`](gemini-harvest-contact.jpg)
 - Целевое дело: Ход 4, Неманская республика (`alt_harvest`, «Закупочная цена зерна у элеватора»)
 
 ## Состав ассетов
@@ -39,4 +39,4 @@
 - `6a4aa85186db5868f79806915759eec56a2faf6dc0f1bcb5d92cc141379f9555` `web/public/art/gemini-next/harvest-direct.webp`
 - `7856aa853a1c117b229d2a0e493c9761e1406fc17779ab9ec77dd56b6d82b32e` `web/public/art/gemini-next/harvest-credit.webp`
 - `8b819bdddb3fb1df5aed7701f6cf538b34bbe02ec234d945ef7892767fe10820` `web/public/art/gemini-next/harvest-rot.webp`
-- `2f3f22d30a0922fe496210850206dc950b30ce82a70c26e142fe1d647f31b77c` `docs/gemini-harvest-contact.jpg`
+- `2f3f22d30a0922fe496210850206dc950b30ce82a70c26e142fe1d647f31b77c` `docs/archive/gemini-harvest-contact.jpg`

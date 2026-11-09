@@ -2,7 +2,7 @@
 
 19 октября 2026 · **Gemini / Gemini 4 Argon** (сгенерировано и упаковано в Antigravity через `sips` + `libvips`, `Q=84`, без изменения игрового кода).
 
-Контактный лист линейки совета (4 портрета): `docs/gemini-advisors-contact.jpg` (`23 710` байт).
+Контактный лист линейки совета (4 портрета): `docs/archive/gemini-advisors-contact.jpg` (`23 710` байт).
 
 ---
 
