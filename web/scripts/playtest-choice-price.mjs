@@ -64,11 +64,12 @@ async function checkPrice(page, state, choice, name, { select = true } = {}) {
   for (const estimate of Object.values(expected.success.resources))
     if (estimate.value) assert.ok(shown.includes(estimate.text));
   if (expected.failure) assert.ok(shown.includes(expected.failureOmitted ? 'не обсуждали' : 'Срыв'));
+  const condition = { success: 'При исполнении.', failure: 'Только при срыве.', both: 'Сохраняется при срыве.' };
   for (const effect of expected.later) {
     assert.ok(shown.includes(quarterDeadline(state, effect.due)));
     assert.ok(shown.includes(effect.label));
     for (const estimate of Object.values(effect.resources)) assert.ok(shown.includes(estimate.text));
-    assert.ok(shown.includes(effect.onFailure ? 'Сохраняется при срыве.' : 'При исполнении.'));
+    assert.equal(await price.getByText(`«${effect.label}». ${condition[effect.when]}`, { exact: true }).count(), 1);
   }
   const sign = price.getByRole('button', { name: 'Подписать', exact: true });
   assert.ok(await sign.isEnabled());
@@ -181,6 +182,55 @@ try {
     assert.equal(restored.turn, expected.turn, 'reload возвращает подписанный квартал, а не исходную фикстуру');
     assert.deepEqual(restored.pending, expected.pending, 'обязательства сохраняются после reload');
     await live.context.close();
+  }
+
+  // #420: условия платежей при частичном срыве — в карточке, после подписи и после reload.
+  const railStart = startFromSeed(3, 'coalition');
+  const railBase = await signChoice(await nextCase(await newTerm(railStart)), 'a');
+  const rail = await nextCase({
+    ...railBase, turn: 9,
+    factions: railBase.factions.map(f => f.id === 'nationalists' ? { ...f, relation: -80 } : f),
+    history: [{ ...railBase.history[0], hurt: ['nationalists'] }],
+  });
+  const fuelStart = startFromSeed(7, 'coalition');
+  let fuel = await newTerm(fuelStart);
+  for (const id of ['b', 'a', 'b', 'a']) fuel = await signChoice(await nextCase(fuel), id);
+  fuel = await nextCase(fuel);
+  for (const [game, start, card, index, label, amount, delay, when] of [
+    [rail, railStart, 'alt_rail_blockade', 1, 'Выручка за задержанный состав', 3, 1, 'failure'],
+    [fuel, fuelStart, 'alt_fuel_advance', 0, 'Детали за мазут', -5, 4, 'both'],
+  ]) {
+    assert.equal(game.currentEvent.card, card);
+    const choice = game.currentEvent.choices[index];
+    const due = game.turn + 1 + delay;
+    const payment = advisorOutlook(game, choice).later.find(effect => effect.label === label);
+    assert.equal(payment?.when, when);
+    assert.equal(payment.due, due);
+    for (const success of [true, false]) {
+      const seed = Array.from({ length: 1000 }, (_, i) => i + 1)
+        .find(seed => rollSuccess({ ...game, seed }, choice) === success);
+      assert.ok(seed, `${card}: исход ${success} достижим`);
+      const live = await openFixture({ ...game, seed }, { ...start, seed });
+      if (when === 'failure') {
+        const row = live.page.locator('button.sv-choice-row').filter({ has: live.page.getByText(choice.text, { exact: true }) });
+        assert.ok((await row.innerText()).includes(`${quarterDeadline(game, due)} · при срыве`));
+      }
+      const { sign } = await checkPrice(live.page, live.state, choice, `${card}-${success}`);
+      await sign.tap();
+      await live.page.waitForFunction(({ key, turn }) => JSON.parse(localStorage.getItem(key)).snapshot.game.turn > turn,
+        { key: CHRONICLE_GAME_KEY, turn: game.turn });
+      const signed = await savedGame(live.page);
+      assert.equal(signed.history.at(-1).success, success);
+      const expected = when === 'both' || !success ? [{ due, res: { economy: amount } }] : [];
+      const payments = state => state.pending.filter(item => item.label === label).map(({ due, res }) => ({ due, res }));
+      assert.deepEqual(payments(signed), expected);
+      await live.page.reload();
+      await live.page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
+      const restored = await savedGame(live.page);
+      assert.equal(restored.turn, signed.turn);
+      assert.deepEqual(payments(restored), expected);
+      await live.context.close();
+    }
   }
 
   const crisisStart = startFromSeed(7, 'crisis'), crisis = await nextCase(await newTerm(crisisStart));
