@@ -1,6 +1,7 @@
 "use client";
 import ForecastReview, { isForecastReview } from "../game/ForecastReview.tsx";
 import ResolutionChoices from "../game/ResolutionChoices.tsx";
+import ResIcon from "../game/ResourceIcon.jsx";
 import { unifiedResolution } from "@/lib/client/advisor-outlook.ts";
 
 // «Хроника срока» (#298, #302). Между решениями строки идут сами, в темпе чтения; касание — следующая строка сразу.
@@ -550,7 +551,8 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         {visibleResources && <div className={styles.hud} aria-label="Опоры власти">
           {/* data-res — как у опор в шапке `/game`: окно опоры не закрывается касанием по самой опоре, его закрывает переключатель. */}
           {HUD.map(h => <button key={h.key} data-res={h.key} aria-expanded={sheet === h.key} disabled={!game || !!form}
-            onClick={() => { mapUnfoldFx(sheet !== h.key); setSheet(open => open === h.key ? null : h.key); }}><small>{h.label}</small>{visibleResources[h.key]}</button>)}
+            onClick={() => { mapUnfoldFx(sheet !== h.key); setSheet(open => open === h.key ? null : h.key); }}><small>{h.label}</small>
+            <span className={styles.pillar}><ResIcon k={h.key} size={13} />{visibleResources[h.key]}</span></button>)}
         </div>}
         {game && !form && <div className={styles.sheets} role="group" aria-label="Справка">
           <button aria-expanded={sheet === "country"} onClick={() => { mapUnfoldFx(sheet !== "country"); setSheet(open => open === "country" ? null : "country"); }}>Страна</button>

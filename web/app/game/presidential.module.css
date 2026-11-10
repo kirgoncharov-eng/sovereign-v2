@@ -608,6 +608,8 @@
   transition: all .15s ease;
 }
 
+/* #425: на сенсорном экране клавиши нет — подсказка о ней только там, где есть указатель. */
+@media (hover: none) { .prologueKey { display: none; } }
 .prologueSkip:hover {
   color: #ddcfaf;
   border-color: #c6b58b;

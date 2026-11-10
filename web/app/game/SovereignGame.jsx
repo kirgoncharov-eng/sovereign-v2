@@ -2154,7 +2154,7 @@ export function PrologueCutscene({ state, onComplete }) {
           onClick={e => { e.stopPropagation(); complete(); }}
           style={{ fontFamily: mono, fontSize:13, letterSpacing: ".08em", color: "#d8cbb0", background: "rgba(48, 70, 59, 0.35)", border: "1px solid rgba(216, 203, 176, 0.4)", padding: "10px 22px", cursor: "pointer", textTransform: "uppercase" }}
         >
-          ПРОПУСТИТЬ [ENTER] →
+          ПРОПУСТИТЬ<span className={styles.prologueKey}> [ENTER]</span> →
         </button>
       </div>
     </div>
