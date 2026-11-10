@@ -3,7 +3,7 @@
 - **Исполнитель:** Gemini (`Gemini 4 Argon / Medium`, подтверждено метаданными текущей сессии)
 - **Задача:** [#372](https://github.com/kirgoncharov-eng/sovereign-v2/issues/372) (Part of [#369](https://github.com/kirgoncharov-eng/sovereign-v2/issues/369); согласовано с [#107](https://github.com/kirgoncharov-eng/sovereign-v2/issues/107) и [#95](https://github.com/kirgoncharov-eng/sovereign-v2/issues/95))
 - **Класс риска:** C — пакет ассетов и спецификация вёрстки (последующая интеграция в код — GPT, класс B)
-- **Контактный лист:** `docs/gemini-newspapers-1978-contact.jpg` (`1560×1180`, `781 254` Б, `sha256: 20ec61757dfdae0cb6ec6ee092df2ac6d7fe263faf9f73e29e25cc532898704b`)
+- **Контактный лист:** `docs/archive/gemini-newspapers-1978-contact.jpg` (`1560×1180`, `781 254` Б, `sha256: 20ec61757dfdae0cb6ec6ee092df2ac6d7fe263faf9f73e29e25cc532898704b`)
 
 ---
 

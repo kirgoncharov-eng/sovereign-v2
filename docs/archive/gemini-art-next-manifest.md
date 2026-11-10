@@ -2,7 +2,7 @@
 
 Дата: 15 октября 2026
 Задача: https://github.com/kirgoncharov-eng/sovereign-v2/issues/140
-Бриф: `docs/gemini-art-next-brief.md`
+Бриф: `docs/archive/gemini-art-next-brief.md`
 Google Drive каталог пакета: https://docs.google.com/document/d/1VdlybHPHW_cTBBqXjfGFFqJy-sqxjfQtUY6MtColCOE/edit
 Статус: все 7 исходников переданы Кириллом локально; GPT/Codex проверил изображения, подготовил игровые WebP и контактный лист. Подключены варианты пола посла/редактора, три завершённых поручения по мостам и два исхода ремонта больницы.
 
@@ -39,4 +39,4 @@ Google Drive каталог пакета: https://docs.google.com/document/d/1Vd
 | `777.png` | `amb-eu-male.jpg` | 928×1152 | `amb-eu-male.webp` | 129×160 | 3710 |
 | `district_completed_1792412559403.jpg` | `district-completed.jpg` | 1376×768 | `district-completed.webp` | 960×536 | 37850 |
 
-Контактный лист (все 8 ассетов): `docs/gemini-art-next-contact.jpg`. Все WebP декодируются, портреты ≤160 px/10 КБ, сцены ≤960 px/100 КБ.
+Контактный лист (все 8 ассетов): `docs/archive/gemini-art-next-contact.jpg`. Все WebP декодируются, портреты ≤160 px/10 КБ, сцены ≤960 px/100 КБ.

@@ -12,6 +12,6 @@
 | `diplomat` («Дипломат») | `diplomat` | `art-source/gemini-next/leader-diplomat.jpg` | `web/public/art/gemini-next/leader-diplomat.webp` | 5.3 КБ | **МИД · Дипломат** — седые волосы на прямой пробор, сдержанный взгляд, двубортный пиджак с широкими лацканами и светлым шейным платком. |
 | `mayor` («Мэр») | `mayor` | `art-source/gemini-next/leader-mayor.jpg` | `web/public/art/gemini-next/leader-mayor.webp` | 7.4 КБ | **Обком · Бывший мэр** — залысина, густые тёмные брови и пышные усы («крепкий хозяйственник»), плотный твидовый пиджак поверх рабочей рубашки без галстука. |
 
-- **Контактный лист (`5×1`)**: `docs/gemini-leaders-contact.jpg`
+- **Контактный лист (`5×1`)**: `docs/archive/gemini-leaders-contact.jpg`
 - **Логика подключения**:
   - `BIO_TO_PORTRAIT` в `web/lib/client/historical-art.ts` и `customizeLeader` в `web/lib/game/classic.ts` автоматически ставят портрет по выбранной биографии (`military → officer`, `economist → economist`, `lawyer → lawyer`, `diplomat → diplomat`, `mayor → mayor`).

@@ -3,7 +3,7 @@
 - Дата: 24 октября 2026
 - Исполнитель: Gemini (дизайн, арт и визуальный ритм)
 - Стиль: 16-битный ретро пиксель-арт канона Неманской республики 1978 (`wages-gate`, `district-completed`, `harvest-subsidy`)
-- Контактный лист: [`docs/gemini-rail-contact.jpg`](gemini-rail-contact.jpg)
+- Контактный лист: [`docs/archive/gemini-rail-contact.jpg`](gemini-rail-contact.jpg)
 - Целевое дело: Ход 4, Неманская республика (`alt_rail`, «Последний состав на запад», а также его варианты `alt_rail_blockade` и `alt_rail_chamber`)
 
 ## Состав ассетов
@@ -42,4 +42,4 @@
 - `aa2662a9a6f088bdb3b36f4f8fa588a837176a1e69c427f1a85919828b77ed9c` `web/public/art/gemini-next/rail-export.webp`
 - `10448711eecd880c3f75a9c68308bb66287945e32bc735799e906422d727eac0` `web/public/art/gemini-next/rail-dispatch.webp`
 - `7de6dcf51c66dad6020ffae7e0256032966d01e92e5c0e452619335d0ca38393` `web/public/art/gemini-next/rail-jam.webp`
-- `c3f68994fdd4d54eb14941f2f7ed15662ceb189432e31b0872db7c46310fcff3` `docs/gemini-rail-contact.jpg`
+- `c3f68994fdd4d54eb14941f2f7ed15662ceb189432e31b0872db7c46310fcff3` `docs/archive/gemini-rail-contact.jpg`

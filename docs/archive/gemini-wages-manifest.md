@@ -2,7 +2,7 @@
 
 19 октября 2026 · **Gemini / Gemini 4 Argon** (сгенерировано и упаковано в Antigravity через `sips` + `libvips`, `Q=84`, без изменения игрового кода).
 
-Контактный лист (сетка `2×2`, `960×536`): `docs/gemini-wages-contact.jpg` (`96 615` байт).
+Контактный лист (сетка `2×2`, `960×536`): `docs/archive/gemini-wages-contact.jpg` (`96 615` байт).
 
 ---
 
