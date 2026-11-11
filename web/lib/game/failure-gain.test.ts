@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { ALTERNATE_EVENTS } from '../content/alternate-history.ts';
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES } from './alternate-world.ts';
 import { classicApi } from './classic.ts';
-import { choiceEffects, createInitialState, seededRandom } from './engine.ts';
+import { choiceEffects, choiceFollowUps, createInitialState, seededRandom } from './engine.ts';
 import { executionRisk } from './execution-risk.ts';
 import type { Choice, GameState } from './types.ts';
 
@@ -36,7 +36,10 @@ test('1978: срыв приносит пользу только там, где �
     const desk = onDesk(state, card.id);
     for (const choice of desk.currentEvent!.choices) {
       const key = `${card.id}/${choice.id}`;
-      const failed = choiceEffects(desk, choice, true).resources as Record<string, number>;
+      const failed = { ...choiceEffects(desk, choice, true).resources } as Record<string, number>;
+      for (const effect of choiceFollowUps(desk, choice).filter(effect => effect.when === 'failure')) {
+        for (const [resource, value] of Object.entries(effect.res)) failed[resource] = (failed[resource] ?? 0) + value;
+      }
       const succeeded = choiceEffects(desk, choice).resources as Record<string, number>;
       if (!PARTIAL.has(key)) { assert.deepEqual(gains(failed), [], `${key}: ${choice.text}`); continue; }
       assert.ok(executionRisk(desk, choice), `${key}: авторский профиль срыва`);

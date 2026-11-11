@@ -1,4 +1,4 @@
-import { choiceOutcomes } from '@/lib/client/choice-outcomes.ts';
+import { choiceOutcomes, FOLLOW_UP_CONDITION } from '@/lib/client/choice-outcomes.ts';
 import { RESOURCE_KEYS } from '@/lib/game/data.ts';
 import { quarterDeadline } from '@/lib/client/initiative-note.ts';
 import { RESOURCE_TITLE } from '@/lib/content/resource-names.ts';
@@ -36,7 +36,7 @@ export default function ResolutionOutcomes({ game, choice }: { game: GameState; 
         «{effect.label}»: {RESOURCE_KEYS.filter(key => effect.res[key]).map(key =>
           `${RESOURCE_TITLE[key]} ${signed(effect.res[key]!)}`).join('; ')}.
         {' '}Срок: {quarterDeadline(game, effect.due)}.
-        {forecast.failure && (effect.onFailure ? ' Сохраняется и при срыве исполнения.' : ' Только если резолюцию исполнят.')}
+        {forecast.failure && ` ${FOLLOW_UP_CONDITION[effect.when]}`}
       </p>)}
     </div>}
     <p className={styles.note}>Прежние долги и другие события квартала изменят общий итог отдельно.</p>
