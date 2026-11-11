@@ -467,7 +467,10 @@ export function successChance(state: ChanceState, choice: Choice): number {
   const execution = executionProfile(state, choice);
   const coordinators = execution ? (state.advisors ?? []).filter(advisor => execution.coordinators.includes(advisor.id)) : [];
   // Компетентность координации отдельно от сотрудничества контрагентов; skill 2 — исходный уровень.
-  if (coordinators.length) p += (avg(coordinators.map(advisor => advisor.skill)) - 2) * 0.06;
+  if (execution && state.country === ALTERNATE_COUNTRY && !state.daily && state.advisors) {
+    const skills = execution.coordinators.map(id => state.advisors!.find(advisor => advisor.id === id)?.skill ?? 1);
+    if (skills.length) p += (avg(skills) - 2) * 0.06; // вакансия исполняет на базовом уровне аппарата, без выдуманного советника
+  } else if (coordinators.length) p += (avg(coordinators.map(advisor => advisor.skill)) - 2) * 0.06;
   // У заводской подписи участники заданы по полномочиям, а не по политической выгоде. Остальные дела не меняются.
   const exec = execution ? state.factions.filter(faction => execution.blocs.includes(faction.bloc)) : executors(state.factions, choice);
   if (exec.length) p += avg(exec.map(f => f.relation)) / 400;

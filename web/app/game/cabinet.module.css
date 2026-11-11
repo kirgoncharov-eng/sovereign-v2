@@ -1,0 +1,23 @@
+.panel { color: #302c25; background: #f1e8d6; padding: 18px; font-family: Georgia, serif; line-height: 1.5; }
+.header span { font: 11px/1.4 system-ui, sans-serif; letter-spacing: .14em; }
+.header h2 { font-size: 28px; margin: 7px 0; }
+.panel h3 { font-size: 19px; margin: 20px 0 10px; }
+.panel p { margin: 8px 0; overflow-wrap: anywhere; }
+.seats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 18px; }
+.panel button { font: inherit; color: #302c25; background: #e5dac3; border: 1px solid #8b7d67; padding: 10px 12px; min-height: 44px; cursor: pointer; }
+.panel button:focus-visible { outline: 3px solid #426d61; outline-offset: 3px; }
+.panel button:disabled { opacity: .6; cursor: default; }
+.seats button { text-align: left; font-size: 14px; }
+.seats button[aria-pressed='true'] { background: #304c43; color: #fff9ec; }
+.seats small { display: block; font-size: 12px; margin-top: 5px; }
+.current { border-left: 3px solid #657c6b; padding: 4px 0 4px 13px; }
+.current strong, .candidate strong { font-size: 19px; }
+.candidate { border-top: 1px solid #a79a83; padding: 14px 0; }
+.origin, .note { font: 13px/1.5 system-ui, sans-serif; }
+.price { font-weight: 700; }
+.confirm { border: 2px solid #657c6b; padding: 12px; margin-top: 16px; background: #faf4e8; }
+.confirm h3 { margin-top: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.actions .sign { background: #304c43; color: #fff9ec; }
+.receipt { padding: 12px 0; border-top: 2px solid #657c6b; }
+@media (max-width: 359px) { .panel { padding: 12px; } .seats { grid-template-columns: 1fr; } }

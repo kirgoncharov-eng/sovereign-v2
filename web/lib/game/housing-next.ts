@@ -15,11 +15,12 @@ export interface HousingNext {
     name: string | null;
     reviewed: boolean;
     factors: string[];
+    handoverTurn?: number;
 }
 export const housingNextTitle = (p: HousingNext) => p.mode === 'expand' ? 'Строительство следующего района' : p.originProgress === 100 ? 'Заселение и сети построенного района' : 'Достройка, сети и заселение';
 export function housingNextActions(gs: GameState): Omit<WorldAction, 'blocked'>[] {
     const p = gs.world?.government?.housingNext;
-    if (!p || p.status !== 'proposed') return [];
+    if (!p || p.status !== 'proposed' || !gs.advisors.length) return [];
     const common = 'Бюджет на четыре квартала, одно личное поручение на запуск. Координатор даёт 18–26 работы в квартал по квалификации; слабая экономика −6, конфликт с регионами −5, параллельная программа того же координатора −5. Прежний координатор получает +3 работы, если остаётся в кабинете; иначе его заменит текущий советник. Работающая энергосеть даёт +3, полная проверка закупок — +3. Прежнее закупочное право министра сюда не переносится.';
     return [{ id: 'government:start:settle', title: p.originProgress === 100 ? 'Подключить район к сетям и начать заселение' : 'Достроить район и подготовить заселение', cost: { economy: -4, politicalCapital: -2 }, detail: `${common} ${p.originProgress < 100 ? 'Недостроенные дома: −4 работы в квартал. ' : ''}Полное исполнение: легитимность +5, экономика +2. Частичное: легитимность +1; провал: −2. Деньги уже построенного жилья не списываются повторно.` },
         ...(p.originProgress === 100 ? [{ id: 'government:start:expand', title: 'Направить строительную команду в следующий район', cost: { economy: -6, politicalCapital: -3 }, detail: `${common} Новая площадка требует согласований: −4 работы в квартал. Полное исполнение: экономика +7, легитимность +2. Частичное: легитимность +1; провал: −2. Это новые дома: сети и заселение первого района этим поручением не финансируются.` }] : [])];
@@ -27,6 +28,7 @@ export function housingNextActions(gs: GameState): Omit<WorldAction, 'blocked'>[
 export function startHousingNext(gs: GameState, world: LivingWorld, mode: 'settle' | 'expand') {
     const p = world.government!.housingNext!;
     const advisor = gs.advisors.find(a => a.name === p.previousName) ?? gs.advisors.find(a => a.id === 'economist') ?? gs.advisors[0];
+    if (!advisor) throw new Error("Назначьте советника: программу некому координировать.");
     Object.assign(p, { mode, status: 'running', started: gs.turn, due: gs.turn + 4, coordinator: advisor.id, name: advisor.name });
     p.factors = ['Новое поручение подписано; первый квартальный доклад после главного решения'];
     return `${advisor.name} принимает «${housingNextTitle(p)}». Первая программа сохранила ${p.originProgress}% работы. ${mode === 'expand' ? 'Строители переходят на новую площадку; подключение первого района ещё не профинансировано.' : 'Теперь результат измеряется готовностью района к жизни: дома, сети и заселение, а не только строительным объёмом.'} ${advisor.name === p.previousName ? 'Он знает прежнюю стройку: преемственность +3 работы.' : `Прежний координатор ${p.previousName} не в кабинете; его личный опыт не присвоен преемнику.`} Закупки ведёт кабинет по обычной процедуре: прежний мандат министра действует только на первую программу.`;
@@ -41,7 +43,10 @@ export function stepHousingNext(gs: GameState, world: LivingWorld, turn: number,
     if (p.status !== 'running') return { story: null, effects: [] };
     const advisor = gs.advisors.find(a => a.id === p.coordinator && a.name === p.name);
     let gain = advisor ? 14 + advisor.skill * 4 : 0;
+    if (advisor && gs.country === ALTERNATE_COUNTRY && !gs.daily && p.handoverTurn === turn - 1) gain -= 5;
     const factors = [advisor ? `${advisor.name}: качество работы ${advisor.skill}/3` : 'Координатор ушёл; работа остановилась'];
+    if (advisor && gs.country === ALTERNATE_COUNTRY && !gs.daily && p.handoverTurn === turn - 1)
+        factors.push('Передача дел новому координатору: −5 на один квартал');
     if (advisor) {
         if (advisor.name === p.previousName) { gain += 3; factors.push('Знание прежней стройки: +3'); }
         if (world.project.status === 'completed') { gain += 3; factors.push('Восстановленная энергосеть: +3'); }
@@ -60,7 +65,10 @@ export function stepHousingNext(gs: GameState, world: LivingWorld, turn: number,
         p.reviewed = true; // Итог опубликован вместе с исполнением, без отдельного квартала.
     }
     const res: ResourceDelta = !terminal ? {} : p.status === 'completed' ? p.mode === 'settle' ? { internalLegitimacy: 5, economy: 2 } : { economy: 7, internalLegitimacy: 2 } : { internalLegitimacy: p.status === 'partial' ? 1 : -2 };
-    const text = gs.country === ALTERNATE_COUNTRY
+    const text = gs.country === ALTERNATE_COUNTRY && !gs.daily && gs.cabinet && !advisor
+        ? `Канцелярия: координатор не назначен. Выполнено ${p.progress}%. `
+          + (terminal ? 'Срок истёк; готовность всего района не объявлена.' : 'Работа ждёт назначения; прежний срок остаётся в силе.')
+        : gs.country === ALTERNATE_COUNTRY
         ? housingNextQuote(p.name!, p.progress, factors, terminal ? p.status as 'completed' | 'partial' | 'failed' : false, p.mode === 'settle')
         : `${p.name}: «${housingNextTitle(p)}» — ${p.progress}%. ${factors.join('. ')}. ` +
             (terminal ? p.status === 'completed'
@@ -96,6 +104,7 @@ export function housingNextReview(gs: GameState): (GameEvent & { cardId: string 
         choices: [{ id: 'a', text: 'Лично представить фактический результат', hint: 'Влияние −1; взять объяснение результата на себя', tags: ['dialogue'], resolvesCrisis: null, deal: { pure: true, res: { politicalCapital: -1 } }, projectReview: { id: 'housing-next' }, scene: 'Вы называете выполненные работы и то, что осталось за пределами поручения. Прежнее обещание не подменено новым отчётом.' }, { id: 'b', text: 'Поручить координатору опубликовать оба доклада', hint: 'Без дополнительных списаний; оба результата сохраняются', tags: ['delay'], resolvesCrisis: null, deal: { pure: true }, projectReview: { id: 'housing-next' }, scene: `${p.name} публикует строительный и новый доклад рядом. Кабинет отвечает за точность, а прежняя подпись остаётся в истории.` }] };
 }
 export function validHousingNext(p: HousingNext, turn: number) {
+    if (p?.handoverTurn !== undefined && (!Number.isInteger(p.handoverTurn) || p.handoverTurn < 0 || p.handoverTurn > turn)) return false;
     if (!p || !['proposed', 'running', 'completed', 'partial', 'failed'].includes(p.status) || !Number.isInteger(p.originProgress) || p.originProgress < 60 || p.originProgress > 100 || typeof p.previousName !== 'string' || !p.previousName || !Number.isInteger(p.progress) || p.progress < 0 || p.progress > 100 || typeof p.reviewed !== 'boolean' || !Array.isArray(p.factors) || !p.factors.every(f => typeof f === 'string')) return false;
     if (p.status === 'proposed') return p.mode === null && p.started === null && p.due === null && p.name === null && p.coordinator === null && p.progress === 0 && !p.reviewed;
     if (!['settle', 'expand'].includes(p.mode!) || p.mode === 'expand' && p.originProgress !== 100 || !Number.isInteger(p.started) || p.started! < 0 || p.started! > turn || p.due !== p.started! + 4 || typeof p.name !== 'string' || !p.name || typeof p.coordinator !== 'string' || !p.coordinator) return false;
