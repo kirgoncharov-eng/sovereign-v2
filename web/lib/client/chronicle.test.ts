@@ -8,8 +8,129 @@ import { EMPTY_PERSONAL, PERSONAL_BEATS, type PersonalMemory } from './chronicle
 import { contemporaries, TEMPERS } from './chronicle-rivals.ts';
 import type { GameState } from '../game/types.ts';
 import { presidentialMessages } from './presidential-inbox.ts';
+import { rollSuccess } from '../game/engine.ts';
+import { LEGACY_COUNTRIES } from '../game/alternate-world.ts';
 
 const day = (line: ChronicleLine) => Date.UTC(line.date.year, line.date.month, line.date.day);
+
+async function factorySignature(route: number, success: boolean) {
+  for (let seed = 1; seed <= 100; seed++) {
+    const before = await nextCase(await newTerm(startFromSeed(seed)));
+    if (rollSuccess(before, before.currentEvent!.choices[route]) === success) {
+      return { before, after: await signOption(before, before.currentEvent!.choices[route].id) };
+    }
+  }
+  throw new Error('Не найден заводской исход');
+}
+
+test('срочная выплата или аванс получают первый результат в день подписи, переоборудование — позднее (#401)', async () => {
+  for (const route of [0, 1, 2]) for (const success of [true, false]) {
+    const { before, after } = await factorySignature(route, success);
+    const snapshot = structuredClone({ before, after });
+    const lines = quarterLines(before, after, EMPTY_PERSONAL).lines;
+    const result = lines.find(line => line.kind === 'scene')!;
+    assert.ok(result);
+    if (route < 2) assert.equal(day(result), day(lines[0]), `route ${route}, success ${success}`);
+    else assert.ok(day(result) > day(lines[0]), 'переход производства не совершается в день подписи');
+    if (route < 2) assert.ok(lines.indexOf(result) < lines.findIndex(line => line.kind === 'personal'), 'дневной результат — перед первой ночью');
+    assert.ok(lines.every((line, i) => i === 0 || day(line) >= day(lines[i - 1])));
+    assert.deepEqual({ before, after }, snapshot, 'сроки представления не меняют состояние или исход');
+  }
+});
+
+test('банковский ответ не ждёт середины квартала, поздний аванс приходит в обещанную пятницу (#401)', async () => {
+  const seen = new Set<string>();
+  for (let seed = 1; seed <= 250 && seen.size < 6; seed++) {
+    const first = await nextCase(await newTerm(startFromSeed(seed)));
+    if (rollSuccess(first, first.currentEvent!.choices[1])) continue;
+    const before = await nextCase(await signOption(first, first.currentEvent!.choices[1].id));
+    if (before.currentEvent?.title !== 'Приложение к российскому заказу') continue;
+    for (const route of [0, 1, 2]) {
+      const choice = before.currentEvent.choices[route];
+      const success = rollSuccess(before, choice), key = `${route}-${success}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const after = await signOption(before, choice.id);
+      const lines = quarterLines(before, after, EMPTY_PERSONAL).lines;
+      const result = lines.find(line => line.kind === 'scene')!;
+      const delay = (day(result) - day(lines[0])) / 86_400_000;
+      if (route === 2 && success) {
+        assert.equal(new Date(day(result)).getUTCDay(), 5, 'пятница в тексте совпадает с датой');
+        assert.ok(delay >= 0 && delay < 7);
+      } else assert.equal(delay, route === 1 && !success ? 1 : 0);
+      if (route === 0 && success) {
+        assert.doesNotMatch(result.text, /подождать неделю/);
+        assert.match(result.text, /аванс.*на проверке/i);
+      }
+      assert.ok(lines.every((line, i) => i === 0 || day(line) >= day(lines[i - 1])));
+    }
+  }
+  assert.equal(seen.size, 6, 'три варианта проверены при исполнении и срыве');
+});
+
+test('после сцены газета добавляет своё отношение, а не повторяет тот же заголовок (#401)', async () => {
+  const { before, after: original } = await factorySignature(1, false);
+  const headline = original.lastTurn!.headline;
+  const after = { ...original, lastTurn: { ...original.lastTurn!, press: [
+    { outlet: 'Свободное слово', headline: `${headline}. Редакция спрашивает, кто отвечал за исполнение.` },
+    { outlet: 'Вести порта', headline: 'В порту объявлено собрание грузчиков.' },
+    { outlet: 'Телеграф', headline },
+  ] } };
+  const snapshot = structuredClone(after);
+  const { lines } = quarterLines(before, after, EMPTY_PERSONAL);
+  assert.equal(lines.filter(line => line.kind === 'paper').length, 0);
+  assert.deepEqual(lines.filter(line => line.kind === 'press').map(line => line.text), [
+    'Редакция спрашивает, кто отвечал за исполнение.', 'В порту объявлено собрание грузчиков.',
+  ]);
+  assert.deepEqual(after, snapshot, 'исходная пресса остаётся в отчёте');
+
+  const noScene = { ...after, lastTurn: { ...after.lastTurn, narrative: '' } };
+  const fallback = quarterLines(before, noScene, EMPTY_PERSONAL).lines;
+  assert.ok(fallback.some(line => line.kind === 'paper' && line.text === headline), 'без сцены заголовок сохраняется');
+});
+
+test('соседние заводские версии сохраняют названные в тексте неделю, два дня и следующее утро (#401)', async () => {
+  const seen = new Set<string>();
+  for (let seed = 1; seed <= 100 && seen.size < 4; seed++) for (const firstRoute of [0, 2]) {
+    const first = await nextCase(await newTerm(startFromSeed(seed)));
+    const before = await nextCase(await signOption(first, first.currentEvent!.choices[firstRoute].id));
+    const inventory = before.currentEvent?.title === 'Опись из заводской бухгалтерии';
+    for (const route of inventory ? [1, 2] : [0]) {
+      const choice = before.currentEvent!.choices[route], success = rollSuccess(before, choice);
+      if ((inventory && route === 1 || !inventory) && success) continue;
+      const key = `${inventory}-${route}-${success}`;
+      if (seen.has(key)) continue;
+      const lines = quarterLines(before, await signOption(before, choice.id), EMPTY_PERSONAL).lines;
+      const delay = (day(lines.find(line => line.kind === 'scene')!) - day(lines[0])) / 86_400_000;
+      assert.equal(delay, inventory ? route === 2 ? 7 : 2 : 1);
+      seen.add(key);
+    }
+  }
+  assert.equal(seen.size, 4);
+});
+
+test('сокращение ленты и срочные даты не меняют представление архива и Daily (#401)', async () => {
+  const { before, after } = await factorySignature(1, false);
+  for (const overrides of [...LEGACY_COUNTRIES.map(country => ({ country })), { daily: '2026-11-08' }]) {
+    const lines = quarterLines({ ...before, ...overrides }, { ...after, ...overrides }, EMPTY_PERSONAL).lines;
+    assert.ok(day(lines.find(line => line.kind === 'scene')!) > day(lines[0]));
+    assert.ok(lines.some(line => line.kind === 'paper' && line.text === after.lastTurn!.headline));
+    assert.deepEqual(lines.filter(line => line.kind === 'press').map(line => line.text), after.lastTurn!.press!.map(item => item.headline));
+  }
+});
+
+test('после срочной подписи вечер и первая ночь остаются в этот день, «наутро» — в следующий (#401)', async () => {
+  const { before, after: original } = await factorySignature(1, false);
+  for (const prefix of ['В тот же вечер', 'Наутро']) {
+    const after = { ...original, lastTurn: { ...original.lastTurn!, narrative: `Аванс задержан.\n\n${prefix} губернатор созывает совещание.` } };
+    const lines = quarterLines(before, after, EMPTY_PERSONAL).lines;
+    const night = lines.find(line => line.kind === 'personal')!;
+    const reaction = lines.find(line => line.text.startsWith(prefix))!;
+    assert.equal(day(night), day(lines[0]));
+    assert.equal(day(reaction) - day(lines[0]), prefix === 'Наутро' ? 86_400_000 : 0);
+    assert.equal(lines.indexOf(reaction) > lines.indexOf(night), prefix === 'Наутро');
+  }
+});
 
 /** Срок целиком: всегда первый вариант, на пресс-конференции — первые ответы, звонок — цифрами и сделкой. */
 async function liveTerm(seed: number, diff: 'debut' | 'coalition' = 'debut') {
@@ -105,14 +226,15 @@ test('квартал: подпись первой, итог последним, 
   assert.ok(echoes.length > 0, 'отклики прежних решений идут отдельными строками');
 });
 
-test('личная линия сдержанна: не больше одной строки за квартал, каждая один раз, первая ночь — сразу после подписи', async () => {
+test('личная линия сдержанна: не больше одной строки за квартал, каждая один раз, первая ночь — в день подписи', async () => {
   for (const seed of [3, 5, 21, 40]) {
     const { quarters, memory } = await liveTerm(seed);
     for (const { lines } of quarters) assert.ok(lines.filter(line => line.kind === 'personal').length <= 1);
     assert.equal(new Set(memory.used).size, memory.used.length);
     assert.ok(memory.used.length <= Math.ceil(quarters.length / 2) + 1, `слишком много личного: ${memory.used.length}`);
     const first = quarters[0].lines;
-    assert.equal(first[1].kind, 'personal', 'первая ночь — первой строкой после подписи');
+    const night = first.find(line => line.kind === 'personal')!;
+    assert.equal(day(night), day(first[0]), 'первая ночь остаётся в день подписи, после дневного исполнения');
   }
   // Род президента в личных строках не угадывается: глаголы прошедшего времени — только во множественном числе «вы …ли».
   for (const beat of PERSONAL_BEATS) assert.doesNotMatch(beat.text, /\bвы\s+\S+(?:ла|л)\b/i, beat.id);

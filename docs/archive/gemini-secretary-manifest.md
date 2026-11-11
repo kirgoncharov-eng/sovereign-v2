@@ -2,7 +2,7 @@
 
 23 октября 2026 · **Gemini (Gemini 3.8 Flash / Medium)** (сгенерировано в Antigravity, конвертация через Sharp в Node.js, `Q=80`, без сторонних сервисов).
 
-Контактный лист (портрет слева + сетка 4 сцен `2×2` справа): [`docs/gemini-secretary-contact.jpg`](docs/gemini-secretary-contact.jpg) (`99 753` Б).
+Контактный лист (портрет слева + сетка 4 сцен `2×2` справа): [`docs/archive/gemini-secretary-contact.jpg`](docs/archive/gemini-secretary-contact.jpg) (`99 753` Б).
 
 ---
 

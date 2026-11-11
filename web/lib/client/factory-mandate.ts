@@ -70,5 +70,10 @@ export function factoryQuarterReports(before: GameState, after: GameState) {
   const issued = mandate.issued > before.turn && mandate.issued <= after.turn;
   const settled = mandate.settled && mandate.settled.turn > before.turn && mandate.settled.turn <= after.turn;
   if (!issued && !settled) return [];
+  if (issued) {
+    const accounting = brief.lines.filter(line => line.startsWith('При подписи списано:') || line.startsWith('Контрольный срок:'));
+    const details = brief.lines.filter(line => !accounting.includes(line));
+    return [{ title: brief.title, text: [accounting.join(' '), ...details].join('\n\n') }];
+  }
   return [{ title: `${brief.title} · ${brief.status}`, text: brief.lines.join('\n\n') }];
 }
