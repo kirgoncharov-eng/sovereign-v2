@@ -5,6 +5,7 @@ import { hashSeed } from './engine.ts';
 import { candidatePool, dismissalOf, type Candidate } from './staffing.ts';
 import { CHANNELS, DISMISSAL } from '../content/staffing.ts';
 import { secretaryStaffingChange } from './secretary.ts';
+import { beatEvent } from './classic.ts';
 import type { Advisor, GameState, ResourceDelta } from './types.ts';
 
 export interface CabinetState {
@@ -159,6 +160,9 @@ export function applyCabinetAction(state: GameState, action: CabinetAction): Gam
     cabinet.roster = [...remaining, nextCandidate(next, seat, ordinal, remaining)];
   }
   next = transferAssignments(next, seat, incoming);
+  if (next.currentEvent?.beat?.arcId === 'mole' && current?.name === next.arc?.target) {
+    next = { ...next, currentEvent: beatEvent(next) ?? next.currentEvent };
+  }
   return secretaryStaffingChange(state, next, current?.name);
 }
 

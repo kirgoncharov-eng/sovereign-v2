@@ -11,6 +11,7 @@ import {
 import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
 import { HISTORICAL_DEBATES, isPresidentialDiscussion } from './presidential-story.ts';
 import { ARCS } from "../content/arcs.ts";
+import { cabinetArc } from './cabinet-intrigue.ts';
 import { LEAKS } from "../content/advisors.ts";
 import { OWN_CRISIS_BELOW, OWN_CRISIS_BONUS, OWN_LOYALTY_FLOOR } from "../content/staffing.ts";
 import { NAMES } from "../content/narration.ts";
@@ -213,8 +214,9 @@ export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "fact
 }
 
 // Эпизод интриги, который должен случиться на следующем ходу (если есть).
-export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<GameState, "world" | "daily" | "country" | "history">>) {
-  const arc = ARCS.find(a => a.id === state.arc?.id);
+export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<GameState, "world" | "daily" | "country" | "history" | "cabinet" | "advisors">>) {
+  const original = ARCS.find(a => a.id === state.arc?.id);
+  const arc = original && state.country && state.advisors ? cabinetArc({ ...state, country: state.country, advisors: state.advisors }, original) : original;
   if (!arc || !state.arc) return null;
   const scheduledTurn = (turn: number) => state.country === ALTERNATE_COUNTRY && state.turn < 20 && turn === 1 ? 2 : turn;
   const idx = arc.beats.findIndex(beat => scheduledTurn(beat.turn) === localTurn(state.turn + 1) && !state.arc!.done.includes(beat.turn));
