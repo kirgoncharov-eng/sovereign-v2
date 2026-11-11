@@ -8,7 +8,9 @@ type ChoiceCopy = Partial<Pick<BeatChoice, 'text' | 'hint' | 'ok' | 'fail' | 'ep
 type EpisodeCopy = Pick<BeatVariant, 'title' | 'description'> & { choices: Record<string, ChoiceCopy> };
 
 export const outsideCouncil = (state: CabinetStoryState) => state.country === ALTERNATE_COUNTRY && !state.daily
-  && !!state.cabinet && state.arc?.id === 'mole' && !state.advisors.some(person => person.name === state.arc!.target);
+  && !!state.cabinet && state.arc?.id === 'mole'
+  && state.cabinet.departed.some(person => person.name === state.arc!.target)
+  && !state.advisors.some(person => person.name === state.arc!.target);
 
 const OPENING: EpisodeCopy = {
   title: 'Доступ к резиденции',
@@ -105,6 +107,30 @@ const EXPOSED: EpisodeCopy = {
       epilogueFail: 'Договориться о тихом выезде не удалось: условия сделки стали новым публичным скандалом.' },
   },
 };
+const PUBLISHED: EpisodeCopy = {
+  title: 'Архив старого кабинета',
+  description: 'Зарубежные газеты печатают стенограммы закрытых совещаний; радиостанции передают отрывки записей. '
+    + 'В архиве старые разговоры и копии, которые продолжали уходить через аппарат после кадровых перемен. '
+    + 'Материалы передал редакциям {target}; сам он уже покинул страну.',
+  choices: {
+    confessed: { ok: 'Вы выходите к камерам без бумажки и подтверждаете подлинность записей. Вечером в редакциях разбирают не только архив, '
+        + 'но и ваше выступление. Часть читателей признаёт, что президент хотя бы не стал отрицать очевидное.',
+      fail: 'Вы подтверждаете подлинность записей, но объяснение звучит как оправдание. Газеты ставят рядом ваши нынешние слова и прежнюю стенограмму.',
+      epilogue: 'Президент признал подлинность утекшего архива. Спор о его прежних решениях продолжился открыто.',
+      epilogueFail: 'Публичное признание не погасило скандал вокруг архива: объяснения президента только подлили масла в огонь.' },
+    denied: { ok: 'Государственное радио передаёт заключение о монтаже. Редакции спорят о происхождении плёнок; '
+        + 'доказать подлинность каждого фрагмента сразу не удаётся.',
+      fail: 'После вашего опровержения зарубежная редакция публикует факсимиле стенограммы с отметками канцелярии. Спор об одной записи становится спором о честности всего объяснения.',
+      epilogue: 'Власть объявила архив подделкой; спор о подлинности записей пережил её официальное опровержение.',
+      epilogueFail: 'Попытка выдать архив за подделку сорвалась после публикации новых документов.' },
+    crackdown: { ok: 'Задержаны распространители машинописных копий, часть тиража изъята. Записи всё равно слушают на кухнях, '
+        + 'а стенограммы перепечатывают под копирку.',
+      fail: 'Полиция забирает несколько распространителей, но основная партия копий уже разошлась по заводам. '
+        + 'Зарубежное радио называет имена задержанных; аресты привлекают к архиву ещё больше внимания.',
+      epilogue: 'Ответом на публикацию старого архива стали изъятия копий и аресты их распространителей.',
+      epilogueFail: 'Аресты распространителей не остановили публикацию архива и усилили скандал.' },
+  },
+};
 
 export function cabinetArc(state: CabinetStoryState, arc: Arc): Arc {
   if (arc.id !== 'mole' || !outsideCouncil(state)) return arc;
@@ -123,9 +149,7 @@ export function cabinetArc(state: CabinetStoryState, arc: Arc): Arc {
     beats: arc.beats.map(beat => ({ ...beat, variants: beat.variants.map(variant => {
       const copy = beat.turn === 1 ? OPENING : beat.turn === 3 ? LEAK
         : beat.turn === 7 ? variant.requires?.includes('watch') ? TRACE : HEALTH
-        : beat.turn === 12 ? PRESSURE : variant.requires ? EXPOSED : undefined;
-      if (!copy) return { ...variant, description: 'Архив закрытых совещаний опубликован за границей. В нём старые записи и копии, '
-        + 'которые продолжали уходить через аппарат после кадровых перемен. Публикацию подписал {target}; сам он уже покинул страну.' };
+        : beat.turn === 12 ? PRESSURE : variant.requires ? EXPOSED : PUBLISHED;
       return { ...variant, title: copy.title, description: copy.description,
         choices: variant.choices.map(choice => ({ ...choice, ...copy.choices[choice.flag] })) };
     }) })),

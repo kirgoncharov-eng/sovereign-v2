@@ -44,7 +44,8 @@ test('бывший советник получает другую сцену, н
 test('текущий советник, архив, Daily и отсутствие кадрового указа оставляют исходные сцены', async () => {
   const state = await scenario(), fired = fireTarget(state);
   for (const original of [state, { ...fired, country: 'Украина' }, { ...fired, daily: '2026-11-11' },
-    { ...fired, cabinet: undefined }, { ...fired, advisors: state.advisors }]) assert.equal(cabinetArc(original, mole), mole);
+    { ...fired, cabinet: undefined }, { ...fired, advisors: state.advisors },
+    { ...fired, arc: { ...fired.arc!, target: fired.keyFigures[0].name } }]) assert.equal(cabinetArc(original, mole), mole);
   assert.equal(cabinetArc(fired, ARCS[0]), ARCS[0]);
 });
 
@@ -73,7 +74,7 @@ test('все развилки и исходы после отставки чит
       const fired = fireTarget(state), event = beatEvent(fired)!;
       assert.ok(event);
       const text = JSON.stringify(event);
-      assert.doesNotMatch(text, /\{(?:target|capital)[^}]*\}|Распустить совет|придёт на совещание|не приходит на работу|флешк|роуминг/);
+      assert.doesNotMatch(text, /\{(?:target|capital)[^}]*\}|Распустить совет|придёт на совещание|не приходит на работу|флешк|роуминг|сервер|админ/);
       assert.equal(event.choices.length, 3);
       assert.ok(event.choices.every(choice => choice.arc?.ok && choice.arc?.fail));
       if (turn === 26 || turn === 35) assert.ok(text.includes(state.arc!.target));
