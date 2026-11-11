@@ -75,7 +75,12 @@ export function cabinetPreview(state: GameState, action: CabinetAction) {
   const changes = state.cabinet?.changedTurn === state.turn ? state.cabinet.changes : 0;
   // Повторные перестановки расходуют влияние: нет календарного запрета и бесплатной кадровой карусели.
   const administration: ResourceDelta = { politicalCapital: -(2 + changes * 2) };
-  const cost = addCosts(administration, candidate?.cost ?? {}, leaving?.cost ?? {});
+  const quoted = addCosts(administration, candidate?.cost ?? {}, leaving?.cost ?? {});
+  const cost: ResourceDelta = {};
+  for (const key of RESOURCE_KEYS) {
+    const delta = (quoted[key] ?? 0) > 0 ? Math.min(quoted[key]!, 100 - state.resources[key]) : quoted[key] ?? 0;
+    if (delta) cost[key] = delta;
+  }
   const reactions = state.factions.map(faction => ({
     id: faction.id, name: faction.name,
     delta: bounded(faction.relation + (candidate?.relation[faction.bloc] ?? 0)

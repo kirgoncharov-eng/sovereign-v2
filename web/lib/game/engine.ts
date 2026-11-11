@@ -199,7 +199,11 @@ export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "fact
   const blocOf = (fig: Figure) => state.factions.find(f => f.id === fig.faction)?.bloc;
   let who: { name: string; role: string } | undefined;
   const men = <T extends { name: string }>(list: T[]) => (list.filter(x => !isFemaleName(x.name)).length ? list.filter(x => !isFemaleName(x.name)) : list);
-  if (arc.target === "advisor") { const pool = men(state.advisors); who = pool[Math.floor(rand() * pool.length)]; }
+  if (arc.target === "advisor") {
+    // После кадрового указа мужских советников может не остаться. Тогда цель — подходящий внутренний игрок ниже.
+    const pool = state.country === ALTERNATE_COUNTRY ? state.advisors.filter(advisor => !isFemaleName(advisor.name)) : men(state.advisors);
+    who = pool[Math.floor(rand() * pool.length)];
+  }
   if (arc.target === "security") who = men(state.keyFigures.filter(f => blocOf(f) === "security"))[0];
   if (arc.target === "business") who = men(state.keyFigures.filter(f => blocOf(f) === "business" || blocOf(f) === "ruling"))[0];
   if (arc.target === "rival") who = men(state.keyFigures.filter(f => blocOf(f) === "liberal" || blocOf(f) === "nationalist"))[0];

@@ -7,7 +7,7 @@ import { advisorDialogue } from '../client/advisor-dialogue.ts';
 import { parseSave } from '../client/save.ts';
 import { ADVISOR_ROLES, RESOURCE_KEYS, SAVE_VERSION } from './data.ts';
 import { dossierBlocked } from './staffing.ts';
-import { isFemaleName, successChance } from './engine.ts';
+import { isFemaleName, pickArc, successChance } from './engine.ts';
 import { governmentActions, stepGovernment } from './government.ts';
 import { stepHousingNext, validHousingNext } from './housing-next.ts';
 import type { DifficultyId, GameState } from './types.ts';
@@ -228,4 +228,28 @@ test('проверка сохранения отвергает повреждё�
     assert.equal(validCabinet(corrupt, state.turn), false);
     assert.equal(parseSave(JSON.stringify({ version: SAVE_VERSION, screen: 'chronicle', state: { ...state, cabinet: corrupt } })), null);
   }
+});
+
+test('следующий срок без мужчин в совете выбирает внутреннего антагониста, а не женщину или посла', async () => {
+  const state = await fresh();
+  const women = state.advisors.filter(person => person.id !== 'security').map(person => ({ ...person, name: 'Ольга Тестовая' }));
+  for (const advisors of [[], women]) {
+    const arc = pickArc({ ...state, advisors }, () => 0, ['alt_contracts']);
+    assert.equal(arc.id, 'mole');
+    assert.equal(isFemaleName(arc.target), false);
+    const target = state.keyFigures.find(person => person.name === arc.target);
+    assert.ok(target);
+    assert.doesNotMatch(target.id, /^amb_|^investor$|^patriarch$|^catholicos$|^mufti$/);
+  }
+});
+
+test('предпросмотр не обещает прибавку сверх потолка ресурса', async () => {
+  const state = await fresh(1);
+  state.resources.economy = 99;
+  const candidate = cabinetCandidates(state).find(person => (person.cost.economy ?? 0) > 0)!;
+  assert.ok(candidate);
+  const action = { kind: 'hire' as const, candidate: candidate.id };
+  const preview = cabinetPreview(state, action), next = applyCabinetAction(state, action);
+  assert.equal(preview.cost.economy, 1);
+  for (const key of RESOURCE_KEYS) assert.equal(next.resources[key] - state.resources[key], preview.cost[key] ?? 0);
 });
