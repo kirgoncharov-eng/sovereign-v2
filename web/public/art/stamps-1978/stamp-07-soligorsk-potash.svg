@@ -24,9 +24,7 @@
 
     <!-- Top Country Header Bar -->
     <rect x="34" y="34" width="292" height="26" fill="#7c321d"/>
-    <text x="180" y="52" text-anchor="middle" fill="#f2e8d3" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="16" letter-spacing="2.2">
-      ПОЧТА НЕМАНСКОЙ РЕСПУБЛИКИ
-    </text>
+    <text x="180" y="51" text-anchor="middle" fill="#f2e8d3" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="13.2" letter-spacing="1.0" textLength="256" lengthAdjust="spacingAndGlyphs">ПОЧТА НЕМАНСКОЙ РЕСПУБЛИКИ</text>
 
     <!-- Center Engraved Vignette Window -->
     <rect x="42" y="66" width="276" height="202" fill="#e6d2b8" stroke="#7c321d" stroke-width="2"/>
@@ -47,45 +45,24 @@
     </g>
 
     <!-- Series & Issue Year Bar -->
-    <text x="44" y="285" fill="#3b352e" font-family="'Courier New', monospace" font-weight="700" font-size="10.4" letter-spacing="0.4">
-      НЕДРА · СОЛИГОРСК
-    </text>
-    <text x="316" y="285" text-anchor="end" fill="#7c321d" font-family="'Courier New', monospace" font-weight="700" font-size="11.5" letter-spacing="0.6">
-      1980 г.
-    </text>
+    <text x="44" y="285" fill="#3b352e" font-family="'Courier New', monospace" font-weight="700" font-size="9.8" letter-spacing="0.2">НЕДРА · СОЛИГОРСК</text>
+    <text x="316" y="285" text-anchor="end" fill="#7c321d" font-family="'Courier New', monospace" font-weight="700" font-size="11" letter-spacing="0.4">1980 г.</text>
     <line x1="42" y1="292" x2="318" y2="292" stroke="#7c321d" stroke-width="1.5"/>
 
     <!-- Bottom Denomination Cartouche -->
     <rect x="42" y="302" width="82" height="86" fill="#7c321d"/>
     <rect x="47" y="307" width="72" height="76" fill="none" stroke="#f2e8d3" stroke-width="1.2"/>
-    <text x="83" y="352" text-anchor="middle" fill="#f2e8d3" font-family="'PT Serif', Georgia, serif" font-weight="700" font-size="39">
-      10
-    </text>
-    <text x="83" y="374" text-anchor="middle" fill="#f2e8d3" font-family="'PT Sans Narrow', sans-serif" font-weight="700" font-size="13.5" letter-spacing="1.8">
-      КОП.
-    </text>
+    <text x="83" y="352" text-anchor="middle" fill="#f2e8d3" font-family="'PT Serif', Georgia, serif" font-weight="700" font-size="39">10</text>
+    <text x="83" y="374" text-anchor="middle" fill="#f2e8d3" font-family="'PT Sans Narrow', sans-serif" font-weight="700" font-size="13.5" letter-spacing="1.8">КОП.</text>
 
-    <!-- Event Title & Subtitle strictly bounded inside [x=134 .. x=314] (180px width) -->
-    <foreignObject x="134" y="302" width="180" height="86">
-      <div xmlns="http://www.w3.org/1999/xhtml" style="width:180px;height:86px;display:flex;flex-direction:column;justify-content:space-between;">
-        <div>
-          <div style="font-family:'PT Sans Narrow', 'Arial Narrow', sans-serif;font-weight:700;font-size:14.2px;line-height:1.15;color:#7c321d;letter-spacing:0.2px;">
-            КАЛИЙНЫЙ БАССЕЙН
-          </div>
-          <div style="font-family:'PT Serif', Georgia, serif;font-style:italic;font-size:11px;line-height:1.22;color:#3b352e;margin-top:4px;">
-            ЗАЩИТА СТВОЛА № 2
-          </div>
-        </div>
-        <div style="border-top:1px dashed #7c321d;padding-top:4px;font-family:'Courier New', monospace;font-weight:700;font-size:10px;color:#7c321d;">
-          КАТАЛОГ ЦФА/НР № НР-1980-12
-        </div>
-      </div>
-    </foreignObject>
+    <!-- Pure SVG Event Title, Subtitle & Catalog Number strictly inside [x=134 .. x=314] -->
+    <text x="134" y="315" fill="#7c321d" font-family="'PT Sans Narrow', 'Arial Narrow', sans-serif" font-weight="700" font-size="12.2" letter-spacing="0.1">КАЛИЙНЫЙ БАССЕЙН</text>
+    <text x="134" y="331" fill="#3b352e" font-family="'PT Serif', Georgia, serif" font-style="italic" font-size="10.2">ЗАЩИТА СТВОЛА № 2</text>
+    <line x1="134" y1="369" x2="310" y2="369" stroke="#7c321d" stroke-width="1" stroke-dasharray="3 2"/>
+    <text x="134" y="382" fill="#7c321d" font-family="'Courier New', monospace" font-weight="700" font-size="8.6">КАТАЛОГ ЦФА/НР № НР-1980-12</text>
 
     <!-- Bottom Miniature Footnote -->
-    <text x="180" y="405" text-anchor="middle" fill="#3b352e" font-family="'Courier New', monospace" font-size="9.5" letter-spacing="1.2">
-      ГОЗНАК МИНСК · МЕТАЛЛОГРАФИЯ · 1980
-    </text>
+    <text x="180" y="405" text-anchor="middle" fill="#3b352e" font-family="'Courier New', monospace" font-size="9.2" letter-spacing="0.9">ГОЗНАК МИНСК · МЕТАЛЛОГРАФИЯ · 1980</text>
 
     <!-- Postmark Cancellation -->
     <g transform="translate(282, 362) rotate(-14)" opacity="0.46">
