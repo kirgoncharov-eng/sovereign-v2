@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as secretary from './secretary.ts';
+import { PERSONAL_BEATS } from '../client/chronicle-personal.ts';
 
 const SLOTS = ['secretary', 'advisor', 'advisorRole', 'director', 'figure', 'figureRole'];
 
@@ -15,8 +16,21 @@ const texts = allTexts(Object.fromEntries(Object.entries(secretary).filter(([, v
 
 test('у каждого повода описи есть строки на каждом уровне доверия; доверие — словами', () => {
   for (const [occasion, byTrust] of Object.entries(secretary.INVENTORY_LINES))
-    for (const trust of [0, 1, 2] as const) assert.ok(byTrust[trust].length >= 2, `${occasion}/${trust}`);
+    for (const trust of [0, 1, 2] as const) {
+      assert.ok(byTrust[trust].length >= 6, `${occasion}/${trust}`);
+      assert.equal(new Set(byTrust[trust]).size, byTrust[trust].length, `повтор в ${occasion}/${trust}`);
+    }
   assert.deepEqual(Object.values(secretary.TRUST_WORDS), ['держит дистанцию', 'доверяет', 'на вашей стороне']);
+});
+
+test('газетные вырезки и чудаки 1978–1983 в личных строках хроники обходятся без анахронизмов (#429)', () => {
+  const papers = PERSONAL_BEATS.filter(beat => beat.id.startsWith('paper-'));
+  const weirds = PERSONAL_BEATS.filter(beat => beat.id.startsWith('weird-'));
+  assert.ok(papers.length >= 10, 'достаточно газетных вырезок эпохи');
+  assert.ok(weirds.length >= 6, 'достаточно странных посетителей и курьёзов');
+  for (const beat of [...papers, ...weirds]) {
+    assert.doesNotMatch(beat.text, /интернет|смартфон|сайт|хакер|блогер|онлайн/i, beat.id);
+  }
 });
 
 test('в текстах только известные слоты и без пустых строк', () => {
