@@ -148,6 +148,7 @@ export function publishSavedGovernmentReports(state: GameState): GameState {
         turn: state.turn,
         kind: 'news',
         title: projectDef(program.id).title,
+        ...(state.country === ALTERNATE_COUNTRY && !state.daily && state.cabinet ? { author: program.name } : {}),
         text:
           `${program.name}: «${projectDef(program.id).title}» — ${program.progress}%. ` +
           `${program.lastFactors.join('. ')}. Результат и расходы уже учтены. Доклад опубликован; ` +
@@ -157,7 +158,8 @@ export function publishSavedGovernmentReports(state: GameState): GameState {
   }
   const next = world.government.housingNext;
   if (next && ['completed', 'partial', 'failed'].includes(next.status)) next.reviewed = true;
-  offerHousingNext(world, state.turn, state.country === ALTERNATE_COUNTRY);
+  offerHousingNext(world, state.turn, state.country === ALTERNATE_COUNTRY,
+    state.country === ALTERNATE_COUNTRY && !state.daily && state.cabinet ? state.advisors.map(advisor => advisor.name) : undefined);
   world.dispatches = world.dispatches.slice(-24);
   return { ...state, world, ...(pendingReport ? { currentEvent: null } : {}) };
 }
@@ -489,6 +491,7 @@ export function stepGovernment(
         kind: terminal ? ('news' as const) : ('report' as const),
         title: definition.title,
         text,
+        ...(state.country === ALTERNATE_COUNTRY && !state.daily && state.cabinet ? { author: advisor?.name ?? null } : {}),
       },
     ].slice(-24);
     stories.push(text);

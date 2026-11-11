@@ -107,7 +107,17 @@ function transferAssignments(state: GameState, seat: string, incoming?: Advisor)
       ...('factors' in program ? { factors } : { lastFactors: factors }) };
   };
   const government = state.world.government;
-  return { ...state, world: { ...state.world, government: { ...government,
+  // Старые сохранения не содержат автора: закрепляем его до изменения имени координатора.
+  const dispatches = state.world.dispatches.map(dispatch => {
+    if (dispatch.author !== undefined) return dispatch;
+    if (dispatch.id.includes(':housing-next:')) {
+      const next = government.housingNext;
+      return next ? { ...dispatch, author: next.name ?? next.previousName } : dispatch;
+    }
+    const program = government.programs.find(program => program.id === dispatch.project);
+    return program && ['report', 'news'].includes(dispatch.kind) ? { ...dispatch, author: program.name } : dispatch;
+  });
+  return { ...state, world: { ...state.world, dispatches, government: { ...government,
     programs: government.programs.map(update),
     ...(government.housingNext ? { housingNext: update(government.housingNext) } : {}),
   } } };

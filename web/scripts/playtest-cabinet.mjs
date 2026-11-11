@@ -13,17 +13,35 @@ const fixture = `
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import CabinetPanel from './app/game/CabinetPanel.tsx';
-import { applyCabinetAction } from './lib/game/cabinet.ts';
+import PresidentialDesk from './app/game/PresidentialDesk.jsx';
+import { applyCabinetAction, cabinetCandidates } from './lib/game/cabinet.ts';
+import { stepGovernment } from './lib/game/government.ts';
+import { readPresidentialMessages } from './lib/client/presidential-inbox.ts';
 import { newTerm, nextCase, signChoice, startFromSeed } from './lib/client/chronicle.ts';
 import { advisorOutlook } from './lib/client/advisor-outlook.ts';
 import { parseSave } from './lib/client/save.ts';
 import { SAVE_VERSION, RESOURCE_KEYS } from './lib/game/data.ts';
 const key = 'cabinet-playtest';
 async function main() {
+  const mail = new URLSearchParams(location.search).get('mail');
   const old = localStorage.getItem(key);
   const fresh = await newTerm(startFromSeed(7, 'coalition'));
   fresh.resources = Object.fromEntries(RESOURCE_KEYS.map(key => [key, 90]));
-  const initial = old ? parseSave(old)?.state : await nextCase(fresh);
+  let initial = old ? parseSave(old)?.state : await nextCase(fresh);
+  if (mail) {
+    initial = fresh;
+    for (let turn = 0; turn < 5; turn++) initial = await signChoice(await nextCase(initial), 'a');
+    const author = initial.advisors.find(advisor => advisor.id === 'diplomat');
+    Object.assign(initial.world.government.programs.find(program => program.id === 'exports'), {
+      status: 'running', progress: 20, coordinator: author.id, name: author.name, started: 4, due: 8,
+    });
+    stepGovernment(initial, initial.world, initial.turn);
+    initial = applyCabinetAction(initial, { kind: 'dismiss', seat: author.id, name: author.name });
+    if (mail === 'vacant') stepGovernment(initial, initial.world, initial.turn);
+    initial = applyCabinetAction(initial, { kind: 'hire', candidate: cabinetCandidates(initial, author.id)[0].id });
+    document.documentElement.dataset.reportAuthor = mail === 'vacant' ? 'Канцелярия' : author.name;
+    document.documentElement.dataset.nextAuthor = initial.advisors.find(advisor => advisor.id === author.id).name;
+  }
   if (!initial) throw new Error('Сохранение не загрузилось');
   function Fixture() {
     const [state, setState] = useState(initial);
@@ -38,6 +56,16 @@ async function main() {
         commit(signed.ended ? signed : await nextCase(signed));
       } catch (error) { setError(error.message); }
     };
+    if (mail) return <main>
+      <button onClick={() => {
+        const world = structuredClone(state.world);
+        stepGovernment(state, world, state.turn + 1);
+        commit({ ...state, world, turn: state.turn + 1 });
+      }}>Получить следующий доклад</button>
+      <PresidentialDesk gs={state} Portrait={() => null} Scene={() => null} onAction={() => {}}
+        onRead={(person, key) => commit(readPresidentialMessages(state, person, key))}
+        onViewChange={() => {}} onDesk={() => {}} onProject={() => {}}/>
+    </main>;
     const outlook = advisorOutlook(state, state.currentEvent.choices[0]);
     return <main style={{maxWidth:480, margin:'auto'}}>
       <header style={{padding:16}}><strong>Проверка кадрового окна</strong>
@@ -112,6 +140,22 @@ if (!process.argv.includes('--build-only')) {
       }
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'нет горизонтального вылета');
       assert.equal(await page.getByRole('alert').count(), 0);
+      for (const mail of ['former', 'vacant']) {
+        await page.goto(pathToFileURL(file).href + '?mail=' + mail);
+        await page.getByRole('button', { name: /^Сообщения/ }).click();
+        const dialog = page.locator('.sv-desk-dialog');
+        await dialog.locator('[data-correspondence="program:exports"]').click();
+        const author = await page.locator('html').getAttribute('data-report-author');
+        assert.equal(await dialog.locator('h3').innerText(), author, 'письмо открывается под прежним автором');
+        await page.screenshot({ path: join(out, `${width}-mail-${mail}.png`), fullPage: false });
+        await page.getByRole('button', { name: 'Закрыть и вернуться к главному делу', exact: true }).click();
+        await page.getByRole('button', { name: 'Получить следующий доклад', exact: true }).click();
+        await page.getByRole('button', { name: /^Сообщения/ }).click();
+        await dialog.locator('[data-correspondence="program:exports"]').click();
+        assert.equal(await dialog.locator('h3').innerText(), await page.locator('html').getAttribute('data-next-author'),
+          'только новый доклад подписывает преемник');
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      }
       summary.widths.push(width);
       await context.close();
     }

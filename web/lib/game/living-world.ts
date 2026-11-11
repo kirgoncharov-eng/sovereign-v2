@@ -35,6 +35,8 @@ export interface WorldDispatch {
     kind: 'letter' | 'decision' | 'report' | 'inspection' | 'news';
     title: string;
     text: string;
+    // Имя на момент выпуска; null — доклад канцелярии при вакантной должности.
+    author?: string | null;
 }
 export interface EnergyProject {
     priority?: 'balanced' | 'industry' | 'households';
@@ -700,5 +702,6 @@ export function validLivingWorld(value: unknown): value is LivingWorld {
         && n(d.turn)
         && ['letter', 'decision', 'report', 'inspection', 'news'].includes(d.kind)
         && typeof d.title === 'string'
+        && (d.author === undefined || d.author === null || typeof d.author === 'string' && d.author.trim().length > 0)
         && typeof d.text === 'string');
 }
