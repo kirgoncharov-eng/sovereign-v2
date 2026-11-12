@@ -1,4 +1,5 @@
 import { historicalSceneText } from "../content/historical-scenes.ts";
+import { buildMemoirVerdict1978 } from "../content/memoirs-1978.ts";
 import { ALTERNATE_COUNTRY, ALTERNATE_PARTIES, ALTERNATE_SPEECHES, ALTERNATE_SHARED_CARDS, ALTERNATE_SHARED_LAWS, campaignCopy } from "./alternate-world.ts";
 import { historicalEcho } from '../content/historical-echoes.ts';
 import { JOURNALIST_CALL_TITLE, journalistCall } from './journalist-call.ts';
@@ -1674,9 +1675,9 @@ function buildVerdict(state: GameState): Verdict {
     `${ELECTION_LABEL[e.kind].toLowerCase()} ${e.outcome === "won" ? "выиграны" : "проиграны"} (${e.leader}% против ${e.top.share}%)`).join(", ");
   const fem = isFemaleName(state.leader.name);
 
-  const verdict = [
-    `${state.leader.name} ${fem ? "правила" : "правил"} страной ${reignLength(state.turn)} — с ${startYear} по ${state.year} год — и ${fem ? "приняла" : "принял"} ${plural(state.history.length, "ключевое решение", "ключевых решения", "ключевых решений")}.`,
-    state.reign?.past.length ? `Как ${fem ? "она оставалась" : "он оставался"} у власти: ${state.reign.past.map(p => `после ${termOrdinalGen(p.term)} срока ${TERM_HOW[p.outcome] ?? ""}`).join(", ")}.` : "",
+  const openingSentence = `${state.leader.name} ${fem ? "правила" : "правил"} страной ${reignLength(state.turn)} — с ${startYear} по ${state.year} год — и ${fem ? "приняла" : "принял"} ${plural(state.history.length, "ключевое решение", "ключевых решения", "ключевых решений")}.`;
+  const reignSentence = state.reign?.past.length ? `Как ${fem ? "она оставалась" : "он оставался"} у власти: ${state.reign.past.map(p => `после ${termOrdinalGen(p.term)} срока ${TERM_HOW[p.outcome] ?? ""}`).join(", ")}.` : "";
+  const referenceItems = [
     topCount ? `Главный инструмент правления — «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему лидер прибегал ${plural(topCount, "раз", "раза", "раз")}.` : "",
     elections ? `Выборы: ${elections}.` : "",
     pathVerdict(state.path, end),
@@ -1686,7 +1687,11 @@ function buildVerdict(state: GameState): Verdict {
       : broke ? `Ни одно из предвыборных обещаний не исполнено${broke === given ? " — все нарушены" : ""}.` : "") : "",
     state.laws?.length ? `Законы, по которым живёт страна: ${state.laws.map(l => `«${lawDef(l.id)?.title}»`).join(", ")}.` : "",
     `К концу правления партия власти имела ${rating}% поддержки.`,
-  ].filter(Boolean).join(" ");
+  ];
+
+  const verdict = state.country === ALTERNATE_COUNTRY
+    ? buildMemoirVerdict1978(state, openingSentence, reignSentence, referenceItems)
+    : [openingSentence, reignSentence, ...referenceItems].filter(Boolean).join(" ");
 
   return {
     verdict,
