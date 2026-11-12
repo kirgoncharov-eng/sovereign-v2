@@ -122,3 +122,16 @@ test('непосильный состав нельзя утвердить; от�
   assert.deepEqual(draft, before);
   assert.deepEqual(confirmInitialCabinet(resetInitialCabinet(draft)).resources, draft.resources);
 });
+
+test('отклонённая кандидатура не возвращается под тем же именем с другой биографией', async () => {
+  for (const seed of [7, 13, 19, 24]) {
+    let state = await fresh(seed);
+    state = { ...state, resources: Object.fromEntries(RESOURCE_KEYS.map(key => [key, 90])) as GameState['resources'] };
+    const names = state.advisors.map(person => person.name);
+    for (const role of ADVISOR_ROLES) state = selectInitialAdvisor(state, role.id, cabinetCandidates(state, role.id)[0].id);
+    const confirmed = reload(confirmInitialCabinet(state));
+    assert.deepEqual(confirmed.cabinetFormation!.suggestedNames, names);
+    assert.deepEqual(confirmed.cabinet!.departed, []);
+    for (const candidate of cabinetCandidates(confirmed)) assert.ok(!names.includes(candidate.name), candidate.name);
+  }
+});

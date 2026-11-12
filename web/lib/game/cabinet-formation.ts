@@ -6,6 +6,7 @@ import type { Advisor, GameState, ResourceDelta } from './types.ts';
 export interface CabinetFormation {
   status: 'pending' | 'confirmed';
   selected: Record<string, string>;
+  suggestedNames?: string[];
 }
 
 export const formingCabinet = (state: GameState | null) => !!state && cabinetEnabled(state)
@@ -16,7 +17,7 @@ export function beginCabinetFormation(state: GameState): GameState {
   if (state.turn !== 0 || state.currentEvent || state.history.length || state.ended || state.cabinet?.changes) {
     throw new Error('Первоначальный состав доступен только до первого дела.');
   }
-  return { ...prepareCabinet(state), cabinetFormation: { status: 'pending', selected: {} } };
+  return { ...prepareCabinet(state), cabinetFormation: { status: 'pending', selected: {}, suggestedNames: state.advisors.map(person => person.name) } };
 }
 
 export function selectInitialAdvisor(state: GameState, seat: string, candidate: string | null): GameState {
@@ -27,12 +28,12 @@ export function selectInitialAdvisor(state: GameState, seat: string, candidate: 
   }
   const selected = { ...state.cabinetFormation!.selected };
   if (candidate === null) delete selected[seat]; else selected[seat] = candidate;
-  return { ...state, cabinetFormation: { status: 'pending', selected } };
+  return { ...state, cabinetFormation: { ...state.cabinetFormation!, status: 'pending', selected } };
 }
 
 export function resetInitialCabinet(state: GameState): GameState {
   if (!formingCabinet(state)) throw new Error('Первоначальный состав уже утверждён.');
-  return { ...state, cabinetFormation: { status: 'pending', selected: {} } };
+  return { ...state, cabinetFormation: { ...state.cabinetFormation!, status: 'pending', selected: {} } };
 }
 
 /** Карточка выбранного человека до назначения; не меняет его отношения и не раскрывает скрытый навык. */
@@ -47,7 +48,9 @@ export function initialAdvisor(state: GameState, seat: string): Advisor | undefi
 }
 
 export function initialCabinetPreview(state: GameState) {
-  let next = state;
+  let next = formingCabinet(state) ? { ...state, cabinetFormation: { ...state.cabinetFormation!,
+    suggestedNames: state.cabinetFormation!.suggestedNames ?? state.advisors.map(person => person.name),
+  } } : state;
   let unavailable: string | null = formingCabinet(state) ? null : 'Первоначальный состав уже утверждён.';
   if (!unavailable) try {
     for (const role of ADVISOR_ROLES) {
@@ -70,7 +73,7 @@ export function confirmInitialCabinet(state: GameState): GameState {
   if (state.cabinetFormation?.status === 'confirmed') return state;
   const preview = initialCabinetPreview(state);
   if (preview.unavailable) throw new Error(preview.unavailable);
-  return { ...preview.next, cabinetFormation: { ...state.cabinetFormation!, status: 'confirmed' },
+  return { ...preview.next, cabinetFormation: { ...preview.next.cabinetFormation!, status: 'confirmed' },
     // Первые назначения не считаются перестановками уже действующего совета. Их расходы остаются в ведомости.
     cabinet: { ...preview.next.cabinet!, changes: 0 },
   };
@@ -81,6 +84,8 @@ export function validCabinetFormation(value: unknown, state: GameState): value i
   const formation = value as CabinetFormation;
   if (!['pending', 'confirmed'].includes(formation.status) || !formation.selected
     || typeof formation.selected !== 'object' || Array.isArray(formation.selected)) return false;
+  if (formation.suggestedNames !== undefined && (!Array.isArray(formation.suggestedNames) || formation.suggestedNames.length !== 4
+    || formation.suggestedNames.some(name => typeof name !== 'string') || new Set(formation.suggestedNames).size !== 4)) return false;
   if (formation.status === 'pending' && (state.turn !== 0 || state.currentEvent || state.history.length || state.ended || !state.cabinet)) return false;
   return Object.entries(formation.selected).every(([seat, candidate]) => ADVISOR_ROLES.some(role => role.id === seat)
     && typeof candidate === 'string' && candidate.startsWith(`cabinet:0:${seat}:`)

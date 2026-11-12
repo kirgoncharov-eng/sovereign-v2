@@ -80,7 +80,8 @@ const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 function secretaryName(gs: GameState): string {
   const people = [gs.leader.name, ...gs.advisors.map(p => p.name), ...gs.keyFigures.map(p => p.name),
-    ...(gs.world?.people.map(p => p.name) ?? []), ...(gs.former ?? []), ...(gs.arc ? [gs.arc.target] : []), ...announcedHeirs(gs)];
+    ...(gs.world?.people.map(p => p.name) ?? []), ...(gs.former ?? []), ...(gs.arc ? [gs.arc.target] : []),
+    ...(gs.cabinetFormation?.suggestedNames ?? []), ...announcedHeirs(gs)];
   const used = new Set(people.map(secretarySurname));
   const first = ALTERNATE_NAMES.first.slice(8);
   const given = first[(hashSeed(gs.seed, 'secretary-first') >>> 8) % first.length];

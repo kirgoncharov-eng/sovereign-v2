@@ -321,7 +321,8 @@ const reservedCandidates = (state: GameState) => new Set(state.country === ALTER
 // Имена и фамилии, уже занятые в партии: новые люди их не получают, пока есть свободные.
 function usedNames(state: GameState, extra: string[] = []): Set<string> {
   const used = new Set<string>();
-  const people = [state.leader.name, ...state.keyFigures.map(figure => figure.name), ...state.advisors.map(advisor => advisor.name)];
+  const people = [state.leader.name, ...state.keyFigures.map(figure => figure.name), ...state.advisors.map(advisor => advisor.name),
+    ...(state.cabinetFormation?.suggestedNames ?? [])];
   for (const name of [...people, ...(state.former ?? []), ...extra]) {
     const [first, last] = name.split(" ");
     used.add(`first:${first}`);

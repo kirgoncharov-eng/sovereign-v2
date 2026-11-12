@@ -28,7 +28,8 @@ function nextCandidate(state: GameState, seat: string, ordinal: number, roster: 
   const year = yearOf(state), others = roster.filter(person => person.seat === seat);
   const occupied = new Set([state.leader.name, ...state.advisors.map(person => person.name),
     ...state.keyFigures.map(person => person.name), ...(state.world?.people.map(person => person.name) ?? []),
-    ...(state.former ?? []), ...roster.map(person => person.name), state.arc?.target, state.world?.secretary?.name]);
+    ...(state.former ?? []), ...(state.cabinetFormation?.suggestedNames ?? []),
+    ...roster.map(person => person.name), state.arc?.target, state.world?.secretary?.name]);
   for (let attempt = 0; attempt < 200; attempt++) {
     const pool = candidatePool({ ...state, seed: hashSeed(state.seed, 'cabinet', year, seat, ordinal, attempt),
       staffing: undefined, former: [...(state.former ?? []), ...roster.map(person => person.name)] });
