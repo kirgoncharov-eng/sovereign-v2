@@ -1,7 +1,7 @@
-// Авторский вердикт мемуаров для Неманской республики 1978 года (#417).
-// Основной текст вспоминает 2–3 ключевых решения партии по их авторским названиям,
-// называет главного союзника и главного противника к концу срока и исход интриги «Четвёртый экземпляр».
-// Счётчики вынесены отдельной строкой «Справка архива: …».
+// Авторский вердикт мемуаров для Неманской республики 1978 года (#417, #439).
+// Рассказ вспоминает 2–3 ключевых решения партии по их авторским названиям, называет главного союзника
+// и главного противника к концу срока и исход интриги «Четвёртый экземпляр».
+// Абзацы разделены пустой строкой; счётчики стоят последним абзацем «Справка архива: …».
 import { ALTERNATE_EVENTS } from "./alternate-history.ts";
 import { isFemaleName } from "../game/engine.ts";
 import type { Figure, GameState, HistoryEntry } from "../game/types.ts";
@@ -249,7 +249,7 @@ export const CASE_CHOICE_MEMORIES: Readonly<Record<string, Readonly<Record<strin
     },
     "Взыскать долг с нынешних владельцев заводов": {
       ok: "в деле «Приложение к договору 1956 года» {обратил|обратила} старый казённый счёт на дивиденды нынешних владельцев заводов",
-      fail: "в деле «Приложение к договору 1956 года» {попытался|пыталась} взыскать долг 1956 года с нынешних владельцев заводов, но те отбились в суде, вернув счёт государству",
+      fail: "в деле «Приложение к договору 1956 года» {попытался|попыталась} взыскать долг 1956 года с нынешних владельцев заводов, но те отбились в суде, вернув счёт государству",
     },
   },
   "Ходоки из Полесья": {
@@ -305,7 +305,7 @@ export const CASE_CHOICE_MEMORIES: Readonly<Record<string, Readonly<Record<strin
     },
     "Отклонить ультиматум и ввести прямое управление через комиссаров": {
       ok: "в деле «Губернаторы съезжаются в Минск» {отверг|отвергла} ультиматум и {разослал|разослала} в области президентских комиссаров",
-      fail: "в деле «Губернаторы съезжаются в Минск» {попытался|пыталась} править областями через комиссаров, но советы признали их указы недействительными, а на местах начались протесты",
+      fail: "в деле «Губернаторы съезжаются в Минск» {попытался|попыталась} править областями через комиссаров, но советы признали их указы недействительными, а на местах начались протесты",
     },
   },
   "Разрыв на границах": {
@@ -400,13 +400,17 @@ function roleLower(role: string): string {
   return role.charAt(0).toLowerCase() + role.slice(1);
 }
 
+// Иностранные женские имена послов не оканчиваются на «а/я», и общий `isFemaleName` их не узнаёт.
+const FOREIGN_FEMALE_NAMES = new Set(["Изабель", "Кэтрин"]);
+const figureIsFemale = (name: string) => isFemaleName(name) || FOREIGN_FEMALE_NAMES.has(name.trim().split(/\s+/)[0] ?? "");
+
 function formatPeopleMemory(figures: Figure[]): string {
   if (figures.length < 2) return "";
   const sorted = [...figures].sort((a, b) => b.relation - a.relation);
   const ally = sorted[0];
   const foe = sorted[sorted.length - 1];
-  const allyFem = isFemaleName(ally.name);
-  const foeFem = isFemaleName(foe.name);
+  const allyFem = figureIsFemale(ally.name);
+  const foeFem = figureIsFemale(foe.name);
   const allyDesc = `${ally.name} (${roleLower(ally.role)})`;
   const foeDesc = `${foe.name} (${roleLower(foe.role)})`;
 
@@ -423,38 +427,62 @@ function formatPeopleMemory(figures: Figure[]): string {
   return `В людях этот курс провёл чёткую межу: ${allyClause}, ${foeClause}.`;
 }
 
-function joinDecisionClauses(clauses: string[]): string {
-  if (clauses.length === 0) return "";
-  if (clauses.length === 1) return clauses[0];
-  if (clauses.length === 2) return `${clauses[0]}, а затем ${clauses[1]}`;
-  return `${clauses[0]}, в середине срока ${clauses[1]}, а затем ${clauses[2]}`;
+// Секретарь в мемуарах: третьим лицом и другими словами, чем её последняя записка в ленте квартала (`TERM_FINALE`).
+function formatSecretaryMemory(state: GameState, fem: boolean): string {
+  const secretary = state.world?.secretary;
+  if (!secretary?.finale) return "";
+  const who = `Секретарь приёмной ${secretary.name}`;
+  if (!secretary.present) return `${who} до конца срока не доработала: после её ухода папки приходили в срок, но главное в них приходилось искать самому президенту.`;
+  if (secretary.trust >= 2) return `${who} до последнего дня оставалась на ${fem ? "её" : "его"} стороне — по своей воле, чего за этой приёмной прежде не водилось.`;
+  if (secretary.trust === 1) return `${who} к концу срока доверяла президенту настолько, что стала оставлять на папках записки от себя.`;
+  return `${who} за весь срок так и не перешла с президентом на короткий тон: дело она знала, а о прочем молчала.`;
 }
 
-export function buildMemoirVerdict1978(
-  state: GameState,
-  openingSentence: string,
-  reignSentence: string,
-  referenceItems: string[],
-): string {
+// Связка времени перед придаточным («затем, когда станцию перекрыли, …») отделяется запятой.
+const afterLead = (lead: string, clause: string) => `${lead}${clause.startsWith("когда ") ? "," : ""} ${clause}`;
+const sentenceCase = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+// Одно-два решения — одной фразой; три — тремя, чтобы абзац читался с телефона.
+function decisionSentences(name: string, clauses: string[]): string {
+  if (clauses.length === 0) return "";
+  const intro = "Лицо этого правления определили конкретные папки на президентском столе.";
+  const first = afterLead(name, clauses[0]);
+  if (clauses.length === 1) return `${intro} ${first}.`;
+  if (clauses.length === 2) return `${intro} ${first}, а ${afterLead("затем", clauses[1])}.`;
+  return `${intro} ${first}. ${sentenceCase(afterLead("в середине срока", clauses[1]))}. ${sentenceCase(afterLead("под конец", clauses[2]))}.`;
+}
+
+export const MEMOIR_REFERENCE_LABEL = "Справка архива:";
+
+/** Абзацы вердикта для экрана: рассказ и справка со счётчиками. У архивных стран вердикт — один абзац рассказа. */
+export function memoirParagraphs(verdict: string): { text: string; reference: boolean }[] {
+  return verdict.split(/\n\n+/).map(part => part.trim()).filter(Boolean)
+    .map(text => ({ text, reference: text.startsWith(MEMOIR_REFERENCE_LABEL) }));
+}
+
+export interface MemoirParts {
+  /** «… правил страной пять лет … и принял 20 ключевых решений.» */
+  opening: string;
+  /** Как оставался у власти в прошлых сроках. */
+  reign: string;
+  /** Фраза о пути власти из «Вопроса о сроках». */
+  path: string;
+  /** Счётчики: инструмент правления, выборы, обещания, законы, рейтинг. */
+  reference: string[];
+}
+
+export function buildMemoirVerdict1978(state: GameState, parts: MemoirParts): string {
   const fem = isFemaleName(state.leader.name);
   const picked = pickKeyDecisions(state.history);
-  const decisionsSentence = picked.length > 0
-    ? `Лицо этого правления определили конкретные папки на президентском столе: ${state.leader.name.split(" ")[0]} ${joinDecisionClauses(picked.map(h => formatDecisionMemory(h, fem)))}.`
-    : "";
+  const firstName = state.leader.name.split(" ")[0];
+  // «Ушёл сам» верно только для того, кто действительно ушёл: срок мог оборваться раньше.
+  const path = state.path?.id === "exit" && !state.path.from && state.endType !== "retired" ? "" : parts.path;
 
-  const arcSentence = formatArcMemory(state, fem);
-  const peopleSentence = formatPeopleMemory(state.keyFigures);
-  const secretaryLine = state.world?.secretary?.finale ?? "";
-
-  const narrative = [
-    openingSentence,
-    reignSentence,
-    decisionsSentence,
-    arcSentence,
-    peopleSentence,
-    secretaryLine,
-  ].filter(Boolean).join(" ");
-
-  const reference = referenceItems.filter(Boolean).join(" ");
-  return reference ? `${narrative}\n\nСправка архива: ${reference}` : narrative;
+  const paragraphs = [
+    [parts.opening, parts.reign, path],
+    [decisionSentences(firstName, picked.map(entry => formatDecisionMemory(entry, fem)))],
+    [formatArcMemory(state, fem), formatPeopleMemory(state.keyFigures), formatSecretaryMemory(state, fem)],
+    [parts.reference.some(Boolean) ? MEMOIR_REFERENCE_LABEL : "", ...parts.reference],
+  ];
+  return paragraphs.map(sentences => sentences.filter(Boolean).join(" ")).filter(Boolean).join("\n\n");
 }
