@@ -166,6 +166,55 @@ test('позиция лагеря в прессе: не меньше трёх р
   }
 });
 
+test('строка со связкой времени датирована по сцене квартала, «Наутро» — следующим днём (#435)', () => {
+  const SAME_DAY = ['Тем временем ', 'В тот же вечер ', 'Почти в ту же минуту ', 'А в другом конце столицы ', 'Ближе к ночи ', 'В это же время ', 'Вечером '];
+  let tied = 0, morning = 0;
+  for (const { lines } of quarters) {
+    let scene: ChronicleLine | null = null;
+    for (const line of lines) {
+      if (line.kind === 'vote') continue;
+      const sameDay = SAME_DAY.some(lead => line.text.startsWith(lead)), nextDay = line.text.startsWith('Наутро ');
+      if (scene && (line.kind === 'scene' || line.kind === 'voice') && (sameDay || nextDay)) {
+        const gap = day(line) - day(scene);
+        if (nextDay) { morning++; assert.ok(gap >= 0 && gap <= 1, `«Наутро» через ${gap} дн.: ${line.text.slice(0, 60)}`); }
+        else { tied++; assert.ok(gap === 0, `связка через ${gap} дн.: ${line.text.slice(0, 60)}`); }
+      }
+      if (line.kind === 'scene') scene = line;
+    }
+  }
+  assert.ok(tied > 10 && morning > 0, `${tied}/${morning}`);
+});
+
+test('пресс-конференция, бюджет и звонок: сцена в день подписи (#435)', () => {
+  let acts = 0;
+  for (const { before, after, lines } of quarters) {
+    const event = before.currentEvent!;
+    if (!(event.press || event.budget || event.call) || after.lastTurn!.election) continue;
+    const scene = lines.find(line => line.kind === 'scene');
+    if (!scene) continue;
+    acts++;
+    assert.equal(day(scene), day(lines[0]), `${event.title}: сцена через ${day(scene) - day(lines[0])} дн. после подписи`);
+  }
+  assert.ok(acts >= 12, `особых дел в замере: ${acts}`);
+});
+
+test('квартал, где власть кончилась: голоса и пресса о решении — до развязки (#435)', () => {
+  let endings = 0;
+  for (const term of terms) {
+    const last = term.at(-1)!;
+    if (!last.after.ended) continue;
+    const scenes = last.lines.filter(line => line.kind === 'scene');
+    if (scenes.length < 2 || last.lines.some(line => line.kind === 'vote')) continue;
+    endings++;
+    const closing = last.lines.indexOf(scenes[1]);
+    for (const line of last.lines.filter(entry => entry.kind === 'voice' || entry.kind === 'press')) {
+      assert.ok(last.lines.indexOf(line) < closing, `после развязки: ${line.text.slice(0, 70)}`);
+    }
+    assert.equal(last.lines.indexOf(scenes[0]), 1, 'сцена решения открывает квартал');
+  }
+  assert.ok(endings > 0, 'в замере есть партия, закончившаяся без блока выборов');
+});
+
 test('без отчёта о ходе строк нет; архивная партия не получает строк 1978 года', () => {
   const { before } = quarters[0];
   assert.deepEqual(countryLines(before, { ...before, lastTurn: null }), { own: [], background: [], deadline: [], quarter: [] });
