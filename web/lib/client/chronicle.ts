@@ -19,6 +19,7 @@ import { newspaperName } from '../game/newspaper-editions.ts';
 import { splitQuarter } from '../game/turn-report.ts';
 import { APPROACHES, CALL_ENDINGS, type Approach } from '../content/calls.ts';
 import { ELECTION_NIGHT, HISTORICAL_PRESS_ELECTION_NIGHT } from '../content/roles.ts';
+import { MEANWHILE } from '../content/reactions.ts';
 import { leadsWithHeadline } from './brief.ts';
 import { presidentialMessages, readPresidentialMessages } from './presidential-inbox.ts';
 import { personalBeat, type PersonalMemory } from './chronicle-personal.ts';
@@ -194,7 +195,13 @@ const DESK_HINT = /\s*Ответ можно подписать в резолюц
 export const QUARTER_LIFE = 'В том же квартале';
 export const FROM_REGIONS = 'Из регионов';
 
-type Draft = Omit<ChronicleLine, 'date' | 'id'> & { day?: 'vote' | 'eve' };
+type Draft = Omit<ChronicleLine, 'date' | 'id'> & { day?: 'vote' | 'eve' | 'scene' };
+
+// Связка времени в начале строки привязывает её к сцене, а не к середине квартала (#435):
+// «Почти в ту же минуту…» через неделю после сцены читается как ошибка. «Наутро» — следующий день.
+const SAME_DAY = [...MEANWHILE.filter(lead => lead !== 'Наутро'), 'Вечером'];
+const sceneOffset = (text: string): number | null =>
+  text.startsWith('Наутро ') ? 1 : SAME_DAY.some(lead => text.startsWith(`${lead} `)) ? 0 : null;
 
 // Голос, газетная строка, отклик и строка приёмной звучат один раз за срок: дословный повтор читается как сбой (#426).
 // Сцена подписи, выборы, письма, доклады и сообщения с ярлыком не отбрасываются: это факты квартала.
@@ -284,11 +291,18 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
     else merged.push(line);
     return merged;
   }, []);
+  // Квартал, в котором власть кончилась: сначала решение и отклики на него, развязка — последней (#435).
+  // Иначе преемник «выслушивает новость» о вашей резолюции уже после собственной победы.
+  const closing = after.ended && !voteText && scenes.length > 1 ? scenes.slice(1) : [];
+  const opening = closing.length ? scenes.slice(0, 1) : scenes;
   const body: Draft[] = [
     ...vote,
-    ...scenes.map(text => ({ kind: 'scene' as const, text })),
-    ...told.own,
-    ...report.reactions.map(text => ({ kind: 'voice' as const, text })),
+    ...opening.map(text => ({ kind: 'scene' as const, text })),
+    // Закон и обещание, решённые этой подписью, — тем же днём, что её сцена.
+    ...told.own.map(line => ({ ...line, day: 'scene' as const })),
+    // Голоса со связкой времени («Вечером…», «Наутро…») стоят первыми: они о дне решения.
+    ...report.reactions.map(text => ({ kind: 'voice' as const, text }))
+      .sort((a, b) => Number(sceneOffset(b.text) !== null) - Number(sceneOffset(a.text) !== null)),
     ...(headlineTold || sceneTellsResult || voteText ? [] : [{ kind: 'paper' as const, who: newspaperName(after.country, after.seed, after.turn), text: report.headline }]),
     ...press.filter(line => line.day !== 'vote'),
     ...told.background,
@@ -298,6 +312,7 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
     ...factoryQuarterReports(before, after).map(dispatch => ({ kind: 'report' as const, who: dispatch.title, text: dispatch.text })),
     ...echoes,
     ...(voteText ? [] : told.deadline),
+    ...closing.map(text => ({ kind: 'scene' as const, text })),
     ...told.quarter,
   ];
   // Личная строка — среди событий квартала, а не приписка в конце; первая ночь — сразу после первой подписи.
@@ -315,18 +330,31 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
   body.push({ kind: 'ledger', text: quarterLedger(before, after) });
   // Выборы — на следующий день после подписи; остальное делит оставшиеся дни квартала.
   const voteDay = Math.min(start + span, start + 1);
-  const spread = body.filter(line => !line.day).length;
-  let previous = start, order = 0;
+  const tiedTo = (line: Draft) => line.day === 'scene' ? 0
+    : !line.day && (line.kind === 'scene' || line.kind === 'voice') ? sceneOffset(line.text) : null;
+  // Дни квартала делят только строки без привязки: привязанные к сцене и к выборам своей очереди не занимают.
+  const spread = body.filter(line => !line.day && (!historical || tiedTo(line) === null)).length;
+  // Пресс-конференция, бюджет и звонок — сами и есть подпись: их сцена стоит в день подписи, а не через недели (#435).
+  const act = before.currentEvent;
+  const signedScene = historical && !voteText && !!(act?.press || act?.budget || act?.call)
+    ? body.findIndex(line => line.kind === 'scene' && !line.day) : -1;
+  let previous = start, order = 0, sceneDay: number | null = null;
   const lines: ChronicleLine[] = [
     { id: `q${before.turn}-signed`, kind: 'signed', date: plain(from), text: report.choiceText },
-    ...body.map(({ day, ...line }, i) => {
-      if (!day) order++;
+    ...body.map((draft, i) => {
+      const { day, ...line } = draft;
+      // Строка со связкой времени («Почти в ту же минуту…», «Наутро…») датируется по сцене квартала, а не по своему месту в очереди.
+      const tied = historical && sceneDay !== null ? tiedTo(draft) : null;
+      if (!day && tied === null) order++;
       const scheduled = day === 'vote' ? voteDay
         : day === 'eve' ? start + span - 1
           : personal.first && line.kind === 'personal' ? start
             : line.kind === 'scene' && execution !== null ? execution + (line.text.startsWith('Наутро ') ? 1 : 0)
-              : start + Math.round(order * span / (spread + 1));
+              : i === signedScene ? start
+                : tied !== null ? sceneDay! + tied
+                  : start + Math.round(order * span / (spread + 1));
       previous = Math.max(previous, Math.min(start + span, scheduled));
+      if (line.kind === 'scene') sceneDay = previous;
       return { ...line, id: `q${before.turn}-${i}`, date: fromDayNumber(previous) };
     }),
   ];

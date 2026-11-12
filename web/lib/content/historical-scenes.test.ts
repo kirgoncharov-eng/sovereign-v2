@@ -7,6 +7,8 @@ import { CALL_DEMANDS } from './calls.ts';
 import { PRESS_QUESTIONS } from './press.ts';
 import { ARCS } from './arcs.ts';
 import { STORIES, type StoryContext } from './stories.ts';
+import { STORY_REPLIES } from './story-replies.ts';
+import { MOLE_LINES } from './people.ts';
 import { ALTERNATE_COUNTRY, LEGACY_COUNTRIES, campaignCopy } from '../game/alternate-world.ts';
 import { POLLS_DOWN, classicApi, fill, pressChoice } from '../game/classic.ts';
 import { WEATHER_ANY } from './frame.ts';
@@ -23,6 +25,10 @@ const sources = [
   ...new Set(STORIES.flatMap(story => story.steps.flatMap(step => [true, false].flatMap(crisis =>
     (['warm', 'cold', 'neutral'] as const).map(mood => step.text({ crisis, mood, res: {} } as unknown as StoryContext) ?? ''))))),
   ...new Set(WEATHER_ANY), ...POLLS_DOWN,
+  // Ответы на письма и строки «червоточины» тоже проходят через сцены 1978 года (#435).
+  ...Object.values(STORY_REPLIES).flatMap(reply => reply.options.flatMap(option =>
+    Object.values(option.steps ?? {}).map(step => step({ crisis: false, mood: 'neutral', res: {} } as unknown as StoryContext) ?? ''))),
+  ...MOLE_LINES,
 ];
 const slots = (text: string) => [...text.matchAll(/\{[^{}]+\}/g)].map(match => match[0]).sort();
 async function fresh(country = ALTERNATE_COUNTRY) {
@@ -31,7 +37,7 @@ async function fresh(country = ALTERNATE_COUNTRY) {
 }
 
 test('scene keys match canonical content and preserve slots and surrounding chapters', () => {
-  assert.equal(HISTORICAL_SCENES.length, 35);
+  assert.equal(HISTORICAL_SCENES.length, 38);
   assert.equal(new Set(HISTORICAL_SCENES.map(scene => scene.source)).size, HISTORICAL_SCENES.length);
   for (const scene of HISTORICAL_SCENES) {
     assert.equal(sources.filter(source => source.includes(scene.source)).length, 1, scene.id);
