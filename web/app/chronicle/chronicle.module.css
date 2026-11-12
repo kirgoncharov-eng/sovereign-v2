@@ -22,6 +22,9 @@
 .hud { display: flex; justify-content: space-between; gap: 6px; max-width: 680px; margin: 6px auto 0;
   font: 16px var(--font-pixel); color: var(--txt); }
 .hud span { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+/* #425: у числа в шапке тот же значок, что у опоры в вариантах дела — иначе стрелки в деле не с чем сопоставить. */
+.hud .pillar { flex-direction: row; align-items: center; gap: 3px; }
+.hud .pillar svg { opacity: .78; }
 .hud small { font: 11px var(--font-narrow); color: var(--tx3); letter-spacing: .04em; text-transform: uppercase; }
 
 .paper { max-width: 680px; margin: 18px auto 0; background: #dfd5b6; border: 2px solid #8d8166;
@@ -58,6 +61,18 @@
 .letter { margin: 6px 0 16px; padding: 10px 12px; background: #e9e0c4; border: 1px solid #b3a685; font: 16px/1.6 var(--font-serif); }
 .echo { margin: 6px 0 14px; padding-left: 14px; border-left: 3px solid #a07a2c; font: 16px/1.65 var(--font-serif); }
 .echo small { color: #8a6417; }
+/* #426: выборы — отдельный блок; фон квартала и сообщения с ярлыком — то, о чём раньше знала только ведомость. */
+.vote { margin: 14px 0 16px; padding: 12px 0; border-top: 3px double #6f6550; border-bottom: 3px double #6f6550; font: 17px/1.7 var(--font-serif); }
+.country { margin: 6px 0 14px; padding-left: 14px; border-left: 3px solid #5d6f7a; font: 16px/1.65 var(--font-serif); color: #3c372c; }
+.notice { margin: 6px 0 14px; padding: 9px 12px; background: #e9e0c4; border: 1px solid #b3a685; border-left-width: 4px; font: 16px/1.55 var(--font-serif); }
+.notice[data-tone="bad"] { border-left-color: #a02f24; }
+.notice[data-tone="good"] { border-left-color: #365e22; }
+.vote small, .country small, .notice small {
+  display: block; font: 700 12px var(--font-narrow); letter-spacing: .14em; text-transform: uppercase; color: #7a6f57; margin-bottom: 3px; }
+.country small { color: #4c5d68; }
+.notice[data-tone="bad"] small { color: #a02f24; }
+.notice[data-tone="good"] small { color: #365e22; }
+.forecastsMet { margin: 4px 0 6px; font: 15px var(--font-narrow); color: #6a604c; }
 .personal { margin: 18px 6% 18px; font: italic 16px/1.7 var(--font-serif); color: #4f483a; text-align: center; }
 .personal::before, .personal::after { content: "—"; color: #9a8e72; margin: 0 8px; font-style: normal; }
 .fall { margin: 18px 0 10px; padding: 14px 14px; background: #2f2a22; color: #eee5ca; font: 17px/1.7 var(--font-serif); }
@@ -167,3 +182,33 @@
 .menu[aria-pressed="true"] { background: #ded3b3; border-color: #6f6550; color: #2f2a22; }
 .again button { display: block; width: 100%; text-align: center; padding: 13px; border: 2px solid #2f2a22; background: #2f2a22;
   color: #eee5ca; font: 700 18px var(--font-narrow); letter-spacing: .04em; }
+
+/* #424: «Подписать» в раскрытом варианте. Общее правило `.desk button { color: inherit }` сильнее цвета кнопки
+   из стилей резолюции, и надпись совпадала с плашкой. */
+.desk :global([data-resolution-choices]) [role="group"] > button { color: var(--paper, #eee5ce); }
+
+/* #425: телефон. Дело вложено в четыре рамки (лист → дело → панель → вариант); на 390 px речи советника оставалось
+   около 150 px — столбец в 15 знаков. Поля рамок сжаты, портрет-буква стоит в строке с именем, а не отдельной колонкой. */
+@media (max-width: 480px) {
+  .paper { margin: 10px 8px 0; padding: 18px 12px 36px; }
+  .case { margin: 22px -8px 6px; padding: 14px 10px 12px; box-shadow: 3px 3px 0 #2f2a22; }
+  .deskPaper { margin: 6px -6px 0; padding: 8px 6px 10px; }
+  .deskPaper :global([data-resolution-choices]) { padding: 0; }
+  .deskPaper :global([data-resolution-choices]) > section > button { padding: 14px 12px; }
+  .deskPaper :global([data-resolution-choices]) [role="group"] { padding: 0 12px 14px; }
+  .deskPaper :global([data-resolution-choices]) blockquote { display: block; margin: 12px 0 14px; }
+  .deskPaper :global([data-resolution-choices]) blockquote > span:first-child { float: left; width: 26px; height: 28px;
+    margin: 2px 8px 0 0; font-size: 16px; }
+  .deskPaper :global([data-resolution-choices]) blockquote cite { display: block; min-height: 30px; align-content: center; }
+  .deskPaper :global([data-resolution-choices]) blockquote p { clear: both; }
+}
+
+/* #425: 320–360 px. Подписи опор слипались в одну строку, а год в дате обрезался многоточием. */
+@media (max-width: 360px) {
+  .now { font-size: 13px; }
+  .speeds { gap: 2px; }
+  .speeds button { padding: 4px 4px; font-size: 13px; }
+  .hud { gap: 2px; font-size: 15px; }
+  .hud small { font-size: 10px; letter-spacing: 0; }
+  .hud .pillar { gap: 2px; }
+}

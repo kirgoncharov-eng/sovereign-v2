@@ -18,15 +18,19 @@ import { MONTHS_GEN, turnDate, type TurnDate } from '../game/calendar.ts';
 import { newspaperName } from '../game/newspaper-editions.ts';
 import { splitQuarter } from '../game/turn-report.ts';
 import { APPROACHES, CALL_ENDINGS, type Approach } from '../content/calls.ts';
+import { ELECTION_NIGHT, HISTORICAL_PRESS_ELECTION_NIGHT } from '../content/roles.ts';
 import { leadsWithHeadline } from './brief.ts';
 import { presidentialMessages, readPresidentialMessages } from './presidential-inbox.ts';
 import { personalBeat, type PersonalMemory } from './chronicle-personal.ts';
 import { quarterLedger } from './chronicle-ledger.ts';
+import { countryLines } from './chronicle-country.ts';
 import { factoryQuarterReports } from './factory-mandate.ts';
 import type { Choice, DifficultyId, GameState, IdeologyId, ResourceKey } from '../game/types.ts';
 
+// 'vote' — блок выборов; 'country' — фон квартала; 'notice' — короткое сообщение с ярлыком в `who` (#426).
+// Старый клиент рисует незнакомый вид строки как сцену: снимок ленты читается в обе стороны.
 export type LineKind = 'opening' | 'speech' | 'signed' | 'scene' | 'voice' | 'paper' | 'press' | 'letter' | 'echo'
-  | 'personal' | 'ledger' | 'fall' | 'report' | 'secretary';
+  | 'personal' | 'ledger' | 'fall' | 'report' | 'secretary' | 'vote' | 'country' | 'notice';
 
 export interface ChronicleLine {
   id: string;
@@ -180,9 +184,48 @@ function factoryExecutionDay(before: GameState, after: GameState, start: number)
   return start + (archive && route === 1 && !report.success ? 1 : 0);
 }
 
+// ── Что есть что в абзацах «В том же квартале» (#426) ───────────────────────────
+const ELECTION_PARAGRAPH = /^(?:Парламентские|Президентские) выборы\./;
+const ELECTION_PRESS = /(?:Второе место — «|У партии власти — )/;
+const PROGRAM_PARAGRAPH = /^(?:Из промышленного региона\.|Районные больницы\.)/;
+// Подсказка интерфейса стола: в ленте ответ даётся остановкой, а не «в резолюции этого письма».
+const DESK_HINT = /\s*Ответ можно подписать в резолюции этого письма\./g;
+/** Ярлык строки «В том же квартале»: последствие прежней подписи, доклад региона или просто жизнь квартала. */
+export const QUARTER_LIFE = 'В том же квартале';
+export const FROM_REGIONS = 'Из регионов';
+
+type Draft = Omit<ChronicleLine, 'date' | 'id'> & { day?: 'vote' | 'eve' };
+
+// Голос, газетная строка, отклик и строка приёмной звучат один раз за срок: дословный повтор читается как сбой (#426).
+// Сцена подписи, выборы, письма, доклады и сообщения с ярлыком не отбрасываются: это факты квартала.
+const ONCE: LineKind[] = ['voice', 'press', 'echo', 'secretary'];
+const onceKey = (line: Pick<ChronicleLine, 'kind' | 'text'>) => ONCE.includes(line.kind) ? line.text.trim() : null;
+
+/** Предложения, которые лента уже печатала, — чтобы новый квартал их не повторял. */
+export const toldInChronicle = (lines: Pick<ChronicleLine, 'kind' | 'text'>[]) =>
+  new Set(lines.flatMap(line => onceKey(line) ?? []));
+
+/** Строки квартала без дословных повторов уже напечатанного и друг друга. */
+export function withoutRepeats<T extends Pick<ChronicleLine, 'kind' | 'text'>>(lines: T[], told: ReadonlySet<string>): T[] {
+  const seen = new Set(told);
+  return lines.filter(line => {
+    const key = onceKey(line);
+    if (key === null) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+// Реплика ночи выборов узнаётся по неизменным частям своего шаблона: имя и должность в ней подставлены движком.
+const NIGHT_PARTS = [...Object.values(ELECTION_NIGHT).flatMap(groups => Object.values(groups).flat()), ...Object.values(HISTORICAL_PRESS_ELECTION_NIGHT).flat()]
+  .map(template => template.split(/\{[^}]+\}/).map(part => part.trim().replace(/^[,.:]\s*|\s*[,:]$/g, '')).filter(part => part.length >= 12))
+  .filter(parts => parts.length > 0);
+const isElectionNightLine = (text: string) => NIGHT_PARTS.some(parts => parts.every(part => text.includes(part)));
+
 /**
  * Хроника квартала между решением на столе в `before` и следующим делом. Строки датированы днями между двумя решениями:
- * сначала то, что сделала подпись, затем голоса и газеты, затем отклики прежних решений — отдельно от последней подписи.
+ * сначала выборы, если они были, затем то, что сделала подпись, голоса и газеты, жизнь страны и отклики прежних решений.
  */
 export function quarterLines(before: GameState, after: GameState, memory: PersonalMemory): { lines: ChronicleLine[]; memory: PersonalMemory } {
   const report = after.lastTurn;
@@ -195,40 +238,94 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
   // («На ней…», «Вместо него…») остаётся без опоры, а совпавший заголовок не печатается второй раз (#310, C02).
   const quarter = splitQuarter(report.narrative);
   const headlineTold = leadsWithHeadline(report.narrative, report.headline);
-  const scenes = paragraphs(quarter.own);
-  const sceneTellsResult = before.country === ALTERNATE_COUNTRY && !before.daily && scenes.length > 0;
-  const press = (report.press ?? []).flatMap(item => {
+  const historical = before.country === ALTERNATE_COUNTRY && !before.daily;
+  const election = historical ? report.election : null;
+  const ownParagraphs = paragraphs(quarter.own);
+  // Ночь президентских выборов движок ставит первым абзацем газеты, парламентских — под «В том же квартале».
+  // В ленте выборы — отдельный блок одного дня: заголовок, итог, второе место и первый ночной звонок (#426).
+  const voteInOwn = election ? ownParagraphs.findIndex(text => ELECTION_PARAGRAPH.test(text)) : -1;
+  const voteInOther = election && voteInOwn < 0 ? quarter.other.findIndex(text => ELECTION_PARAGRAPH.test(text)) : -1;
+  const voteText = voteInOwn >= 0 ? ownParagraphs[voteInOwn] : voteInOther >= 0 ? quarter.other[voteInOther] : null;
+  // Парламентская ночь: сразу за итогом движок ставит слова самого близкого человека о результате.
+  const voteCall = voteInOther >= 0 ? quarter.other[voteInOther + 1] ?? null : null;
+  // Президентская ночь: тот же звонок стоит среди абзацев газеты после итогов срока.
+  const nightCall = voteInOwn >= 0 ? ownParagraphs.findIndex((text, i) => i > voteInOwn && isElectionNightLine(text)) : -1;
+  // В ночь президентских выборов доклад программы стоит и среди абзацев газеты, и отдельной строкой: оставляем доклад.
+  const scenes = withoutReportEchoes(ownParagraphs.filter((_, i) => i !== voteInOwn && i !== nightCall), dispatches);
+  const other = quarter.other.filter((_, i) => voteInOther < 0 || (i !== voteInOther && i !== voteInOther + 1));
+  const sceneTellsResult = historical && scenes.length > 0;
+  const press: Draft[] = (report.press ?? []).flatMap((item): Draft[] => {
+    // Газета о выборах печатается целиком: сцена дела о них не рассказывала.
+    if (voteText && ELECTION_PRESS.test(item.headline)) return [{ kind: 'press', who: item.outlet, text: item.headline, day: 'vote' }];
     const text = sceneTellsResult ? pressAfterScene(item.headline, report.headline) : item.headline;
-    return text ? [{ kind: 'press' as const, who: item.outlet, text }] : [];
+    return text ? [{ kind: 'press', who: item.outlet, text }] : [];
   });
-  const body: Omit<ChronicleLine, 'date' | 'id'>[] = [
+  const votePress = press.filter(line => line.day === 'vote');
+  const told = historical ? countryLines(before, after) : { own: [], background: [], deadline: [], quarter: [] };
+  // Срок обещаний — выборы: что сдержано и что нет, страна узнаёт в ту же ночь.
+  const vote: Draft[] = voteText ? [
+    { kind: 'vote', text: voteText, day: 'vote' },
+    ...votePress,
+    ...told.deadline.map(line => ({ ...line, day: 'vote' as const })),
+    ...(voteCall ? [{ kind: 'scene' as const, text: voteCall, day: 'vote' as const }] : []),
+    ...(nightCall >= 0 ? [{ kind: 'scene' as const, text: ownParagraphs[nightCall], day: 'vote' as const }] : []),
+  ] : [];
+  const matured = (report.matured ?? []).flatMap(pending => pending.story ? [pending.story] : []);
+  const echoes = withoutReportEchoes(other, dispatches).map(raw => {
+    const text = raw.replace(DESK_HINT, '').trim();
+    // Отклик — только последствие прежней подписи; доклад региона и жизнь квартала называются своими именами.
+    const who = !historical || text.startsWith('Аукается ') || matured.some(story => text.endsWith(story)) ? undefined
+      : PROGRAM_PARAGRAPH.test(text) ? FROM_REGIONS : QUARTER_LIFE;
+    return { kind: 'echo' as const, text, ...(who ? { who } : {}) };
+  }).filter(line => line.text).reduce<Draft[]>((merged, line) => {
+    // «Причина: …» — продолжение доклада региона, а не отдельная новость квартала.
+    const previous = merged.at(-1);
+    if (previous?.who === FROM_REGIONS && line.text.startsWith('Причина: ')) merged[merged.length - 1] = { ...previous, text: `${previous.text} ${line.text}` };
+    else merged.push(line);
+    return merged;
+  }, []);
+  const body: Draft[] = [
+    ...vote,
     ...scenes.map(text => ({ kind: 'scene' as const, text })),
+    ...told.own,
     ...report.reactions.map(text => ({ kind: 'voice' as const, text })),
-    ...(headlineTold || sceneTellsResult ? [] : [{ kind: 'paper' as const, who: newspaperName(after.country, after.seed, after.turn), text: report.headline }]),
-    ...press,
+    ...(headlineTold || sceneTellsResult || voteText ? [] : [{ kind: 'paper' as const, who: newspaperName(after.country, after.seed, after.turn), text: report.headline }]),
+    ...press.filter(line => line.day !== 'vote'),
+    ...told.background,
     ...(report.letters ?? []).filter(letter => !letter.replies?.length)
       .map(letter => ({ kind: 'letter' as const, who: letter.from, text: letter.text })),
     ...dispatches.map(dispatch => ({ kind: 'report' as const, who: dispatch.title, text: dispatch.text })),
     ...factoryQuarterReports(before, after).map(dispatch => ({ kind: 'report' as const, who: dispatch.title, text: dispatch.text })),
-    ...withoutReportEchoes(quarter.other, dispatches).map(text => ({ kind: 'echo' as const, text })),
+    ...echoes,
+    ...(voteText ? [] : told.deadline),
+    ...told.quarter,
   ];
   // Личная строка — среди событий квартала, а не приписка в конце; первая ночь — сразу после первой подписи.
   const personal = after.ended ? { text: null, memory } : personalBeat({ before, after, month: to.month }, memory);
   if (personal.text) {
+    // Канун выборов — последняя строка квартала: голосование открывает следующий.
+    const eve = personal.memory.used.at(-1) === 'election-eve';
     const morning = scenes.findIndex((text, i) => i > 0 && text.startsWith('Наутро '));
-    const at = personal.first ? execution === start ? morning < 0 ? scenes.length : morning : 0
-      : 1 + hashSeed(after.seed, 'personal-at', after.turn) % Math.max(1, body.length);
-    body.splice(Math.min(at, body.length), 0, { kind: 'personal', text: personal.text });
+    const at = eve ? body.length
+      : personal.first ? execution === start ? vote.length + (morning < 0 ? scenes.length : morning) : 0
+        : 1 + vote.length + hashSeed(after.seed, 'personal-at', after.turn) % Math.max(1, body.length - vote.length);
+    body.splice(Math.min(at, body.length), 0, { kind: 'personal', text: personal.text, ...(eve ? { day: 'eve' as const } : {}) });
   }
   if (usesAdvisorOutlook(before) && report.forecasts?.length) body.push({ kind: 'report', who: report.forecasts[0], text: report.forecasts.slice(1).join('\n') });
   body.push({ kind: 'ledger', text: quarterLedger(before, after) });
-  let previous = start;
+  // Выборы — на следующий день после подписи; остальное делит оставшиеся дни квартала.
+  const voteDay = Math.min(start + span, start + 1);
+  const spread = body.filter(line => !line.day).length;
+  let previous = start, order = 0;
   const lines: ChronicleLine[] = [
     { id: `q${before.turn}-signed`, kind: 'signed', date: plain(from), text: report.choiceText },
-    ...body.map((line, i) => {
-      const scheduled = personal.first && line.kind === 'personal' ? start
-        : line.kind === 'scene' && execution !== null ? execution + (line.text.startsWith('Наутро ') ? 1 : 0)
-          : start + Math.round((i + 1) * span / (body.length + 1));
+    ...body.map(({ day, ...line }, i) => {
+      if (!day) order++;
+      const scheduled = day === 'vote' ? voteDay
+        : day === 'eve' ? start + span - 1
+          : personal.first && line.kind === 'personal' ? start
+            : line.kind === 'scene' && execution !== null ? execution + (line.text.startsWith('Наутро ') ? 1 : 0)
+              : start + Math.round(order * span / (spread + 1));
       previous = Math.max(previous, Math.min(start + span, scheduled));
       return { ...line, id: `q${before.turn}-${i}`, date: fromDayNumber(previous) };
     }),
