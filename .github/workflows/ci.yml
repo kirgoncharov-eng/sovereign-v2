@@ -70,6 +70,7 @@ jobs:
       - run: node scripts/playtest-choice-price.mjs --out=playtest/choice-price
       - run: node scripts/playtest-factory-mandate.mjs --out=playtest/factory-mandate
       - run: node scripts/playtest-cabinet.mjs --out=playtest/cabinet
+      - run: node scripts/playtest-chronicle.mjs --cabinet=true --decisions=6 --out=playtest/cabinet-chronicle
       - if: always()
         uses: actions/upload-artifact@v4
         with:

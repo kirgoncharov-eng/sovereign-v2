@@ -28,6 +28,8 @@ import { advisorProfile, newsLine } from "@/lib/game/advisors.ts";
 import { countryNotes, governmentNote, inboxRows, sheetAlerts, staffNote } from "@/lib/client/country-people.ts";
 import AdvisorName, { AdvisorCard } from "./AdvisorCard.jsx";
 import StaffPanel, { DossierActions } from "./StaffPanel.jsx";
+import CabinetPanel from "./CabinetPanel.tsx";
+import { applyCabinetAction, cabinetEnabled } from "@/lib/game/cabinet.ts";
 import { OWN_PERSON_TEXT } from "@/lib/content/staffing.ts";
 import { hireAdvisor, applyDossier } from "@/lib/game/staffing.ts";
 import { DOSSIER_TEXT } from "@/lib/content/advisors.ts";
@@ -3001,7 +3003,7 @@ export function CountrySheet({ gs, onGovernment, onReports }) {
   </>;
 }
 
-export function PeopleSheet({ gs, onDossier, onHire, onInbox }) {
+export function PeopleSheet({ gs, onDossier, onHire, onInbox, onCabinetAction }) {
   const { factions, prevFactions, keyFigures, prevFigures } = gs;
   const staff = staffNote(gs);
   const inbox = gs.ended ? [] : inboxRows(gs);
@@ -3037,8 +3039,9 @@ export function PeopleSheet({ gs, onDossier, onHire, onInbox }) {
           </PersonRow>
         );
       })}
-      {staff && <Fold title="Кадровый резерв" note={staff}><StaffPanel gs={gs} onHire={onHire} Portrait={gs.country === ALTERNATE_COUNTRY ? Portrait : null}/></Fold>}
+      {!cabinetEnabled(gs) && staff && <Fold title="Кадровый резерв" note={staff}><StaffPanel gs={gs} onHire={onHire} Portrait={gs.country === ALTERNATE_COUNTRY ? Portrait : null}/></Fold>}
     </>}
+    {cabinetEnabled(gs) && onCabinetAction && <CabinetPanel game={gs} onAction={onCabinetAction}/>}
     <div style={{ marginTop:14 }}><Label>{"ЛАГЕРИ · ОТНОШЕНИЕ К ВАМ"}</Label></div>
     {factions.map(f => {
       const foreign = NON_VOTING_BLOCS.includes(f.bloc);
@@ -3461,6 +3464,12 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                 if (inFlight.current) throw new Error("Дождитесь завершения текущего решения");
                 prefetch.current = null; setArmed(null); setPreview(null);
                 commit(hireAdvisor(gsRef.current, id)); stampFx();
+              }}
+              onCabinetAction={action => {
+                if (inFlight.current || recap) throw new Error("Дождитесь завершения текущего решения");
+                const next = applyCabinetAction(gsRef.current, action);
+                prefetch.current = null; setArmed(null); setPreview(null);
+                commit(next); stampFx();
               }}/>}
           </div>
           </details>
