@@ -61,6 +61,18 @@
 .letter { margin: 6px 0 16px; padding: 10px 12px; background: #e9e0c4; border: 1px solid #b3a685; font: 16px/1.6 var(--font-serif); }
 .echo { margin: 6px 0 14px; padding-left: 14px; border-left: 3px solid #a07a2c; font: 16px/1.65 var(--font-serif); }
 .echo small { color: #8a6417; }
+/* #426: выборы — отдельный блок; фон квартала и сообщения с ярлыком — то, о чём раньше знала только ведомость. */
+.vote { margin: 14px 0 16px; padding: 12px 0; border-top: 3px double #6f6550; border-bottom: 3px double #6f6550; font: 17px/1.7 var(--font-serif); }
+.country { margin: 6px 0 14px; padding-left: 14px; border-left: 3px solid #5d6f7a; font: 16px/1.65 var(--font-serif); color: #3c372c; }
+.notice { margin: 6px 0 14px; padding: 9px 12px; background: #e9e0c4; border: 1px solid #b3a685; border-left-width: 4px; font: 16px/1.55 var(--font-serif); }
+.notice[data-tone="bad"] { border-left-color: #a02f24; }
+.notice[data-tone="good"] { border-left-color: #365e22; }
+.vote small, .country small, .notice small {
+  display: block; font: 700 12px var(--font-narrow); letter-spacing: .14em; text-transform: uppercase; color: #7a6f57; margin-bottom: 3px; }
+.country small { color: #4c5d68; }
+.notice[data-tone="bad"] small { color: #a02f24; }
+.notice[data-tone="good"] small { color: #365e22; }
+.forecastsMet { margin: 4px 0 6px; font: 15px var(--font-narrow); color: #6a604c; }
 .personal { margin: 18px 6% 18px; font: italic 16px/1.7 var(--font-serif); color: #4f483a; text-align: center; }
 .personal::before, .personal::after { content: "—"; color: #9a8e72; margin: 0 8px; font-style: normal; }
 .fall { margin: 18px 0 10px; padding: 14px 14px; background: #2f2a22; color: #eee5ca; font: 17px/1.7 var(--font-serif); }

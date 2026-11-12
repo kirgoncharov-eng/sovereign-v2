@@ -75,7 +75,9 @@ export function press1978(input: Press1978Input): PressLine[] {
   const moved = camps.filter(camp => Math.abs(camp.delta) >= CAMP_SHIFT)
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.delta - b.delta)[0];
   if (moved) {
-    const stance = CAMP_STANCE[moved.id][moved.delta < 0 ? 'against' : 'for'];
+    // Формулировка меняется от квартала к кварталу, по кругу.
+    const variants = CAMP_STANCE[moved.id][moved.delta < 0 ? 'against' : 'for'];
+    const stance = variants[before.turn % variants.length];
     return [{ outlet: PRESS_1978_OUTLETS[CAMP_OUTLET[moved.id] ?? 'civil'], headline: `${fact} ${moved.name} ${stance}.` }];
   }
   const money = Math.round(own.resources.economy ?? 0);
