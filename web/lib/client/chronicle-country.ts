@@ -33,6 +33,15 @@ const deltaWords = (delta: ResourceDelta | undefined) => RESOURCE_KEYS
 
 const unquoted = (pitch: string) => pitch.trim().replace(/[.…]+$/, '');
 
+// Слово, перечёркнутое подписью: первая, вторая и следующие потери звучат по-разному.
+const BROKEN_CLOSING = [
+  'Те, кому оно было дано, этого не забудут.',
+  'Второе слово, взятое назад, запоминают крепче первого.',
+  'Вашим предвыборным словам теперь верят меньше.',
+];
+// Обещания, не исполненные к сроку, стоят в блоке выборов подряд: причина не повторяется дословно.
+const OVERDUE_CAUSE = ['Срок вышел: к выборам оно не исполнено.', 'И это слово к выборам осталось словом.', 'К выборам не исполнено и оно.'];
+
 /**
  * Обещания, статус которых сменился за квартал, и шаги к исполнению. Причина — из правил `stepPromises`:
  * до срока слово нарушает запретная подпись или сам президент на пресс-конференции, исполняет — нужное число решений;
@@ -42,6 +51,9 @@ function promiseLines(before: GameState, after: GameState): { own: CountryLine[]
   const own: CountryLine[] = [], deadline: CountryLine[] = [];
   const pressConference = !!before.currentEvent?.press;
   const was = new Map((before.promises ?? []).map(promise => [promise.id, promise]));
+  // Сколько обещаний уже было нарушено к началу квартала: концовка строки не повторяется от обещания к обещанию.
+  let brokenBefore = (before.promises ?? []).filter(promise => promise.status === 'broken').length;
+  let overdue = 0;
   for (const promise of after.promises ?? []) {
     const old = was.get(promise.id), def = promiseDef(promise.id, after.country);
     if (!def || !old || old.status !== 'open') continue;
@@ -49,10 +61,11 @@ function promiseLines(before: GameState, after: GameState): { own: CountryLine[]
     const due = after.turn >= def.due;
     if (promise.status === 'broken') {
       const bySignature = !due || def.goal.kind === 'never';
-      const cause = !bySignature ? 'Срок вышел: к выборам оно не исполнено.'
+      const cause = !bySignature ? OVERDUE_CAUSE[Math.min(overdue++, OVERDUE_CAUSE.length - 1)]
         : pressConference ? 'Вы сами сняли его перед журналистами.' : 'Эта подпись его перечеркнула.';
-      (bySignature ? own : deadline).push({ kind: 'notice', who: 'Обещание нарушено',
-        text: `«${def.title}». ${said} ${cause} Те, кому оно было дано, этого не забудут.` });
+      const closing = bySignature && !pressConference ? ` ${BROKEN_CLOSING[Math.min(brokenBefore, BROKEN_CLOSING.length - 1)]}` : '';
+      brokenBefore++;
+      (bySignature ? own : deadline).push({ kind: 'notice', who: 'Обещание нарушено', text: `«${def.title}». ${said} ${cause}${closing}` });
     } else if (promise.status === 'kept') {
       const bySignature = def.goal.kind === 'tags' && promise.progress > old.progress;
       (bySignature ? own : deadline).push({ kind: 'notice', who: 'Обещание исполнено',

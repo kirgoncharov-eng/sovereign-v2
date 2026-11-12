@@ -42,7 +42,7 @@ import { BILL, LAWS, REPEAL, type LawDef } from "../content/laws.ts";
 import { termFinale } from "./term-finale.ts";
 import { PARTY_GENITIVE } from "../content/term-finale.ts";
 import { effectiveLaw, lawDef } from "./laws.ts";
-import { DEEDS, ELECTION_NIGHT, HISTORICAL_PRESS_ELECTION_NIGHT, INTERCUTS, historicalOutsiderPool, outsiderKind, roleGroup } from "../content/roles.ts";
+import { DEEDS, ELECTION_NIGHT, ELECTION_NIGHT_AGAIN_1978, HISTORICAL_PRESS_ELECTION_NIGHT, INTERCUTS, historicalOutsiderPool, outsiderKind, roleGroup } from "../content/roles.ts";
 import { ENVOY_DEEDS, isEnvoyId } from "../content/advisor-voices.ts";
 import { TERMS_TURN, electionKind, fellTrying, isTermEnd, reignOf, forceFaction, pathDeal, pathOptions, pathVerdict, termRule, type PathOption } from "./terms.ts";
 import { DIED, FINALE, LOCKED, PATHS, PATHS_AS, TERM_HOW, PATH_EPITAPHS, PATH_FALL, TERMS_TEXT } from "../content/terms.ts";
@@ -520,6 +520,7 @@ export function lawEvent(state: GameState, requestedId?: string): SpecialEvent |
   const def = pick(r, bills);
   const f = (t: string) => fill(t, state, slots(def));
   const delayScene = f(cycle(BILL.delayScenes, state.seed, "bill-delay", marks.length));
+  const vetoFail = state.country === ALTERNATE_COUNTRY ? `${f(def.vetoed)} ${BILL.vetoBotched}` : f(def.vetoed);
   return {
     cardId: `law:${turn}:${def.id}`,
     title: f(BILL.title), source: BILL.source,
@@ -529,7 +530,7 @@ export function lawEvent(state: GameState, requestedId?: string): SpecialEvent |
       { id: "a", text: BILL.enact.text, hint: BILL.enact.hint, tags: def.tags, costReasons: def.costs, resolvesCrisis: null, law: { id: def.id, act: "enact" }, stance: stance(def, 8, 5, -6),
         scene: f(def.passed), sceneFail: f(def.failed), headline: f(def.head.passed), headlineFail: f(def.head.failed) },
       { id: "b", text: BILL.veto.text, hint: BILL.veto.hint, tags: def.veto, costReasons: def.vetoCosts, resolvesCrisis: null, stance: stance(def, -8, -3, 5),
-        scene: f(def.vetoed), sceneFail: f(def.vetoed), headline: f(def.head.vetoed), headlineFail: f(def.head.vetoed) },
+        scene: f(def.vetoed), sceneFail: vetoFail, headline: f(def.head.vetoed), headlineFail: f(def.head.vetoed) },
       { id: "c", text: BILL.delay.text, hint: BILL.delay.hint, tags: ["delay"], resolvesCrisis: null, stance: { [def.bloc]: -3 },
         scene: delayScene, sceneFail: delayScene, headline: f(BILL.delayHead), headlineFail: f(BILL.delayHead) },
     ],
@@ -717,7 +718,9 @@ export function pressChoice(state: GameState, picks: number[]): Choice {
   const qs = state.currentEvent?.press?.questions ?? [];
   const res: Record<string, number> = {}, relBloc: Record<string, number> = {};
   const tones: string[] = [];
-  const lines: string[] = [PRESS_TEXT.open];
+  // В 1978 году зачин не повторяется: вторая пресс-конференция партии открывается своими словами.
+  const earlier = state.country === ALTERNATE_COUNTRY ? state.history.filter(entry => /пресс-конференция/i.test(entry.title)).length : 0;
+  const lines: string[] = [earlier ? PRESS_TEXT.openAgain1978[(earlier - 1) % PRESS_TEXT.openAgain1978.length] : PRESS_TEXT.open];
   let quote = "", strongest = -1, renounce: string | undefined;
   qs.forEach((q, i) => {
     const about = `${/^[аеиоуэ]/i.test(q.topic) ? "об" : "о"} ${q.topic}`;
@@ -846,7 +849,7 @@ export function callChoice(state: GameState, approach: Approach, ending: (typeof
   const subjectOutcome = topic && (ending === 'deal'
     ? `${topic.agreement} ${ok
       ? 'Собеседник принимает поручение без новых условий.'
-      : 'Собеседник не принимает ваших доводов. Чтобы получить согласие, вы тратите больше политического влияния и ресурсов.'}`
+      : 'Доводы не действуют. Согласие приходится покупать уступками, которых вы давать не собирались: разговор обходится дороже, чем вы рассчитывали.'}`
     : ending === 'refuse'
       ? `${topic.refusal} ${ok ? 'Собеседник принимает отказ без новых требований.' : 'Разговор заканчивается ссорой.'}`
       : `Вы берёте время подумать, согласовывать ли ${topic.subject}. Никакой уступки пока нет. Собеседник ждёт решения, а не нового разговора.`);
@@ -1266,8 +1269,12 @@ function buildNarration(state: GameState, choiceId: string): Narration {
   const intercutPool = moved && movedGroup === "outsider" && state.country === ALTERNATE_COUNTRY
     ? historicalOutsiderPool(intercutBase, moved.f.id, intercutSide) : intercutBase;
   // В 1978 году редактор газеты встречает итоги выборов как печать, а не как лидер движения (#310, E03).
-  const electionNightPool = (id: string, outcome: "won" | "lost") =>
-    state.country === ALTERNATE_COUNTRY && outsiderKind(id) === "press" ? HISTORICAL_PRESS_ELECTION_NIGHT[outcome] : ELECTION_NIGHT[outcome][roleGroup(id)];
+  // Президентские выборы в 1978 году — вторые за срок: близкий человек говорит о них другими словами, чем о парламентских.
+  const electionNightPool = (id: string, outcome: "won" | "lost") => {
+    const press = state.country === ALTERNATE_COUNTRY && outsiderKind(id) === "press";
+    if (state.country === ALTERNATE_COUNTRY && plan.election?.kind === "president") return [ELECTION_NIGHT_AGAIN_1978[outcome][press ? "press" : roleGroup(id)]];
+    return press ? HISTORICAL_PRESS_ELECTION_NIGHT[outcome] : ELECTION_NIGHT[outcome][roleGroup(id)];
+  };
   // В ночь выборов говорит самый близкий к вам человек — о результате, а не о решении дня.
   const closest = plan.election ? [...state.keyFigures].filter(f => f.name !== state.arc?.target && f.name !== plan.path?.successor)
     .sort((x, y) => y.relation - x.relation)[0] : undefined;

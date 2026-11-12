@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEEDS, HISTORICAL_PRESS_ELECTION_NIGHT, INTERCUTS, historicalOutsiderPool, outsiderKind } from './roles.ts';
+import { DEEDS, ELECTION_NIGHT, ELECTION_NIGHT_AGAIN_1978, HISTORICAL_PRESS_ELECTION_NIGHT, INTERCUTS, historicalOutsiderPool, outsiderKind } from './roles.ts';
 
 const SIDES = { warm: INTERCUTS.outsider.warm, cold: INTERCUTS.outsider.cold, pro: DEEDS.outsider.pro, con: DEEDS.outsider.con };
 const MOVEMENT = /митинг|площад|сбор подписей|[\s«]акци|сторонник|актив|послами|улица|плакат/;
@@ -33,5 +33,22 @@ test('1978: в ночь выборов редактор встречает ит�
     assert.doesNotMatch(line, MOVEMENT);
     assert.doesNotMatch(line, /своего лагеря/);
     assert.match(line, /номер|полос/);
+  }
+});
+
+test('вторые выборы срока в 1978 году: у каждой роли своя реплика, не повторяющая первую (#441)', () => {
+  const first = new Set([...Object.values(ELECTION_NIGHT).flatMap(groups => Object.values(groups).flat()), ...Object.values(HISTORICAL_PRESS_ELECTION_NIGHT).flat()]);
+  const again = Object.values(ELECTION_NIGHT_AGAIN_1978).flatMap(groups => Object.values(groups));
+  assert.equal(again.length, 14);
+  assert.equal(new Set(again).size, again.length);
+  for (const outcome of ['won', 'lost'] as const) {
+    assert.deepEqual(Object.keys(ELECTION_NIGHT_AGAIN_1978[outcome]).sort(), [...Object.keys(ELECTION_NIGHT[outcome]), 'press'].sort());
+  }
+  for (const line of again) {
+    assert.ok(!first.has(line), line);
+    assert.ok(line.includes('{name}, {role}'), `имя и должность подставляет движок: ${line}`);
+    // Говорящий может быть женщиной: без глаголов прошедшего времени и «сам/сама» при имени.
+    assert.doesNotMatch(line, /\{role\},? (?:\p{L}+(?:ал|ил|ел|ёл|ял|ла)\b|сама?\b)/u, line);
+    assert.doesNotMatch(line, /(?<![\p{L}])сама?(?![\p{L}])/u, line);
   }
 });
