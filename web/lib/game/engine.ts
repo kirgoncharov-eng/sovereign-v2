@@ -12,6 +12,7 @@ import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
 import { HISTORICAL_DEBATES, isPresidentialDiscussion } from './presidential-story.ts';
 import { ARCS } from "../content/arcs.ts";
 import { cabinetArc } from './cabinet-intrigue.ts';
+import { prepareCabinet, cabinetResourcesBefore, cabinetTurnSources } from './cabinet.ts';
 import { LEAKS } from "../content/advisors.ts";
 import { OWN_CRISIS_BELOW, OWN_CRISIS_BONUS, OWN_LOYALTY_FLOOR } from "../content/staffing.ts";
 import { NAMES } from "../content/narration.ts";
@@ -271,7 +272,7 @@ export function createInitialState(
 export function startEvent(state: GameState, event: GameEvent & { cardId?: string }): GameState {
   const { cardId, ...ev } = event;
   const usedEvents = cardId ? [...(state.usedEvents ?? []), cardId].slice(-40) : (state.usedEvents ?? []);
-  return ensureSecretary({ ...state, currentEvent: cardId ? { ...ev, card: cardId } : ev, lastTurn: null, usedEvents });
+  return prepareCabinet(ensureSecretary({ ...state, currentEvent: cardId ? { ...ev, card: cardId } : ev, lastTurn: null, usedEvents }));
 }
 
 // Дополнительные предложения расходуют сбор; обсуждение исходной исторической подписи бесплатно.
@@ -637,7 +638,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     }
   };
   let resources = state.resources;
-  for (const source of initiativeTurnSources(state)) {
+  for (const source of [...initiativeTurnSources(state), ...cabinetTurnSources(state)]) {
     for (const k of RESOURCE_KEYS) if (source.res[k]) (sources[k] ??= []).push([source.label, source.res[k]!]);
   }
   const add = (label: string, d: ResourceDelta | null | undefined) => { const next = applyDeltas(resources, d); note(label, resources, next); resources = next; };
@@ -799,6 +800,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 }
 
 export function resolveTurn(state: GameState, choiceId: string, narration: Narration): GameState {
+  state = prepareCabinet(state);
   const plan = planTurn(state, choiceId);
   const event = state.currentEvent!;
   const review = reviewAdvisorOutlook(state, plan.choice, plan.success);
@@ -838,9 +840,10 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
   });
 
   const factoryMandate = recordFactoryMandate(state, plan.choice, plan);
-  return finishSecretaryTurn(state, {
+  return prepareCabinet(finishSecretaryTurn(state, {
     ...state,
-    resources: plan.resources, prevResources: initiativeResourcesBefore(state),
+    resources: plan.resources, prevResources: cabinetTurnSources(state).length
+      ? cabinetResourcesBefore(state, initiativeTurnSources(state)) : initiativeResourcesBefore(state),
     ...(plan.world ? { world: plan.world } : {}),
     factions: plan.factions, prevFactions: state.factions.map(f => ({ ...f })),
     keyFigures, prevFigures: state.keyFigures.map(f => ({ ...f })),
@@ -923,6 +926,6 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     ended: plan.endType !== null,
     endType: plan.endType,
     powerLoss: plan.endType && !isSurvival(plan.endType) ? narration.powerLoss : null,
-  });
+  }));
 }
 

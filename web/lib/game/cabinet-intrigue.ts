@@ -2,6 +2,7 @@
 import { ALTERNATE_COUNTRY } from './alternate-world.ts';
 import type { Arc, BeatChoice, BeatVariant } from '../content/arcs.ts';
 import type { GameState } from './types.ts';
+import type { EarlyThread } from '../content/early-threads.ts';
 
 type CabinetStoryState = Pick<GameState, 'country' | 'daily' | 'cabinet' | 'advisors' | 'arc'>;
 type ChoiceCopy = Partial<Pick<BeatChoice, 'text' | 'hint' | 'ok' | 'fail' | 'epilogue' | 'epilogueFail'>>;
@@ -133,7 +134,13 @@ const PUBLISHED: EpisodeCopy = {
 };
 
 export function cabinetArc(state: CabinetStoryState, arc: Arc): Arc {
-  if (arc.id !== 'mole' || !outsideCouncil(state)) return arc;
+  if (arc.id !== 'mole' || state.country !== ALTERNATE_COUNTRY || state.daily) return arc;
+  if (!outsideCouncil(state)) return { ...arc, beats: arc.beats.map(beat => beat.turn !== 7 ? beat : {
+    ...beat, variants: beat.variants.map(variant => ({ ...variant,
+      choices: variant.choices.map(choice => choice.flag !== 'purge' || !variant.requires?.includes('watch') ? choice
+        : { ...choice, ...TRACE.choices.purge }),
+    })),
+  }) };
   return { ...arc,
     secret: 'Источник утечек — {target}. Он не входит в действующий совет, но сохраняет старые документы и связи в аппарате. Не объявляй его виновным до раскрытия следа.',
     hooks: [
@@ -154,4 +161,27 @@ export function cabinetArc(state: CabinetStoryState, arc: Arc): Arc {
         choices: variant.choices.map(choice => ({ ...choice, ...copy.choices[choice.flag] })) };
     }) })),
   };
+}
+
+const FORMER_THREAD: EarlyThread = {
+  opening: {
+    o_open: 'Руководители отделов просят копии закрытых бумаг. После вашего разговора каждый считает свой отдел участником общей работы; секретарю нужен точный список получателей.',
+    o_guard: 'Охрана докладывает о смене кодов. У канцелярии другая забота: прежние адресаты по телефону просят прислать документы, как раньше.',
+    o_file: 'Секретарь просит вернуть личные дела в архив. Вы оставляете на столе список рассылки: несколько фамилий в нём пережили уже двух начальников.',
+  },
+  followUp: {
+    watch: ['Контрразведка просит сохранить старые журналы выдачи. Проверка копий началась; служащим велено ничего не переписывать начисто.',
+      'Курьер просит поговорить без начальника отдела. После начала проверки он вспомнил ещё один адрес, куда отвозил закрытый конверт.'],
+    blame: ['Пресс-служба повторяет ваше обвинение оппозиции. В канцелярии продолжают пользоваться прежней рассылкой: публичная версия никого не обязала её проверить.',
+      'Аппарат приносит ещё одно опровержение. Отчёта о пропавшей копии в папке нет: после вашего обвинения чиновники занялись ответами редакциям.'],
+    ignore: ['Секретарь спрашивает, менять ли рассылку стенограмм. Расследование не открыто; копии уходят по прежним адресам.',
+      'Начальник отдела ссылается на выдержку из утечки в служебной записке. После вашего молчания даже чужая публикация стала для аппарата рабочим документом.'],
+  },
+  failed: ['После неудачи первого решения секретарь вновь приносит списки получателей. Единого порядка доступа пока нет.',
+    'Служащие после неудачного ответа на утечку избегают личных подписей в журналах. Проверять путь копий стало труднее.',
+    'Ведомство просит прислать чувствительную справку без регистрации. После неудачи прежних мер вы всё ещё не знаете, где оборвётся бумажный след.'],
+};
+
+export function cabinetEarlyThread(state: CabinetStoryState, original: EarlyThread | undefined): EarlyThread | undefined {
+  return outsideCouncil(state) ? FORMER_THREAD : original;
 }

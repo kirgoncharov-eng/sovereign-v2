@@ -82,12 +82,14 @@ function secretaryName(gs: GameState): string {
   const people = [gs.leader.name, ...gs.advisors.map(p => p.name), ...gs.keyFigures.map(p => p.name),
     ...(gs.world?.people.map(p => p.name) ?? []), ...(gs.former ?? []), ...(gs.arc ? [gs.arc.target] : []), ...announcedHeirs(gs)];
   const used = new Set(people.map(secretarySurname));
-  const surnames = ALTERNATE_NAMES.last.filter(last => !used.has(last));
+  const first = ALTERNATE_NAMES.first.slice(8);
+  const given = first[(hashSeed(gs.seed, 'secretary-first') >>> 8) % first.length];
+  const reserved = new Set(!gs.daily ? gs.cabinet?.roster.map(person => person.name) ?? [] : []);
+  const surnames = ALTERNATE_NAMES.last.filter(last => !used.has(last) && !reserved.has(`${given} ${feminineSurname(last)}`));
   // The cast has fewer surnames than the pool; a deterministic suffix also handles edited old saves.
   const last = surnames.length ? surnames[hashSeed(gs.seed, 'secretary-last') % surnames.length] : 'Залесский';
   const female = feminineSurname(last);
-  const first = ALTERNATE_NAMES.first.slice(8);
-  return `${first[(hashSeed(gs.seed, 'secretary-first') >>> 8) % first.length]} ${female}`;
+  return `${given} ${female}`;
 }
 
 export function secretaryText(gs: GameState, text: string): string {

@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 
 const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem('sovereign.save')).state);
 const economist = state => state.advisors.find(person => person.id === 'economist');
+const notices = page => page.evaluate(() => {
+  const snapshot = JSON.parse(localStorage.getItem('sovereign.chronicle.game')).snapshot;
+  return [...snapshot.shown, ...snapshot.queue].filter(line => line.who === 'КАДРОВЫЙ УКАЗ');
+});
+let offeredRoster;
 async function reloadChronicle(page) {
   await page.reload({ waitUntil: 'domcontentloaded' });
   // Встроенная игра после reload открывает титул; возвращаемся штатной кнопкой, не подставляем снимок.
@@ -13,6 +18,8 @@ async function reloadChronicle(page) {
 export async function exerciseCabinet(page, decision, shot) {
   if (decision > 3) return;
   const before = await saved(page);
+  if (decision === 1) offeredRoster = before.cabinet.roster;
+  if (decision === 2) assert.deepEqual(before.cabinet.roster, offeredRoster, 'новый квартал не переименовал резерв');
   const team = page.getByRole('button', { name: 'Команда', exact: true });
   await team.tap();
   const sheet = page.getByRole('complementary', { name: 'Команда', exact: true });
@@ -39,6 +46,12 @@ export async function exerciseCabinet(page, decision, shot) {
     await panel.getByText('Должность вакантна', { exact: true }).waitFor();
     await page.screenshot({ path: shot('cabinet-vacancy') });
     await close();
+    await page.waitForFunction(() => {
+      const snapshot = JSON.parse(localStorage.getItem('sovereign.chronicle.game'))?.snapshot;
+      return snapshot && [...snapshot.shown, ...snapshot.queue].some(line => line.who === 'КАДРОВЫЙ УКАЗ');
+    });
+    const recorded = await notices(page);
+    assert.equal(recorded.length, 1, 'указ записан в хронику один раз');
     await reloadChronicle(page);
     await team.tap();
     await panel.getByText('Должность вакантна', { exact: true }).waitFor();
@@ -46,6 +59,7 @@ export async function exerciseCabinet(page, decision, shot) {
     assert.deepEqual(restored.advisors, vacant.advisors, 'reload сохраняет вакансию');
     assert.deepEqual(restored.resources, vacant.resources, 'reload не списывает цену второй раз');
     assert.equal(restored.currentEvent.title, vacant.currentEvent.title);
+    assert.deepEqual(await notices(page), recorded, 'reload сохраняет кадровую запись без повторения');
     await close();
     const first = page.locator('[data-resolution-choices] #opt-1');
     await first.waitFor();

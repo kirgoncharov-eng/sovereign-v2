@@ -58,6 +58,7 @@ import Letters from "@/app/game/Letters.jsx";
 import StaffPanel from "@/app/game/StaffPanel.jsx";
 import CabinetPanel from "@/app/game/CabinetPanel.tsx";
 import { applyCabinetAction, cabinetEnabled, type CabinetAction } from "@/lib/game/cabinet.ts";
+import { cabinetNotice } from "@/lib/client/chronicle.ts";
 import { LetterText } from "@/app/game/LetterText.jsx";
 import styles from "./chronicle.module.css";
 
@@ -526,6 +527,8 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     if (!game || !canAct) throw new Error("Дождитесь завершения текущего решения");
     const next = applyCabinetAction(game, action);
     commit(next);
+    const notice = cabinetNotice(next);
+    if (notice) enqueue([notice]);
     if (step && !stop) setStep(firstStep(next));
     stampFx();
   };

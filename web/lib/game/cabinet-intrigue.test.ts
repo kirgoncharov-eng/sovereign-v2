@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { cabinetArc, outsideCouncil } from './cabinet-intrigue.ts';
 import { applyCabinetAction, cabinetCandidates } from './cabinet.ts';
 import { ARCS, type Arc } from '../content/arcs.ts';
-import { beatEvent } from './classic.ts';
+import { beatEvent, earlyArcHook, classicApi } from './classic.ts';
 import { newTerm, signChoice, startFromSeed } from '../client/chronicle.ts';
 import { parseSave } from '../client/save.ts';
 import { RESOURCE_KEYS, SAVE_VERSION } from './data.ts';
@@ -41,11 +41,18 @@ test('бывший советник получает другую сцену, н
   assert.ok(adapted.beats.every(beat => beat.variants.every(variant => variant.choices.every(choice => !choice.text.includes('Распустить совет')))));
 });
 
-test('текущий советник, архив, Daily и отсутствие кадрового указа оставляют исходные сцены', async () => {
+test('архив и Daily прежние; указ об ограничении доступа не обещает роспуск совета', async () => {
   const state = await scenario(), fired = fireTarget(state);
-  for (const original of [state, { ...fired, country: 'Украина' }, { ...fired, daily: '2026-11-11' },
-    { ...fired, cabinet: undefined }, { ...fired, advisors: state.advisors },
-    { ...fired, arc: { ...fired.arc!, target: fired.keyFigures[0].name } }]) assert.equal(cabinetArc(original, mole), mole);
+  for (const original of [{ ...fired, country: 'Украина' }, { ...fired, daily: '2026-11-11' }]) {
+    assert.equal(cabinetArc(original, mole), mole);
+  }
+  for (const active of [state, { ...fired, cabinet: undefined }, { ...fired, advisors: state.advisors },
+    { ...fired, arc: { ...fired.arc!, target: fired.keyFigures[0].name } }]) {
+    const adapted = cabinetArc(active, mole);
+    assert.deepEqual(mechanics(adapted), mechanics(mole));
+    assert.doesNotMatch(JSON.stringify(adapted), /Распустить совет|Совет распущен/);
+    assert.equal(adapted.hooks, mole.hooks);
+  }
   assert.equal(cabinetArc(fired, ARCS[0]), ARCS[0]);
 });
 
@@ -80,4 +87,25 @@ test('все развилки и исходы после отставки чит
       if (turn === 26 || turn === 35) assert.ok(text.includes(state.arc!.target));
     }
   }
+});
+
+
+test('ранняя нить после отставки учитывает выбор и провал; поздний предвестник включён в рассказ', async () => {
+  for (const [turn, flag] of [[21, 'o_guard'], [23, 'watch'], [25, 'blame']] as const) {
+    for (const success of [true, false]) {
+      let state = fireTarget(await scenario(7, turn, ['later', flag]));
+      const beat = turn === 21 ? 1 : 3;
+      state = { ...state, arc: { ...state.arc!, done: [beat] }, history: Array.from({ length: turn }, () => ({
+        year: 1983, title: 'Закрытые бумаги', choice: flag, headline: '', historianNote: '', tags: [], success,
+      })) };
+      const line = earlyArcHook(state)!;
+      assert.ok(line);
+      assert.doesNotMatch(line, /Советники|советник|В совете/);
+      assert.match(line, success ? /Охрана|Контрразведка|Аппарат/ : /неудач/);
+    }
+  }
+  const state = fireTarget(await scenario(7, 27));
+  const event = { ...state, currentEvent: (await classicApi.event(state)) };
+  const report = await classicApi.consequence(event, event.currentEvent!.choices[0].id);
+  assert.ok(cabinetArc(event, mole).hooks.some(hook => report.narrative.includes(hook)));
 });

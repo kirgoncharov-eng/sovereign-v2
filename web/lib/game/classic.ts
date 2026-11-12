@@ -16,6 +16,7 @@ import { promisesBroken, promisesKept } from "./promises.ts";
 import { PLEDGE_QUESTION_ID, askedPledges, pledgeQuestion } from "./press-pledge.ts";
 import { SIGNATURE_QUESTION_ID, askedSignatures, signatureQuestion } from "./press-signature.ts";
 import { ARCS } from "../content/arcs.ts";
+import { cabinetArc, cabinetEarlyThread } from './cabinet-intrigue.ts';
 import { EARLY_THREADS } from "../content/early-threads.ts";
 import { COUNCIL_A } from "../content/council-a.ts";
 import { FAIL_A } from "../content/fail-a.ts";
@@ -311,8 +312,11 @@ function successorName(state: GameState, fig: Figure): string {
     const lasts = pool.last.filter(l => !fig.name.endsWith(l));
     return `${pick(r, pool.first)} ${pick(r, lasts.length ? lasts : pool.last)}`;
   }
-  return personName(state.country, r, MALE_ROLES.has(fig.id), usedNames(state));
+  return personName(state.country, r, MALE_ROLES.has(fig.id), usedNames(state), reservedCandidates(state));
 }
+
+const reservedCandidates = (state: GameState) => new Set(state.country === ALTERNATE_COUNTRY && !state.daily
+  ? state.cabinet?.roster.map(person => person.name) ?? [] : []);
 
 // Имена и фамилии, уже занятые в партии: новые люди их не получают, пока есть свободные.
 function usedNames(state: GameState, extra: string[] = []): Set<string> {
@@ -337,7 +341,7 @@ function usedNames(state: GameState, extra: string[] = []): Set<string> {
 
 // Новый человек для кадрового резерва: имя по стране, не совпадает с уже знакомыми игроку.
 export function freshPersonName(state: GameState, salt: string, male: boolean, extra: string[] = []): string {
-  return personName(state.country, seededRandom(hashSeed(state.seed, "fresh", salt)), male, usedNames(state, extra));
+  return personName(state.country, seededRandom(hashSeed(state.seed, "fresh", salt)), male, usedNames(state, extra), reservedCandidates(state));
 }
 
 interface SpecialOption { c: SpecialChoice; tags: ActionTag[]; deal: Deal }
@@ -1089,7 +1093,7 @@ const MAX_ECHOES = 2;
 export function earlyArcHook(state: GameState): string | null {
   const turn = localTurn(state.turn + 1);
   if (![2, 4, 6].includes(turn) || !state.arc || state.currentEvent?.beat || state.arc.epilogue) return null;
-  const thread = EARLY_THREADS[state.arc.id];
+  const thread = cabinetEarlyThread(state, EARLY_THREADS[state.arc.id]);
   const beat = state.arc.done.at(-1);
   if (!thread || beat !== (turn === 2 ? 1 : 3)) return null;
   const result = state.history[termIndex(state.turn + 1) * TERM + beat - 1];
@@ -1279,7 +1283,8 @@ function buildNarration(state: GameState, choiceId: string): Narration {
     { name: moved.f.name, role: lower(moved.f.role) }) : null;
 
   // Нить интриги: между эпизодами — зловещая строка-предвестие.
-  const arcDef = ARCS.find(a => a.id === state.arc?.id);
+  const originalArc = ARCS.find(a => a.id === state.arc?.id);
+  const arcDef = originalArc ? cabinetArc(state, originalArc) : undefined;
   // Через ход и без повторов: предвестие должно тревожить, а не надоедать.
   const hookIdx = (localTurn(state.turn + 1) - 2) / 2;
   // После развязки интрига молчит: ни предвестий, ни перехватов.
@@ -1544,14 +1549,15 @@ const BIOS = [
   "Бывший офицер, ставший депутатом на волне протестов.",
 ];
 
-function personName(country: string, r: Rand, male = false, used?: Set<string>): string {
+function personName(country: string, r: Rand, male = false, used?: Set<string>, reserved?: Set<string>): string {
   const n = NAMES[country] ?? NAMES["Беларусь"];
   // имя тоже не повторяем, пока есть свободные
   const pool = [...Array(male ? 8 : n.first.length).keys()].filter(k => !used?.has(`first:${n.first[k]}`));
   const i = pool.length ? pool[Math.floor(r() * pool.length)] : Math.floor(r() * (male ? 8 : n.first.length));
   used?.add(`first:${n.first[i]}`);
-  const free = used ? n.last.filter(l => !used.has(l)) : [];
-  let last = pick(r, free.length ? free : n.last);
+  const available = n.last.filter(last => !reserved?.has(`${n.first[i]} ${i >= 8 ? feminineSurname(last) : last}`));
+  const free = used ? available.filter(l => !used.has(l)) : [];
+  let last = pick(r, free.length ? free : available);
   used?.add(last);
   if (i >= 8) last = feminineSurname(last);
   return `${n.first[i]} ${last}`;
