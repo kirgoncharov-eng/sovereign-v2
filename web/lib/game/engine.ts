@@ -380,6 +380,22 @@ export function delayedEffects(choice: Choice, state?: Pick<GameState, "country"
   return list;
 }
 
+export type FollowUpWhen = "success" | "failure" | "both";
+type ChoiceFollowUp = Omit<DelayedInfo, "story"> & { when: FollowUpWhen; story?: string; payment?: true };
+
+/** Одинаковые условия для очереди платежей и справки перед подписью. */
+export function choiceFollowUps(state: Pick<GameState, "country" | "currentEvent" | "daily">, choice: Choice): ChoiceFollowUp[] {
+  // Вред по тегам сохраняется при срыве. Их эхо подбирает рассказчик, а у платежей есть свой текст.
+  const followUps: ChoiceFollowUp[] = delayedEffects(choice, state).map(({ label, turns, res }) => ({
+    label, turns, res, when: Object.values(res).reduce((sum, value) => sum + (value ?? 0), 0) < 0 ? "both" : "success",
+  }));
+  const deal = choice.deal?.later;
+  const onFailure = executionRisk(state, choice)?.laterOnFailure;
+  if (deal) followUps.push({ ...deal, when: onFailure === "deal" ? "both" : "success", payment: true });
+  if (onFailure && onFailure !== "deal") followUps.push({ ...onFailure, when: "failure", payment: true });
+  return followUps;
+}
+
 export const findChoice = (event: GameEvent, id: string): Choice | undefined =>
   event.choices.find(c => c.id === id) ?? event.council?.find(c => c.id === id);
 
@@ -627,12 +643,8 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
   const pendingAll = state.pending ?? [];
   const matured = pendingAll.filter(p => p.due <= nextTurn);
   for (const p of matured) add(p.label.toLowerCase(), p.res);
-  // Провал отменяет отложенную пользу, но не отложенный вред.
-  const net = (d: { res: ResourceDelta }) => Object.values(d.res).reduce((x, y) => x + (y ?? 0), 0);
-  const later = success && choice.deal?.later ? [{ ...choice.deal.later, story: choice.deal.later.story ?? "" }] : [];
-  // Сюжет храним только у сделок: эхо из таблицы DELAYED рассказчик берёт сам, с вариантами.
-  const tagged = delayedEffects(choice, state).filter(d => success || net(d) < 0).map(d => ({ ...d, story: "" }));
-  const scheduled: Pending[] = [...tagged, ...later].map((d, i) => ({
+  const outcome = success ? "success" : "failure";
+  const scheduled: Pending[] = choiceFollowUps(state, choice).filter(d => d.when === "both" || d.when === outcome).map((d, i) => ({
     id: `p${nextTurn}_${i}`, due: nextTurn + d.turns, from: state.turn, label: d.label, res: d.res, source: choice.text,
     ...(state.currentEvent?.title ? { event: state.currentEvent.title } : {}),
     ...(d.story ? { story: d.story } : {}),

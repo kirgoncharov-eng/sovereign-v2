@@ -8,6 +8,7 @@ import { RESOURCE_TITLE } from '../content/resource-names.ts';
 import type { GameState, ResourceKey } from '../game/types.ts';
 import { advisorDialogue } from './advisor-dialogue.ts';
 import { advisorOutlook, hardOutlook, resolutionOptions, signedEstimate, unifiedResolution, type Estimate, type OutlookSource } from './advisor-outlook.ts';
+import { FOLLOW_UP_CONDITION } from './choice-outcomes.ts';
 import { quarterDeadline } from './initiative-note.ts';
 
 // Спор скрыт, если открыт совет, обсуждение подписи или разговор о расследовании — как на столе.
@@ -33,7 +34,7 @@ function resolutionLines(state: GameState): string[] {
     if (forecast.failure) lines.push(`      срыв: ${forecast.failureOmitted ? 'не обсуждали' : resources(forecast.failure.resources)}`);
     for (const effect of forecast.later) {
       lines.push(`      позже, ${quarterDeadline(state, effect.due)}: ${resources(effect.resources)} — «${effect.label}». `
-        + (effect.onFailure ? 'Сохраняется при срыве.' : 'При исполнении.'));
+        + FOLLOW_UP_CONDITION[effect.when]);
     }
     if (forecast.payment !== null) lines.push(`      по договору: казна ${signedEstimate(forecast.payment)}`);
     lines.push(`      риск: ${forecast.risk.text} · ${source(forecast.risk.source, hard)}`);

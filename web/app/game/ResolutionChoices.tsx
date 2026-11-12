@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import ResIcon from './ResourceIcon.jsx';
 import { advisorOutlook, resolutionOptions, hardOutlook, signedEstimate, type Estimate, type OutlookSource } from '@/lib/client/advisor-outlook.ts';
+import { FOLLOW_UP_CONDITION } from '@/lib/client/choice-outcomes.ts';
 import type { AdvisorDialogue } from '@/lib/content/advisor-dialogue.ts';
 import { advisorDialogue } from '@/lib/client/advisor-dialogue.ts';
 import { quarterDeadline } from '@/lib/client/initiative-note.ts';
@@ -26,9 +27,10 @@ function Resources({ estimates }: { estimates: Partial<Record<ResourceKey, Estim
 }
 function Later({ game, forecast, compact = false }: { game: GameState; forecast: Forecast; compact?: boolean }) {
   return <>{forecast.later.map((effect, index) => <div className={styles.line} key={index}>
-    <span>{compact ? quarterDeadline(game, effect.due) : `Позже · ${quarterDeadline(game, effect.due)}`}</span>
+    <span>{compact ? quarterDeadline(game, effect.due) : `Позже · ${quarterDeadline(game, effect.due)}`}
+      {compact && effect.when === 'failure' && ' · при срыве'}</span>
     <Resources estimates={effect.resources} />
-    {!compact && <small>«{effect.label}». {effect.onFailure ? 'Сохраняется при срыве.' : 'При исполнении.'}</small>}
+    {!compact && <small>«{effect.label}». {FOLLOW_UP_CONDITION[effect.when]}</small>}
   </div>)}</>;
 }
 function Risk({ forecast, hard }: { forecast: Forecast; hard: boolean }) {
