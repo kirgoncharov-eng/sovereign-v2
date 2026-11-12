@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { ALTERNATE_ARC, ALTERNATE_EVENTS } from "./alternate-history.ts";
+import { CASE_CHOICE_MEMORIES } from "./memoirs-1978.ts";
 import { approachWorks, budgetChoice, callChoice, classicApi, customizeLeader, freshLeaderName, pressChoice } from "../game/classic.ts";
 import { ALTERNATE_COUNTRY } from "../game/alternate-world.ts";
 import { createInitialState, planTurn, resolveTurn, seededRandom, startEvent } from "../game/engine.ts";
-import type { Choice, DifficultyId, GameState } from "../game/types.ts";
+import type { Choice, DifficultyId, GameState, HistoryEntry } from "../game/types.ts";
 
 async function playTerm(seed: number, diff: DifficultyId, pickIndex: number): Promise<GameState> {
   const rand = seededRandom(seed);
@@ -99,4 +101,85 @@ test("архивные страны сохраняют прежний форма
   const s = createInitialState("Казахстан", "coalition", "pragmatist", intro, rand);
   const verdict = await classicApi.ending({ ...s, ended: true, endType: "mandate", turn: 20, year: 2029 });
   assert.doesNotMatch(verdict.verdict, /Справка архива:/);
+});
+
+test("женский род применяется ко всем 22 авторским делам и реальным партиям 1978 года без несклонённых глаголов (#417)", async () => {
+  const rand = seededRandom(5);
+  const intro = await classicApi.setup(ALTERNATE_COUNTRY, "debut", "pragmatist", 5);
+  const base = createInitialState(ALTERNATE_COUNTRY, "debut", "pragmatist", intro, rand, "classic", "economist");
+  const maleState = customizeLeader(base, { bio: "lawyer", ideo: "leftist", name: "Антон Березич" });
+  const femState = customizeLeader(base, { bio: "lawyer", ideo: "leftist", name: freshLeaderName(base, true, 1) });
+
+  for (const ev of ALTERNATE_EVENTS) {
+    for (const choice of ev.choices) {
+      assert.ok(CASE_CHOICE_MEMORIES[ev.title]?.[choice.text], `есть память для «${ev.title}» / «${choice.text}»`);
+      for (const success of [true, false]) {
+        const entry: HistoryEntry = {
+          year: 1978,
+          title: ev.title,
+          choice: choice.text,
+          headline: "",
+          historianNote: "",
+          success,
+        };
+        const maleNarrative = (await classicApi.ending({ ...maleState, ended: true, endType: "mandate", history: [entry] })).verdict.split("\n\nСправка архива: ")[0];
+        const femNarrative = (await classicApi.ending({ ...femState, ended: true, endType: "mandate", history: [entry] })).verdict.split("\n\nСправка архива: ")[0];
+        assert.doesNotMatch(maleNarrative, /[{}|]/, `нет нераскрытых шаблонов рода (м.р.): ${ev.title}`);
+        assert.doesNotMatch(femNarrative, /[{}|]/, `нет нераскрытых шаблонов рода (ж.р.): ${ev.title}`);
+        assert.notEqual(maleNarrative, femNarrative, `женское имя меняет род глаголов: ${ev.title} / ${choice.text} (success=${success})`);
+      }
+    }
+  }
+
+  // Прямая проверка проблемных прогонов из ревью на женском лидере.
+  for (const [seed, diff, pick] of [[19, "ruins", 2], [3, "crisis", 0], [7, "crisis", 1]] as const) {
+    const played = await playTerm(seed, diff, pick);
+    const femPlayed = { ...played, leader: { ...played.leader, name: freshLeaderName(played, true, 1) } };
+    const [narrative] = (await classicApi.ending(femPlayed)).verdict.split("\n\nСправка архива: ");
+    const firstName = femPlayed.leader.name.split(" ")[0];
+    assert.ok(narrative.includes(`${firstName} правил`) === false, `${seed}/${diff}: «${firstName} правил» недопустимо`);
+    assert.doesNotMatch(narrative, new RegExp(`${firstName} в первом[^.]*?(?<![\\p{L}])(?:выдал|пустил|решился|погасил|направил|подписал|разделил|отдал)(?![\\p{L}])`, "u"));
+  }
+});
+
+test("все действующие эпилоги «Четвёртого экземпляра» переводятся в третье лицо целиком и сохраняют причинность провала первых дел (#417)", async () => {
+  const rand = seededRandom(5);
+  const intro = await classicApi.setup(ALTERNATE_COUNTRY, "debut", "pragmatist", 5);
+  const base = createInitialState(ALTERNATE_COUNTRY, "debut", "pragmatist", intro, rand, "classic", "economist");
+  const maleState = customizeLeader({ ...base, ended: true, endType: "mandate" }, { bio: "lawyer", ideo: "leftist", name: "Антон Березич" });
+  const femState = customizeLeader({ ...base, ended: true, endType: "mandate" }, { bio: "lawyer", ideo: "leftist", name: freshLeaderName(base, true, 1) });
+
+  const epilogues = ALTERNATE_ARC.beats
+    .flatMap(b => b.variants)
+    .flatMap(v => v.choices)
+    .flatMap(c => [c.epilogue, c.epilogueFail])
+    .filter((s): s is string => !!s);
+
+  assert.ok(epilogues.length >= 10);
+  for (const epilogue of epilogues) {
+    for (const [label, st] of [["м.р.", maleState], ["ж.р.", femState]] as const) {
+      const state = {
+        ...st,
+        arc: { id: "alt_contracts", target: "Степан Миронович", targetRole: "Директор", flags: [], done: [2, 4, 6], epilogue },
+      };
+      const [narrative] = (await classicApi.ending(state)).verdict.split("\n\nСправка архива: ");
+      assert.doesNotMatch(narrative, /(?:^|[\s,])Вы\s/u, `${label}: не осталось обращения на «Вы» в «${epilogue}»`);
+      assert.doesNotMatch(narrative, /(?<![\p{L}])(?:сменили|договорились|нашли|заставили|сохранили|закрыли|выбрали|попытались|отделили|признали)(?![\p{L}])/u,
+        `${label}: не осталось глаголов 2-го лица в «${narrative}»`);
+    }
+  }
+
+  // Проверка конкретных пар причинности из ревью (19/ruins, 3/ruins).
+  const bankFail = (await classicApi.ending({
+    ...femState,
+    history: [{ year: 1978, title: "Завод ждёт зарплату", choice: "Оплатить зарплату в обмен на проверку договоров", headline: "", historianNote: "", success: false }],
+  })).verdict;
+  assert.match(bankFail, /банк списал/);
+
+  const customsFail = (await classicApi.ending({
+    ...femState,
+    history: [{ year: 1978, title: "Завод ждёт зарплату", choice: "Перестроить производство и защитить увольняемых", headline: "", historianNote: "", success: false }],
+  })).verdict;
+  assert.match(customsFail, /таможне/);
+  assert.doesNotMatch(customsFail, /саботаже дирекции/);
 });
