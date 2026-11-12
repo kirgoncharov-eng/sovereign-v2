@@ -51,6 +51,8 @@ test('поддержка канала один раз за год: повтор,
   const legacy = structuredClone(later);
   delete legacy.cabinet!.backedChannels;
   assert.deepEqual(cabinetPreview(reload(legacy), action).cost, preview.cost);
+  const oldReserve = prepareCabinet({ ...legacy, cabinet: undefined });
+  assert.ok(oldReserve.cabinet!.backedChannels!.includes('oligarch'), 'старый резерв учитывает уже назначенного человека');
   const fired = dismiss(legacy, candidates[0].seat);
   assert.ok((cabinetPreview(fired, action).cost.economy ?? 0) <= 0, 'отставка не возвращает поддержку');
   const newYear = prepareCabinet({ ...again, turn: 4 });

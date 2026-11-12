@@ -56,7 +56,7 @@ export function prepareCabinet(state: GameState): GameState {
   return { ...state, cabinet: {
     year: yearOf(state), roster: rosterFor(state),
     changedTurn: state.cabinet?.changedTurn ?? state.turn, changes: state.cabinet?.changes ?? 0,
-    departed: state.cabinet?.departed ?? [], backedChannels: [], entries: state.cabinet?.entries ?? [],
+    departed: state.cabinet?.departed ?? [], backedChannels: backedChannels(state), entries: state.cabinet?.entries ?? [],
   } };
 }
 
