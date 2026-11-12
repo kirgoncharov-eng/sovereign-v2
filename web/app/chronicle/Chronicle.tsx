@@ -1,6 +1,7 @@
 "use client";
 import ForecastReview, { isForecastReview } from "../game/ForecastReview.tsx";
 import ResolutionChoices from "../game/ResolutionChoices.tsx";
+import ResIcon from "../game/ResourceIcon.jsx";
 import { unifiedResolution } from "@/lib/client/advisor-outlook.ts";
 
 // «Хроника срока» (#298, #302). Между решениями строки идут сами, в темпе чтения; касание — следующая строка сразу.
@@ -10,7 +11,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import {
   actOnDossier, actOnLetter, answerStory, candidacyLines, convene, hire, signInitiative, dateLabel, electionLines, fillForm, firstStep, memoir, newTerm, nextCase,
   openLetter, openingLines, programOf, quarterLines, renameCandidate, secretaryLine, signBudget, signCall, signChoice, signPress,
-  startFromSeed, takeOffice, termOver, type ChronicleLine, type ChronicleStart, type Step,
+  startFromSeed, takeOffice, termOver, toldInChronicle, withoutRepeats, type ChronicleLine, type ChronicleStart, type Step,
 } from "@/lib/client/chronicle.ts";
 import {
   chronicleLineFx, clickFx, councilBellFx, duckForCall, envelopeFx, folderDropFx, handsetFx, ledgerFx,
@@ -176,9 +177,16 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   const started = useRef(entry);
   useEffect(() => { if (game && onState) onState(game); }, [game, onState]);
 
+  // Что лента уже печатала: голос, газета, отклик и приёмная не повторяются дословно за срок (#426).
+  const told = useRef<Set<string>>(new Set());
+  useEffect(() => { told.current = toldInChronicle([...shown, ...queue]); }, [shown, queue]);
+
   // Строки встают в очередь; на «Сразу» — сразу в хронику.
-  const enqueue = useCallback((lines: ChronicleLine[]) => {
+  const enqueue = useCallback((incoming: ChronicleLine[]) => {
+    const lines = withoutRepeats(incoming, told.current);
     if (!lines.length) return;
+    // Два вызова подряд до перерисовки (приёмная и квартал) тоже не должны повториться.
+    told.current = new Set([...told.current, ...toldInChronicle(lines)]);
     if (speedRef.current === "all") {
       if (lines.some(line => line.kind === "ledger") && pendingResources.current) setVisibleResources(pendingResources.current);
       setShown(rest => [...rest, ...lines]);
@@ -550,7 +558,8 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         {visibleResources && <div className={styles.hud} aria-label="Опоры власти">
           {/* data-res — как у опор в шапке `/game`: окно опоры не закрывается касанием по самой опоре, его закрывает переключатель. */}
           {HUD.map(h => <button key={h.key} data-res={h.key} aria-expanded={sheet === h.key} disabled={!game || !!form}
-            onClick={() => { mapUnfoldFx(sheet !== h.key); setSheet(open => open === h.key ? null : h.key); }}><small>{h.label}</small>{visibleResources[h.key]}</button>)}
+            onClick={() => { mapUnfoldFx(sheet !== h.key); setSheet(open => open === h.key ? null : h.key); }}><small>{h.label}</small>
+            <span className={styles.pillar}><ResIcon k={h.key} size={13} />{visibleResources[h.key]}</span></button>)}
         </div>}
         {game && !form && <div className={styles.sheets} role="group" aria-label="Справка">
           <button aria-expanded={sheet === "country"} onClick={() => { mapUnfoldFx(sheet !== "country"); setSheet(open => open === "country" ? null : "country"); }}>Страна</button>
@@ -845,6 +854,12 @@ function CaseDesk({ game, busy, onSign, onConvene }: {
   </div>;
 }
 
+// Тон сообщения с ярлыком: плохая новость, хорошая или справка.
+const NOTICE_TONE: Record<string, "bad" | "good"> = {
+  "Обещание нарушено": "bad", "Новый кризис": "bad", "Утечка": "bad", "Открытый противник": "bad",
+  "Обещание исполнено": "good", "Обещание": "good",
+};
+
 function Line({ line, dated }: { line: ChronicleLine; dated: string }) {
   const who = line.who && !line.text.startsWith(line.who) ? line.who : null;
   switch (line.kind) {
@@ -856,7 +871,17 @@ function Line({ line, dated }: { line: ChronicleLine; dated: string }) {
     case "press": return <p className={styles.press}><small>{line.who}</small> {line.text}</p>;
     case "letter": return <p className={styles.letter}><small>Письмо{who ? ` · ${who}` : ""}</small>{line.text}</p>;
     case "report": {
-      if (isForecastReview(line.who)) return <ForecastReview lines={[line.who!, ...line.text.split("\n")]}/>;
+      if (isForecastReview(line.who)) {
+        const rows = line.text.split("\n");
+        const review = <ForecastReview lines={[line.who!, ...rows]}/>;
+        // Всё сбылось точно — одна строка с именами; промах и «почти» видны сразу (#426).
+        if (!rows.every(row => / — точно\.$/.test(row))) return review;
+        const names = [...new Set(rows.map(row => row.split(" · ")[0]))];
+        return <details className={`${styles.ledgerDetails} ${styles.forecastsMet}`} onClick={event => event.stopPropagation()}>
+          <summary>Прогнозы сбылись точно: {names.join(", ")}</summary>
+          {review}
+        </details>;
+      }
       if (line.who === "Контроль заводской подписи") {
         const { summary, details } = ledgerParts(line.text);
         return <div className={styles.letter}>
@@ -871,7 +896,10 @@ function Line({ line, dated }: { line: ChronicleLine; dated: string }) {
       return <p className={styles.letter}><small>{line.who ?? "Доклад"}</small>{line.text}</p>;
     }
     case "secretary": return <p className={styles.echo}><small>Приёмная · {line.who}</small>{line.text}</p>;
-    case "echo": return <p className={styles.echo}><small>Отклик прежних решений</small>{line.text}</p>;
+    case "echo": return <p className={styles.echo}><small>{line.who ?? "Отклик прежних решений"}</small>{line.text}</p>;
+    case "vote": return <p className={styles.vote}><small>Выборы</small>{line.text}</p>;
+    case "country": return <p className={styles.country}><small>Тем временем</small>{line.text}</p>;
+    case "notice": return <p className={styles.notice} data-tone={NOTICE_TONE[line.who ?? ""] ?? "plain"}><small>{line.who}</small>{line.text}</p>;
     case "personal": return <p className={styles.personal}>{line.text}</p>;
     case "ledger": {
       const { summary: text, details } = ledgerParts(line.text);

@@ -21,6 +21,8 @@
 .line > small { flex-basis:100%; font-size:13px; color:var(--tx2, #625a48); }
 .resources { display:inline-flex; flex-wrap:wrap; gap:5px 12px; align-items:center; }
 .resource { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.name { color:var(--tx2, #625a48); }
+.pledges { margin:7px 0; font-size:15px; line-height:1.4; font-weight:700; }
 .risk { font-size:14px; line-height:1.4; margin-top:8px; }
 .source { font-size:14px; }
 .source small { font-size:inherit; color:var(--tx2, #625a48); }
