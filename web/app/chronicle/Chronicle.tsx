@@ -57,6 +57,8 @@ import GovernmentPanel from "@/app/game/GovernmentPanel.jsx";
 import Letters from "@/app/game/Letters.jsx";
 import StaffPanel from "@/app/game/StaffPanel.jsx";
 import CabinetPanel from "@/app/game/CabinetPanel.tsx";
+import InitialCabinet from '@/app/game/InitialCabinet.tsx';
+import { beginCabinetFormation, confirmInitialCabinet, formingCabinet } from '@/lib/game/cabinet-formation.ts';
 import { applyCabinetAction, cabinetEnabled, type CabinetAction } from "@/lib/game/cabinet.ts";
 import { cabinetNotice } from "@/lib/client/chronicle.ts";
 import { LetterText } from "@/app/game/LetterText.jsx";
@@ -242,9 +244,10 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     return () => clearTimeout(timer);
   }, [queue, paused, hidden, sheet, inauguration, speed, revealNext, shown.length]);
 
-  const deciding = !queue.length && !busy && !over && !!(step || stop || form);
+  const forming = formingCabinet(game);
+  const deciding = !queue.length && !busy && !over && !inauguration && !!(step || stop || form || forming);
   // Что сейчас ждёт ответа: новое дело, обращение, письмо внутри него или шаг анкеты.
-  const decision = !deciding ? null : form ? `form:${form.field}` : stop ? `stop:${stop.key}:${stop.token}:${view ?? ""}`
+  const decision = !deciding ? null : forming ? 'initial-cabinet' : form ? `form:${form.field}` : stop ? `stop:${stop.key}:${stop.token}:${view ?? ""}`
     : step ? `case:${game?.turn}` : null;
   const shownDecision = useRef<string | null>(null);
   const isCall = deciding && !stop && !form && !!game?.currentEvent?.call;
@@ -269,7 +272,7 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         else if (game.currentEvent.press) pressFlashFx();
         else folderDropFx();
       }
-      const section = () => (form || stop ? caseRef : deskRef).current;
+      const section = () => (form || stop || forming ? caseRef : deskRef).current;
       section()?.scrollIntoView({ behavior: "smooth", block: "start" });
       // Шапка могла вырасти во время прокрутки (появилась «Ждут ответа»), а текст над делом — перестроиться, когда
       // догрузились шрифты (после «Продолжить» с перезагрузкой): заголовок не должен остаться под шапкой.
@@ -285,7 +288,7 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     }
     if (!following.current || deciding) return;
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [shown.length, deciding, decision, form, stop, step, game, page, rivals]);
+  }, [shown.length, deciding, decision, form, stop, step, game, page, rivals, forming]);
 
   // Высота шапки меняется с кнопкой «Ждут ответа» и раскрытым списком: по ней дело встаёт под шапку, а не за неё.
   useEffect(() => {
@@ -416,7 +419,7 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
       // Без снимка, но после анкеты: тот же президент вступает в должность и получает первое дело.
       if (from?.from && candidate.promises?.length) {
         enqueue(openingLines(candidate));
-        await toCase(candidate, EMPTY_STOPS);
+        if (!formingCabinet(candidate)) await toCase(candidate, EMPTY_STOPS);
         return;
       }
       enqueue(candidacyLines(candidate));
@@ -462,13 +465,24 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     stampFx();
     setBusy(true);
     try {
-      const office = takeOffice(game, form.promises);
+      const office = beginCabinetFormation(takeOffice(game, form.promises));
       setForm(null);
       commit(office);
       enqueue(electionLines(office));
       setInauguration(office);
       enqueue(openingLines(office));
-      await toCase(office, stops);
+      if (!formingCabinet(office)) await toCase(office, stops);
+    } finally { setBusy(false); }
+  };
+
+  const approveCabinet = async () => {
+    if (!game || busy || !formingCabinet(game)) return;
+    setBusy(true);
+    try {
+      const appointed = confirmInitialCabinet(game);
+      commit(appointed);
+      stampFx();
+      await toCase(appointed, stops);
     } finally { setBusy(false); }
   };
 
@@ -522,7 +536,7 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     setSheet(null);
     openWaiting(item);
   };
-  const canAct = !!game && !busy && !over && !form;
+  const canAct = !!game && !busy && !over && !form && !forming;
   const changeCabinet = (action: CabinetAction) => {
     if (!game || !canAct) throw new Error("Дождитесь завершения текущего решения");
     const next = applyCabinetAction(game, action);
@@ -570,11 +584,11 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         </div>
         {visibleResources && <div className={styles.hud} aria-label="Опоры власти">
           {/* data-res — как у опор в шапке `/game`: окно опоры не закрывается касанием по самой опоре, его закрывает переключатель. */}
-          {HUD.map(h => <button key={h.key} data-res={h.key} aria-expanded={sheet === h.key} disabled={!game || !!form}
+          {HUD.map(h => <button key={h.key} data-res={h.key} aria-expanded={sheet === h.key} disabled={!game || !!form || forming}
             onClick={() => { mapUnfoldFx(sheet !== h.key); setSheet(open => open === h.key ? null : h.key); }}><small>{h.label}</small>
             <span className={styles.pillar}><ResIcon k={h.key} size={13} />{visibleResources[h.key]}</span></button>)}
         </div>}
-        {game && !form && <div className={styles.sheets} role="group" aria-label="Справка">
+        {game && !form && !forming && <div className={styles.sheets} role="group" aria-label="Справка">
           <button aria-expanded={sheet === "country"} onClick={() => { mapUnfoldFx(sheet !== "country"); setSheet(open => open === "country" ? null : "country"); }}>Страна</button>
           <button aria-expanded={sheet === "people"} onClick={() => { mapUnfoldFx(sheet !== "people"); setSheet(open => open === "people" ? null : "people"); }}>Люди</button>
           {cabinetEnabled(game) && !over && <button disabled={busy} aria-expanded={sheet === "cabinet"}
@@ -640,6 +654,10 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         })}
         {queue.length > 0 && !paused && <p className={styles.more} aria-hidden="true">· · ·</p>}
         {queue.length > 0 && paused && <p className={styles.more}>Хроника на паузе</p>}
+
+        {deciding && forming && game && <section ref={caseRef} className={styles.case} onClick={e => e.stopPropagation()}>
+          <InitialCabinet game={game} onChange={commit} onConfirm={approveCabinet} busy={busy} />
+        </section>}
 
         {deciding && form && game && <section ref={caseRef} className={styles.case} aria-label="Анкета кандидата" onClick={e => e.stopPropagation()}>
           <div className={styles.caseHead}>ЦИК Неманской республики · анкета кандидата · {FORM_FIELDS.indexOf(form.field) + 1} из {FORM_FIELDS.length}</div>

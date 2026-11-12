@@ -10,6 +10,7 @@ import { validLivingWorld } from "../game/living-world.ts";
 import { validInitiatives } from '../game/initiatives.ts';
 import { migrateLegacyCaseText } from '../game/legacy-case-text.ts';
 import { validCabinet } from "../game/cabinet.ts";
+import { validCabinetFormation } from '../game/cabinet-formation.ts';
 import { validFactoryMandate } from '../game/factory-mandate.ts';
 import type { GameState } from "../game/types.ts";
 
@@ -133,6 +134,7 @@ function validState(s: Obj): boolean {
   if (s.staffing !== undefined && !(isObj(s.staffing) && (s.staffing.lastTurn === null || integer(s.staffing.lastTurn))
     && strings(s.staffing.taken) && (s.staffing.receipt === undefined || typeof s.staffing.receipt === "string"))) return false;
   if (s.cabinet !== undefined && !validCabinet(s.cabinet, s.turn as number)) return false;
+  if (s.cabinetFormation !== undefined && !validCabinetFormation(s.cabinetFormation, s as unknown as GameState)) return false;
   if (s.world !== undefined && !validLivingWorld(s.world)) return false;
   if (s.storyHeroes !== undefined && !(isObj(s.storyHeroes) && Object.values(s.storyHeroes).every(pin => isObj(pin)
     && typeof pin.hero === "string" && typeof pin.heroName === "string"))) return false;
