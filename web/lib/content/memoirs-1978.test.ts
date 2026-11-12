@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ALTERNATE_ARC, ALTERNATE_EVENTS } from "./alternate-history.ts";
-import { CASE_CHOICE_MEMORIES } from "./memoirs-1978.ts";
+import { CASE_CHOICE_MEMORIES, memoirParagraphs } from "./memoirs-1978.ts";
+import { TERM_FINALE } from "./secretary.ts";
 import { approachWorks, budgetChoice, callChoice, classicApi, customizeLeader, freshLeaderName, pressChoice } from "../game/classic.ts";
 import { ALTERNATE_COUNTRY } from "../game/alternate-world.ts";
 import { createInitialState, planTurn, resolveTurn, seededRandom, startEvent } from "../game/engine.ts";
@@ -182,4 +183,127 @@ test("все действующие эпилоги «Четвёртого экз
   })).verdict;
   assert.match(customsFail, /таможне/);
   assert.doesNotMatch(customsFail, /саботаже дирекции/);
+});
+
+// ── #439: экран и вычитка ────────────────────────────────────────────────────────────────────────────────────────
+
+async function freshTerm(): Promise<GameState> {
+  const rand = seededRandom(5);
+  const intro = await classicApi.setup(ALTERNATE_COUNTRY, "debut", "pragmatist", 5);
+  const base = createInitialState(ALTERNATE_COUNTRY, "debut", "pragmatist", intro, rand, "classic", "economist");
+  return customizeLeader({ ...base, ended: true, endType: "mandate" }, { bio: "lawyer", ideo: "leftist", name: "Антон Березич" });
+}
+
+const entryOf = (title: string, choice: string, success = true): HistoryEntry =>
+  ({ year: 1978, title, choice, headline: "", historianNote: "", success });
+
+test("вердикт 1978 года делится на абзацы: рассказ, решения, люди и справка последним абзацем (#439)", async () => {
+  const state = await playTerm(33, "debut", 1);
+  const parts = memoirParagraphs((await classicApi.ending(state)).verdict);
+
+  assert.ok(parts.length >= 3, `ожидалось не меньше трёх абзацев, получено ${parts.length}`);
+  assert.deepEqual(parts.map(part => part.reference), [...parts.slice(0, -1).map(() => false), true], "справка одна и стоит последней");
+  assert.match(parts.at(-1)!.text, /^Справка архива: /);
+  assert.ok(parts[0].text.startsWith(state.leader.name), "первый абзац открывает имя президента");
+  for (const part of parts) assert.ok(part.text.length < 900, `абзац умещается в экран телефона: ${part.text.length} знаков`);
+});
+
+test("архивный вердикт остаётся одним абзацем рассказа (#439)", async () => {
+  const rand = seededRandom(5);
+  const intro = await classicApi.setup("Казахстан", "coalition", "pragmatist", 5);
+  const state = createInitialState("Казахстан", "coalition", "pragmatist", intro, rand);
+  const verdict = (await classicApi.ending({ ...state, ended: true, endType: "mandate", turn: 20, year: 2029 })).verdict;
+  assert.deepEqual(memoirParagraphs(verdict), [{ text: verdict, reference: false }]);
+});
+
+test("секретарь в мемуарах — третьим лицом и не словами своей последней записки (#439)", async () => {
+  const base = await freshTerm();
+  const name = "Нина Залесская";
+  // Вердикт читает из мира только секретаря: остального состояния приёмной тест не строит.
+  const withSecretary = (secretary: object): GameState => ({ ...base, world: { ...base.world, secretary: { name, ...secretary } } } as GameState);
+  const cases = [
+    { present: false, trust: 0, finale: TERM_FINALE.left },
+    { present: true, trust: 0, finale: TERM_FINALE[0] },
+    { present: true, trust: 1, finale: TERM_FINALE[1] },
+    { present: true, trust: 2, finale: TERM_FINALE[2] },
+  ];
+  const told = new Set<string>();
+  for (const change of cases) {
+    const [narrative] = (await classicApi.ending(withSecretary(change))).verdict.split("\n\nСправка архива: ");
+    const line = narrative.split(/(?<=\.)\s+/).find(sentence => sentence.startsWith("Секретарь приёмной"));
+    assert.ok(line, `секретарь названа: доверие ${change.trust}, на месте ${change.present}`);
+    assert.ok(line.includes(name), "секретарь названа по имени");
+    assert.ok(!narrative.includes(change.finale), "записка из ленты не повторена дословно");
+    assert.doesNotMatch(line, /(?<![\p{L}])(?:вы|вас|вам|вами|ваш\p{L}*)(?![\p{L}])/iu, `нет обращения на «вы»: ${line}`);
+    told.add(line);
+  }
+  assert.equal(told.size, cases.length, "у каждого исхода своя фраза");
+
+  const early = withSecretary({ present: true, trust: 2, finale: null });
+  assert.doesNotMatch((await classicApi.ending(early)).verdict, /Секретарь приёмной/, "до конца срока итог секретаря не подводится");
+});
+
+test("род союзника и противника верен для иностранных женских имён (#439)", async () => {
+  const base = await freshTerm();
+  const [first, second, ...rest] = base.keyFigures;
+  const figures = [
+    { ...first, name: "Кэтрин Харпер", relation: 90 },
+    { ...second, name: "Изабель Андерссон", relation: -90 },
+    ...rest.map(figure => ({ ...figure, relation: 0 })),
+  ];
+  const { verdict } = await classicApi.ending({ ...base, keyFigures: figures });
+  assert.match(verdict, /оставалась Кэтрин Харпер/);
+  assert.match(verdict, /стала Изабель Андерссон/);
+});
+
+test("связка времени перед «когда» отделена запятой, три решения — три фразы (#439)", async () => {
+  const base = await freshTerm();
+  const station = entryOf("Станцию перекрыли", "Купить зерно для сёл и отправить состав");
+  const factory = entryOf("Завод ждёт зарплату", "Получить аванс под трёхлетний российский заказ");
+  const price = entryOf("Закупочная цена", "Оставить цену и дать сезонную ссуду");
+
+  const three = (await classicApi.ending({ ...base, history: [factory, station, station] })).verdict;
+  assert.match(three, /Антон в первом деле «Завод ждёт зарплату»[^.]+\. В середине срока, когда «Станцию перекрыли», [^.]+\. Под конец, когда «Станцию перекрыли», /);
+  const two = (await classicApi.ending({ ...base, history: [factory, station] })).verdict;
+  assert.match(two, /, а затем, когда «Станцию перекрыли», выкупил/);
+  const lead = (await classicApi.ending({ ...base, history: [station, price] })).verdict;
+  assert.match(lead, /Антон, когда «Станцию перекрыли», выкупил[^.]+, а затем в деле «Закупочная цена» /);
+  for (const verdict of [three, two, lead]) assert.doesNotMatch(verdict, /(?:затем|срока|конец|Антон) когда/);
+});
+
+test("фраза о пути власти стоит в рассказе, а не среди счётчиков; «ушёл сам» — только ушедшему (#439)", async () => {
+  const base = await freshTerm();
+  const exit = { id: "exit" as const, turn: 18 };
+  const left = await classicApi.ending({ ...base, endType: "retired", path: exit });
+  const [story, reference] = left.verdict.split("\n\nСправка архива: ");
+  assert.match(memoirParagraphs(story)[0].text, /Он ушёл сам, когда мог бы цепляться, — и этим запомнился\.$/);
+  assert.doesNotMatch(reference, /ушёл сам/);
+
+  const fell = await classicApi.ending({ ...base, endType: "collapse", path: exit });
+  assert.doesNotMatch(fell.verdict, /ушёл сам/, "срок оборвался раньше ухода");
+});
+
+test("фраза о пути власти согласована с женским именем президента в 1978 году; архив держит прежнюю строку (#439)", async () => {
+  const base = await freshTerm();
+  const woman = customizeLeader(base, { bio: "lawyer", ideo: "leftist", name: freshLeaderName(base, true, 1) });
+  const ends = [
+    ["run", "mandate"], ["exit", "retired"], ["zeroing", "zeroed"], ["zeroing", "mandate"], ["rokirovka", "premier"],
+    ["successor", "leader_of_nation"], ["successor", "betrayed"], ["postpone", "emergency_rule"], ["postpone", "revolution"],
+    ["dictatorship", "dictator"], ["dictatorship", "coup"], ["dictatorship", "revolution"],
+  ] as const;
+  for (const [id, endType] of ends) {
+    for (const path of [{ id, turn: 18 }, { id: "exit" as const, turn: 18, from: id }]) {
+      const first = memoirParagraphs((await classicApi.ending({ ...woman, endType, path })).verdict)[0].text;
+      assert.doesNotMatch(first, /[{}|]/, `нет нераскрытой разметки: ${id}/${endType}`);
+      assert.doesNotMatch(first, /(?<![\p{L}])(?:он|его самого|сам|ушёл|мог|ответил|пошёл|переписал|сменил|потерял|выбрал|отложил|отменил|решил|стал|нужен|попытался|запомнился)(?![\p{L}])/iu,
+        `мужской род о женщине-президенте: ${first}`);
+    }
+  }
+
+  const rand = seededRandom(5);
+  const intro = await classicApi.setup("Казахстан", "coalition", "pragmatist", 5);
+  const archive = createInitialState("Казахстан", "coalition", "pragmatist", intro, rand);
+  const archiveWoman = { ...archive, leader: { ...archive.leader, name: "Айгерим Абдрахманова" }, ended: true, endType: "retired" as const,
+    turn: 20, year: 2029, path: { id: "exit" as const, turn: 18 } };
+  assert.match((await classicApi.ending(archiveWoman)).verdict, /Он ушёл сам, когда мог бы цепляться, — и этим запомнился\./);
 });

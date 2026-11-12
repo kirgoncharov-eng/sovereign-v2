@@ -1677,10 +1677,13 @@ function buildVerdict(state: GameState): Verdict {
 
   const openingSentence = `${state.leader.name} ${fem ? "правила" : "правил"} страной ${reignLength(state.turn)} — с ${startYear} по ${state.year} год — и ${fem ? "приняла" : "принял"} ${plural(state.history.length, "ключевое решение", "ключевых решения", "ключевых решений")}.`;
   const reignSentence = state.reign?.past.length ? `Как ${fem ? "она оставалась" : "он оставался"} у власти: ${state.reign.past.map(p => `после ${termOrdinalGen(p.term)} срока ${TERM_HOW[p.outcome] ?? ""}`).join(", ")}.` : "";
-  const referenceItems = [
+  const referenceBefore = [
     topCount ? `Главный инструмент правления — «${ACTIONS[topTag as keyof typeof ACTIONS].label.toLowerCase()}»: к нему лидер прибегал ${plural(topCount, "раз", "раза", "раз")}.` : "",
     elections ? `Выборы: ${elections}.` : "",
-    pathVerdict(state.path, end),
+  ];
+  // Архив держит прежнюю строку в мужском роде; род лидера учитывает только рассказ 1978 года.
+  const pathSentence = pathVerdict(state.path, end, fem && state.country === ALTERNATE_COUNTRY);
+  const referenceAfter = [
     state.stats?.crisesResolved ? `Кризисов преодолено: ${state.stats.crisesResolved}.` : "",
     given ? (kept === given ? `Все ${plural(given, "обещание", "обещания", "обещаний")} избирателям исполнены — редкость для любой столицы.`
       : kept ? `Из ${given} предвыборных обещаний исполнено ${kept}${broke ? `, нарушено ${broke}` : ""}.`
@@ -1690,8 +1693,9 @@ function buildVerdict(state: GameState): Verdict {
   ];
 
   const verdict = state.country === ALTERNATE_COUNTRY
-    ? buildMemoirVerdict1978(state, openingSentence, reignSentence, referenceItems)
-    : [openingSentence, reignSentence, ...referenceItems].filter(Boolean).join(" ");
+    ? buildMemoirVerdict1978(state, { opening: openingSentence, reign: reignSentence, path: pathSentence,
+      reference: [...referenceBefore, ...referenceAfter] })
+    : [openingSentence, reignSentence, ...referenceBefore, pathSentence, ...referenceAfter].filter(Boolean).join(" ");
 
   return {
     verdict,

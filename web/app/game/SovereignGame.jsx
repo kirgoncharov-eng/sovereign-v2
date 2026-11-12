@@ -15,6 +15,7 @@ import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
 import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
 import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
+import { memoirParagraphs } from "@/lib/content/memoirs-1978.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import { initPromises, offeredPromises, promiseDef, promiseGoalText, promiseImpact } from "@/lib/game/promises.ts";
 import { MONTHS_GEN, monthYear, turnDate } from "@/lib/game/calendar.ts";
@@ -4467,7 +4468,9 @@ function Ending({ gs, setGs, onRestart }) {
             {verdict && (
               <Card accent={G.amb} style={{ marginBottom:12, order:5 }}>
                 <Label>{"ВЕРДИКТ ИСТОРИИ"}</Label>
-                <div style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt, marginBottom:14 }}><PeopleText>{verdict.verdict}</PeopleText></div>
+                {memoirParagraphs(verdict.verdict).map((part, index) => part.reference
+                  ? <div key={index} data-memoir-reference style={{ fontFamily:narrow, fontSize:14, lineHeight:1.55, color:G.tx2, marginBottom:14, paddingTop:10, borderTop:`1px dashed ${G.bdr}` }}>{part.text}</div>
+                  : <div key={index} style={{ fontFamily:serif, fontSize:16, lineHeight:1.85, color:G.txt, marginBottom:14 }}><PeopleText>{part.text}</PeopleText></div>)}
                 {verdict.epitaph && <div style={{ fontFamily:serif, fontSize:15, fontStyle:"italic", color:G.tx2, padding:"12px 0", borderTop:`1px solid ${G.bdr}`, borderBottom:`1px solid ${G.bdr}` }}>«{verdict.epitaph}»</div>}
                 <div style={{ marginTop:12, fontFamily:narrow, fontSize:15, color:G.amb, letterSpacing:".05em" }}>ОЦЕНКА: {verdict.rating.toUpperCase()}</div>
               </Card>
