@@ -57,4 +57,15 @@ export async function exerciseFormation(page, shot) {
   await page.getByRole('region', { name: 'Дело на столе' }).waitFor();
   assert.equal(await panel.count(), 0, 'утверждённый состав не запрашивается заново');
   assert.deepEqual((await saved(page)).resources, approved.resources, 'reload не оплачивает состав повторно');
+  // Возобновлённое дело ещё выравнивается под шапкой. Ручная прокрутка к варианту должна отменить это выравнивание.
+  const option = page.locator('[data-resolution-choices] #opt-1');
+  await option.scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 100);
+  await page.waitForTimeout(200);
+  const readingPosition = await page.evaluate(() => scrollY);
+  await page.waitForTimeout(1800);
+  assert.ok(Math.abs(await page.evaluate(() => scrollY) - readingPosition) < 50,
+    'отложенное выравнивание не отбирает прокрутку у игрока');
+  // Следующая общая проверка измеряет исходное положение заголовка, а не выбранную игроком позицию чтения.
+  await page.getByRole('region', { name: 'Дело на столе' }).evaluate(element => element.scrollIntoView({ block: 'start' }));
 }

@@ -283,8 +283,15 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         if (top !== undefined && under !== undefined && top < under) section()?.scrollIntoView({ block: "start" });
       };
       const timers = [700, 1600].map(delay => setTimeout(realign, delay));
+      // После ручного действия не возвращаем игрока к заголовку и не срываем касание варианта.
+      const stopRealigning = () => { cancelled = true; timers.forEach(clearTimeout); };
+      const interactions = ['pointerdown', 'touchstart', 'wheel', 'keydown'] as const;
+      interactions.forEach(type => window.addEventListener(type, stopRealigning, { passive: true, once: true }));
       document.fonts?.ready.then(realign);
-      return () => { cancelled = true; timers.forEach(clearTimeout); };
+      return () => {
+        stopRealigning();
+        interactions.forEach(type => window.removeEventListener(type, stopRealigning));
+      };
     }
     if (!following.current || deciding) return;
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
