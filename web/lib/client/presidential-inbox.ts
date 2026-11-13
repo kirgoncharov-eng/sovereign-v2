@@ -17,6 +17,11 @@ export interface PresidentialMessage {
   needsReply: boolean;
   deadline?: number;
 }
+export function presidentialSender(gs: GameState, message: Pick<PresidentialMessage, 'person' | 'action'>): string {
+  const person = personProfiles(gs).find(profile => profile.id === message.person);
+  if (!person) return 'Канцелярия';
+  return message.action === 'groups' ? `${person.name} · ${person.role}` : person.name;
+}
 // Кто подписывает письмо проекта: в 1978 году письмо об исполнении ответа по больницам — его исполнитель,
 // иначе руководитель программы. Один источник для списка папки и шапки открытого письма (#244).
 export function projectLetterAuthor(gs: GameState, project: 'energy' | 'health'): WorldPersonId | null {

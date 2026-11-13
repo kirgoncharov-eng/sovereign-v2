@@ -30,7 +30,8 @@ import ResolutionOutcomes from "@/app/game/ResolutionOutcomes.tsx";
 import { historicalEventArt } from "@/lib/client/historical-art.ts";
 import { sceneOf } from "@/lib/content/scene-map.ts";
 import { personProfiles } from "@/lib/client/people-text.ts";
-import { presidentialMessages } from "@/lib/client/presidential-inbox.ts";
+import { presidentialMessages, presidentialSender } from "@/lib/client/presidential-inbox.ts";
+import { groupReplyDeadline } from "@/lib/game/group-initiative.ts";
 import { MONTHS } from "@/lib/game/calendar.ts";
 import { track } from "@/lib/client/analytics.ts";
 import { BIOGRAPHIES, CRISIS_THRESHOLD, IDEOLOGIES, LIMITS } from "@/lib/game/data.ts";
@@ -610,7 +611,8 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         {waiting.length > 0 && waitingOpen && <div className={styles.waiting}>
           <ul>{waiting.map(item => <li key={item.key}>
             <button onClick={() => openWaiting(item)} aria-current={stop?.key === item.key || undefined}>
-              <small>{senderOf(game!, item)}{item.deadline !== undefined ? ` · ответ до конца квартала ${item.deadline}` : ""}</small>
+              <small>{senderOf(game!, item)}{item.deadline !== undefined ? item.message?.action === 'groups'
+                ? ` · ${groupReplyDeadline(game!, item.deadline)}` : ` · ответ до конца квартала ${item.deadline}` : ""}</small>
               {item.title}
             </button>
           </li>)}</ul>
@@ -746,10 +748,12 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
 
 const senderOf = (game: GameState, stop: Stop) => stop.kind === "story" ? stop.title : stop.kind === "staff" ? "Отдел кадров"
   : stop.kind === "initiative" ? "Аппарат президента"
+  : stop.message?.action === 'groups' ? presidentialSender(game, stop.message)
   : personProfiles(game).find(person => person.id === stop.person)?.name ?? "Канцелярия";
 
 // Цена молчания — та, что уже назначил движок: срок ответа или то, что без ответа работа не начнётся.
 function silenceNote(game: GameState, stop: Stop) {
+  if (stop.message?.action === 'groups' && stop.deadline !== undefined) return groupReplyDeadline(game, stop.deadline);
   if (stop.kind === "story") return "Молчание тоже ответ: со следующим делом письмо уйдёт в архив.";
   if (stop.deadline !== undefined) {
     const left = stop.deadline - game.turn;

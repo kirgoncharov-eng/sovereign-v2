@@ -1,5 +1,6 @@
 import type { GameState } from '../game/types.ts';
 import { messageUnread, presidentialMessages, type PresidentialMessage } from './presidential-inbox.ts';
+import { groupReplyDeadline } from '../game/group-initiative.ts';
 
 // Это последние письма по живым делам, а не архив с выдуманными датами доставки.
 export function correspondence(gs: GameState): PresidentialMessage[] {
@@ -10,6 +11,8 @@ export function correspondence(gs: GameState): PresidentialMessage[] {
 }
 
 export function correspondenceStatus(gs: GameState, message: PresidentialMessage): string {
+  if (message.action === 'groups' && message.needsReply && message.deadline !== undefined)
+    return groupReplyDeadline(gs, message.deadline);
   if (message.needsReply) {
     return message.deadline === undefined ? 'Ждёт решения'
       : `Ответ до конца квартала ${message.deadline}`;

@@ -8,6 +8,7 @@ import { newTerm, nextCase, signChoice, startFromSeed, firstStep } from '../lib/
 import { encodeChronicle, parseChronicle } from '../lib/client/chronicle-save.ts';
 import { parseSave } from '../lib/client/save.ts';
 import { APP_VERSION, SAVE_VERSION } from '../lib/game/data.ts';
+import { groupReplyDeadline } from '../lib/game/group-initiative.ts';
 
 const out = resolve(process.argv.find(a => a.startsWith('--out='))?.slice(6) ?? 'playtest/groups');
 await mkdir(out, { recursive: true });
@@ -94,6 +95,8 @@ try {
     }, { main, chronicle });
     await resume(page);
     let panel = await openGroups(page);
+    assert.ok((await panel.innerText()).includes(groupReplyDeadline(game, game.world.groups.due)));
+    assert.doesNotMatch(await panel.innerText(), /квартала \d/);
     for (const width of [320, 390]) {
       await page.setViewportSize({ width, height: 844 });
       await panel.evaluate(element => {
@@ -106,7 +109,11 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     }
     await panel.getByRole('button', { name: first }).tap();
-    await panel.getByRole('button', { name: 'Подписать ответ группам' }).tap();
+    const selectedText = await panel.getByRole('button', { name: first }).innerText();
+    assert.equal((selectedText.match(/Влияние/g) ?? []).length, 1, 'цена показана один раз');
+    assert.match(selectedText, /Влияние −[23]/, 'цена оформлена тем же знаком минуса, что и опоры');
+    await page.screenshot({ path: join(out, `${route}-selected.png`) });
+    await panel.getByRole('button', { name: 'Подписать решение' }).tap();
     const signed = await saved(page);
     await resume(page);
     assert.deepEqual((await saved(page)).resources, signed.resources, 'reload не списывает повторно');
@@ -114,10 +121,10 @@ try {
     assert.equal((await saved(page)).world.groups.phase, phase);
     panel = await openGroups(page);
     await panel.getByRole('button', { name: second }).tap();
-    await panel.getByRole('button', { name: 'Подписать ответ группам' }).scrollIntoViewIfNeeded();
+    await panel.getByRole('button', { name: 'Подписать решение' }).scrollIntoViewIfNeeded();
     await page.waitForTimeout(700);
     await page.screenshot({ path: join(out, `${route}-response.png`) });
-    await panel.getByRole('button', { name: 'Подписать ответ группам' }).tap();
+    await panel.getByRole('button', { name: 'Подписать решение' }).tap();
     const shipping = await saved(page);
     assert.equal(shipping.world.groups.phase, 'shipping');
     await resume(page);

@@ -1,12 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { newTerm, nextCase, signChoice, startFromSeed } from '../client/chronicle.ts';
-import { groupActions, groupDecision, stepGroups, validGroups } from './group-initiative.ts';
+import { groupActions, groupDecision, groupReplyDeadline, stepGroups, validGroups } from './group-initiative.ts';
 import { interveneWorld, livingActions, stepLivingWorld } from './living-world.ts';
 import { applyDeltas, planTurn, startEvent } from './engine.ts';
 import { parseSave } from '../client/save.ts';
-import { SAVE_VERSION } from './data.ts';
-import { presidentialMessages } from '../client/presidential-inbox.ts';
+import { COUNTRIES, SAVE_VERSION } from './data.ts';
+import { MONTHS_GEN, turnDate } from './calendar.ts';
+import { presidentialMessages, presidentialSender } from '../client/presidential-inbox.ts';
+import { correspondenceStatus } from '../client/correspondence.ts';
+import { personProfiles } from '../client/people-text.ts';
 import { openStops, dueStops } from '../client/chronicle-stops.ts';
 import type { GameState } from './types.ts';
 import type { LivingWorld } from './living-world.ts';
@@ -38,6 +41,36 @@ async function offer() {
   return reload(s);
 }
 const options = (s: GameState) => groupActions(s).map(a => a.id);
+
+test('срок называет последний доступный день; переход к следующему делу закрывает ответ', async () => {
+  const s = await offer();
+  for (const seed of [3, 7, 19, 24]) for (const due of [12, 13, 16, 17]) {
+    const last = { ...s, seed, turn: due - 1,
+      world: { ...s.world!, lastTick: due - 1, groups: { ...s.world!.groups!, due } } };
+    const date = turnDate(seed, COUNTRIES[s.country].startYear, last.turn);
+    const note = groupReplyDeadline(last, due);
+    assert.ok(note.includes(`${date.day} ${MONTHS_GEN[date.month]} ${date.year}`));
+    assert.ok(note.includes('После решения дела за эту дату срок истечёт'));
+    assert.doesNotMatch(note, /квартала \d/);
+    assert.ok(groupActions(last).length > 0, 'в названный день варианты ещё доступны');
+    const expired = tick(last);
+    assert.equal(expired.world!.groups!.phase, 'settled');
+    assert.equal(groupActions(expired).length, 0, 'следующее дело уже за границей срока');
+    const letter = presidentialMessages(last).find(m => m.key === 'group-initiative')!;
+    assert.equal(correspondenceStatus(last, letter), note);
+    const author = personProfiles(last).find(p => p.id === letter.person)!;
+    assert.equal(presidentialSender(last, letter), `${author.name} · ${author.role}`);
+    assert.equal(presidentialSender(last, { ...letter, action: 'sponsor' }), author.name);
+  }
+  assert.doesNotMatch(s.world!.groups!.text, /квартала \d/);
+  assert.match(s.world!.groups!.text, /\+1 к экономике/);
+  const dispute = tick(interveneWorld(s, 'groups:offer:back'));
+  assert.doesNotMatch(dispute.world!.groups!.text, /квартала \d/);
+  const shipping = interveneWorld(dispute, 'groups:dispute:fuel');
+  assert.doesNotMatch(shipping.world!.groups!.text, /квартала \d/);
+  assert.equal(tick(shipping).world!.groups!.phase, 'shipping');
+  assert.equal(tick(tick(shipping)).world!.groups!.phase, 'settled');
+});
 
 test('инициатива начинается из положения страны, не из последней подписи; ранние ходы, архив и Daily не затронуты', async () => {
   const base = await fixture();

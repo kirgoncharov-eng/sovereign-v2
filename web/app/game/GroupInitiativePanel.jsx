@@ -5,7 +5,7 @@ import { groupNeedsReply } from '@/lib/game/group-initiative.ts';
 import { LetterText } from './LetterText.jsx';
 import './group-initiative.css';
 
-const RESOURCE = { economy: 'экономика', politicalCapital: 'влияние' };
+const RESOURCE = { economy: 'Экономика', politicalCapital: 'Влияние' };
 
 export default function GroupInitiativePanel({ gs, onAction, onClose }) {
   const [selected, setSelected] = useState(null);
@@ -32,12 +32,12 @@ export default function GroupInitiativePanel({ gs, onAction, onClose }) {
       disabled={!!action.blocked} aria-pressed={chosen?.id === action.id}
       onClick={() => { setSelected(action.id); setError(''); setReceipt(''); }}>
       <strong>{action.title}</strong>
-      <small>{Object.entries(action.cost).map(([key, amount]) => `${RESOURCE[key] ?? key} ${amount}`).join(' · ') || 'Без списания ресурсов'}</small>
+      <small>{Object.entries(action.cost).map(([key, amount]) => `${RESOURCE[key] ?? key} ${amount < 0 ? `−${Math.abs(amount)}` : `+${amount}`}`).join(' · ') || 'Без списания ресурсов'}</small>
       {chosen?.id === action.id && <span>{action.detail}</span>}
       {action.blocked && <em>{action.blocked}</em>}
     </button>)}</div>
     {chosen && <div className="sv-sponsor-sign"><p>Подтвердить: {chosen.title}</p>
-      <button disabled={!!chosen.blocked} onClick={confirm}>Подписать ответ группам</button>
+      <button disabled={!!chosen.blocked} onClick={confirm}>Подписать решение</button>
       <button onClick={() => setSelected(null)}>Отложить</button>
     </div>}
     {receipt && <p role="status">{receipt}</p>}
