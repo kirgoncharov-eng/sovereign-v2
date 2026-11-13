@@ -26,6 +26,7 @@ export interface GovernmentProgram {
   lastFactors: string[];
   reviewed: boolean; // Итог опубликован; чтение сообщения хранится отдельно в inboxRead.
   supported: boolean;
+  handoverTurn?: number; // передача дел после кадрового указа, штраф только в ближайшем квартале
 }
 export interface GovernmentState {
   programs: GovernmentProgram[];
@@ -147,6 +148,7 @@ export function publishSavedGovernmentReports(state: GameState): GameState {
         turn: state.turn,
         kind: 'news',
         title: projectDef(program.id).title,
+        ...(state.country === ALTERNATE_COUNTRY && !state.daily && state.cabinet ? { author: program.name } : {}),
         text:
           `${program.name}: «${projectDef(program.id).title}» — ${program.progress}%. ` +
           `${program.lastFactors.join('. ')}. Результат и расходы уже учтены. Доклад опубликован; ` +
@@ -156,7 +158,8 @@ export function publishSavedGovernmentReports(state: GameState): GameState {
   }
   const next = world.government.housingNext;
   if (next && ['completed', 'partial', 'failed'].includes(next.status)) next.reviewed = true;
-  offerHousingNext(world, state.turn, state.country === ALTERNATE_COUNTRY);
+  offerHousingNext(world, state.turn, state.country === ALTERNATE_COUNTRY,
+    state.country === ALTERNATE_COUNTRY && !state.daily && state.cabinet ? state.advisors.map(advisor => advisor.name) : undefined);
   world.dispatches = world.dispatches.slice(-24);
   return { ...state, world, ...(pendingReport ? { currentEvent: null } : {}) };
 }
@@ -182,7 +185,7 @@ export function governmentActions(state: GameState): Omit<WorldAction, 'blocked'
   for (const definition of PROJECTS) {
     const program = governmentProject(world, definition.id);
     if (!program) continue;
-    if (program.status === 'proposed')
+    if (program.status === 'proposed' && state.advisors.length)
       actions.push({
         id: `government:start:${definition.id}`,
         title: `Делегировать: ${definition.title}`,
@@ -298,6 +301,7 @@ export function governmentDecision(
     return { text: detail, factions: {} };
   }
   const advisor = state.advisors.find((advisor) => advisor.id === definition.advisor) ?? state.advisors[0];
+  if (!advisor) throw new Error("Назначьте советника: программу некому координировать.");
   program.status = 'running';
   program.started = state.turn;
   program.due = state.turn + 4;
@@ -433,6 +437,10 @@ export function stepGovernment(
       gain -= 5;
       factors.push('Передача закупок после отзыва мандата: −5 на один квартал');
     }
+    if (advisor && state.country === ALTERNATE_COUNTRY && !state.daily && program.handoverTurn === turn - 1) {
+      gain -= 5;
+      factors.push('Передача дел новому координатору: −5 на один квартал');
+    }
     const boost = advisor ? priorityWork(state, world, program.id) : 0;
     if (boost) {
       gain += boost;
@@ -457,7 +465,10 @@ export function stepGovernment(
       effects.push({ label: `программа «${definition.title}»`, res });
     }
     const text =
-      state.country === ALTERNATE_COUNTRY
+      state.country === ALTERNATE_COUNTRY && !state.daily && state.cabinet && !advisor
+        ? `Канцелярия: координатор не назначен. Выполнено ${program.progress}%. `
+          + (terminal ? 'Срок истёк; результат зафиксирован без продления.' : 'Работа ждёт назначения; прежний срок остаётся в силе.')
+        : state.country === ALTERNATE_COUNTRY
         ? programReport(
             program.name,
             program.progress,
@@ -480,6 +491,7 @@ export function stepGovernment(
         kind: terminal ? ('news' as const) : ('report' as const),
         title: definition.title,
         text,
+        ...(state.country === ALTERNATE_COUNTRY && !state.daily && state.cabinet ? { author: advisor?.name ?? null } : {}),
       },
     ].slice(-24);
     stories.push(text);
@@ -602,6 +614,7 @@ export function validGovernment(value: unknown, turn: number): value is Governme
   return government.programs.every((program) => {
     if (
       !program ||
+      (program.handoverTurn !== undefined && !startedBefore(program.handoverTurn)) ||
       !['procurement', 'exports', 'housing'].includes(program.id) ||
       !['proposed', 'running', 'completed', 'partial', 'failed'].includes(program.status) ||
       !Number.isSafeInteger(program.progress) ||

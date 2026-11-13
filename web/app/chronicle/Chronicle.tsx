@@ -57,6 +57,9 @@ import { IncomingLetter } from "@/app/game/QuarterInbox.jsx";
 import GovernmentPanel from "@/app/game/GovernmentPanel.jsx";
 import Letters from "@/app/game/Letters.jsx";
 import StaffPanel from "@/app/game/StaffPanel.jsx";
+import CabinetPanel from "@/app/game/CabinetPanel.tsx";
+import { applyCabinetAction, cabinetEnabled, type CabinetAction } from "@/lib/game/cabinet.ts";
+import { cabinetNotice } from "@/lib/client/chronicle.ts";
 import { LetterText } from "@/app/game/LetterText.jsx";
 import styles from "./chronicle.module.css";
 
@@ -140,7 +143,7 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   const [stops, setStops] = useState<StopMemory>(EMPTY_STOPS);
   const [waitingOpen, setWaitingOpen] = useState(false);
   // Справка из шапки: окно опоры, «Страна» или «Люди». Пока она открыта, лента стоит.
-  const [sheet, setSheet] = useState<ResourceKey | "country" | "people" | null>(null);
+  const [sheet, setSheet] = useState<ResourceKey | "country" | "people" | "cabinet" | null>(null);
   // Пролог игры — утро вступления в должность: после победы на выборах, перед речью. Пока он идёт, лента стоит.
   const [inauguration, setInauguration] = useState<GameState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -385,10 +388,11 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         setGame(restored.game);
         setShown(restored.shown);
         setQueue(restored.queue);
-        setStep(restored.step);
+        const oldStaffStop = restored.stop?.kind === "staff" && cabinetEnabled(restored.game);
+        setStep(oldStaffStop ? firstStep(restored.game) : restored.step);
         setPicks(restored.picks);
         setForm(restored.form);
-        setStop(restored.stop);
+        setStop(oldStaffStop ? null : restored.stop);
         setStops(restored.stops);
         setVisibleResources(restored.visibleResources);
         pendingResources.current = restored.game.resources;
@@ -520,6 +524,15 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     openWaiting(item);
   };
   const canAct = !!game && !busy && !over && !form;
+  const changeCabinet = (action: CabinetAction) => {
+    if (!game || !canAct) throw new Error("Дождитесь завершения текущего решения");
+    const next = applyCabinetAction(game, action);
+    commit(next);
+    const notice = cabinetNotice(next);
+    if (notice) enqueue([notice]);
+    if (step && !stop) setStep(firstStep(next));
+    stampFx();
+  };
 
   const event = game?.currentEvent;
   // Звонки и пресса показывают собственные кадры внутри специальных панелей.
@@ -565,10 +578,12 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         {game && !form && <div className={styles.sheets} role="group" aria-label="Справка">
           <button aria-expanded={sheet === "country"} onClick={() => { mapUnfoldFx(sheet !== "country"); setSheet(open => open === "country" ? null : "country"); }}>Страна</button>
           <button aria-expanded={sheet === "people"} onClick={() => { mapUnfoldFx(sheet !== "people"); setSheet(open => open === "people" ? null : "people"); }}>Люди</button>
+          {cabinetEnabled(game) && !over && <button disabled={busy} aria-expanded={sheet === "cabinet"}
+            onClick={() => { mapUnfoldFx(sheet !== "cabinet"); setSheet(open => open === "cabinet" ? null : "cabinet"); }}>Команда</button>}
           {waiting.length > 0 && <button className={styles.waitingButton} aria-expanded={waitingOpen} onClick={() => { clickFx(); setWaitingOpen(open => !open); }}
             disabled={busy}>Ждут ответа · {waiting.length}</button>}
         </div>}
-        {game && sheet && sheet !== "country" && sheet !== "people" && <ResourceInfo key={sheet} gs={game} kind={sheet} canAct={canAct}
+        {game && sheet && sheet !== "country" && sheet !== "people" && sheet !== "cabinet" && <ResourceInfo key={sheet} gs={game} kind={sheet} canAct={canAct}
           onClose={() => { mapUnfoldFx(false); setSheet(null); }} onInitiative={(id: string) => { stampFx(); commit(signInitiative(game, id)); }}
           onWorldAction={(id: string) => { stampFx(); commit(actOnLetter(game, id)); }} />}
         {waiting.length > 0 && waitingOpen && <div className={styles.waiting}>
@@ -581,16 +596,18 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         </div>}
       </header>
 
-      {game && (sheet === "country" || sheet === "people") && <aside className={styles.sheet} aria-label={sheet === "country" ? "Страна" : "Люди"}>
+      {game && (sheet === "country" || sheet === "people" || sheet === "cabinet") && <aside className={styles.sheet}
+        aria-label={sheet === "country" ? "Страна" : sheet === "cabinet" ? "Команда" : "Люди"}>
         <div className={`sv-paper ${styles.sheetPaper}`}>
           <div className={styles.sheetHead}>
-            <strong>{sheet === "country" ? "Страна" : "Люди"}</strong>
+            <strong>{sheet === "country" ? "Страна" : sheet === "cabinet" ? "Команда" : "Люди"}</strong>
             <button onClick={() => { mapUnfoldFx(false); setSheet(null); }} aria-label="Закрыть справку и вернуться к ленте">×</button>
           </div>
-          {sheet === "country"
+          {sheet === "cabinet" ? <CabinetPanel game={game} onAction={changeCabinet} /> : sheet === "country"
             ? <CountrySheet gs={game} onGovernment={() => openFromSheet(presidentialMessages(game).find(message => message.action === "government")?.key)}
               onReports={() => openFromSheet("energy")} />
             : <PeopleSheet gs={game}
+              onCabinetAction={changeCabinet}
               onInbox={(id: string) => id === "people" ? (setSheet(null), setWaitingOpen(true))
                 : openFromSheet(presidentialMessages(game).find(message => message.person === id)?.key)}
               onDossier={(id: string, action: "collect" | "press") => { if (!canAct) throw new Error("Дождитесь завершения текущего решения"); stampFx(); commit(actOnDossier(game, id, action)); }}

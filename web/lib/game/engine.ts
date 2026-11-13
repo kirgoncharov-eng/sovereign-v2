@@ -11,6 +11,8 @@ import {
 import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
 import { HISTORICAL_DEBATES, isPresidentialDiscussion } from './presidential-story.ts';
 import { ARCS } from "../content/arcs.ts";
+import { cabinetArc } from './cabinet-intrigue.ts';
+import { prepareCabinet, cabinetResourcesBefore, cabinetTurnSources } from './cabinet.ts';
 import { LEAKS } from "../content/advisors.ts";
 import { OWN_CRISIS_BELOW, OWN_CRISIS_BONUS, OWN_LOYALTY_FLOOR } from "../content/staffing.ts";
 import { NAMES } from "../content/narration.ts";
@@ -199,7 +201,11 @@ export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "fact
   const blocOf = (fig: Figure) => state.factions.find(f => f.id === fig.faction)?.bloc;
   let who: { name: string; role: string } | undefined;
   const men = <T extends { name: string }>(list: T[]) => (list.filter(x => !isFemaleName(x.name)).length ? list.filter(x => !isFemaleName(x.name)) : list);
-  if (arc.target === "advisor") { const pool = men(state.advisors); who = pool[Math.floor(rand() * pool.length)]; }
+  if (arc.target === "advisor") {
+    // После кадрового указа мужских советников может не остаться. Тогда цель — подходящий внутренний игрок ниже.
+    const pool = state.country === ALTERNATE_COUNTRY ? state.advisors.filter(advisor => !isFemaleName(advisor.name)) : men(state.advisors);
+    who = pool[Math.floor(rand() * pool.length)];
+  }
   if (arc.target === "security") who = men(state.keyFigures.filter(f => blocOf(f) === "security"))[0];
   if (arc.target === "business") who = men(state.keyFigures.filter(f => blocOf(f) === "business" || blocOf(f) === "ruling"))[0];
   if (arc.target === "rival") who = men(state.keyFigures.filter(f => blocOf(f) === "liberal" || blocOf(f) === "nationalist"))[0];
@@ -209,8 +215,9 @@ export function pickArc(state: Pick<GameState, "advisors" | "keyFigures" | "fact
 }
 
 // Эпизод интриги, который должен случиться на следующем ходу (если есть).
-export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<GameState, "world" | "daily" | "country" | "history">>) {
-  const arc = ARCS.find(a => a.id === state.arc?.id);
+export function dueBeat(state: Pick<GameState, "arc" | "turn"> & Partial<Pick<GameState, "world" | "daily" | "country" | "history" | "cabinet" | "advisors">>) {
+  const original = ARCS.find(a => a.id === state.arc?.id);
+  const arc = original && state.country && state.advisors ? cabinetArc({ ...state, country: state.country, advisors: state.advisors }, original) : original;
   if (!arc || !state.arc) return null;
   const scheduledTurn = (turn: number) => state.country === ALTERNATE_COUNTRY && state.turn < 20 && turn === 1 ? 2 : turn;
   const idx = arc.beats.findIndex(beat => scheduledTurn(beat.turn) === localTurn(state.turn + 1) && !state.arc!.done.includes(beat.turn));
@@ -265,7 +272,7 @@ export function createInitialState(
 export function startEvent(state: GameState, event: GameEvent & { cardId?: string }): GameState {
   const { cardId, ...ev } = event;
   const usedEvents = cardId ? [...(state.usedEvents ?? []), cardId].slice(-40) : (state.usedEvents ?? []);
-  return ensureSecretary({ ...state, currentEvent: cardId ? { ...ev, card: cardId } : ev, lastTurn: null, usedEvents });
+  return prepareCabinet(ensureSecretary({ ...state, currentEvent: cardId ? { ...ev, card: cardId } : ev, lastTurn: null, usedEvents }));
 }
 
 // Дополнительные предложения расходуют сбор; обсуждение исходной исторической подписи бесплатно.
@@ -467,7 +474,10 @@ export function successChance(state: ChanceState, choice: Choice): number {
   const execution = executionProfile(state, choice);
   const coordinators = execution ? (state.advisors ?? []).filter(advisor => execution.coordinators.includes(advisor.id)) : [];
   // Компетентность координации отдельно от сотрудничества контрагентов; skill 2 — исходный уровень.
-  if (coordinators.length) p += (avg(coordinators.map(advisor => advisor.skill)) - 2) * 0.06;
+  if (execution && state.country === ALTERNATE_COUNTRY && !state.daily && state.advisors) {
+    const skills = execution.coordinators.map(id => state.advisors!.find(advisor => advisor.id === id)?.skill ?? 1);
+    if (skills.length) p += (avg(skills) - 2) * 0.06; // вакансия исполняет на базовом уровне аппарата, без выдуманного советника
+  } else if (coordinators.length) p += (avg(coordinators.map(advisor => advisor.skill)) - 2) * 0.06;
   // У заводской подписи участники заданы по полномочиям, а не по политической выгоде. Остальные дела не меняются.
   const exec = execution ? state.factions.filter(faction => execution.blocs.includes(faction.bloc)) : executors(state.factions, choice);
   if (exec.length) p += avg(exec.map(f => f.relation)) / 400;
@@ -628,7 +638,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
     }
   };
   let resources = state.resources;
-  for (const source of initiativeTurnSources(state)) {
+  for (const source of [...initiativeTurnSources(state), ...cabinetTurnSources(state)]) {
     for (const k of RESOURCE_KEYS) if (source.res[k]) (sources[k] ??= []).push([source.label, source.res[k]!]);
   }
   const add = (label: string, d: ResourceDelta | null | undefined) => { const next = applyDeltas(resources, d); note(label, resources, next); resources = next; };
@@ -790,6 +800,7 @@ export function planTurn(state: GameState, choiceId: string, opts: { assumeSucce
 }
 
 export function resolveTurn(state: GameState, choiceId: string, narration: Narration): GameState {
+  state = prepareCabinet(state);
   const plan = planTurn(state, choiceId);
   const event = state.currentEvent!;
   const review = reviewAdvisorOutlook(state, plan.choice, plan.success);
@@ -829,9 +840,10 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
   });
 
   const factoryMandate = recordFactoryMandate(state, plan.choice, plan);
-  return finishSecretaryTurn(state, {
+  return prepareCabinet(finishSecretaryTurn(state, {
     ...state,
-    resources: plan.resources, prevResources: initiativeResourcesBefore(state),
+    resources: plan.resources, prevResources: cabinetTurnSources(state).length
+      ? cabinetResourcesBefore(state, initiativeTurnSources(state)) : initiativeResourcesBefore(state),
     ...(plan.world ? { world: plan.world } : {}),
     factions: plan.factions, prevFactions: state.factions.map(f => ({ ...f })),
     keyFigures, prevFigures: state.keyFigures.map(f => ({ ...f })),
@@ -914,6 +926,6 @@ export function resolveTurn(state: GameState, choiceId: string, narration: Narra
     ended: plan.endType !== null,
     endType: plan.endType,
     powerLoss: plan.endType && !isSurvival(plan.endType) ? narration.powerLoss : null,
-  });
+  }));
 }
 

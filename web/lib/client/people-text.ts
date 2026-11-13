@@ -5,6 +5,7 @@ import { BOND_LABEL, bondOf, TRAITS, traitOf } from '../game/people.ts';
 import type { GameState } from '../game/types.ts';
 import { secretaryEnabled } from '../game/secretary.ts';
 import { TRUST_WORDS } from '../content/secretary.ts';
+import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 
 export interface PersonProfile { id: string; name: string; role: string; relation: number | null; loyalty: string; rows: {label: string; value: string}[] }
 
@@ -46,6 +47,10 @@ export function personProfiles(gs: GameState): PersonProfile[] {
     profile.rows.push({ label: 'До нынешней должности', value: source.biography }, { label: 'Интерес в этом деле', value: 'Самостоятельный доступ к банковским сведениям; меньше зависимости от чужой санкции' });
   }
   const secretary = secretaryEnabled(gs) && gs.world?.secretary;
+  if (gs.country === ALTERNATE_COUNTRY && !gs.daily && gs.cabinet && gs.world?.dispatches.some(dispatch => dispatch.author === null)) {
+    profiles.push({ id: 'chancery', name: 'Канцелярия', role: 'Доклады по незавершённым поручениям', relation: null,
+      loyalty: 'нейтрал', rows: [{ label: 'Отправитель', value: 'Аппарат президента; личные отношения не учитываются' }] });
+  }
   if (secretary) profiles.push({ id: 'secretary', name: secretary.name, role: 'Секретарь президента', relation: null,
     loyalty: TRUST_WORDS[secretary.trust], rows: [
       { label: 'Отношение к вам', value: TRUST_WORDS[secretary.trust] },

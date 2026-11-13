@@ -14,6 +14,7 @@ import GovernmentPanel from './GovernmentPanel.jsx';
 import ProjectActions from './ProjectActions.jsx';
 import { PeopleText } from './PeopleText.jsx';
 import { trackDesk, trackAppointment } from '@/lib/client/desk-analytics.ts';
+import { ALTERNATE_COUNTRY } from '@/lib/game/alternate-world.ts';
 
 // entry=false — входы на стол живут в «Людях» и «Стране»; ref открывает переписку, сообщения или правительство извне.
 export default function PresidentialDesk({ ref, gs, Portrait, Scene, onAction, onRead, onViewChange, onProject, onDesk, entry = true }) {
@@ -63,8 +64,9 @@ export default function PresidentialDesk({ ref, gs, Portrait, Scene, onAction, o
     government: id => government(id),
   }));
   if (gs.daily || !gs.world) return null;
-  const profiles = personProfiles(gs).filter(p => p.id !== 'leader' && !p.id.startsWith('former:'));
   const messages = correspondence(gs);
+  const profiles = personProfiles(gs).filter(p => p.id !== 'leader' && (!p.id.startsWith('former:')
+    || gs.country === ALTERNATE_COUNTRY && gs.cabinet && messages.some(message => message.person === p.id)));
   const commitments = commitmentBriefs(gs);
   const unread = messages.filter(m => messageUnread(gs, m)).length;
   const waiting = messages.filter(m => m.needsReply).length;

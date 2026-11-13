@@ -1,5 +1,6 @@
 // Общие типы игрового состояния. Используются и клиентом, и сервером.
 import type { SceneKey } from "../content/scene-map.ts";
+import type { CabinetState } from "./cabinet.ts";
 import type { LivingWorld } from "./living-world.ts";
 
 export type ResourceKey =
@@ -398,6 +399,7 @@ export interface GameState {
   echoes?: Record<string, number>; // сколько раз уже звучало эхо каждого отложенного последствия
   former?: string[];      // люди, ушедшие с постов: их имена не достаются преемникам
   staffing?: Staffing;
+  cabinet?: CabinetState; // кадровые указы 1978 года: закреплённый резерв и история ушедших
   storyHeroes?: Record<string, { hero: string; heroName: string }>; // герой каждой начатой истории: id и имя (#184)
   storyReplies?: Record<string, StoryReply>; // ответы на личные письма: история → ответ (#156)
   currentEvent: GameEvent | null;
