@@ -105,6 +105,8 @@
 
 .memoir { margin-top: 30px; padding-top: 18px; border-top: 3px double #6f6550; }
 .memoir p { font: 16px/1.7 var(--font-serif); margin: 0 0 12px; }
+/* Справка архива (#439): счётчики срока — отдельным абзацем, мельче рассказа. */
+.memoir .reference { font: 14px/1.55 var(--font-narrow); color: #5e5446; border-top: 1px dashed #a89b7c; padding-top: 10px; }
 .outcome { font: 700 20px var(--font-narrow) !important; letter-spacing: .04em; color: #8b3a2b; }
 .epitaph { font: italic 20px/1.6 var(--font-serif) !important; text-align: center; padding: 10px 6%; color: #3c372c; }
 .memoir h3 { font: 700 22px var(--font-narrow); letter-spacing: .06em; text-transform: uppercase; margin: 26px 0 4px; }

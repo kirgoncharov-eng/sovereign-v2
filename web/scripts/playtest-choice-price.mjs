@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve, join } from 'node:path';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { APP_VERSION, SAVE_VERSION } from '../lib/game/data.ts';
 import { newTerm, nextCase, startFromSeed, signChoice, signOption, firstStep } from '../lib/client/chronicle.ts';
 import { quarterDeadline } from '../lib/client/initiative-note.ts';
@@ -26,7 +26,7 @@ const demoServer = createServer((request, response) => {
 });
 await new Promise(done => demoServer.listen(0, '127.0.0.1', done));
 const demoUrl = `http://127.0.0.1:${demoServer.address().port}/`;
-const browser = await chromium.launch();
+const browser = await launchChromium();
 
 async function openFixture(game, start) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });

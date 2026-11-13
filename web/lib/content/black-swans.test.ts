@@ -118,3 +118,16 @@ test('весь текст пилота — язык 1978 года, без сло
     }
     for (const card of cards()) for (const choice of card.choices) assert.match(choice.text, /^[А-ЯЁ]/, choice.text);
 });
+
+test('связность цепочек #392: срыв допуска к самолёту совместим с разоблачениями, а поддельный указ не придумывает прошлую подпись игрока', () => {
+    const jet = PILOT_SWANS.find(swan => swan.id === 'swan_jet')!;
+    const inspectChoice = jet.card.choices[2];
+    assert.doesNotMatch(inspectChoice.fail!, /нетронутым|застревает на границе/i);
+    assert.match(inspectChoice.fail!, /ангар/);
+    for (const reveal of jet.reveal[2]) {
+        assert.match(reveal.text, /ангар/);
+    }
+
+    const decree = PILOT_ODDITIES.find(oddity => oddity.id === 'odd_decree')!;
+    assert.doesNotMatch(decree.returns!.card.description, /ваш прошлогодний указ о больницах/i);
+});

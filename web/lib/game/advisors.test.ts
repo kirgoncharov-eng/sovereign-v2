@@ -158,3 +158,23 @@ test("газета пишет фактическую перемену лояль
   assert.equal(loyaltyOf(after.advisors.find(advisor => advisor.id === follower.id)!), 100);
   assert.equal(loyaltyOf(after.advisors.find(advisor => advisor.id === rival.id)!), 0);
 });
+
+test("карточка советника в 1978 году без слов другой эпохи; архивные страны читают прежнюю биографию (#310, E06)", () => {
+  const factions: GameState["factions"] = [];
+  const era = /пиар|блогер|интернет|смартфон|соцсет|офшор|видео/i;
+  const names = ["Нина Вежина", "Вера Борич", "Виктор Мельнич", "Лидия Ясенева", "Антон Савич", "Роман Яровой", "Ольга Жук", "Павел Климов",
+    "Степан Луговой", "Алесь Борич", "Леонид Рудницкий", "Михаил Кравцов", "Лидия Кленова", "Вера Луговая", "Антон Селицкий", "Нина Яровая"];
+  let replaced = 0;
+  for (const [seat, bios] of Object.entries(ADVISOR_BIOS)) {
+    for (const name of names) {
+      const advisor = { id: seat, name, role: seat, emoji: "", skill: 2 as const };
+      const archive = advisorProfile({ factions, country: "Казахстан" }, advisor).bio!;
+      const historical = advisorProfile({ factions, country: "Беларусь · 1978" }, advisor).bio!;
+      assert.ok(bios.includes(archive), `${seat}: архив читает строку из прежнего набора`);
+      assert.doesNotMatch(historical, era, `${seat}/${name}: ${historical}`);
+      if (historical !== archive) replaced++;
+      else assert.doesNotMatch(archive, era);
+    }
+  }
+  assert.ok(replaced > 0, "в проверенных именах встретилась заменённая биография");
+});

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { APP_VERSION, SAVE_VERSION, RESOURCE_KEYS } from '../lib/game/data.ts';
 import { newTerm, nextCase, startFromSeed, takeOffice, programOf, signChoice, firstStep } from '../lib/client/chronicle.ts';
 import { EMPTY_PERSONAL } from '../lib/client/chronicle-personal.ts';
@@ -15,7 +15,7 @@ import { parseSave } from '../lib/client/save.ts';
 const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6) ?? 'playtest/actionable-stops');
 mkdirSync(out, { recursive: true });
 const summary = { checks: [], problems: [] };
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const start = startFromSeed(7, 'debut');
 const resources = Object.fromEntries(RESOURCE_KEYS.map(key => [key, 60]));
 const candidate = await newTerm(start);

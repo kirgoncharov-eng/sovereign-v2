@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { memoir, startFromSeed } from '../lib/client/chronicle.ts';
 import { CHRONICLE_GAME_KEY, encodeChronicle, parseChronicle } from '../lib/client/chronicle-save.ts';
 import { EMPTY_PERSONAL } from '../lib/client/chronicle-personal.ts';
@@ -22,7 +22,7 @@ const snapshot = encodeChronicle({ start: startFromSeed(game.seed, game.diff), g
   shown: pageData.fall ? [pageData.fall] : [], queue: [], step: null, picks: [], form: null,
   stop: null, stops: {}, memory: EMPTY_PERSONAL, visibleResources: game.resources, page: pageData, rivals: [], over: true });
 assert.ok(parseChronicle(snapshot));
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const errors = [];
 page.on('pageerror', error => errors.push(String(error)));

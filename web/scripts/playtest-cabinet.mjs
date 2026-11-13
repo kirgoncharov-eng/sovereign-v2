@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 
 const root = process.cwd();
 const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6) ?? 'playtest/cabinet');
@@ -92,7 +92,7 @@ await writeFile(file, `<!doctype html><html lang="ru"><meta charset="utf-8"><met
 <title>Суверен · проверка кабинета</title><style>body{margin:0;background:#f1e8d6}*{box-sizing:border-box}${css}</style>
 <body><div id="root"></div><script>${js}</script></body></html>`);
 if (!process.argv.includes('--build-only')) {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchChromium({ headless: true });
   const summary = { isolatedComponent: true, problems: [], widths: [] };
   try {
     for (const width of [390, 320]) {

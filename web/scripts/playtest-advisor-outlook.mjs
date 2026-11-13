@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { build } from 'esbuild';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { newTerm, nextCase, startFromSeed } from '../lib/client/chronicle.ts';
 import { advisorOutlook, advisorSigningState, reviewAdvisorOutlook } from '../lib/client/advisor-outlook.ts';
 
@@ -40,7 +40,7 @@ const dialogue = { alt_wages: { 0: {
     challenge: { after: 'economist', text: 'А банк? Если деньги лягут на общий счёт, их спишут раньше, чем они дойдут до кассы.' },
   },
 } } };
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const summary = { checks: [], problems: [] };
 try {
   for (const width of [320, 390, 1440]) for (const diff of ['debut', 'crisis']) for (const skill of [1, 2, 3, 'mixed']) {

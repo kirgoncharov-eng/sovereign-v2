@@ -55,7 +55,11 @@ export function press1978(input: Press1978Input): PressLine[] {
       : T.electionRuling.replace('{share}', String(election.leader));
     return civil(`${fact} ${tail}`);
   }
-  if (!success) return civil(`${fact} ${T.failed}`);
+  if (!success) {
+    // Какой это срыв по счёту в партии: первый — принятая строка, дальше — по кругу остальные.
+    const earlier = before.history.filter(entry => entry.success === false).length;
+    return civil(`${fact} ${earlier ? T.failedAgain[(earlier - 1) % T.failedAgain.length] : T.failed}`);
+  }
 
   const camps = campShifts(before, own.factionRel);
   if (act === 'budget') {

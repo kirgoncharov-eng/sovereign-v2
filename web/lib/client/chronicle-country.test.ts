@@ -166,7 +166,124 @@ test('позиция лагеря в прессе: не меньше трёх р
   }
 });
 
+test('строка со связкой времени датирована по сцене квартала, «Наутро» — следующим днём (#435)', () => {
+  const SAME_DAY = ['Тем временем ', 'В тот же вечер ', 'Почти в ту же минуту ', 'А в другом конце столицы ', 'Ближе к ночи ', 'В это же время ', 'Вечером '];
+  let tied = 0, morning = 0;
+  for (const { lines } of quarters) {
+    let scene: ChronicleLine | null = null;
+    for (const line of lines) {
+      if (line.kind === 'vote') continue;
+      const sameDay = SAME_DAY.some(lead => line.text.startsWith(lead)), nextDay = line.text.startsWith('Наутро ');
+      if (scene && (line.kind === 'scene' || line.kind === 'voice') && (sameDay || nextDay)) {
+        const gap = day(line) - day(scene);
+        if (nextDay) { morning++; assert.ok(gap >= 0 && gap <= 1, `«Наутро» через ${gap} дн.: ${line.text.slice(0, 60)}`); }
+        else { tied++; assert.ok(gap === 0, `связка через ${gap} дн.: ${line.text.slice(0, 60)}`); }
+      }
+      if (line.kind === 'scene') scene = line;
+    }
+  }
+  assert.ok(tied > 10 && morning > 0, `${tied}/${morning}`);
+});
+
+test('пресс-конференция, бюджет и звонок: сцена в день подписи (#435)', () => {
+  let acts = 0;
+  for (const { before, after, lines } of quarters) {
+    const event = before.currentEvent!;
+    if (!(event.press || event.budget || event.call) || after.lastTurn!.election) continue;
+    const scene = lines.find(line => line.kind === 'scene');
+    if (!scene) continue;
+    acts++;
+    assert.equal(day(scene), day(lines[0]), `${event.title}: сцена через ${day(scene) - day(lines[0])} дн. после подписи`);
+  }
+  assert.ok(acts >= 12, `особых дел в замере: ${acts}`);
+});
+
+test('квартал, где власть кончилась: голоса и пресса о решении — до развязки (#435)', () => {
+  let endings = 0;
+  for (const term of terms) {
+    const last = term.at(-1)!;
+    if (!last.after.ended) continue;
+    const scenes = last.lines.filter(line => line.kind === 'scene');
+    if (scenes.length < 2 || last.lines.some(line => line.kind === 'vote')) continue;
+    endings++;
+    const closing = last.lines.indexOf(scenes[1]);
+    for (const line of last.lines.filter(entry => entry.kind === 'voice' || entry.kind === 'press')) {
+      assert.ok(last.lines.indexOf(line) < closing, `после развязки: ${line.text.slice(0, 70)}`);
+    }
+    assert.equal(last.lines.indexOf(scenes[0]), 1, 'сцена решения открывает квартал');
+  }
+  assert.ok(endings > 0, 'в замере есть партия, закончившаяся без блока выборов');
+});
+
 test('без отчёта о ходе строк нет; архивная партия не получает строк 1978 года', () => {
   const { before } = quarters[0];
   assert.deepEqual(countryLines(before, { ...before, lastTurn: null }), { own: [], background: [], deadline: [], quarter: [] });
+});
+
+test('в одной партии ни одно предложение ленты о нарушенных обещаниях, выборах и пресс-конференциях не повторяется дословно (#441)', () => {
+  let broken = 0;
+  terms.forEach((term, index) => {
+    const seen = new Map<string, number>();
+    for (const { lines } of term) {
+      for (const line of lines) {
+        const watched = line.who === 'Обещание нарушено' || /Пресс-конференция (?:длится|идёт)|журналисты держат вас|признаёт итоги|поздравля|звонит/i.test(line.text);
+        if (!watched) continue;
+        if (line.who === 'Обещание нарушено') broken++;
+        for (const sentence of line.text.split(/(?<=[.!?])\s+/)) {
+          // Причина нарушения — факт: две подписи могут перечеркнуть два обещания.
+          if (sentence.length < 30 || /перечеркнула|перед журналистами/.test(sentence)) continue;
+          // Ответ на вопрос журналиста выбирает игрок; тест отвечает первым вариантом и проверяет только слова рассказчика.
+          if (/^На вопрос |^«|»\.?$/.test(sentence)) continue;
+          seen.set(sentence, (seen.get(sentence) ?? 0) + 1);
+        }
+      }
+    }
+    const repeated = [...seen].filter(([, count]) => count > 1).map(([sentence, count]) => `${count}× ${sentence}`);
+    assert.deepEqual(repeated, [], `партия ${ROUTES[index].join('/')}`);
+  });
+  assert.ok(broken >= 4, `проверено нарушенных обещаний: ${broken}`);
+});
+
+test('повторный факт квартала лента называет короче: фон — одной строкой, пояснение и причина — один раз (#310, C01)', () => {
+  const flood = { kind: 'country' as const, text: 'Реки Полесья вышли из берегов.', again: 'И снова — паводок на южных реках.' };
+  const crisis = (title: string) => ({ kind: 'notice' as const, who: 'Новый кризис', text: `${title}. Казна пуста.`,
+    once: 'Кризис длится несколько кварталов, если не закрыть его отдельным решением.' });
+  const report = (lead: string, label = 'Причина') => ({ kind: 'report' as const, text: `${lead} ${label}: программа закончилась с 0%. Резиденция не назначила руководителя.` });
+
+  const first = withoutRepeats([flood, crisis('Бюджетный коллапс'), report('Работы не начались.')], new Set());
+  assert.deepEqual(first.map(line => line.text), ['Реки Полесья вышли из берегов.',
+    'Бюджетный коллапс. Казна пуста. Кризис длится несколько кварталов, если не закрыть его отдельным решением.',
+    'Работы не начались. Причина: программа закончилась с 0%. Резиденция не назначила руководителя.']);
+  for (const line of first) assert.ok(!('again' in line) && !('once' in line), 'служебные поля в ленту и сохранение не попадают');
+
+  // Следующий квартал знает напечатанное только по самим строкам — как после «Продолжить».
+  const told = toldInChronicle(first);
+  const second = withoutRepeats([flood, crisis('Банковская паника'), report('Ответа всё нет.', 'Причина остаётся прежней')], told);
+  assert.deepEqual(second.map(line => line.text), ['И снова — паводок на южных реках.', 'Банковская паника. Казна пуста.', 'Ответа всё нет.']);
+
+  // Другая причина и другой фон печатаются целиком.
+  const other = withoutRepeats([{ kind: 'country' as const, text: 'Сборная выиграла кубок.', again: 'И снова — сборная выиграла кубок.' },
+    { kind: 'report' as const, text: 'Сеть не принята. Причина: не было денег.' }], told);
+  assert.deepEqual(other.map(line => line.text), ['Сборная выиграла кубок.', 'Сеть не принята. Причина: не было денег.']);
+});
+
+test('в настоящих партиях фон страны и пояснение о кризисе не печатаются дословно дважды (#310, C01)', () => {
+  let againLines = 0, onceTold = 0;
+  terms.forEach((term, index) => {
+    let told = new Set<string>();
+    const printed: string[] = [];
+    for (const { lines } of term) {
+      const shown = withoutRepeats(lines, told);
+      told = new Set([...told, ...toldInChronicle(shown)]);
+      for (const line of shown) {
+        if (line.kind === 'country') printed.push(line.text);
+        if (line.kind === 'notice') printed.push(...line.text.split(/(?<=[.!?])\s+/).filter(sentence => /несколько кварталов/.test(sentence)));
+        if (line.kind === 'country' && line.text.startsWith('И снова — ')) againLines++;
+      }
+    }
+    onceTold += printed.filter(text => /несколько кварталов/.test(text)).length;
+    const full = printed.filter(text => !text.startsWith('И снова — '));
+    assert.equal(new Set(full).size, full.length, `партия ${ROUTES[index].join('/')}: ${full.filter((text, i) => full.indexOf(text) !== i).join(' | ')}`);
+  });
+  assert.ok(againLines + onceTold > 0, 'в проверенных партиях встретился хотя бы один повторяемый факт');
 });

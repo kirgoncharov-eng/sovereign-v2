@@ -7,12 +7,10 @@
 // Установка: npm ci && npm run playtest:install; запуск: npm run playtest -- --turns=24.
 // Playwright закреплён в devDependencies. Код выхода 1 — ошибки в консоли, игра застряла
 // или первая сессия перегружена (стол на первом ходу, первое решение дольше 15 секунд).
-import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const require = createRequire(import.meta.url);
-const { chromium } = require("playwright");
+import { launchChromium } from "./browser.mjs";
 
 const arg = (name, fallback) => process.argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback;
 const TURNS = Number(arg("turns", "40"));
@@ -118,7 +116,7 @@ async function decide(page, kind) {
   return opt(1).tap();
 }
 
-const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+const browser = await launchChromium();
 const page = await browser.newPage({ viewport: { width: 400, height: 860 }, hasTouch: true, isMobile: true });
 const errors = [];
 const layoutProblems = new Set();

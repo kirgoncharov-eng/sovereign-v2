@@ -12,6 +12,10 @@ export interface CountryLine {
   kind: 'country' | 'notice';
   who?: string;
   text: string;
+  /** Короткая строка на случай, если лента уже печатала полную: тот же фон выпал второй раз за срок. */
+  again?: string;
+  /** Пояснение правила: лента дописывает его к строке один раз за срок. */
+  once?: string;
 }
 
 export interface CountryLines {
@@ -33,6 +37,15 @@ const deltaWords = (delta: ResourceDelta | undefined) => RESOURCE_KEYS
 
 const unquoted = (pitch: string) => pitch.trim().replace(/[.…]+$/, '');
 
+// Слово, перечёркнутое подписью: первая, вторая и следующие потери звучат по-разному.
+const BROKEN_CLOSING = [
+  'Те, кому оно было дано, этого не забудут.',
+  'Второе слово, взятое назад, запоминают крепче первого.',
+  'Вашим предвыборным словам теперь верят меньше.',
+];
+// Обещания, не исполненные к сроку, стоят в блоке выборов подряд: причина не повторяется дословно.
+const OVERDUE_CAUSE = ['Срок вышел: к выборам оно не исполнено.', 'И это слово к выборам осталось словом.', 'К выборам не исполнено и оно.'];
+
 /**
  * Обещания, статус которых сменился за квартал, и шаги к исполнению. Причина — из правил `stepPromises`:
  * до срока слово нарушает запретная подпись или сам президент на пресс-конференции, исполняет — нужное число решений;
@@ -42,6 +55,9 @@ function promiseLines(before: GameState, after: GameState): { own: CountryLine[]
   const own: CountryLine[] = [], deadline: CountryLine[] = [];
   const pressConference = !!before.currentEvent?.press;
   const was = new Map((before.promises ?? []).map(promise => [promise.id, promise]));
+  // Сколько обещаний уже было нарушено к началу квартала: концовка строки не повторяется от обещания к обещанию.
+  let brokenBefore = (before.promises ?? []).filter(promise => promise.status === 'broken').length;
+  let overdue = 0;
   for (const promise of after.promises ?? []) {
     const old = was.get(promise.id), def = promiseDef(promise.id, after.country);
     if (!def || !old || old.status !== 'open') continue;
@@ -49,10 +65,11 @@ function promiseLines(before: GameState, after: GameState): { own: CountryLine[]
     const due = after.turn >= def.due;
     if (promise.status === 'broken') {
       const bySignature = !due || def.goal.kind === 'never';
-      const cause = !bySignature ? 'Срок вышел: к выборам оно не исполнено.'
+      const cause = !bySignature ? OVERDUE_CAUSE[Math.min(overdue++, OVERDUE_CAUSE.length - 1)]
         : pressConference ? 'Вы сами сняли его перед журналистами.' : 'Эта подпись его перечеркнула.';
-      (bySignature ? own : deadline).push({ kind: 'notice', who: 'Обещание нарушено',
-        text: `«${def.title}». ${said} ${cause} Те, кому оно было дано, этого не забудут.` });
+      const closing = bySignature && !pressConference ? ` ${BROKEN_CLOSING[Math.min(brokenBefore, BROKEN_CLOSING.length - 1)]}` : '';
+      brokenBefore++;
+      (bySignature ? own : deadline).push({ kind: 'notice', who: 'Обещание нарушено', text: `«${def.title}». ${said} ${cause}${closing}` });
     } else if (promise.status === 'kept') {
       const bySignature = def.goal.kind === 'tags' && promise.progress > old.progress;
       (bySignature ? own : deadline).push({ kind: 'notice', who: 'Обещание исполнено',
@@ -101,8 +118,8 @@ function crisisLines(after: GameState): CountryLine[] {
     const told = CRISIS_1978[report.newCrisis.title] ?? report.newCrisis.description;
     // Кризис длится несколько кварталов (`CRISIS_LIFETIME`) либо закрывается исполненным решением по нему.
     lines.push({ kind: 'notice', who: 'Новый кризис', text: `${report.newCrisis.title}. ${told}`
-      + `${drain.length ? ` Пока кризис длится, каждый квартал: ${drain.join(', ')}.` : ''}`
-      + ' Он продлится несколько кварталов, если не закрыть его отдельным решением.' });
+      + `${drain.length ? ` Пока кризис длится, каждый квартал: ${drain.join(', ')}.` : ''}`,
+      once: 'Кризис длится несколько кварталов, если не закрыть его отдельным решением.' });
   }
   for (const title of report?.expiredCrises ?? []) {
     lines.push({ kind: 'notice', who: 'Кризис затих', text: `«${title}» больше не стоит в сводках. Решения по нему так и не было.` });
@@ -120,9 +137,12 @@ function hostileLines(before: GameState, after: GameState): CountryLine[] {
     const earlier = before.factions.find(faction => faction.name === name);
     if (!now || !earlier || earlier.relation <= HOSTILE_RELATION) return [];
     const drain = deltaWords(HOSTILE_DRAIN[now.bloc]);
-    return [{ kind: 'notice' as const, who: 'Открытый противник',
-      text: `Лагерь «${name}» перешёл к открытому противодействию: ваши распоряжения вязнут, его люди отказываются от встреч.`
-        + `${drain.length ? ` Пока отношения не выправятся, каждый квартал: ${drain.join(', ')}.` : ''}` }];
+    // Второй и следующие противники описаны другими словами: строка про каждого лагеря не должна читаться шаблоном.
+    const others = before.factions.some(faction => faction.name !== name && faction.relation <= HOSTILE_RELATION);
+    const turn = others ? 'тоже больше не скрывает вражды: его люди уходят с совещаний, а ваши поручения возвращаются без ответа.'
+      : 'перешёл к открытому противодействию: ваши распоряжения вязнут, его люди отказываются от встреч.';
+    return [{ kind: 'notice' as const, who: 'Открытый противник', text: `Лагерь «${name}» ${turn}`
+      + `${drain.length ? ` Пока отношения не выправятся, каждый квартал: ${drain.join(', ')}.` : ''}` }];
   });
 }
 
@@ -134,7 +154,9 @@ export function countryLines(before: GameState, after: GameState): CountryLines 
   const event = before.currentEvent?.randomEvent;
   return {
     own: [...lawLine(after), ...promises.own],
-    background: event ? [{ kind: 'country', text: event.description }] : [],
+    // Фон квартала берётся из небольшого набора и за срок может выпасть дважды: второй раз — одной строкой.
+    background: event ? [{ kind: 'country', text: event.description,
+      again: `И снова — ${event.title.charAt(0).toLowerCase()}${event.title.slice(1)}.` }] : [],
     deadline: promises.deadline,
     quarter: [
       ...crisisLines(after),
