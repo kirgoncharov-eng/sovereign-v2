@@ -6,12 +6,10 @@
 //
 // Код выхода 1 — ошибки в консоли, хроника не открылась или застряла, заголовок дела под шапкой,
 // страница шире экрана или первое решение дольше 90 секунд (#298).
-import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const require = createRequire(import.meta.url);
-const { chromium } = require("playwright");
+import { launchChromium } from "./browser.mjs";
 
 const arg = (name, fallback) => process.argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback;
 const DECISIONS = Number(arg("decisions", "24"));
@@ -32,7 +30,7 @@ async function openGame(page) {
   return page.goto(`file://${file}`, { waitUntil: "domcontentloaded" });
 }
 
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const errors = [];
 page.on("pageerror", e => errors.push(String(e)));
@@ -242,6 +240,16 @@ if (opened) {
 }
 await wait(1500);
 await page.screenshot({ path: shot("end"), fullPage: true });
+// Финал отдельным кадром экрана (#418): на полном кадре конец длинной ленты выглядит пустым полем и читается как поломка.
+if (memoir) {
+  await page.evaluate(() => {
+    const head = [...document.querySelectorAll("div")].find(node => /^Мемуары ·/.test(node.textContent ?? "") && !node.children.length);
+    head?.scrollIntoView({ block: "start" });
+    window.scrollBy(0, -150);
+  });
+  await wait(300);
+  await page.screenshot({ path: shot("memoir") });
+}
 const save = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem("sovereign.save") ?? "null"); } catch { return null; } });
 await browser.close();
 

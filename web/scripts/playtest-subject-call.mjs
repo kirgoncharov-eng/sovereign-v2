@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { APP_VERSION, SAVE_VERSION } from '../lib/game/data.ts';
 import { callEvent } from '../lib/game/classic.ts';
 import { startEvent } from '../lib/game/engine.ts';
@@ -42,7 +42,7 @@ const server = createServer((request, response) => {
 await new Promise(done => server.listen(0, '127.0.0.1', done));
 const url = `http://127.0.0.1:${server.address().port}/`;
 // CHROMIUM_PATH — для среды, где закреплённый Playwright не нашёл свой браузер.
-const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+const browser = await launchChromium();
 
 async function open(screen, game, start) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true,
