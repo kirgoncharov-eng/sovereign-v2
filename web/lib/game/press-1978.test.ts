@@ -36,6 +36,12 @@ test('порядок правил: срыв, выборы, бюджет, пре�
   const before = await base();
   const failed = press1978(input(before, { success: false }, { west: 10 }))[0];
   assert.match(failed.headline, /кто отвечал за исполнение/);
+  // Второй и третий срыв партии газета описывает другими словами (#447).
+  const entry = { year: 1978, title: 'Дело', choice: 'Вариант', headline: '', historianNote: '', success: false };
+  const second = press1978(input({ ...before, history: [entry] }, { success: false }))[0];
+  const third = press1978(input({ ...before, history: [entry, entry] }, { success: false }))[0];
+  assert.equal(new Set([failed.headline, second.headline, third.headline]).size, 3);
+  assert.doesNotMatch(second.headline, /кто отвечал за исполнение/);
   const election = press1978(input(before, { headline: 'Партия власти удержала парламент: 46%', election:
     { turn: 9, kind: 'parliament', leader: 46, top: { id: 'opposition', name: 'Гражданское движение', share: 21 }, outcome: 'won' } }))[0];
   assert.equal(election.headline, 'Партия власти удержала парламент: 46%. Второе место — «Гражданское движение», 21%.');
