@@ -13,6 +13,7 @@ import { ownPersonCarries, commitmentTags, choiceEffects, saboteurOf, computePol
 import { approachWorks, budgetChoice, budgetLimit, callChoice, callReply, classicApi, customizeLeader, pressChoice } from "@/lib/game/classic.ts";
 import { BUDGET_ITEMS, BUDGET_MAX } from "@/lib/content/budget.ts";
 import { APPROACHES, CALL_ENDINGS, TRAIT_TIP } from "@/lib/content/calls.ts";
+import { callEndings } from "@/lib/client/call-price.ts";
 import { BOND_LABEL, PACT_BROKEN, PACT_INCOME, TRAITS, bondOf, breaches, pactIncome, traitOf } from "@/lib/game/people.ts";
 import { ARCS } from "@/lib/content/arcs.ts";
 import { memoirParagraphs } from "@/lib/content/memoirs-1978.ts";
@@ -887,9 +888,12 @@ export function CallPanel({ gs, call, seed, onFinish, onHang, stamping }) {
             <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>Вы: {APPROACHES.find(a => a.id === approach).text.toLowerCase()}</div>
             <div style={{ fontFamily:serif, fontSize:17, lineHeight:1.5, fontStyle:"italic", color:ok ? G.grn : G.red, marginTop:4 }}>{callReply(seed, call, approach, ok)}.</div>
           </div>
-          {CALL_ENDINGS.map((e, i) => (
+          {/* Цена каждого окончания известна после ответа собеседника: её видно до нажатия (#310, C09). */}
+          {callEndings(gs, approach).map((e, i) => (
             <button key={e.id} id={`opt-${i + 1}`} className="sv-opt" style={row} onClick={() => handleFinish(approach, e.id)}>
               {num(i + 1)}<span style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{e.text}</span>
+              <span data-call-price style={{ display:"block", fontFamily:narrow, fontSize:14, lineHeight:1.4, color:G.tx2, marginTop:3 }}>{e.price.join(" · ")}</span>
+              {e.later && <span style={{ display:"block", fontFamily:narrow, fontSize:14, lineHeight:1.4, color:G.tx3 }}>{e.later}</span>}
             </button>
           ))}
           {stamping === "p" && <StampHit text="Решено" sub="ПРЯМОЙ ПРОВОД · 1978" kind="green"/>}
