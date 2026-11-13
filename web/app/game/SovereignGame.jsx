@@ -30,6 +30,8 @@ import { countryNotes, governmentNote, inboxRows, sheetAlerts, staffNote } from 
 import AdvisorName, { AdvisorCard } from "./AdvisorCard.jsx";
 import StaffPanel, { DossierActions } from "./StaffPanel.jsx";
 import CabinetPanel from "./CabinetPanel.tsx";
+import InitialCabinet from './InitialCabinet.tsx';
+import { beginCabinetFormation, confirmInitialCabinet, formingCabinet } from '@/lib/game/cabinet-formation.ts';
 import { applyCabinetAction, cabinetEnabled } from "@/lib/game/cabinet.ts";
 import { OWN_PERSON_TEXT } from "@/lib/content/staffing.ts";
 import { hireAdvisor, applyDossier } from "@/lib/game/staffing.ts";
@@ -4598,6 +4600,11 @@ export default function App() {
     setGs(saved.state); setChronicle({ seed: saved.state.seed, diff: saved.state.diff, resume: saved.state }); setScreen("chronicle");
   } else if (saved) { setRunContext(saved.state.analyticsRun); track("resume", { turn: saved.state.turn }); setGs(openDeskWhenDue(saved.state)); setScreen(saved.screen); setRecap(saved.screen === "game" && saved.state.turn > 0); } };
   const restart = () => { setRunContext(undefined); clearSave(); setGs(null); setScreen("setup"); };
+  const enterOffice = picks => {
+    const office = beginCabinetFormation(openDeskWhenDue({ ...gs, promises: initPromises(picks, gs.resources) }));
+    setGs(office);
+    if (!formingCabinet(office)) setScreen('game');
+  };
 
   return (
     <HistoricalArtProvider state={gs}>
@@ -4615,9 +4622,10 @@ export default function App() {
         if (quick && (d.daily || d.country !== ALTERNATE_COUNTRY)) { setGs(openDeskWhenDue({ ...d, promises: initPromises(offeredPromises(d.seed, d.ideo).suggested, d.resources) })); setScreen("game"); }
         else { setGs(d); setScreen("intro"); track("intro"); }
       }}/>}
-      {screen==="intro" && (gs.country === ALTERNATE_COUNTRY ? <HistoricalIntro gs={gs} setGs={setGs}
-        onGo={picks=>{ setGs(g => openDeskWhenDue({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>
-        : <Intro gs={gs} onGo={picks=>{ setGs(g => openDeskWhenDue({ ...g, promises: initPromises(picks, g.resources) })); setScreen("game"); }}/>) }
+      {screen==="intro" && (formingCabinet(gs) ? <InitialCabinet game={gs} onChange={setGs}
+        onConfirm={() => { setGs(confirmInitialCabinet(gs)); setScreen('game'); }} />
+        : gs.country === ALTERNATE_COUNTRY ? <HistoricalIntro gs={gs} setGs={setGs} onGo={enterOffice} />
+        : <Intro gs={gs} onGo={enterOffice} />)}
       {screen==="game"   && <Game   gs={gs} setGs={setGs} onEnd={()=>setScreen("ending")} onMenu={()=>{ setRecap(false); setScreen("setup"); }} recap={recap} onRecapDone={()=>setRecap(false)}/>}
       {screen==="ending" && <Ending gs={gs} setGs={setGs} onRestart={restart}/>}
       {/* Хроника: своё сохранение ленты; состояние партии — в общем сохранении, итоги — на общем экране итогов. */}

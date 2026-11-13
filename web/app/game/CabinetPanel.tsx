@@ -4,6 +4,7 @@ import { ADVISOR_ROLES, RESOURCE_KEYS } from '@/lib/game/data.ts';
 import { advisorProfile, loyaltyWord } from '@/lib/game/advisors.ts';
 import { cabinetCandidates, cabinetEnabled, cabinetPreview, type CabinetAction } from '@/lib/game/cabinet.ts';
 import { knowsAdvisorSkill } from '@/lib/client/advisor-outlook.ts';
+import { formingCabinet, initialAdvisor } from '@/lib/game/cabinet-formation.ts';
 import { RESOURCE_TITLE } from '@/lib/content/resource-names.ts';
 import type { GameState, ResourceDelta } from '@/lib/game/types.ts';
 import styles from './cabinet.module.css';
@@ -23,7 +24,8 @@ export default function CabinetPanel({ game, onAction }: { game: GameState; onAc
     if (pending) confirmation.current?.focus();
   }, [pending]);
   if (!cabinetEnabled(game)) return null;
-  const current = game.advisors.find(person => person.id === seat);
+  const forming = formingCabinet(game);
+  const current = forming ? initialAdvisor(game, seat) : game.advisors.find(person => person.id === seat);
   const role = ADVISOR_ROLES.find(role => role.id === seat)!;
   const profile = current ? advisorProfile(game, current) : null;
   const preview = pending ? cabinetPreview(game, pending) : null;
@@ -37,12 +39,13 @@ export default function CabinetPanel({ game, onAction }: { game: GameState; onAc
   return <section className={styles.panel} aria-label="Совет президента">
     <header className={styles.header}>
       <span>СОВЕТ ПРЕЗИДЕНТА</span>
-      <h2>Ваша команда</h2>
-      <p>Назначения — ваше решение. Указ меняет состав сразу; повторные перестановки за квартал требуют больше влияния.</p>
+      <h2>{forming ? 'Подбор команды' : 'Ваша команда'}</h2>
+      <p>{forming ? 'Это пока кандидатуры. Выбирайте людей по должностям; общий состав и его цену утвердите после подбора.'
+        : 'Назначения — ваше решение. Указ меняет состав сразу; повторные перестановки за квартал требуют больше влияния.'}</p>
     </header>
     <nav className={styles.seats} aria-label="Должности советников">
       {ADVISOR_ROLES.map(role => <button type="button" key={role.id} aria-pressed={seat === role.id} onClick={() => select(role.id)}>
-        {role.role}<small>{game.advisors.find(person => person.id === role.id)?.name ?? 'Вакансия'}</small>
+        {role.role}<small>{(forming ? initialAdvisor(game, role.id) : game.advisors.find(person => person.id === role.id))?.name ?? 'Вакансия'}</small>
       </button>)}
     </nav>
     <h3>{role.role}</h3>
@@ -52,7 +55,9 @@ export default function CabinetPanel({ game, onAction }: { game: GameState; onAc
         <p>{knowsAdvisorSkill(game) && <>{stars(current.skill)} · </>}Лояльность: {profile.loyaltyWord}</p>
         {profile.camp && <p>Близость к группе: «{profile.camp.name}».</p>}
         {profile.bio && <p>{profile.bio}</p>}
-        <button type="button" disabled={game.ended} onClick={() => setPending({ kind: 'dismiss', seat, name: current.name })}>Уволить без замены</button>
+        {forming ? game.cabinetFormation?.selected[seat] && <button type="button"
+          onClick={() => onAction({ kind: 'dismiss', seat, name: current.name })}>Вернуть предложенную кандидатуру</button>
+          : <button type="button" disabled={game.ended} onClick={() => setPending({ kind: 'dismiss', seat, name: current.name })}>Уволить без замены</button>}
       </> : <>
         <strong>Должность вакантна</strong>
         <p>Профильной оценки нет — в прогнозе «?». Программы этого координатора ждут назначения; прежние сроки продолжают идти.</p>
@@ -62,15 +67,19 @@ export default function CabinetPanel({ game, onAction }: { game: GameState; onAc
     {!candidates.length && <p>Предложения недоступны.</p>}
     {candidates.map(candidate => {
       const action: CabinetAction = { kind: 'hire', candidate: candidate.id };
-      const offer = cabinetPreview(game, action);
+      const offer = cabinetPreview(game, action, forming ? 'formation' : 'ordinary');
+      const selected = forming && game.cabinetFormation?.selected[seat] === candidate.id;
       return <article className={styles.candidate} key={candidate.id}>
         <strong>{candidate.name}</strong>
         <p className={styles.origin}>{candidate.title}{knowsAdvisorSkill(game) && <> · {stars(candidate.skill)}</>} · лояльность: {loyaltyWord(candidate.loyalty)}</p>
         <p>{candidate.bio}</p>
-        <p className={styles.price}>{price(offer.cost)}</p>
+        <p className={styles.price}>{forming && 'Условия назначения: '}{price(offer.cost)}</p>
         {offer.supportNote && <p className={styles.note}>{offer.supportNote}</p>}
         {offer.reactions.length > 0 && <p>{offer.reactions.map(reaction => `${reaction.name} ${signed(reaction.delta)}`).join(' · ')}</p>}
-        <button type="button" disabled={!!offer.unavailable} onClick={() => { setPending(action); setError(null); }}>Рассмотреть назначение</button>
+        <button type="button" disabled={!!offer.unavailable || selected} onClick={() => {
+          if (forming) onAction(action); else setPending(action);
+          setError(null);
+        }}>{forming ? selected ? 'Выбрано в состав' : 'Выбрать в состав' : 'Рассмотреть назначение'}</button>
         {offer.unavailable && <p className={styles.note}>{offer.unavailable}</p>}
       </article>;
     })}
