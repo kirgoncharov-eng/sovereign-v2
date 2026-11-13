@@ -35,6 +35,8 @@ export interface WorldDispatch {
     kind: 'letter' | 'decision' | 'report' | 'inspection' | 'news';
     title: string;
     text: string;
+    // Имя на момент выпуска; null — доклад канцелярии при вакантной должности.
+    author?: string | null;
 }
 export interface EnergyProject {
     priority?: 'balanced' | 'industry' | 'households';
@@ -96,6 +98,7 @@ export function openLivingWorld(gs: GameState): GameState {
     const previous = gs.world;
     const used = new Set([...(previous?.people.map(person => person.name) ?? []), gs.leader.name, ...gs.keyFigures.map(f => f.name), ...gs.advisors.map(entry => entry.name), ...(gs.former ?? [])]);
     const pool = NAMES[gs.country] ?? NAMES['Беларусь'];
+    const reserved = new Set(historical ? gs.cabinet?.roster.map(person => person.name) ?? [] : []);
     // 1978 (#242): новый человек папки не делит фамилию ни с кем из партии — иначе игрок примет их за родственников.
     const surnames = new Set(historical
         ? [...used, ...(gs.arc ? [gs.arc.target] : []), ...(gs.world?.secretary ? [gs.world.secretary.name] : []), ...announcedHeirs(gs)].map(surnameBase)
@@ -104,7 +107,7 @@ export function openLivingWorld(gs: GameState): GameState {
         for (let i = 0; i < 200; i++) {
             const h = hash(gs.seed, 'world-name', slot, i);
             const n = `${pool.first[h % 8]} ${pool.last[(h >>> 5) % pool.last.length]}`;
-            if (!used.has(n) && !surnames.has(surnameBase(n))
+            if (!used.has(n) && !reserved.has(n) && !surnames.has(surnameBase(n))
                 && (!gs.world?.secretary || secretarySurname(n) !== secretarySurname(gs.world.secretary.name))) {
                 used.add(n);
                 if (historical) surnames.add(surnameBase(n));
@@ -700,5 +703,6 @@ export function validLivingWorld(value: unknown): value is LivingWorld {
         && n(d.turn)
         && ['letter', 'decision', 'report', 'inspection', 'news'].includes(d.kind)
         && typeof d.title === 'string'
+        && (d.author === undefined || d.author === null || typeof d.author === 'string' && d.author.trim().length > 0)
         && typeof d.text === 'string');
 }

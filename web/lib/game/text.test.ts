@@ -5,6 +5,9 @@ import { classicApi } from "./classic.ts";
 import { createInitialState, isFemaleName, resolveTurn, seededRandom, startEvent } from "./engine.ts";
 import { PLACES } from "../content/frame.ts";
 import type { GameState } from "./types.ts";
+import { applyCabinetAction } from "./cabinet.ts";
+import { beatEvent } from "./classic.ts";
+import { ALTERNATE_COUNTRY } from "./alternate-world.ts";
 
 // Логика текста на целых партиях: слоты заполнены, говорят те, кого решение касается,
 // закрытые эпизоды интриги публика не комментирует, место в шапке совпадает с родом дела.
@@ -20,6 +23,22 @@ async function play(country: string, seed: number, ideo: string, each: (before: 
   }
   return s;
 }
+
+test("архив уволенного советника распространяют средствами эпохи, не через интернет", async () => {
+  for (const [seed, diff] of [[1, 'debut'], [3, 'coalition'], [7, 'crisis'], [19, 'ruins']] as const) {
+    const setup = await classicApi.setup(ALTERNATE_COUNTRY, diff, 'pragmatist', seed);
+    let state = createInitialState(ALTERNATE_COUNTRY, diff, 'pragmatist', setup, seededRandom(seed));
+    const target = state.advisors.find(advisor => advisor.id === 'security')!;
+    state = { ...state, turn: 35, resources: { ...state.resources, economy: 90, politicalCapital: 90 },
+      arc: { id: 'mole', target: target.name, targetRole: target.role, flags: ['later'], done: [1, 3, 7, 12], epilogue: null } };
+    const fired = applyCabinetAction(state, { kind: 'dismiss', seat: target.id, name: target.name });
+    const event = beatEvent(fired)!;
+    assert.equal(event.title, 'Архив старого кабинета');
+    assert.doesNotMatch(JSON.stringify(event), /админ|сервер|интернет|онлайн|роуминг|флешк/i);
+    assert.match(event.description, /газеты.*радиостанции/);
+    assert.ok(event.choices.every(choice => choice.arc?.ok !== choice.arc?.fail));
+  }
+});
 
 test("текст партии: без пустых слотов, говорят стороны закона, эпизоды интриги без публики, эха не больше двух", async () => {
   const slot = /\{\w+(:\w+)*(\|[^}]*)?\}/;

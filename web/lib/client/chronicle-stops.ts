@@ -6,6 +6,7 @@ import { presidentialMessages, type PresidentialMessage } from './presidential-i
 import { CRISIS_THRESHOLD, RESOURCE_KEYS } from '../game/data.ts';
 import { initiativeOptions } from '../game/initiatives.ts';
 import { POOL_TURNS, candidatePool, staffingOpen } from '../game/staffing.ts';
+import { cabinetEnabled } from '../game/cabinet.ts';
 import type { GameState, Letter, ResourceKey } from '../game/types.ts';
 
 /** Опора у порога: столько и меньше. То же значение, что у строки ведомости «Опасно мало». */
@@ -84,8 +85,8 @@ export function openStops(state: GameState): Stop[] {
     .map(message => ({
       key: message.key, token: message.token, kind: 'proposal' as const, title: message.title, person: message.person, message,
     }));
-  // Кадровый резерв обновляется раз в год: новый резерв — одна остановка. Без решения кресла остаются за прежними людьми.
-  const staff: Stop[] = staffingOpen(state) && candidatePool(state).length ? [{
+  // В 1978 году команда доступна постоянно. Старый ежегодный резерв остаётся архивному пути.
+  const staff: Stop[] = !cabinetEnabled(state) && staffingOpen(state) && candidatePool(state).length ? [{
     key: 'staffing', token: `year:${Math.floor(state.turn / POOL_TURNS)}`, kind: 'staff', title: 'Кадровый резерв', person: '',
   }] : [];
   return [...initiatives(state), ...replies, ...proposals, ...housing, ...staff];

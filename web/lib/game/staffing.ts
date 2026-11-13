@@ -187,6 +187,8 @@ export function dossierBlocked(state: GameState, advisorId: string, action: Doss
   if (state.staffing?.lastTurn === state.turn) return STAFFING_TEXT.quota;
   if (action === "collect") {
     if (advisor.id === "security") return STAFFING_TEXT.dossierSelf;
+    if (state.country === ALTERNATE_COUNTRY && !state.daily && !state.advisors.some(member => member.id === "security"))
+      return "Сначала назначьте советника по безопасности: собирать досье некому.";
     if (advisor.dossier) return STAFFING_TEXT.dossierExists;
     const short = Object.entries(DOSSIER_COST).some(([key, value]) => state.resources[key as ResourceKey] + (value ?? 0) <= RESOURCE_FLOOR);
     return short ? STAFFING_TEXT.reserve : null;

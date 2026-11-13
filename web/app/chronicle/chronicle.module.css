@@ -159,7 +159,7 @@
   background: transparent; border: 1px solid transparent; font: inherit; color: inherit; }
 .hud button[aria-expanded="true"] { border-color: var(--gold); }
 .hud button:disabled { cursor: default; }
-.sheets { display: flex; gap: 6px; max-width: 680px; margin: 6px auto 0; }
+.sheets { display: flex; flex-wrap: wrap; gap: 6px; max-width: 680px; margin: 6px auto 0; }
 .sheets button { flex: 1; min-height: 36px; background: transparent; border: 1px solid var(--bdr2); color: var(--tx2);
   font: 15px var(--font-narrow); letter-spacing: .04em; }
 .sheets button[aria-expanded="true"] { background: var(--gold); color: var(--on-gold); border-color: var(--gold); }
@@ -171,7 +171,7 @@
 .sheetHead button { min-width: 44px; min-height: 44px; font-size: 24px; background: transparent; border: 1px solid var(--bdr2); color: var(--txt); }
 
 /* «Ждут ответа» — в одном ряду со справкой: шапка на телефоне не съедает экран. */
-.sheets .waitingButton { flex: 1.4; border-color: var(--gold); color: var(--gold); }
+.sheets .waitingButton { flex: 1 0 100%; border-color: var(--gold); color: var(--gold); }
 .sheets .waitingButton[aria-expanded="true"] { background: var(--gold); color: var(--on-gold); }
 
 /* Справка или список поверх дела: таймер ответа пресс-конференции (.sv-timer из /game) стоит, а не отвечает за игрока. */

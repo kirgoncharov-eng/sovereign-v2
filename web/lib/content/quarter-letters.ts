@@ -118,10 +118,11 @@ export function programReport(name: string | null, progress: number, factors: st
   return `${signed(quote, name)}${chancery([`выполнено ${progress}%`, quality(factors[0] ?? ''), ...factors.slice(1), tail])}`;
 }
 
-export function housingNextProposal(coordinator: string, progress: number): string {
+export function housingNextProposal(coordinator: string | null, progress: number): string {
   const missing = progress === 100 ? 'нет сетей, никто не заселён' : 'остались работы, нет сетей, никто не заселён';
   const offer = progress === 100 ? 'оплатить сети и заселение или перевести команду на новую площадку' : 'оплатить оставшиеся работы, сети и заселение';
-  return `${coordinator} разворачивает карту района: «Стройка дала ${progress}%, но жить в домах пока нельзя: ${missing}. `
+  const opening = coordinator ? `${coordinator} разворачивает карту района` : 'Канцелярия передаёт карту района и предложение строителей';
+  return `${opening}: «Стройка дала ${progress}%, но жить в домах пока нельзя: ${missing}. `
     + `Следующее поручение может ${offer}. Условия — ниже; решать сейчас не обязательно».`;
 }
 

@@ -112,6 +112,15 @@ export async function nextCase(state: GameState): Promise<GameState> {
 
 const dateOf = (state: GameState, turn: number): TurnDate => turnDate(state.seed, COUNTRIES[state.country].startYear, turn);
 const plain = (d: TurnDate) => ({ year: d.year, month: d.month, day: d.day });
+
+/** Указ уже исполнен; строка только фиксирует его в ленте и не меняет ресурсы. */
+export function cabinetNotice(state: GameState): ChronicleLine | null {
+  const entry = state.cabinet?.entries?.at(-1);
+  if (!entry || entry.turn !== state.turn) return null;
+  return { id: `cabinet-${state.turn}-${state.cabinet!.changes}`, kind: 'notice',
+    who: 'КАДРОВЫЙ УКАЗ', date: plain(dateOf(state, state.turn)),
+    text: `${entry.label[0].toUpperCase()}${entry.label.slice(1)}. ${deltaList(entry.res).join(', ')}.` };
+}
 const dayNumber = (d: { year: number; month: number; day: number }) => Date.UTC(d.year, d.month, d.day) / 86_400_000;
 const fromDayNumber = (n: number) => {
   const d = new Date(n * 86_400_000);

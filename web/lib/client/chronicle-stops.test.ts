@@ -29,6 +29,16 @@ const measure = (state: GameState, stop: Stop) =>
 // Кандидат из резерва, которого можно назначить сейчас: первый без запрета.
 const hireable = (state: GameState) => candidatePool(state).find(candidate => !staffingBlocked(state, candidate))?.id ?? null;
 
+test('свободная команда 1978 года не останавливает хронику ежегодным резервом; архив сохраняет его', async () => {
+  const state = await proposalFixture();
+  assert.ok(state.world);
+  assert.ok(!openStops(state).some(stop => stop.kind === 'staff'));
+  assert.ok(!stillWaiting(state, { key: 'staffing', kind: 'staff', token: 'year:1', title: 'Кадровый резерв', person: '' }));
+  const archive = { ...state, country: 'Армения', cabinet: undefined };
+  assert.ok(openStops(archive).some(stop => stop.kind === 'staff'));
+  assert.deepEqual(openStops({ ...state, daily: '2026-11-12' }), []);
+});
+
 async function proposalFixture() {
   const initial = await newTerm(startFromSeed(7, 'debut'));
   const resources = Object.fromEntries(RESOURCE_KEYS.map(key => [key, 60])) as GameState['resources'];
@@ -256,12 +266,13 @@ test('логика та же: срок через хронику и через �
   }
 });
 
-test('в хронике живёт страна: стол открывается, обещания взяты, письма, предложения и резерв кадров доходят до остановок', async () => {
+test('в хронике живёт страна: стол открывается, обещания взяты, письма и предложения доходят до остановок', async () => {
   const { state, log } = await chronicleTerm(21, 'debut');
   assert.ok(state.world, 'живой мир открыт');
   assert.equal(state.promises?.length, 3, 'три обещания программы');
   const kinds = new Set(log.flatMap(quarter => quarter.stops.map(stop => stop.kind)));
-  assert.ok(kinds.has('letter') && kinds.has('proposal') && kinds.has('staff'), [...kinds].join(','));
+  assert.ok(kinds.has('letter') && kinds.has('proposal'), [...kinds].join(','));
+  assert.ok(!kinds.has('staff'), 'состав команды меняется по воле игрока, без годовой остановки');
   assert.ok(log.slice(0, 2).every(quarter => !quarter.stops.length), 'первые два хода — только дело (desk-timing)');
 });
 

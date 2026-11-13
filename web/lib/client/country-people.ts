@@ -8,6 +8,7 @@ import { governmentLoad } from "../game/government.ts";
 import { personProfiles } from "./people-text.ts";
 import { messageUnread, presidentialMessages } from "./presidential-inbox.ts";
 import type { GameState } from "../game/types.ts";
+import { ALTERNATE_COUNTRY } from "../game/alternate-world.ts";
 
 export type SheetId = "country" | "people";
 
@@ -59,9 +60,10 @@ export interface InboxRow {
 export function inboxRows(gs: GameState): InboxRow[] {
   const messages = presidentialMessages(gs);
   if (!messages.length) return [];
-  // Те же люди, что на столе: без самого президента, бывших советников и антагониста интриги.
+  // После кадрового указа прежние авторы остаются доступны через свои сохранённые доклады.
   return personProfiles(gs)
-    .filter(profile => !["leader", "arc-target"].includes(profile.id) && !profile.id.startsWith("former:"))
+    .filter(profile => profile.id !== "leader" && (gs.country === ALTERNATE_COUNTRY && !gs.daily && gs.cabinet
+      || profile.id !== "arc-target" && !profile.id.startsWith("former:")))
     .filter(profile => messages.some(message => message.person === profile.id))
     .map(profile => {
       const own = messages.filter(message => message.person === profile.id);

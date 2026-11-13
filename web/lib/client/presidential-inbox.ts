@@ -30,6 +30,10 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
   if (gs.daily || !gs.world) return [];
   const world = gs.world, profiles = personProfiles(gs);
   const personId = (name: string) => profiles.find(p => p.name === name)?.id;
+  const reportPerson = (author: string | null | undefined, fallback: string | null) =>
+    gs.country === ALTERNATE_COUNTRY && gs.cabinet && author !== undefined
+      ? author === null ? 'chancery' : personId(author)
+      : fallback ? personId(fallback) : undefined;
   const messages: PresidentialMessage[] = [];
   const secretary = world.secretary;
   if (secretaryEnabled(gs) && secretary?.present) {
@@ -77,12 +81,12 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
           `результат и причины риска. Можно делегировать работу кабинету, а одну действующую программу сделать личным ` +
           `приоритетом. Предложения не требуют обязательного обхода каждый квартал.`, action: 'government', needsReply: false });
     const next = world.government.housingNext;
-    const nextPerson = next && personId(next.name ?? next.previousName);
     const nextLetter = next && [...world.dispatches].reverse().find(d => d.id.includes(':housing-next:'));
+    const nextPerson = next && nextLetter && reportPerson(nextLetter.author, next.name ?? next.previousName);
     if (next && nextPerson && nextLetter) messages.push({ key: 'housing-next', token: nextLetter.id, person: nextPerson, title: nextLetter.title, text: nextLetter.text, action: 'government', needsReply: false });
     for (const p of world.government.programs) {
       const latest = [...world.dispatches].reverse().find(d => d.project === p.id && !d.id.includes(':housing-next:') && ['report','news'].includes(d.kind));
-      const person = p.name && personId(p.name);
+      const person = latest && reportPerson(latest.author, p.name);
       if (latest && person) messages.push({ key: `program:${p.id}`, token: latest.id, person, title: latest.title, text: latest.text, action: 'government', needsReply: false });
     }
   }

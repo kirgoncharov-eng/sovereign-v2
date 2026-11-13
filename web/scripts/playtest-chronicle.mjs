@@ -17,6 +17,8 @@ const OUT = resolve(arg("out", "playtest/chronicle"));
 const URL_ARG = arg("url", "");
 const SHOT_DECISIONS = [1, 2, 3];
 const FIRST_DECISION_LIMIT_MS = 90_000;
+const CABINET = arg("cabinet", "false") === "true";
+const exerciseCabinet = CABINET ? (await import('./playtest-chronicle-cabinet.mjs')).exerciseCabinet : null;
 
 mkdirSync(OUT, { recursive: true });
 const shot = name => join(OUT, `${name}.png`);
@@ -219,6 +221,7 @@ if (opened) {
       await desk.getByRole("button", { name: "Подтвердить решение" }).tap();
     } else if (await desk.locator('[data-resolution-choices]').count()) {
       timeline.push(`${decisions} · дело · ${title}`);
+      if (exerciseCabinet) await exerciseCabinet(page, decisions, shot);
       await desk.locator('[id^="opt-"]').first().tap();
       await desk.getByRole('button', { name: 'Подписать', exact: true }).tap();
     } else if (await desk.locator("button").filter({ hasText: /^\s*\d\./ }).count()) {
