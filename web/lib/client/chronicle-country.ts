@@ -12,6 +12,10 @@ export interface CountryLine {
   kind: 'country' | 'notice';
   who?: string;
   text: string;
+  /** Короткая строка на случай, если лента уже печатала полную: тот же фон выпал второй раз за срок. */
+  again?: string;
+  /** Пояснение правила: лента дописывает его к строке один раз за срок. */
+  once?: string;
 }
 
 export interface CountryLines {
@@ -114,8 +118,8 @@ function crisisLines(after: GameState): CountryLine[] {
     const told = CRISIS_1978[report.newCrisis.title] ?? report.newCrisis.description;
     // Кризис длится несколько кварталов (`CRISIS_LIFETIME`) либо закрывается исполненным решением по нему.
     lines.push({ kind: 'notice', who: 'Новый кризис', text: `${report.newCrisis.title}. ${told}`
-      + `${drain.length ? ` Пока кризис длится, каждый квартал: ${drain.join(', ')}.` : ''}`
-      + ' Он продлится несколько кварталов, если не закрыть его отдельным решением.' });
+      + `${drain.length ? ` Пока кризис длится, каждый квартал: ${drain.join(', ')}.` : ''}`,
+      once: 'Кризис длится несколько кварталов, если не закрыть его отдельным решением.' });
   }
   for (const title of report?.expiredCrises ?? []) {
     lines.push({ kind: 'notice', who: 'Кризис затих', text: `«${title}» больше не стоит в сводках. Решения по нему так и не было.` });
@@ -133,9 +137,12 @@ function hostileLines(before: GameState, after: GameState): CountryLine[] {
     const earlier = before.factions.find(faction => faction.name === name);
     if (!now || !earlier || earlier.relation <= HOSTILE_RELATION) return [];
     const drain = deltaWords(HOSTILE_DRAIN[now.bloc]);
-    return [{ kind: 'notice' as const, who: 'Открытый противник',
-      text: `Лагерь «${name}» перешёл к открытому противодействию: ваши распоряжения вязнут, его люди отказываются от встреч.`
-        + `${drain.length ? ` Пока отношения не выправятся, каждый квартал: ${drain.join(', ')}.` : ''}` }];
+    // Второй и следующие противники описаны другими словами: строка про каждого лагеря не должна читаться шаблоном.
+    const others = before.factions.some(faction => faction.name !== name && faction.relation <= HOSTILE_RELATION);
+    const turn = others ? 'тоже больше не скрывает вражды: его люди уходят с совещаний, а ваши поручения возвращаются без ответа.'
+      : 'перешёл к открытому противодействию: ваши распоряжения вязнут, его люди отказываются от встреч.';
+    return [{ kind: 'notice' as const, who: 'Открытый противник', text: `Лагерь «${name}» ${turn}`
+      + `${drain.length ? ` Пока отношения не выправятся, каждый квартал: ${drain.join(', ')}.` : ''}` }];
   });
 }
 
@@ -147,7 +154,9 @@ export function countryLines(before: GameState, after: GameState): CountryLines 
   const event = before.currentEvent?.randomEvent;
   return {
     own: [...lawLine(after), ...promises.own],
-    background: event ? [{ kind: 'country', text: event.description }] : [],
+    // Фон квартала берётся из небольшого набора и за срок может выпасть дважды: второй раз — одной строкой.
+    background: event ? [{ kind: 'country', text: event.description,
+      again: `И снова — ${event.title.charAt(0).toLowerCase()}${event.title.slice(1)}.` }] : [],
     deadline: promises.deadline,
     quarter: [
       ...crisisLines(after),

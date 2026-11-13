@@ -39,6 +39,10 @@ export interface ChronicleLine {
   text: string;
   who?: string;   // газета, издание, автор письма или речи
   date: { year: number; month: number; day: number };
+  /** Только до печати: короткая строка вместо полной, если лента уже рассказывала это дословно. `withoutRepeats` её снимает. */
+  again?: string;
+  /** Только до печати: пояснение, которое дописывается к строке один раз за срок. `withoutRepeats` его снимает. */
+  once?: string;
 }
 
 export interface ChronicleStart {
@@ -207,20 +211,51 @@ const sceneOffset = (text: string): number | null =>
 // Сцена подписи, выборы, письма, доклады и сообщения с ярлыком не отбрасываются: это факты квартала.
 const ONCE: LineKind[] = ['voice', 'press', 'echo', 'secretary'];
 const onceKey = (line: Pick<ChronicleLine, 'kind' | 'text'>) => ONCE.includes(line.kind) ? line.text.trim() : null;
+// Факт квартала повторяется (тот же фон, тот же невыполненный доклад) — лента называет его, но не пересказывает
+// теми же словами (#310, C01): фон страны печатается короткой строкой, пояснение и причина — один раз.
+const sentencesOf = (text: string) => text.split(/(?<=[.!?…»])\s+/).map(part => part.trim()).filter(Boolean);
+const CAUSE_TAIL = /\s*Причина(?: остаётся прежней)?: ([^]+)$/;
+const CAUSE_LABEL = /Причина(?: остаётся прежней)?: /;
+const tellsCause = (line: Pick<ChronicleLine, 'kind'>) => line.kind === 'echo' || line.kind === 'report';
+// Причину невыполненной программы и пояснение правила лента помнит по предложениям.
+const remembered = (line: Pick<ChronicleLine, 'kind' | 'text'>) =>
+  line.kind === 'notice' || tellsCause(line) ? sentencesOf(line.text.replace(CAUSE_LABEL, '')) : [];
 
 /** Предложения, которые лента уже печатала, — чтобы новый квартал их не повторял. */
-export const toldInChronicle = (lines: Pick<ChronicleLine, 'kind' | 'text'>[]) =>
-  new Set(lines.flatMap(line => onceKey(line) ?? []));
+export const toldInChronicle = (lines: Pick<ChronicleLine, 'kind' | 'text'>[]) => new Set(lines.flatMap(line => [
+  ...(onceKey(line) ? [onceKey(line)!] : []),
+  ...(line.kind === 'country' ? [line.text.trim()] : []),
+  ...remembered(line),
+]));
 
 /** Строки квартала без дословных повторов уже напечатанного и друг друга. */
-export function withoutRepeats<T extends Pick<ChronicleLine, 'kind' | 'text'>>(lines: T[], told: ReadonlySet<string>): T[] {
+export function withoutRepeats<T extends Pick<ChronicleLine, 'kind' | 'text' | 'again' | 'once'>>(lines: T[], told: ReadonlySet<string>): T[] {
   const seen = new Set(told);
-  return lines.filter(line => {
+  return lines.flatMap(source => {
+    const { again, once, ...rest } = source;
+    let line = rest as T;
     const key = onceKey(line);
-    if (key === null) return true;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+    if (key !== null) {
+      if (seen.has(key)) return [];
+      seen.add(key);
+    }
+    if (line.kind === 'country') {
+      const full = line.text.trim();
+      if (seen.has(full) && again) line = { ...line, text: again };
+      seen.add(full);
+    }
+    if (once) {
+      if (!seen.has(once)) line = { ...line, text: `${line.text} ${once}` };
+      seen.add(once);
+    }
+    // «Причина: …» в конце доклада, уже названная теми же словами, второй раз не печатается.
+    const cause = tellsCause(line) ? line.text.match(CAUSE_TAIL) : null;
+    if (cause) {
+      const without = line.text.replace(CAUSE_TAIL, '').trim();
+      if (without && sentencesOf(cause[1]).every(sentence => seen.has(sentence))) line = { ...line, text: without };
+    }
+    for (const sentence of remembered(line)) seen.add(sentence);
+    return [line];
   });
 }
 

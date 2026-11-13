@@ -243,3 +243,47 @@ test('в одной партии ни одно предложение ленты
   });
   assert.ok(broken >= 4, `проверено нарушенных обещаний: ${broken}`);
 });
+
+test('повторный факт квартала лента называет короче: фон — одной строкой, пояснение и причина — один раз (#310, C01)', () => {
+  const flood = { kind: 'country' as const, text: 'Реки Полесья вышли из берегов.', again: 'И снова — паводок на южных реках.' };
+  const crisis = (title: string) => ({ kind: 'notice' as const, who: 'Новый кризис', text: `${title}. Казна пуста.`,
+    once: 'Кризис длится несколько кварталов, если не закрыть его отдельным решением.' });
+  const report = (lead: string, label = 'Причина') => ({ kind: 'report' as const, text: `${lead} ${label}: программа закончилась с 0%. Резиденция не назначила руководителя.` });
+
+  const first = withoutRepeats([flood, crisis('Бюджетный коллапс'), report('Работы не начались.')], new Set());
+  assert.deepEqual(first.map(line => line.text), ['Реки Полесья вышли из берегов.',
+    'Бюджетный коллапс. Казна пуста. Кризис длится несколько кварталов, если не закрыть его отдельным решением.',
+    'Работы не начались. Причина: программа закончилась с 0%. Резиденция не назначила руководителя.']);
+  for (const line of first) assert.ok(!('again' in line) && !('once' in line), 'служебные поля в ленту и сохранение не попадают');
+
+  // Следующий квартал знает напечатанное только по самим строкам — как после «Продолжить».
+  const told = toldInChronicle(first);
+  const second = withoutRepeats([flood, crisis('Банковская паника'), report('Ответа всё нет.', 'Причина остаётся прежней')], told);
+  assert.deepEqual(second.map(line => line.text), ['И снова — паводок на южных реках.', 'Банковская паника. Казна пуста.', 'Ответа всё нет.']);
+
+  // Другая причина и другой фон печатаются целиком.
+  const other = withoutRepeats([{ kind: 'country' as const, text: 'Сборная выиграла кубок.', again: 'И снова — сборная выиграла кубок.' },
+    { kind: 'report' as const, text: 'Сеть не принята. Причина: не было денег.' }], told);
+  assert.deepEqual(other.map(line => line.text), ['Сборная выиграла кубок.', 'Сеть не принята. Причина: не было денег.']);
+});
+
+test('в настоящих партиях фон страны и пояснение о кризисе не печатаются дословно дважды (#310, C01)', () => {
+  let againLines = 0, onceTold = 0;
+  terms.forEach((term, index) => {
+    let told = new Set<string>();
+    const printed: string[] = [];
+    for (const { lines } of term) {
+      const shown = withoutRepeats(lines, told);
+      told = new Set([...told, ...toldInChronicle(shown)]);
+      for (const line of shown) {
+        if (line.kind === 'country') printed.push(line.text);
+        if (line.kind === 'notice') printed.push(...line.text.split(/(?<=[.!?])\s+/).filter(sentence => /несколько кварталов/.test(sentence)));
+        if (line.kind === 'country' && line.text.startsWith('И снова — ')) againLines++;
+      }
+    }
+    onceTold += printed.filter(text => /несколько кварталов/.test(text)).length;
+    const full = printed.filter(text => !text.startsWith('И снова — '));
+    assert.equal(new Set(full).size, full.length, `партия ${ROUTES[index].join('/')}: ${full.filter((text, i) => full.indexOf(text) !== i).join(' | ')}`);
+  });
+  assert.ok(againLines + onceTold > 0, 'в проверенных партиях встретился хотя бы один повторяемый факт');
+});
