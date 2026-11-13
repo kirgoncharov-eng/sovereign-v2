@@ -219,3 +219,27 @@ test('без отчёта о ходе строк нет; архивная пар
   const { before } = quarters[0];
   assert.deepEqual(countryLines(before, { ...before, lastTurn: null }), { own: [], background: [], deadline: [], quarter: [] });
 });
+
+test('в одной партии ни одно предложение ленты о нарушенных обещаниях, выборах и пресс-конференциях не повторяется дословно (#441)', () => {
+  let broken = 0;
+  terms.forEach((term, index) => {
+    const seen = new Map<string, number>();
+    for (const { lines } of term) {
+      for (const line of lines) {
+        const watched = line.who === 'Обещание нарушено' || /Пресс-конференция (?:длится|идёт)|журналисты держат вас|признаёт итоги|поздравля|звонит/i.test(line.text);
+        if (!watched) continue;
+        if (line.who === 'Обещание нарушено') broken++;
+        for (const sentence of line.text.split(/(?<=[.!?])\s+/)) {
+          // Причина нарушения — факт: две подписи могут перечеркнуть два обещания.
+          if (sentence.length < 30 || /перечеркнула|перед журналистами/.test(sentence)) continue;
+          // Ответ на вопрос журналиста выбирает игрок; тест отвечает первым вариантом и проверяет только слова рассказчика.
+          if (/^На вопрос |^«|»\.?$/.test(sentence)) continue;
+          seen.set(sentence, (seen.get(sentence) ?? 0) + 1);
+        }
+      }
+    }
+    const repeated = [...seen].filter(([, count]) => count > 1).map(([sentence, count]) => `${count}× ${sentence}`);
+    assert.deepEqual(repeated, [], `партия ${ROUTES[index].join('/')}`);
+  });
+  assert.ok(broken >= 4, `проверено нарушенных обещаний: ${broken}`);
+});

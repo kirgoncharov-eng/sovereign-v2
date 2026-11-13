@@ -18,7 +18,7 @@ import { MONTHS_GEN, turnDate, type TurnDate } from '../game/calendar.ts';
 import { newspaperName } from '../game/newspaper-editions.ts';
 import { splitQuarter } from '../game/turn-report.ts';
 import { APPROACHES, CALL_ENDINGS, type Approach } from '../content/calls.ts';
-import { ELECTION_NIGHT, HISTORICAL_PRESS_ELECTION_NIGHT } from '../content/roles.ts';
+import { ELECTION_NIGHT, ELECTION_NIGHT_AGAIN_1978, HISTORICAL_PRESS_ELECTION_NIGHT } from '../content/roles.ts';
 import { MEANWHILE } from '../content/reactions.ts';
 import { leadsWithHeadline } from './brief.ts';
 import { presidentialMessages, readPresidentialMessages } from './presidential-inbox.ts';
@@ -225,7 +225,8 @@ export function withoutRepeats<T extends Pick<ChronicleLine, 'kind' | 'text'>>(l
 }
 
 // Реплика ночи выборов узнаётся по неизменным частям своего шаблона: имя и должность в ней подставлены движком.
-const NIGHT_PARTS = [...Object.values(ELECTION_NIGHT).flatMap(groups => Object.values(groups).flat()), ...Object.values(HISTORICAL_PRESS_ELECTION_NIGHT).flat()]
+const NIGHT_PARTS = [...Object.values(ELECTION_NIGHT).flatMap(groups => Object.values(groups).flat()), ...Object.values(HISTORICAL_PRESS_ELECTION_NIGHT).flat(),
+  ...Object.values(ELECTION_NIGHT_AGAIN_1978).flatMap(groups => Object.values(groups))]
   .map(template => template.split(/\{[^}]+\}/).map(part => part.trim().replace(/^[,.:]\s*|\s*[,:]$/g, '')).filter(part => part.length >= 12))
   .filter(parts => parts.length > 0);
 const isElectionNightLine = (text: string) => NIGHT_PARTS.some(parts => parts.every(part => text.includes(part)));
