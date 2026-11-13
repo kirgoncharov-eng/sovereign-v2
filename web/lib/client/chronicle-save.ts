@@ -73,6 +73,8 @@ export function parseChronicle(raw: string | null): ChronicleSnapshot | null {
       || !snapshot.memory || !Array.isArray(snapshot.memory.used)
       || !snapshot.memory.used.every((id: unknown) => typeof id === 'string')
       || !(snapshot.memory.lastTurn === null || Number.isInteger(snapshot.memory.lastTurn))
+      || !(snapshot.memory.life === undefined || (Array.isArray(snapshot.memory.life)
+        && snapshot.memory.life.every((id: unknown) => typeof id === 'string')))
       || !snapshot.visibleResources || !RESOURCE_KEYS.every(key => Number.isFinite(snapshot.visibleResources[key]))
       || typeof snapshot.over !== 'boolean'
       || (snapshot.step !== null && (!snapshot.step || !Array.isArray(snapshot.step.options)

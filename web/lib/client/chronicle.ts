@@ -25,6 +25,7 @@ import { presidentialMessages, readPresidentialMessages } from './presidential-i
 import { personalBeat, type PersonalMemory } from './chronicle-personal.ts';
 import { quarterLedger } from './chronicle-ledger.ts';
 import { countryLines } from './chronicle-country.ts';
+import { lifeBeat } from './chronicle-life.ts';
 import { factoryQuarterReports } from './factory-mandate.ts';
 import type { Choice, DifficultyId, GameState, IdeologyId, ResourceKey } from '../game/types.ts';
 
@@ -305,6 +306,8 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
   });
   const votePress = press.filter(line => line.day === 'vote');
   const told = historical ? countryLines(before, after) : { own: [], background: [], deadline: [], quarter: [] };
+  // Жизнь за воротами (#310, E05): в свои кварталы — одна строка о постоянном месте; не рядом с фоном и выборами.
+  const life = historical ? lifeBeat(after, memory, !!election || told.background.length > 0) : { text: null, memory };
   // Срок обещаний — выборы: что сдержано и что нет, страна узнаёт в ту же ночь.
   const vote: Draft[] = voteText ? [
     { kind: 'vote', text: voteText, day: 'vote' },
@@ -342,6 +345,7 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
     ...(headlineTold || sceneTellsResult || voteText ? [] : [{ kind: 'paper' as const, who: newspaperName(after.country, after.seed, after.turn), text: report.headline }]),
     ...press.filter(line => line.day !== 'vote'),
     ...told.background,
+    ...(life.text ? [{ kind: 'country' as const, text: life.text }] : []),
     ...(report.letters ?? []).filter(letter => !letter.replies?.length)
       .map(letter => ({ kind: 'letter' as const, who: letter.from, text: letter.text })),
     ...dispatches.map(dispatch => ({ kind: 'report' as const, who: dispatch.title, text: dispatch.text })),
@@ -394,7 +398,7 @@ export function quarterLines(before: GameState, after: GameState, memory: Person
       return { ...line, id: `q${before.turn}-${i}`, date: fromDayNumber(previous) };
     }),
   ];
-  return { lines, memory: personal.memory };
+  return { lines, memory: life.memory.life ? { ...personal.memory, life: life.memory.life } : personal.memory };
 }
 
 // ── Варианты решения ─────────────────────────────────────────────────────────

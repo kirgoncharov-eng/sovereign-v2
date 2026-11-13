@@ -9,6 +9,8 @@ import type { GameState } from '../game/types.ts';
 export interface PersonalMemory {
   used: string[];
   lastTurn: number | null; // after.turn квартала, где прозвучала прошлая строка
+  /** Жизнь за воротами (#310, E05): что лента уже рассказала о постоянных местах. В старых снимках поля нет. */
+  life?: string[];
 }
 
 export const EMPTY_PERSONAL: PersonalMemory = { used: [], lastTurn: null };
