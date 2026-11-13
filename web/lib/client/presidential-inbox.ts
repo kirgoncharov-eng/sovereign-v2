@@ -6,13 +6,14 @@ import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { governmentProposals } from '../content/quarter-letters.ts';
 import { pendingSecretaryFavor, secretaryEnabled, secretaryText } from '../game/secretary.ts';
 import { FAVORS } from '../content/secretary.ts';
+import { groupNeedsReply, groupTitle } from '../game/group-initiative.ts';
 export interface PresidentialMessage {
   key: string;
   token: string;
   person: string;
   title: string;
   text: string;
-  action: 'sponsor' | 'government' | 'energy' | 'health' | 'minister' | 'evidence' | 'secretary';
+  action: 'sponsor' | 'government' | 'energy' | 'health' | 'minister' | 'evidence' | 'secretary' | 'groups';
   needsReply: boolean;
   deadline?: number;
 }
@@ -35,6 +36,13 @@ export function presidentialMessages(gs: GameState): PresidentialMessage[] {
       ? author === null ? 'chancery' : personId(author)
       : fallback ? personId(fallback) : undefined;
   const messages: PresidentialMessage[] = [];
+  const groups = world.groups;
+  if (gs.country === ALTERNATE_COUNTRY && groups) {
+    const representative = gs.keyFigures.find(person => person.faction === groups.business.id);
+    messages.push({ key: 'group-initiative', token: `${groups.phase}:${groups.changed}`, person: representative ? `figure:${representative.id}` : 'chancery',
+      title: groupTitle(groups), text: groups.text, action: 'groups', needsReply: groupNeedsReply(groups),
+      ...(groupNeedsReply(groups) ? { deadline: groups.due } : {}) });
+  }
   const secretary = world.secretary;
   if (secretaryEnabled(gs) && secretary?.present) {
     const favor = pendingSecretaryFavor(gs) ?? secretary.favors.at(-1);

@@ -10,6 +10,7 @@ import { governmentLoad } from '@/lib/game/government.ts';
 import EvidencePanel from './EvidencePanel.jsx';
 import MinisterPanel from './MinisterPanel.jsx';
 import SponsorPanel from './SponsorPanel.jsx';
+import GroupInitiativePanel from './GroupInitiativePanel.jsx';
 import GovernmentPanel from './GovernmentPanel.jsx';
 import ProjectActions from './ProjectActions.jsx';
 import { PeopleText } from './PeopleText.jsx';
@@ -148,7 +149,8 @@ export default function PresidentialDesk({ ref, gs, Portrait, Scene, onAction, o
             </button>)}
           </nav>}
           {selected && <article key={selected.key} className="sv-desk-message"><div className="sv-post-file"><span>{correspondenceSubject(selected)}</span><span>{selected.needsReply ? "На рассмотрении" : "Для сведения"}</span></div><small>{selected.needsReply ? 'ЖДЁТ ВАШЕГО ОТВЕТА' : 'ДОГОВОРЁННОСТЬ ИЛИ ДОКЛАД'}{selected.deadline ? ` · до конца квартала ${selected.deadline}` : ''}</small><h4>{selected.title}</h4>
-            {selected.action === 'evidence' ? <EvidencePanel gs={gs} onAction={onAction} onClose={() => close()}/>
+            {selected.action === 'groups' ? <GroupInitiativePanel gs={gs} onAction={onAction} onClose={() => close()}/>
+              : selected.action === 'evidence' ? <EvidencePanel gs={gs} onAction={onAction} onClose={() => close()}/>
               : selected.action === 'minister' ? <MinisterPanel gs={gs} Scene={Scene} onAction={onAction} onClose={() => close()}/>
               : selected.action === 'sponsor' ? <SponsorPanel embedded gs={gs} Scene={Scene} onAction={onAction}
                   onViewChange={onViewChange} onClose={() => close()}/>

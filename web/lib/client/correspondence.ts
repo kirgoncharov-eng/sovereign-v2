@@ -23,5 +23,6 @@ export function correspondenceSubject(message: PresidentialMessage): string {
   if (message.action === 'evidence') return 'Особая папка';
   if (message.action === 'minister') return 'Полномочия';
   if (message.action === 'sponsor') return 'Поставки';
+  if (message.action === 'groups') return 'Палата и области';
   return 'Правительство';
 }

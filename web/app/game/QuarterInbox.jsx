@@ -6,6 +6,7 @@ import { quarterResolution } from '@/lib/client/quarter-inbox.ts';
 import { LetterText } from './LetterText.jsx';
 import IncomingProject from './IncomingProject.jsx';
 import SponsorPanel from './SponsorPanel.jsx';
+import GroupInitiativePanel from './GroupInitiativePanel.jsx';
 import MinisterPanel from './MinisterPanel.jsx';
 import EvidencePanel from './EvidencePanel.jsx';
 import GovernmentPanel from './GovernmentPanel.jsx';
@@ -74,7 +75,8 @@ export function IncomingLetter({ gs, page, onAction, onOpen, Scene }) {
     <header><small>{personProfiles(gs).find(person => person.id === message.person)?.name ?? 'Канцелярия'}</small>
       <span className="sv-stamp">{message.needsReply ? 'Ждёт ответа' : 'Для сведения'}</span></header>
     <h2><PeopleText>{message.title}</PeopleText></h2>
-    {message.action === 'sponsor' ? <SponsorPanel {...props} embedded/>
+    {message.action === 'groups' ? <GroupInitiativePanel {...props}/>
+      : message.action === 'sponsor' ? <SponsorPanel {...props} embedded/>
       : message.action === 'minister' ? <MinisterPanel {...props}/>
       : message.action === 'evidence' ? <EvidencePanel {...props}/>
       : <><LetterText text={message.text}/><GovernmentPanel {...props}

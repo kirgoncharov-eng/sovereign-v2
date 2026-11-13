@@ -1,0 +1,10 @@
+[data-group-initiative] .sv-sponsor-help,
+[data-group-initiative] .sv-sponsor-options span,
+[data-group-initiative] .sv-sponsor-options small,
+[data-group-initiative] .sv-sponsor-options em {
+  display: block;
+  font: 16px/1.5 Georgia, serif;
+}
+[data-group-initiative] .sv-sponsor-options small { margin-top: 8px; }
+[data-group-initiative] .sv-sponsor-options span { margin-top: 12px; }
+[data-group-initiative] .sv-sponsor-sign button { min-height: 44px; margin: 6px 6px 6px 0; }

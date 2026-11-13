@@ -17,6 +17,7 @@ import * as letters from '../content/quarter-letters.ts';
 import { actSecretary, ensureSecretary, secretarySurname, validSecretary, type SecretaryState } from './secretary.ts';
 import { announcedHeirs, surnameBase } from './surnames.ts';
 import { interventionUsed } from './initiatives.ts';
+import { groupActions, groupDecision, groupTitle, stepGroups, validGroups, type GroupInitiative } from './group-initiative.ts';
 export type WorldPersonId = 'minister' | 'governor' | 'engineer' | 'healthMinister' | 'doctor';
 export interface WorldPerson {
     id: WorldPersonId;
@@ -29,7 +30,7 @@ export interface WorldPerson {
     figure?: string;
 }
 export interface WorldDispatch {
-    project?: 'energy' | 'health' | 'procurement' | 'exports' | 'housing';
+    project?: 'energy' | 'health' | 'procurement' | 'exports' | 'housing' | 'groups';
     id: string;
     turn: number;
     kind: 'letter' | 'decision' | 'report' | 'inspection' | 'news';
@@ -58,6 +59,7 @@ export interface EnergyProject {
     lastFactors: string[];
 }
 export interface LivingWorld {
+    groups?: GroupInitiative;
     secretary?: SecretaryState;
     version: 1;
     mandate?: MinisterMandate;
@@ -248,6 +250,7 @@ export function livingActions(gs: GameState): WorldAction[] {
                     }
                 });
     }
+    list.push(...groupActions(gs));
     list.push(...evidenceActions(gs));
     list.push(...sponsorActions(gs));
     list.push(...governmentActions(gs));
@@ -290,6 +293,10 @@ export function interveneWorld(gs: GameState, id: string): GameState {
     let text = '';
     const kind: WorldDispatch['kind'] = 'decision';
     let factionRel: Record<string, number> = {};
+    if (id.startsWith('groups:')) {
+        const decision = groupDecision(gs, world, id);
+        text = decision.text; factionRel = decision.factions;
+    }
     if (id.startsWith('evidence:')) {
         const decision = evidenceDecision(gs, world, id);
         text = decision.text; evidenceRelation = decision.relation;
@@ -356,7 +363,7 @@ export function interveneWorld(gs: GameState, id: string): GameState {
     };
     const price = Object.entries(action.cost).map(([k, value]) => `${labels[k as keyof ResourceDelta] ?? k} ${value}`).join(', ');
     world = append(world, {
-        project: id.startsWith('government:start:') ? (['settle', 'expand'].includes(id.split(':')[2]) ? 'housing' : id.split(':')[2]) as WorldDispatch['project'] : id.startsWith('health:') ? 'health' : 'energy', turn: gs.turn, kind, title: action.title, text: `${text.trim()} Цена поручения: ${price || "без списания ресурсов; использовано личное вмешательство"}.`
+        project: id.startsWith('groups:') ? 'groups' : id.startsWith('government:start:') ? (['settle', 'expand'].includes(id.split(':')[2]) ? 'housing' : id.split(':')[2]) as WorldDispatch['project'] : id.startsWith('health:') ? 'health' : 'energy', turn: gs.turn, kind, title: action.title, text: `${text.trim()} Цена поручения: ${price || "без списания ресурсов; использовано личное вмешательство"}.`
     });
     const factions = gs.factions.map(f => ({
         ...f, relation: bounded(f.relation + (factionRel[f.id] ?? 0), -100, 100)
@@ -601,9 +608,15 @@ export function stepLivingWorld(gs: GameState, nextTurn: number, review?: Choice
         });
     const government = stepGovernment(gs, world, nextTurn, review);
     const evidence = stepEvidence(gs, world, nextTurn, evidenceResponse);
+    const groups = stepGroups(gs, world, nextTurn);
+    if (groups.story) world = append(world, {
+        project: 'groups', turn: nextTurn, kind: 'news', title: groupTitle(world.groups!), text: groups.story
+    });
     const res = {
         ...energy.res
     };
+    for (const [key, delta] of Object.entries(groups.res))
+        res[key as keyof ResourceDelta] = (res[key as keyof ResourceDelta] ?? 0) + (delta ?? 0);
     for (const [key, delta] of Object.entries(evidence.res))
         res[key as keyof ResourceDelta] = (res[key as keyof ResourceDelta] ?? 0) + (delta ?? 0);
     for (const effect of government.effects)
@@ -612,12 +625,13 @@ export function stepLivingWorld(gs: GameState, nextTurn: number, review?: Choice
     for (const [key, delta] of Object.entries(health.res))
         res[key as keyof ResourceDelta] = (res[key as keyof ResourceDelta] ?? 0) + (delta ?? 0);
     return {
-        world, res, story: [publicStory?.text, energy.story ? `Из промышленного региона. ${energy.story}` : null, health.story ? `Районные больницы. ${health.story}` : null, government.story, evidence.story].filter(Boolean).join('\n\n') || null,
+        world, res, story: [publicStory?.text, energy.story ? `Из промышленного региона. ${energy.story}` : null, health.story ? `Районные больницы. ${health.story}` : null, government.story, evidence.story, groups.story].filter(Boolean).join('\n\n') || null,
         effects: [{
                 label: 'энергосеть промышленного региона', res: energy.res
             }, {
                 label: 'районные больницы', res: health.res
-            }, { label: 'прямой доступ службы к банковским сведениям без независимой санкции', res: evidence.res }, ...government.effects]
+            }, { label: 'прямой доступ службы к банковским сведениям без независимой санкции', res: evidence.res },
+            ...(groups.story ? [{ label: 'экспортный заказ палаты и областей', res: groups.res }] : []), ...government.effects]
     };
 }
 export function validLivingWorld(value: unknown): value is LivingWorld {
@@ -660,6 +674,7 @@ export function validLivingWorld(value: unknown): value is LivingWorld {
         return false;
     if (world.people.length !== (world.health === undefined ? 3 : 5))
         return false;
+    if (world.groups !== undefined && !validGroups(world.groups, world.lastTick)) return false;
     if (world.evidence !== undefined && !validEvidence(world.evidence, world.lastTick)) return false;
     if (world.sponsor !== undefined && !validSponsor(world.sponsor, world.lastTick)) return false;
     if (world.mandate !== undefined && !validMinister(world.mandate, world.lastTick)) return false;
@@ -700,7 +715,7 @@ export function validLivingWorld(value: unknown): value is LivingWorld {
         && world.dispatches.every(d => d
         && typeof d.id === 'string'
         && (d.project === undefined
-        || ['energy', 'health', 'procurement', 'exports', 'housing'].includes(d.project))
+        || ['energy', 'health', 'procurement', 'exports', 'housing', 'groups'].includes(d.project))
         && n(d.turn)
         && ['letter', 'decision', 'report', 'inspection', 'news'].includes(d.kind)
         && typeof d.title === 'string'

@@ -123,6 +123,8 @@ export function storyStops(state: GameState): Stop[] {
 export function dueStops(state: GameState, stops: Stop[], memory: StopMemory): Stop[] {
   const danger = pillarInDanger(state);
   const due = stops.filter(stop => {
+    // Инициативу групп можно открыть сразу; сама лента ждёт до последнего квартала ответа.
+    if (stop.message?.action === 'groups' && state.turn + 1 < (stop.deadline ?? Infinity)) return false;
     const seen = memory[stop.key];
     // Меры при опоре у порога: снова — если у порога новая опора или прошёл год; опора, вернувшаяся выше, ленту не держит.
     if (stop.kind === 'initiative' && seen) {
