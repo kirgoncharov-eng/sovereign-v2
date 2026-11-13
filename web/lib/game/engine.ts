@@ -270,6 +270,7 @@ export function createInitialState(
 }
 
 export function startEvent(state: GameState, event: GameEvent & { cardId?: string }): GameState {
+  if (state.cabinetFormation?.status === 'pending') throw new Error('Сначала утвердите первоначальный состав.');
   const { cardId, ...ev } = event;
   const usedEvents = cardId ? [...(state.usedEvents ?? []), cardId].slice(-40) : (state.usedEvents ?? []);
   return prepareCabinet(ensureSecretary({ ...state, currentEvent: cardId ? { ...ev, card: cardId } : ev, lastTurn: null, usedEvents }));

@@ -96,7 +96,8 @@ export function openLivingWorld(gs: GameState): GameState {
     const openHealth = !historical || signedCaseOrVersion(gs, 'alt_district');
     if (gs.world && !openHealth) return ensureSecretary(ensureEvidence(publishSavedGovernmentReports(ensureGovernment(ensureSponsor(gs)))));
     const previous = gs.world;
-    const used = new Set([...(previous?.people.map(person => person.name) ?? []), gs.leader.name, ...gs.keyFigures.map(f => f.name), ...gs.advisors.map(entry => entry.name), ...(gs.former ?? [])]);
+    const used = new Set([...(previous?.people.map(person => person.name) ?? []), gs.leader.name, ...gs.keyFigures.map(f => f.name),
+        ...gs.advisors.map(entry => entry.name), ...(gs.former ?? []), ...(gs.cabinetFormation?.suggestedNames ?? [])]);
     const pool = NAMES[gs.country] ?? NAMES['Беларусь'];
     const reserved = new Set(historical ? gs.cabinet?.roster.map(person => person.name) ?? [] : []);
     // 1978 (#242): новый человек папки не делит фамилию ни с кем из партии — иначе игрок примет их за родственников.

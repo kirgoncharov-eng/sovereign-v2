@@ -18,7 +18,9 @@ const URL_ARG = arg("url", "");
 const SHOT_DECISIONS = [1, 2, 3];
 const FIRST_DECISION_LIMIT_MS = 90_000;
 const CABINET = arg("cabinet", "false") === "true";
+const FORMATION = arg('formation', 'false') === 'true';
 const exerciseCabinet = CABINET ? (await import('./playtest-chronicle-cabinet.mjs')).exerciseCabinet : null;
+const exerciseFormation = FORMATION ? (await import('./playtest-cabinet-formation.mjs')).exerciseFormation : null;
 
 mkdirSync(OUT, { recursive: true });
 const shot = name => join(OUT, `${name}.png`);
@@ -167,6 +169,11 @@ if (opened) {
     await page.keyboard.press("Enter");
     await prologue.waitFor({ state: "hidden", timeout: 3000 });
   } catch { /* пролога нет — отмечено в сводке */ }
+
+  const formation = page.getByRole('region', { name: 'Первоначальный состав совета' });
+  await formation.waitFor();
+  if (exerciseFormation) await exerciseFormation(page, shot);
+  else await formation.getByRole('button', { name: 'Утвердить состав', exact: true }).tap();
 
   let decisions = 0;
   for (let step = 0; step < DECISIONS * 4 && decisions < DECISIONS; step++) {

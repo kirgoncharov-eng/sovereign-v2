@@ -144,6 +144,7 @@ if (await opening.isVisible()) {
   await page.screenshot({ path: shot("0-opening"), fullPage: true });
   await opening.tap();
 }
+await page.getByRole('button', { name: 'Утвердить состав', exact: true }).tap();
 await page.locator("#opt-1").waitFor({ timeout: 8000 });
 const prologueDay = prologueDate.replace(/ ГОДА.*/u, "").toLowerCase();
 const firstCaseMatchesPrologue = await page.evaluate(day => document.body.innerText.toLowerCase().includes(day), prologueDay);

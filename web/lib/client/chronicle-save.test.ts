@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { chronicleBelongsTo, encodeChronicle, parseChronicle, type ChronicleSnapshot } from './chronicle-save.ts';
 import { firstStep, newTerm, nextCase, openingLines, startFromSeed } from './chronicle.ts';
 import { EMPTY_PERSONAL } from './chronicle-personal.ts';
+import { beginCabinetFormation, selectInitialAdvisor, confirmInitialCabinet } from '../game/cabinet-formation.ts';
+import { cabinetCandidates } from '../game/cabinet.ts';
 
 async function example(): Promise<ChronicleSnapshot> {
   const start = startFromSeed(5);
@@ -10,6 +12,23 @@ async function example(): Promise<ChronicleSnapshot> {
   return { start, game, shown: openingLines(game), queue: [], step: firstStep(game), picks: [], form: null, stop: null, stops: {},
     memory: EMPTY_PERSONAL, visibleResources: game.resources, page: null, rivals: null, over: false };
 }
+
+test('хроника сохраняет подбор до первого дела и не теряет утверждение после него', async () => {
+  const snapshot = await example();
+  const pending = beginCabinetFormation(await newTerm(snapshot.start));
+  const candidate = cabinetCandidates(pending, 'economist')[0];
+  const draft = selectInitialAdvisor(pending, candidate.seat, candidate.id);
+  const selection = { ...snapshot, game: draft, step: null, shown: [], visibleResources: draft.resources };
+  const restored = parseChronicle(encodeChronicle(selection))!;
+  assert.ok(restored);
+  assert.equal(restored.game.currentEvent, null);
+  assert.equal(restored.game.cabinetFormation!.selected.economist, candidate.id);
+  const confirmed = await nextCase(confirmInitialCabinet(restored.game));
+  const resumed = parseChronicle(encodeChronicle({ ...selection, game: confirmed, step: firstStep(confirmed), visibleResources: confirmed.resources }))!;
+  assert.equal(resumed.game.cabinetFormation!.status, 'confirmed');
+  assert.equal(resumed.game.advisors.find(person => person.id === 'economist')!.name, candidate.name);
+  assert.deepEqual(resumed.game.resources, confirmed.resources);
+});
 
 test('chronicle saves a complete decision and restores it independently from the main save', async () => {
   const snapshot = await example();
