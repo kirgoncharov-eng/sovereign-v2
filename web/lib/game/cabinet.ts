@@ -28,7 +28,8 @@ function nextCandidate(state: GameState, seat: string, ordinal: number, roster: 
   const year = yearOf(state), others = roster.filter(person => person.seat === seat);
   const occupied = new Set([state.leader.name, ...state.advisors.map(person => person.name),
     ...state.keyFigures.map(person => person.name), ...(state.world?.people.map(person => person.name) ?? []),
-    ...(state.former ?? []), ...roster.map(person => person.name), state.arc?.target, state.world?.secretary?.name]);
+    ...(state.former ?? []), ...(state.cabinetFormation?.suggestedNames ?? []),
+    ...roster.map(person => person.name), state.arc?.target, state.world?.secretary?.name]);
   for (let attempt = 0; attempt < 200; attempt++) {
     const pool = candidatePool({ ...state, seed: hashSeed(state.seed, 'cabinet', year, seat, ordinal, attempt),
       staffing: undefined, former: [...(state.former ?? []), ...roster.map(person => person.name)] });
@@ -102,14 +103,15 @@ export function cabinetAssignments(state: GameState, seat: string) {
   ];
 }
 
-export function cabinetPreview(state: GameState, action: CabinetAction) {
+export function cabinetPreview(state: GameState, action: CabinetAction, context: 'ordinary' | 'formation' = 'ordinary') {
+  const formation = context === 'formation';
   const candidate = action.kind === 'hire' ? cabinetCandidates(state).find(person => person.id === action.candidate) : undefined;
   const seat = action.kind === 'dismiss' ? action.seat : candidate?.seat;
-  const current = state.advisors.find(person => person.id === seat);
+  const current = formation ? undefined : state.advisors.find(person => person.id === seat);
   const leaving = current ? dismissalOf(state, current) : null;
   const changes = state.cabinet?.changedTurn === state.turn ? state.cabinet.changes : 0;
   // Повторные перестановки расходуют влияние: нет календарного запрета и бесплатной кадровой карусели.
-  const administration: ResourceDelta = { politicalCapital: -(2 + changes * 2) };
+  const administration: ResourceDelta = { politicalCapital: -(2 + (formation ? 0 : changes * 2)) };
   const supported = !!candidate && backedChannels(state).includes(candidate.channel);
   const appointmentCost = Object.fromEntries(Object.entries(candidate?.cost ?? {})
     .map(([key, value]) => [key, supported && value > 0 ? 0 : value]));
@@ -130,6 +132,9 @@ export function cabinetPreview(state: GameState, action: CabinetAction) {
   })).filter(item => item.delta);
   const unavailable = !cabinetEnabled(state) ? 'Свободные назначения доступны в обычной партии 1978 года.'
     : state.ended ? 'Правление завершено.'
+    : formation && (state.cabinetFormation?.status !== 'pending' || state.turn !== 0 || state.currentEvent || state.history.length)
+      ? 'Первоначальный состав уже утверждён.'
+    : !formation && state.cabinetFormation?.status === 'pending' ? 'Сначала утвердите первоначальный состав.'
     : !seat || !seats.has(seat) ? 'Должность не найдена.'
     : action.kind === 'hire' && !candidate ? 'Кандидат уже назначен или предложение устарело.'
     : action.kind === 'dismiss' && (!current || current.name !== action.name) ? 'Состав команды изменился. Откройте решение заново.'
@@ -164,8 +169,8 @@ function transferAssignments(state: GameState, seat: string, incoming?: Advisor)
   } } };
 }
 
-export function applyCabinetAction(state: GameState, action: CabinetAction): GameState {
-  const preview = cabinetPreview(state, action);
+export function applyCabinetAction(state: GameState, action: CabinetAction, context: 'ordinary' | 'formation' = 'ordinary'): GameState {
+  const preview = cabinetPreview(state, action, context);
   if (preview.unavailable || !preview.seat) throw new Error(preview.unavailable ?? 'Должность не найдена.');
   const { candidate, current, seat, leaving, cost } = preview;
   const role = ADVISOR_ROLES.find(role => role.id === seat)!;
