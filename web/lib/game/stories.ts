@@ -106,7 +106,7 @@ export function storyLetters(state: GameState, turn = state.turn + 1): StoryLett
     const offer = replies && replies.step === index && !state.storyReplies?.[story.id] ? replies.options : [];
     letters.push({
       kind: step.kind, story: story.id, text: bySex(text, hero),
-      from: hero?.name ?? story.sender ?? "",
+      from: hero?.name ?? (state.country === ALTERNATE_COUNTRY ? story.sender1978 ?? story.sender : story.sender) ?? "",
       ...(hero ? { role: hero.role } : {}),
       ...(hero && step.departs?.(context) ? { departs: hero.id } : {}),
       ...(hero && pinsHero(state) ? { hero: hero.id } : {}),

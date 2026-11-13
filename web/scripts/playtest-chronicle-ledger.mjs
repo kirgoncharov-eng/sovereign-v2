@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { APP_VERSION, SAVE_VERSION } from '../lib/game/data.ts';
 import { resolveTurn } from '../lib/game/engine.ts';
 import { firstStep, newTerm, nextCase, quarterLines, signOption, startFromSeed } from '../lib/client/chronicle.ts';
@@ -14,7 +14,7 @@ import { parseSave } from '../lib/client/save.ts';
 
 const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6) ?? 'playtest/chronicle-ledger');
 mkdirSync(out, { recursive: true });
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const summary = { checks: [], problems: [], texts: [] };
 
 async function fixture(name, before, after, { old = false, queued = false, width = 390 } = {}) {

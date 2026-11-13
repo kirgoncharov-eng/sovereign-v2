@@ -1,4 +1,5 @@
 // Карточка советника: всё, что президент может быстро проверить о человеке из своего окружения.
+import { campaignText } from "./alternate-world.ts";
 import { hashSeed, isDisloyal, loyaltyOf } from "./engine.ts";
 import { ADVISOR_AREA, ADVISOR_BIOS, ADVISOR_BLOC, ADVISOR_CAMP_BY_NAME, LOYALTY_WORDS, MANNER_LABEL, NEWS_REASON, SKILL_WORDS } from "../content/advisors.ts";
 import { MANNERS, type Manner } from "../content/forecasts.ts";
@@ -57,7 +58,8 @@ export function advisorProfile(gs: Pick<GameState, "factions"> & Partial<Pick<Ga
     loyaltyWord: loyaltyWord(loyalty),
     camp: camp ? { name: camp.name, relation: camp.relation } : null,
     record: { right: record.right, total: record.right + record.wrong },
-    bio: advisor.bio ?? (bios ? bios[hashSeed(advisor.name, advisor.id, "bio") % bios.length] : null),
+    // Общий набор биографий написан для современных стран: в 1978 году слова эпохи заменяются, выбор строки тот же.
+    bio: advisor.bio ?? (bios ? campaignText(bios[hashSeed(advisor.name, advisor.id, "bio") % bios.length], gs.country ?? "") : null),
     manner: MANNER_LABEL[mannerOf(advisor)],
     origin: originOf(advisor),
     disloyal: isDisloyal(advisor, gs),

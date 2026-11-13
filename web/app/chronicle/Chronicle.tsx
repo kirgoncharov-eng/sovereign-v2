@@ -39,6 +39,7 @@ import { promiseDef } from "@/lib/game/promises.ts";
 import { debate } from "@/lib/game/forecasts.ts";
 import { hasPresidentialCouncil, isPresidentialDiscussion } from "@/lib/game/presidential-story.ts";
 import { hasInvestigationDebate } from "@/lib/content/investigation-debates.ts";
+import { memoirParagraphs } from "@/lib/content/memoirs-1978.ts";
 import { PROMISE_PICK } from "@/lib/content/promises.ts";
 import {
   CHRONICLE_GAME_KEY, CHRONICLE_SAVE_KEY, chronicleBelongsTo, encodeChronicle, parseChronicle, type ChronicleForm,
@@ -687,7 +688,9 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
           {endingCause && <p className={styles.note} data-ending-cause>
             Канцелярия: {endingCause.replace(/^Рухнул ресурс: /, "основание отставки — ")}
           </p>}
-          <p>{page.verdict}</p>
+          {memoirParagraphs(page.verdict).map((part, index) => (
+            <p key={index} className={part.reference ? styles.reference : undefined}>{part.text}</p>
+          ))}
           <p className={styles.epitaph}>{page.epitaph}</p>
           <h3>Другие жизни того же срока</h3>
           <p className={styles.note}>Та же страна, та же казна, тот же январь 1978-го. Другие руки на тех же папках.</p>

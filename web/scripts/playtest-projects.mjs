@@ -1,6 +1,6 @@
 // Controlled navigation fixture: real state/parser, both programmes unlocked explicitly.
 // npm run build:demo && node scripts/playtest-projects.mjs [--seed=15] [--difficulty=debut]
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
@@ -28,7 +28,7 @@ state = startEvent(state, opening);
 assert.ok(state.world?.health);
 const fixture = { version:SAVE_VERSION, screen:'game', state };
 assert.ok(parseSave(JSON.stringify(fixture)));
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const results = [];
 try {
   for (const width of [1440, 390, 320]) {

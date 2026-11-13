@@ -3,10 +3,9 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
 import { mkdirSync, writeFileSync } from "node:fs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const { chromium } = createRequire(root + "/package.json")("playwright");
+import { launchChromium } from "./browser.mjs";
 const c = await import(root + "/lib/client/chronicle.ts");
 const { CHRONICLE_GAME_KEY: key, encodeChronicle, parseChronicle } = await import(root + "/lib/client/chronicle-save.ts");
 const { EMPTY_PERSONAL } = await import(root + "/lib/client/chronicle-personal.ts");
@@ -104,7 +103,7 @@ async function shot(page, name, locator) {
   await page.screenshot({ path: out + "/" + name + ".png" });
 }
 try {
-  browser = await chromium.launch();
+  browser = await launchChromium();
   let start, game, candidate;
   for (let seed = 1; seed <= 150; seed++) {
     start = c.startFromSeed(seed, "debut");

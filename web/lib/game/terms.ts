@@ -153,11 +153,13 @@ export function nextReign(reign: Reign, outcome: EndType, path: PowerPath | null
 export const fellTrying = (path: PowerPath | null | undefined, end: EndType | null, reign?: Reign) =>
   (!!path && (path.id === "postpone" || path.id === "dictatorship") || reign?.office === "ruler") && (end === "coup" || end === "revolution");
 
-// Как вердикт подытожит «вопрос о сроках».
-export function pathVerdict(path: PowerPath | null | undefined, end: EndType | null): string {
+// Как вердикт подытожит «вопрос о сроках». Строки размечены как {мужской|женский}; архивные страны
+// всегда берут мужской род, как прежде, — женский подставляет только рассказ мемуаров 1978 года.
+export function pathVerdict(path: PowerPath | null | undefined, end: EndType | null, female = false): string {
   if (!path) return "";
-  if (path.from) return "Обнулить сроки он попытался, но парламент не дал голосов — и пришлось уходить.";
-  return PATH_VERDICT_END[`${path.id}:${end}`] ?? PATHS[path.id].verdict;
+  const text = path.from ? "Обнулить сроки {он|она} {попытался|попыталась}, но парламент не дал голосов — и пришлось уходить."
+    : PATH_VERDICT_END[`${path.id}:${end}`] ?? PATHS[path.id].verdict;
+  return text.replace(/\{([^|{}]+)\|([^|{}]+)\}/g, (_, male: string, feminine: string) => (female ? feminine : male));
 }
 
 // Вес концовки: для вердикта и для очков «Дела дня».

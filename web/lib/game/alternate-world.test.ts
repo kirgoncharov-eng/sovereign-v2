@@ -10,6 +10,7 @@ import { COUNTRIES, IDEOLOGIES, SAVE_VERSION } from './data.ts';
 import { ARCS } from '../content/arcs.ts';
 import { EVENT_CARDS } from '../content/events.ts';
 import { ALTERNATE_EVENTS, ALTERNATE_LAWS } from '../content/alternate-history.ts';
+import { BILL } from '../content/laws.ts';
 import { visibleAchievements } from '../client/meta.ts';
 import { parseSave } from '../client/save.ts';
 import { shareCaption, shareQuery, parseShare, shareResultOf } from '../share.ts';
@@ -82,6 +83,26 @@ test('contemporary country plots are unavailable in 1978; historical content sta
         if (event)
             assert.ok(!event.cardId.includes('foreign_agents') && !event.cardId.includes('constitution'));
     }
+});
+test('сорванное вето в 1978 году объясняет, почему вышло хуже; архив печатает прежнюю сцену (#441)', async () => {
+    const bills = async (country: string) => {
+        const found = [];
+        for (let seed = 1; seed <= 40 && found.length < 6; seed++) {
+            const event = lawEvent({ ...await fresh(country, seed), turn: 4, arc: null });
+            if (event) found.push(event);
+        }
+        return found;
+    };
+    const veto = (event: NonNullable<ReturnType<typeof lawEvent>>) => event.choices.find(choice => choice.text === BILL.veto.text)!;
+    const own = await bills(ALTERNATE_COUNTRY);
+    assert.ok(own.length >= 3);
+    for (const event of own) {
+        const choice = veto(event);
+        assert.equal(choice.sceneFail, `${choice.scene} ${BILL.vetoBotched}`, event.title);
+    }
+    const archive = await bills('Казахстан');
+    assert.ok(archive.length >= 3);
+    for (const event of archive) assert.equal(veto(event).sceneFail, veto(event).scene, event.title);
 });
 test('legacy dates, mechanics and non-newspaper text stay byte-identical to baseline', async () => {
     // #107 deliberately changes newspaper headlines. Normalising only that presentation field
