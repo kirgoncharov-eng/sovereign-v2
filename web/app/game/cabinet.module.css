@@ -20,4 +20,10 @@
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .actions .sign { background: #304c43; color: #fff9ec; }
 .receipt { padding: 12px 0; border-top: 2px solid #657c6b; }
+.formationList { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+.formationPerson { border-top: 1px solid #a79a83; padding-top: 10px; min-width: 0; }
+.formationPerson > small { display: block; font: 12px/1.5 system-ui, sans-serif; }
+.formationPerson > strong { display: block; font-size: 19px; }
+.formationPerson p { font-size: 14px; }
+@media (max-width: 600px) { .formationList { grid-template-columns: 1fr; } }
 @media (max-width: 359px) { .panel { padding: 12px; } .seats { grid-template-columns: 1fr; } }
