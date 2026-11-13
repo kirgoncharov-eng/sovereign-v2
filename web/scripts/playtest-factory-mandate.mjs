@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
 import { build } from 'esbuild';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { APP_VERSION, SAVE_VERSION } from '../lib/game/data.ts';
 import { rollSuccess } from '../lib/game/engine.ts';
 import { newTerm, nextCase, firstStep, signChoice, startFromSeed } from '../lib/client/chronicle.ts';
@@ -39,7 +39,7 @@ const component = await build({ stdin: { contents: `import React from 'react'; i
 });
 const js = component.outputFiles.find(file => file.path.endsWith('.js')).text.replace(/<\/script/gi, '<\\/script');
 const css = component.outputFiles.find(file => file.path.endsWith('.css'))?.text ?? '';
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const summary = { signatures: [], cards: [], problems: [] };
 const cards = [];
 

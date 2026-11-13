@@ -1,6 +1,6 @@
 // #245: a naturally reached first request, then a controlled planted-rumour fixture.
 // npm run build:demo && node scripts/playtest-secretary.mjs [--out=playtest-secretary]
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -41,7 +41,7 @@ const url = `http://127.0.0.1:${server.address().port}/`;
 let browser;
 const results = [];
 try {
-  browser = await chromium.launch();
+  browser = await launchChromium();
   for (const width of [1440, 390, 320]) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, isMobile: width < 760,
       hasTouch: width < 760, reducedMotion: 'reduce' });

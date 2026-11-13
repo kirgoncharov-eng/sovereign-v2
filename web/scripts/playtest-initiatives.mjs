@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { classicApi } from '../lib/game/classic.ts';
 import { ALTERNATE_COUNTRY } from '../lib/game/alternate-world.ts';
 import { RESOURCE_KEYS, SAVE_VERSION } from '../lib/game/data.ts';
@@ -37,7 +37,7 @@ const server = createServer((request, response) => {
 });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const url = `http://127.0.0.1:${server.address().port}/`;
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const results = [];
 try {
   for (const width of [390, 320])

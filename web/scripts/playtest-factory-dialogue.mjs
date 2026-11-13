@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { build } from 'esbuild';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { newTerm, nextCase, signChoice, startFromSeed } from '../lib/client/chronicle.ts';
 import { hasInvestigationDebate } from '../lib/content/investigation-debates.ts';
 import { advisorDialogue } from '../lib/client/advisor-dialogue.ts';
@@ -36,7 +36,7 @@ while (!hasInvestigationDebate(investigation) && investigation.turn < 6) {
 }
 assert.ok(hasInvestigationDebate(investigation), 'в партии встретился эпизод расследования');
 const summary = { checks: [], problems: [] };
-const browser = await chromium.launch();
+const browser = await launchChromium();
 try {
   for (const [caseName, base, lead] of [['factory', factory, 'strategist'], ['investigation', investigation, 'security']])
   for (const width of [320, 390]) for (const diff of ['debut', 'crisis']) for (const team of ['weak', 'strong', 'mixed']) {

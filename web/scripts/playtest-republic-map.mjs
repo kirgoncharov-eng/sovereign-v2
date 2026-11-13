@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -6,7 +6,7 @@ const ARTIFACT_DIR = process.env.ARTIFACT_DIR || new URL('../../playtest-map-art
 mkdirSync(ARTIFACT_DIR, { recursive: true });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-const browser = await chromium.launch();
+const browser = await launchChromium();
 try {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
