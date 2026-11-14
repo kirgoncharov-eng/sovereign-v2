@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { choiceOutcomes } from './choice-outcomes.ts';
+import { choiceOutcomes, quarterRisk } from './choice-outcomes.ts';
 import { advisorOutlook } from './advisor-outlook.ts';
 import { newTerm, nextCase, signChoice, startFromSeed } from './chronicle.ts';
 import { quarterDeadline } from './initiative-note.ts';
@@ -182,4 +182,90 @@ test('будущие последствия реальных решений со
     }
   }
   assert.ok(positive > 0 && negative > 0 && multiple > 0 && deals > 0, 'проверены польза, вред, два эха и сделка');
+});
+
+// Ведомость известных статей отдельно от прогноза новой подписи (#438).
+async function riskFixture(key: typeof RESOURCE_KEYS[number] = 'economy', amount = 18) {
+  const base = await nextCase(await newTerm(startFromSeed(12, 'coalition')));
+  const choice: Choice = { id: 'a', text: 'Оплатить поставку', hint: '', tags: [], resolvesCrisis: null,
+    deal: { pure: true, res: { [key]: -8 } } };
+  const state: GameState = { ...base,
+    advisors: base.advisors.map(person => ({ ...person, skill: 3 })),
+    resources: { ...base.resources, [key]: amount },
+    pending: [{ id: 'advance', due: base.turn + 1, label: 'Платёж по авансу', res: { [key]: -7 }, source: 'Предыдущая подпись' }],
+    activeCrises: [{ id: 'bank', title: 'Банковская паника', description: '', severity: 'low', turnsActive: 0, resourceDrain: { [key]: -2 } }],
+  };
+  return { state, choice };
+}
+const risks = (state: GameState, choice: Choice) => quarterRisk(state, choice, advisorOutlook(state, choice)!);
+
+test('до подписи видны ближайший долг и кризис для каждой из шести опор; просмотр не меняет партию', async () => {
+  for (const key of RESOURCE_KEYS) {
+    const { state, choice } = await riskFixture(key);
+    const before = structuredClone(state);
+    const warning = risks(state, choice).find(warning => warning.key === key)!;
+    assert.ok(warning, key);
+    assert.equal(warning.branch, 'success');
+    assert.equal(warning.level, 'collapse');
+    assert.equal(warning.remaining, 1);
+    assert.equal(warning.exact, true);
+    assert.deepEqual(warning.charges.map(charge => charge.delta), [-7, -2]);
+    assert.deepEqual(state, before);
+    assert.deepEqual(risks(state, choice), risks(state, choice));
+  }
+});
+
+test('порог кризиса строгий; падение на 4, будущий платёж не включается, положительное поступление учитывается', async () => {
+  const { state, choice } = await riskFixture();
+  for (const [amount, remaining, level] of [[37, 20, null], [36, 19, 'crisis'], [22, 5, 'crisis'], [21, 4, 'collapse']] as const) {
+    const changed = { ...state, resources: { ...state.resources, economy: amount } };
+    const warning = risks(changed, choice).find(warning => warning.key === 'economy');
+    assert.equal(warning?.level ?? null, level);
+    if (warning) assert.equal(warning.remaining, remaining);
+  }
+  const future = { ...state, pending: state.pending.map(item => ({ ...item, due: state.turn + 2 })) };
+  assert.equal(risks(future, choice).find(warning => warning.key === 'economy')!.remaining, 8);
+  const income = { ...state, pending: [...state.pending, { ...state.pending[0], id: 'income', label: 'Выручка', res: { economy: 30 } }] };
+  assert.ok(!risks(income, choice).some(warning => warning.key === 'economy'));
+  const overdue = { ...state, pending: state.pending.map(item => ({ ...item, due: state.turn - 1 })) };
+  assert.deepEqual(risks(overdue, choice), risks(state, choice));
+});
+
+test('закрываемый кризис не списывается при исполнении; срыв сохраняет его и показан отдельно', async () => {
+  const { state, choice } = await riskFixture();
+  const attempt: Choice = { ...state.currentEvent!.choices[1], deal: undefined, policyEffect: { economy: -8 }, resolvesCrisis: 'bank' };
+  const forecast = advisorOutlook(state, attempt)!;
+  assert.ok(forecast.failure);
+  forecast.failureOmitted = false;
+  const warnings = quarterRisk(state, attempt, forecast).filter(warning => warning.key === 'economy');
+  const success = warnings.find(warning => warning.branch === 'success')!;
+  const failure = warnings.find(warning => warning.branch === 'failure')!;
+  assert.ok(success && failure);
+  assert.equal(success.charges.some(charge => charge.kind === 'crisis'), false);
+  assert.equal(failure.charges.some(charge => charge.kind === 'crisis'), true);
+});
+
+test('ведомость не раскрывает скрытый исход, умолчание, точный эффект стрелок или отсутствующего специалиста', async () => {
+  const { state, choice } = await riskFixture('military');
+  const forecast = advisorOutlook(state, choice)!;
+  const estimate = forecast.success.resources.military;
+  assert.ok(estimate);
+  estimate.text = '▼';
+  assert.equal(quarterRisk(state, choice, forecast).find(warning => warning.key === 'military')!.exact, false);
+  estimate.source.skill = 0; estimate.text = '?';
+  const unknown = quarterRisk(state, choice, forecast).find(warning => warning.key === 'military')!;
+  assert.equal(unknown.decision, null);
+  assert.equal(unknown.remaining, 9, 'внутреннее значение неизвестного прогноза не участвует в счёте');
+  forecast.failure = forecast.success; forecast.failureOmitted = true;
+  assert.ok(quarterRisk(state, choice, forecast).every(warning => warning.branch !== 'failure'));
+});
+
+test('без опасности, в архиве и Daily дополнительной ведомости нет; новая будущая цена не списывается сейчас', async () => {
+  const { state, choice } = await riskFixture();
+  assert.deepEqual(risks({ ...state, resources: { ...state.resources, economy: 60 } }, choice), []);
+  const later: Choice = { ...choice, deal: { pure: true, res: {}, later: { turns: 2, label: 'Новая будущая цена', res: { economy: -50 } } } };
+  assert.equal(risks(state, later).find(warning => warning.key === 'economy')!.remaining, 9);
+  const forecast = advisorOutlook(state, choice)!;
+  for (const country of LEGACY_COUNTRIES) assert.deepEqual(quarterRisk({ ...state, country }, choice, forecast), []);
+  assert.deepEqual(quarterRisk({ ...state, daily: 'test' }, choice, forecast), []);
 });

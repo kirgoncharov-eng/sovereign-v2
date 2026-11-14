@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import ResIcon from './ResourceIcon.jsx';
 import { advisorOutlook, resolutionOptions, hardOutlook, signedEstimate, type Estimate, type OutlookSource } from '@/lib/client/advisor-outlook.ts';
-import { FOLLOW_UP_CONDITION } from '@/lib/client/choice-outcomes.ts';
+import { FOLLOW_UP_CONDITION, quarterRisk } from '@/lib/client/choice-outcomes.ts';
 import type { AdvisorDialogue } from '@/lib/content/advisor-dialogue.ts';
 import { advisorDialogue } from '@/lib/client/advisor-dialogue.ts';
 import { quarterDeadline } from '@/lib/client/initiative-note.ts';
@@ -47,6 +47,28 @@ function Pledges({ warning, compact = false }: { warning: PromiseWarning; compac
 }
 function Risk({ forecast, hard }: { forecast: Forecast; hard: boolean }) {
   return <div className={styles.risk}>Риск: <strong>{forecast.risk.text}</strong><span> · <Source source={forecast.risk.source} hard={hard} /></span></div>;
+}
+
+function QuarterWarning({ game, choice, forecast }: { game: GameState; choice: Choice; forecast: Forecast }) {
+  const warnings = quarterRisk(game, choice, forecast);
+  if (!warnings.length) return null;
+  const sameAccount = (a: typeof warnings[number], b: typeof warnings[number]) => a.key === b.key && a.decision === b.decision
+    && a.remaining === b.remaining && a.exact === b.exact && JSON.stringify(a.charges) === JSON.stringify(b.charges);
+  const distinct = warnings.filter((warning, index) => !warnings.slice(0, index).some(previous => sameAccount(previous, warning)));
+  return <aside className={styles.quarterWarning} data-quarter-risk aria-label="Риск по ведомости квартала">
+    <strong>Канцелярия · перед подписью</strong>
+    {distinct.map(warning => <p key={`${warning.branch}-${warning.key}`}>
+      <strong>{warnings.some(other => other.branch !== warning.branch && sameAccount(other, warning)) ? 'При любом исходе'
+        : warning.branch === 'success' ? 'Если исполнят' : 'При срыве'} · {RESOURCE_TITLE[warning.key]}:
+        {' '}{warning.level === 'collapse' ? 'риск падения власти' : 'запас ниже порога кризиса'}.</strong>
+      <span> Сейчас {warning.current}{warning.decision !== null ? `; решение ${warning.decision}` : '; действие решения не оценено'}
+        {warning.charges.map((charge, index) => <span key={index}>; {charge.kind === 'crisis' ? 'кризис' : 'по прежней подписи'}
+          {' '}«{charge.label}» {signedEstimate(charge.delta)}</span>)}.
+        {warning.exact && ` По этим статьям останется ${warning.remaining}.`}</span>
+    </p>)}
+    <small>Это известные статьи и доклад советников. Восстановление опор и прочие события квартала изменят итог;
+      опасность ещё не означает неизбежного краха.</small>
+  </aside>;
 }
 
 /** Одно раскрытие на документ: сравнение всех вариантов доступно до первого касания. */
@@ -96,6 +118,7 @@ export default function ResolutionChoices({ game, busy, onSign, dialogue }: {
                 {forecast.failure.camps.map(camp => <span key={camp.name}>{camp.name} {camp.estimate.text}</span>)}</>}
             </div>
           </details>
+          <QuarterWarning game={game} choice={choice} forecast={forecast} />
           <button type="button" className={styles.sign} disabled={busy} onClick={() => onSign(choice)}>Подписать</button>
         </div>}
       </section>;
