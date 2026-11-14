@@ -276,6 +276,8 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   // Новое дело или обращение всегда открываем с заголовка, даже если прежнее дочитывали вниз;
   // строки хроники — следуя за последней, только если игрок сам не прокрутил ленту назад.
   useEffect(() => {
+    // Подпись могла завершиться, пока игрок открыл справку: новое дело ждёт закрытия панели.
+    if (sheet || waitingOpen || controlsOpen) return;
     if (decision && decision !== shownDecision.current) {
       shownDecision.current = decision;
       if (form) pageFx();
@@ -309,7 +311,7 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         interactions.forEach(type => window.removeEventListener(type, stopRealigning));
       };
     }
-    if (!following.current || deciding || sheet || waitingOpen || controlsOpen) return;
+    if (!following.current || deciding) return;
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [shown.length, deciding, decision, form, stop, step, game, page, rivals, forming, sheet, waitingOpen, controlsOpen]);
 

@@ -72,7 +72,7 @@ async function checkFormResume() {
   const name = await leader();
   const reopen = async () => {
     await openChronicleControls(page);
-  await page.getByRole("button", { name: "Меню игры" }).tap();
+    await page.getByRole("button", { name: "Меню игры" }).tap();
     await page.getByRole("button", { name: /Продолжить сохранённую игру/ }).tap();
     await chronicle.waitFor({ timeout: 10_000 });
     await wait(1500);
@@ -214,7 +214,10 @@ if (opened) {
         caseArtChecks.push({ decision: decisions, src: await art.getAttribute('data-scene-art') });
       } catch { problems.push(`нет загруженной иллюстрации дела ${decisions}: ${title}`); }
     }
-    if (SHOT_DECISIONS.includes(decisions)) await page.screenshot({ path: shot(`decision-${decisions}`), fullPage: true });
+    if (SHOT_DECISIONS.includes(decisions)) {
+      await page.screenshot({ path: shot(`decision-${decisions}`), fullPage: true });
+      await page.screenshot({ path: shot(`decision-${decisions}-viewport`) });
+    }
     if (/УТВЕРДИТЬ БЮДЖЕТ/.test(text)) {
       timeline.push(`${decisions} · бюджет · ${title}`);
       await desk.getByRole("button", { name: /УТВЕРДИТЬ БЮДЖЕТ/ }).tap();
