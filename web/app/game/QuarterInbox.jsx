@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useRef } from 'react';
-import { presidentialMessages, messageUnread } from '@/lib/client/presidential-inbox.ts';
-import { personProfiles } from '@/lib/client/people-text.ts';
+import { presidentialMessages, presidentialSender, messageUnread } from '@/lib/client/presidential-inbox.ts';
 import { quarterResolution } from '@/lib/client/quarter-inbox.ts';
 import { LetterText } from './LetterText.jsx';
 import IncomingProject from './IncomingProject.jsx';
 import SponsorPanel from './SponsorPanel.jsx';
+import GroupInitiativePanel from './GroupInitiativePanel.jsx';
 import MinisterPanel from './MinisterPanel.jsx';
 import EvidencePanel from './EvidencePanel.jsx';
 import GovernmentPanel from './GovernmentPanel.jsx';
@@ -16,7 +16,6 @@ import './quarter-inbox.css';
 
 // Документы папки в порядке срочности: опись, главное дело, письма (#244 — один словарь статусов).
 function folderEntries(gs) {
-  const profiles = personProfiles(gs);
   const prepared = quarterResolution(gs);
   return [
     ...(gs.world ? [{ key:'secretary', title:'Опись папки', sender:gs.world.secretary?.present ? gs.world.secretary.name : 'Канцелярия',
@@ -24,7 +23,7 @@ function folderEntries(gs) {
     ...(gs.currentEvent ? [{ key:'main', title:gs.currentEvent.title, sender:gs.currentEvent.source, prepared:!!prepared,
       status:prepared ? 'Резолюция готова к подписи' : 'Ждёт вашей резолюции', urgent:!prepared }] : []),
     ...presidentialMessages(gs).map(message => ({ key:message.key, title:message.title,
-      sender:profiles.find(person => person.id === message.person)?.name ?? 'Канцелярия',
+      sender:presidentialSender(gs, message),
       status:message.needsReply ? 'Ждёт ответа' : messageUnread(gs, message) ? 'Новый доклад' : 'Для сведения',
       urgent:!!message.needsReply })),
   ];
@@ -71,10 +70,11 @@ export function IncomingLetter({ gs, page, onAction, onOpen, Scene }) {
     gs={gs} projectId={message.action} onAction={onAction}/>;
   const props = { gs, onAction, Scene, onClose:() => onOpen('secretary') };
   return <article className="sv-paper sv-incoming-project" data-incoming-letter={message.key}>
-    <header><small>{personProfiles(gs).find(person => person.id === message.person)?.name ?? 'Канцелярия'}</small>
+    <header><small>{presidentialSender(gs, message)}</small>
       <span className="sv-stamp">{message.needsReply ? 'Ждёт ответа' : 'Для сведения'}</span></header>
     <h2><PeopleText>{message.title}</PeopleText></h2>
-    {message.action === 'sponsor' ? <SponsorPanel {...props} embedded/>
+    {message.action === 'groups' ? <GroupInitiativePanel {...props}/>
+      : message.action === 'sponsor' ? <SponsorPanel {...props} embedded/>
       : message.action === 'minister' ? <MinisterPanel {...props}/>
       : message.action === 'evidence' ? <EvidencePanel {...props}/>
       : <><LetterText text={message.text}/><GovernmentPanel {...props}
