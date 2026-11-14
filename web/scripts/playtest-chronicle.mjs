@@ -216,6 +216,8 @@ if (opened) {
     }
     if (SHOT_DECISIONS.includes(decisions)) {
       await page.screenshot({ path: shot(`decision-${decisions}`), fullPage: true });
+      await page.getByRole('button', { name: 'Вернуться к текущему решению' }).tap();
+      await wait(800);
       await page.screenshot({ path: shot(`decision-${decisions}-viewport`) });
       if (!CABINET && !FORMATION) await emitMobilePreview(page, `decision-${decisions}`);
     }

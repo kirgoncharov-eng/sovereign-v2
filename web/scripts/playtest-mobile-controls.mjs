@@ -101,9 +101,17 @@ export async function checkNavigationTimer(page) {
   await timer.waitFor();
   await openChronicleControls(page);
   assert.equal(await timer.evaluate(element => getComputedStyle(element).animationPlayState), 'paused', 'панель ставит таймер вопроса на паузу');
-  const width = await timer.evaluate(element => element.getBoundingClientRect().width);
+  const clock = () => timer.evaluate(async element => {
+    const animation = element.getAnimations().find(item => item.animationName === 'sv-timer');
+    if (!animation) throw new Error('Не найдена анимация таймера вопроса');
+    // CSS-пауза применяется ближайшим animation frame: ready ждёт её фиксации, а не произвольное число мс.
+    await animation.ready;
+    return { time: animation.currentTime, state: animation.playState };
+  });
+  const stopped = await clock();
+  assert.equal(stopped.state, 'paused');
   await page.waitForTimeout(300);
-  assert.equal(await timer.evaluate(element => element.getBoundingClientRect().width), width, 'время вопроса не уходит в меню');
+  assert.deepEqual(await clock(), stopped, 'время вопроса не уходит в меню');
   await page.getByRole('button', { name: 'Закрыть управление и вернуться к ленте' }).tap();
-  assert.equal(await timer.evaluate(element => getComputedStyle(element).animationPlayState), 'running', 'после закрытия вопрос продолжается');
+  assert.equal((await clock()).state, 'running', 'после закрытия вопрос продолжается');
 }
