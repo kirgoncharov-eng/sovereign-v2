@@ -59,7 +59,8 @@ export async function exerciseMobileControls(page, shot) {
     await page.locator('header [data-res="economy"]').tap();
     const resource = page.locator('.sv-resource-info');
     const resourceBox = await resource.boundingBox();
-    assert.ok(resourceBox.y + resourceBox.height <= 480 - 24, 'справка опоры также помещается в Telegram');
+    await page.screenshot({ path: shot(`mobile-${width}-pillar`) });
+    assert.ok(resourceBox.y + resourceBox.height <= 480 - 24, `справка опоры также помещается в Telegram: ${JSON.stringify(resourceBox)}`);
     await resource.evaluate(element => { element.scrollTop = element.scrollHeight; });
     await resource.locator('.sv-resource-info-heading button').tap();
     await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));

@@ -161,8 +161,10 @@
   background: transparent; border: 1px solid transparent; font: inherit; color: inherit; }
 .hud button[aria-expanded="true"] { border-color: var(--gold); }
 .hud button:disabled { cursor: default; }
+/* ResourceInfo задаёт inline maxHeight по window.innerHeight; в Telegram видимая область может быть меньше.
+   Только в хронике ограничиваем её контрактом WebView, оставляя место также для анимации появления. */
 .bar :global(.sv-resource-info) { box-sizing: border-box; overscroll-behavior: contain;
-  max-height: max(0px, calc(min(100dvh, var(--tg-viewport-stable-height, 100dvh)) - var(--chronicle-bar, 100px) - 12px - var(--chronicle-safe-bottom))); }
+  max-height: max(0px, calc(min(100dvh, var(--tg-viewport-stable-height, 100dvh)) - var(--chronicle-bar, 100px) - 24px - var(--chronicle-safe-bottom))) !important; }
 .sheets { display: flex; flex-wrap: wrap; gap: 6px; max-width: 680px; margin: 6px auto 0; }
 .sheets button { flex: 1; min-height: 36px; background: transparent; border: 1px solid var(--bdr2); color: var(--tx2);
   font: 15px var(--font-narrow); letter-spacing: .04em; }
