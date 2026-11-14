@@ -1,3 +1,4 @@
+import { openChronicleControls, exerciseMobileControls } from './playtest-mobile-controls.mjs';
 // Плейтест «Хроники срока» (#302) в браузере на экране телефона: новая партия 1978 года с титула идёт в хронике.
 // Играет демо-сборку (npm run build:demo) или адрес из --url: анкета ЦИК, пролог вступления, дела первыми вариантами,
 // бюджет, пресс-конференции, звонки и разговоры; обращения откладывает. Пишет кадры ходов 1–3 и сводку в --out.
@@ -70,7 +71,8 @@ async function checkFormResume() {
   await wait(1200);
   const name = await leader();
   const reopen = async () => {
-    await page.getByRole("button", { name: "Меню игры" }).tap();
+    await openChronicleControls(page);
+  await page.getByRole("button", { name: "Меню игры" }).tap();
     await page.getByRole("button", { name: /Продолжить сохранённую игру/ }).tap();
     await chronicle.waitFor({ timeout: 10_000 });
     await wait(1500);
@@ -97,6 +99,7 @@ const mainSave = () => page.evaluate(() => {
 async function checkResume() {
   await wait(1200);
   const before = await mainSave();
+  await openChronicleControls(page);
   await page.getByRole("button", { name: "Меню игры" }).tap();
   await page.getByRole("button", { name: /Продолжить сохранённую игру/ }).tap();
   await chronicle.waitFor({ timeout: 10_000 });
@@ -104,6 +107,7 @@ async function checkResume() {
   const after = await mainSave();
   resume.sameRun = !!before?.run && after?.run === before.run && after?.screen === "chronicle" && after.turn === before.turn;
   const own = await page.evaluate(() => localStorage.getItem("sovereign.chronicle.game"));
+  await openChronicleControls(page);
   await page.getByRole("button", { name: "Меню игры" }).tap();
   await page.evaluate(raw => {
     const foreign = JSON.parse(raw);
@@ -157,6 +161,7 @@ async function measure() {
 }
 
 if (opened) {
+  await openChronicleControls(page);
   await page.getByRole("button", { name: "Сразу" }).tap();
   await checkFormResume();
   for (const name of ["Дальше", "Дальше", "Дальше", "Подать документы в ЦИК"]) await page.getByRole("button", { name }).tap();
@@ -197,6 +202,7 @@ if (opened) {
     const text = await desk.innerText();
     const title = (await desk.locator("h2").first().innerText()).slice(0, 50);
     decisions++;
+    if (decisions === 2 && !CABINET && !FORMATION) await exerciseMobileControls(page, shot);
     if (SHOT_DECISIONS.includes(decisions)) {
       const art = desk.locator('[data-chronicle-case-art] img[data-scene-art]');
       try {
