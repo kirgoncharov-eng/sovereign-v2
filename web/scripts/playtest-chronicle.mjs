@@ -1,4 +1,4 @@
-import { openChronicleControls, exerciseMobileControls } from './playtest-mobile-controls.mjs';
+import { openChronicleControls, exerciseMobileControls, checkNavigationTimer } from './playtest-mobile-controls.mjs';
 // Плейтест «Хроники срока» (#302) в браузере на экране телефона: новая партия 1978 года с титула идёт в хронике.
 // Играет демо-сборку (npm run build:demo) или адрес из --url: анкета ЦИК, пролог вступления, дела первыми вариантами,
 // бюджет, пресс-конференции, звонки и разговоры; обращения откладывает. Пишет кадры ходов 1–3 и сводку в --out.
@@ -221,6 +221,7 @@ if (opened) {
     } else if (/ВЫЙТИ К ЖУРНАЛИСТАМ/.test(text)) {
       timeline.push(`${decisions} · пресс-конференция · ${title}`);
       await desk.getByRole("button", { name: /ВЫЙТИ К ЖУРНАЛИСТАМ/ }).tap();
+      await checkNavigationTimer(page);
       for (let q = 0; q < 6; q++) {
         await wait(300);
         const answer = desk.locator(".sv-paper button").filter({ hasText: /«/ });

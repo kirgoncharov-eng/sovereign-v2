@@ -56,6 +56,12 @@ export async function exerciseMobileControls(page, shot) {
     const country = page.getByRole('complementary', { name: 'Страна', exact: true });
     await country.waitFor();
     await country.getByRole('button', { name: 'Закрыть справку и вернуться к ленте' }).tap();
+    await page.locator('header [data-res="economy"]').tap();
+    const resource = page.locator('.sv-resource-info');
+    const resourceBox = await resource.boundingBox();
+    assert.ok(resourceBox.y + resourceBox.height <= 480 - 24, 'справка опоры также помещается в Telegram');
+    await resource.evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await resource.locator('.sv-resource-info-heading button').tap();
     await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
     await page.getByRole('button', { name: 'Вернуться к текущему решению' }).tap();
     await page.waitForTimeout(800);
@@ -79,4 +85,16 @@ export async function exerciseMobileControls(page, shot) {
   await page.getByRole('button', { name: 'Вернуться к текущему решению' }).tap();
   await page.waitForTimeout(800);
   writeFileSync(shot('mobile-controls').replace(/\.png$/, '.json'), JSON.stringify({ results, problems: [] }, null, 2));
+}
+
+export async function checkNavigationTimer(page) {
+  const timer = page.locator('.sv-timer');
+  await timer.waitFor();
+  await openChronicleControls(page);
+  assert.equal(await timer.evaluate(element => getComputedStyle(element).animationPlayState), 'paused', 'панель ставит таймер вопроса на паузу');
+  const width = await timer.evaluate(element => element.getBoundingClientRect().width);
+  await page.waitForTimeout(300);
+  assert.equal(await timer.evaluate(element => element.getBoundingClientRect().width), width, 'время вопроса не уходит в меню');
+  await page.getByRole('button', { name: 'Закрыть управление и вернуться к ленте' }).tap();
+  assert.equal(await timer.evaluate(element => getComputedStyle(element).animationPlayState), 'running', 'после закрытия вопрос продолжается');
 }
