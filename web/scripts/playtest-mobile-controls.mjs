@@ -3,6 +3,13 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 
+// Небольшие кадры доступны и через API логов, когда среда ревью не может скачать ZIP артефакта.
+// Это только сгенерированная тестовая партия; полные PNG остаются в обычном артефакте CI.
+export async function emitMobilePreview(page, name) {
+  const jpeg = await page.screenshot({ type: 'jpeg', quality: 65, scale: 'css' });
+  console.log(`SOVEREIGN_UI_PREVIEW ${name} ${jpeg.toString('base64')}`);
+}
+
 export async function openChronicleControls(page) {
   const button = page.getByRole('button', { name: 'Управление хроникой', exact: true });
   if (await button.getAttribute('aria-expanded') !== 'true') await button.tap();
@@ -35,6 +42,7 @@ export async function exerciseMobileControls(page, shot) {
     assert.ok(opened.y + opened.height <= 481, 'панель помещается в видимую часть Telegram');
     assert.equal((await page.locator('header').boundingBox()).height, header.height, 'панель не растит шапку');
     await page.screenshot({ path: shot(`mobile-${width}-controls`) });
+    await emitMobilePreview(page, `controls-${width}`);
     const waiting = panel.getByRole('button', { name: /Ждут ответа ·/ });
     if (await waiting.count()) {
       await page.locator('header [aria-label^="Ждут ответа:"]').waitFor();
