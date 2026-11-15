@@ -66,6 +66,12 @@ export async function exerciseMobileControls(page, shot) {
     await country.getByRole('button', { name: 'Закрыть справку и вернуться к ленте' }).tap();
     await page.locator('header [data-res="economy"]').tap();
     const resource = page.locator('.sv-resource-info');
+    await resource.evaluate(async element => {
+      await Promise.all(element.getAnimations({ subtree: true })
+        .filter(animation => animation.effect?.getTiming().iterations !== Infinity)
+        .map(animation => animation.finished.catch(() => {})));
+    });
+    assert.equal(await resource.evaluate(element => getComputedStyle(element).opacity), '1', 'снимок после появления справки');
     const resourceBox = await resource.boundingBox();
     await page.screenshot({ path: shot(`mobile-${width}-pillar`) });
     assert.ok(resourceBox.y + resourceBox.height <= 480 - 24, `справка опоры также помещается в Telegram: ${JSON.stringify(resourceBox)}`);
