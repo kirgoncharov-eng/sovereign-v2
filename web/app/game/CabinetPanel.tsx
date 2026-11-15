@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ADVISOR_ROLES, RESOURCE_KEYS } from '@/lib/game/data.ts';
 import { campaignText } from "@/lib/game/alternate-world.ts";
-import { advisorProfile, loyaltyWord } from '@/lib/game/advisors.ts';
+import { advisorRoleText, advisorProfile, loyaltyWord } from '@/lib/game/advisors.ts';
 import { cabinetCandidates, cabinetEnabled, cabinetPreview, type CabinetAction } from '@/lib/game/cabinet.ts';
 import { knowsAdvisorSkill } from '@/lib/client/advisor-outlook.ts';
 import { formingCabinet, initialAdvisor } from '@/lib/game/cabinet-formation.ts';
@@ -46,10 +46,10 @@ export default function CabinetPanel({ game, onAction }: { game: GameState; onAc
     </header>
     <nav className={styles.seats} aria-label="Должности советников">
       {ADVISOR_ROLES.map(role => <button type="button" key={role.id} aria-pressed={seat === role.id} onClick={() => select(role.id)}>
-        {campaignText(role.role, game.country)}<small>{(forming ? initialAdvisor(game, role.id) : game.advisors.find(person => person.id === role.id))?.name ?? 'Вакансия'}</small>
+        {advisorRoleText(role.role, game.country)}<small>{(forming ? initialAdvisor(game, role.id) : game.advisors.find(person => person.id === role.id))?.name ?? 'Вакансия'}</small>
       </button>)}
     </nav>
-    <h3>{campaignText(role.role, game.country)}</h3>
+    <h3>{advisorRoleText(role.role, game.country)}</h3>
     <div className={styles.current}>
       {current && profile ? <>
         <strong>{current.name}</strong>

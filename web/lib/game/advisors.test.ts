@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { campaignText } from "./alternate-world.ts";
-import { advisorProfile, loyaltyWord, newsLine } from "./advisors.ts";
+import { advisorRoleText, advisorProfile, loyaltyWord, newsLine } from "./advisors.ts";
 import { classicApi } from "./classic.ts";
 import { ADVISOR_BIOS } from "../content/advisors.ts";
 import { COUNTRIES, SAVE_VERSION } from "./data.ts";
@@ -189,11 +188,11 @@ test("сохранённая биография и должность читаю
     const before = structuredClone(advisor);
     const profile = advisorProfile(state, advisor);
     assert.equal(profile.bio, "Социолог по образованию, агитатор по призванию. Опросы читает как чужие письма.");
-    assert.equal(campaignText(advisor.role, state.country), 'Советник по выборам и прессе');
+    assert.equal(advisorRoleText(advisor.role, state.country), 'Советник по выборам и прессе');
     assert.deepEqual(advisor, before, 'чтение не переписывает сохранённого человека');
     for (const country of Object.keys(COUNTRIES).filter(country => country !== state.country)) {
       assert.equal(advisorProfile({ ...state, country }, advisor).bio, advisor.bio, country);
-      assert.equal(campaignText(advisor.role, country), advisor.role, country);
+      assert.equal(advisorRoleText(advisor.role, country), advisor.role, country);
     }
   }
 });
