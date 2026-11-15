@@ -51,6 +51,7 @@ export function advisorProfile(gs: Pick<GameState, "factions"> & Partial<Pick<Ga
   const bios = ADVISOR_BIOS[advisor.id];
   const loyalty = loyaltyOf(advisor);
   const record = advisor.record ?? { right: 0, wrong: 0 };
+  const bio = advisor.bio ?? (bios ? bios[hashSeed(advisor.name, advisor.id, "bio") % bios.length] : null);
   return {
     area: ADVISOR_AREA[advisor.id] ?? null,
     skill: SKILL_WORDS[advisor.skill],
@@ -59,7 +60,7 @@ export function advisorProfile(gs: Pick<GameState, "factions"> & Partial<Pick<Ga
     camp: camp ? { name: camp.name, relation: camp.relation } : null,
     record: { right: record.right, total: record.right + record.wrong },
     // Общий набор биографий написан для современных стран: в 1978 году слова эпохи заменяются, выбор строки тот же.
-    bio: advisor.bio ?? (bios ? campaignText(bios[hashSeed(advisor.name, advisor.id, "bio") % bios.length], gs.country ?? "") : null),
+    bio: bio === null ? null : campaignText(bio, gs.country ?? ""),
     manner: MANNER_LABEL[mannerOf(advisor)],
     origin: originOf(advisor),
     disloyal: isDisloyal(advisor, gs),

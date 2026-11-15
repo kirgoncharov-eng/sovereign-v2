@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { ADVISOR_ROLES, RESOURCE_KEYS } from '@/lib/game/data.ts';
+import { campaignText } from "@/lib/game/alternate-world.ts";
 import { advisorProfile, loyaltyWord } from '@/lib/game/advisors.ts';
 import { cabinetCandidates, cabinetEnabled, cabinetPreview, type CabinetAction } from '@/lib/game/cabinet.ts';
 import { knowsAdvisorSkill } from '@/lib/client/advisor-outlook.ts';
@@ -45,10 +46,10 @@ export default function CabinetPanel({ game, onAction }: { game: GameState; onAc
     </header>
     <nav className={styles.seats} aria-label="Должности советников">
       {ADVISOR_ROLES.map(role => <button type="button" key={role.id} aria-pressed={seat === role.id} onClick={() => select(role.id)}>
-        {role.role}<small>{(forming ? initialAdvisor(game, role.id) : game.advisors.find(person => person.id === role.id))?.name ?? 'Вакансия'}</small>
+        {campaignText(role.role, game.country)}<small>{(forming ? initialAdvisor(game, role.id) : game.advisors.find(person => person.id === role.id))?.name ?? 'Вакансия'}</small>
       </button>)}
     </nav>
-    <h3>{role.role}</h3>
+    <h3>{campaignText(role.role, game.country)}</h3>
     <div className={styles.current}>
       {current && profile ? <>
         <strong>{current.name}</strong>
@@ -71,8 +72,8 @@ export default function CabinetPanel({ game, onAction }: { game: GameState; onAc
       const selected = forming && game.cabinetFormation?.selected[seat] === candidate.id;
       return <article className={styles.candidate} key={candidate.id}>
         <strong>{candidate.name}</strong>
-        <p className={styles.origin}>{candidate.title}{knowsAdvisorSkill(game) && <> · {stars(candidate.skill)}</>} · лояльность: {loyaltyWord(candidate.loyalty)}</p>
-        <p>{candidate.bio}</p>
+        <p className={styles.origin}>{campaignText(candidate.title, game.country)}{knowsAdvisorSkill(game) && <> · {stars(candidate.skill)}</>} · лояльность: {loyaltyWord(candidate.loyalty)}</p>
+        <p>{campaignText(candidate.bio, game.country)}</p>
         <p className={styles.price}>{forming && 'Условия назначения: '}{price(offer.cost)}</p>
         {offer.supportNote && <p className={styles.note}>{offer.supportNote}</p>}
         {offer.reactions.length > 0 && <p>{offer.reactions.map(reaction => `${reaction.name} ${signed(reaction.delta)}`).join(' · ')}</p>}

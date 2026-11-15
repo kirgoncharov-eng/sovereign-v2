@@ -15,6 +15,8 @@ export async function exerciseFormation(page, shot) {
   const before = await saved(page);
   assert.equal(before.cabinetFormation.status, 'pending');
   assert.equal(before.currentEvent, null);
+  await panel.getByText('Советник по выборам и прессе', { exact: true }).waitFor();
+  assert.doesNotMatch(await panel.innerText(), /политтехнолог|пиарщик/i);
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await panel.scrollIntoViewIfNeeded();
@@ -23,6 +25,16 @@ export async function exerciseFormation(page, shot) {
   }
   const choose = async () => {
     await panel.getByRole('button', { name: 'Изменить состав', exact: true }).tap();
+    const council = panel.getByRole('region', { name: 'Совет президента', exact: true });
+    await council.getByRole('button', { name: /^Советник по выборам и прессе/ }).tap();
+    await council.getByRole('heading', { name: 'Советник по выборам и прессе', exact: true }).waitFor();
+    assert.doesNotMatch(await council.innerText(), /политтехнолог|пиарщик/i);
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.screenshot({ path: shot(`formation-strategist-${width}`), fullPage: true });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    }
+    await council.getByRole('button', { name: /^Экономический советник/ }).tap();
     await panel.getByRole('button', { name: 'Выбрать в состав', exact: true }).first().tap();
     await page.waitForFunction(() => Object.keys(JSON.parse(localStorage.getItem('sovereign.save')).state.cabinetFormation.selected).length === 1);
   };

@@ -6,6 +6,7 @@ import { useId, useState } from "react";
 import { knowsAdvisorSkill } from "@/lib/client/advisor-outlook.ts";
 import { isOwnPerson } from "@/lib/game/engine.ts";
 import { OWN_PERSON_TEXT, OWN_LOYALTY_FLOOR } from "@/lib/content/staffing.ts";
+import { campaignText } from "@/lib/game/alternate-world.ts";
 import { advisorProfile } from "@/lib/game/advisors.ts";
 
 const lowerFirst = text => text.charAt(0).toLowerCase() + text.slice(1);
@@ -19,7 +20,7 @@ export function AdvisorCard({ gs, advisor, id, children = null }) {
   const forecasts = profile.record.total ? `верно ${profile.record.right} из ${profile.record.total}` : "ещё не проверялись";
   return (
     <div id={id} className="sv-advisor-card" role="group" aria-label={`Карточка: ${advisor.name}`}>
-      <div className="sv-advisor-card-role">{advisor.role}</div>
+      <div className="sv-advisor-card-role">{campaignText(advisor.role, gs.country)}</div>
       {profile.bio && <p className="sv-advisor-card-bio">{profile.bio}</p>}
       {isOwnPerson(gs, advisor) && <p data-own-person-card>
         {profile.loyalty < OWN_LOYALTY_FLOOR ? OWN_PERSON_TEXT.legacy : OWN_PERSON_TEXT.card}
