@@ -58,6 +58,7 @@ await page.screenshot({ path: shot("0-form") });
 
 const timeline = [];
 const problems = [];
+let waitingNavigationChecked = false;
 const caseArtChecks = [];
 let prologueAfterElection = false, firstDecisionMs = null, stuck = false, memoir = false, resumeChecked = false;
 const resume = { sameRun: null, foreignSnapshotKept: null, formKeptWithoutSnapshot: null, formKeptWithForeign: null };
@@ -203,6 +204,11 @@ if (opened) {
     const title = (await desk.locator("h2").first().innerText()).slice(0, 50);
     decisions++;
     if (decisions === 2 && !CABINET && !FORMATION) await exerciseMobileControls(page, shot);
+    if (!CABINET && !FORMATION && !waitingNavigationChecked
+      && await page.locator('header [aria-label^="Ждут ответа:"]').count()) {
+      await exerciseMobileControls(page, name => shot(`waiting-${name}`), true);
+      waitingNavigationChecked = true;
+    }
     if (SHOT_DECISIONS.includes(decisions)) {
       const art = desk.locator('[data-chronicle-case-art] img[data-scene-art]');
       try {
@@ -261,6 +267,7 @@ if (opened) {
     if (decisions === 1) firstDecisionMs = Date.now() - startedAt;
   }
 }
+if (!CABINET && !FORMATION && DECISIONS >= 6 && !waitingNavigationChecked) problems.push('Не проверена навигация с реальным списком ожидания');
 await wait(1500);
 await page.screenshot({ path: shot("end"), fullPage: true });
 // Финал отдельным кадром экрана (#418): на полном кадре конец длинной ленты выглядит пустым полем и читается как поломка.

@@ -15,9 +15,10 @@ export async function openChronicleControls(page) {
   if (await button.getAttribute('aria-expanded') !== 'true') await button.tap();
 }
 
-export async function exerciseMobileControls(page, shot) {
+export async function exerciseMobileControls(page, shot, requireWaiting = false) {
   const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('sovereign.save')).state);
   const before = await saved(), results = [];
+  let waitingChecks = 0;
   const panel = page.getByRole('complementary', { name: 'Управление хроникой', exact: true });
   const close = () => panel.getByRole('button', { name: 'Закрыть управление и вернуться к ленте' }).tap();
   for (const width of [320, 390]) {
@@ -44,6 +45,7 @@ export async function exerciseMobileControls(page, shot) {
     await page.screenshot({ path: shot(`mobile-${width}-controls`) });
     await emitMobilePreview(page, `controls-${width}`);
     const waiting = panel.getByRole('button', { name: /Ждут ответа ·/ });
+    if (requireWaiting) assert.equal(await waiting.count(), 1, 'сценарий обязательно открывает реальные ожидающие ответы');
     if (await waiting.count()) {
       await page.locator('header [aria-label^="Ждут ответа:"]').waitFor();
       await waiting.tap();
@@ -52,6 +54,7 @@ export async function exerciseMobileControls(page, shot) {
       const closeBox = await panel.getByRole('button', { name: 'Закрыть управление и вернуться к ленте' }).boundingBox();
       assert.ok(closeBox.y >= header.height && closeBox.y + closeBox.height <= 480, 'закрытие длинного списка доступно');
       await page.screenshot({ path: shot(`mobile-${width}-waiting`) });
+      waitingChecks++;
     }
     await close();
     assert.ok(Math.abs(await page.evaluate(() => scrollY) - scrollBefore) <= 1, 'закрытие сохраняет место чтения');
@@ -99,7 +102,8 @@ export async function exerciseMobileControls(page, shot) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Вернуться к текущему решению' }).tap();
   await page.waitForTimeout(800);
-  writeFileSync(shot('mobile-controls').replace(/\.png$/, '.json'), JSON.stringify({ results, problems: [] }, null, 2));
+  if (requireWaiting) assert.equal(waitingChecks, 2, 'список ожидания проверен на обеих ширинах');
+  writeFileSync(shot('mobile-controls').replace(/\.png$/, '.json'), JSON.stringify({ results, waitingChecks, problems: [] }, null, 2));
 }
 
 export async function checkNavigationTimer(page) {
