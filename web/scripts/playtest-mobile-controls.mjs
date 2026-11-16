@@ -15,6 +15,30 @@ export async function openChronicleControls(page) {
   if (await button.getAttribute('aria-expanded') !== 'true') await button.tap();
 }
 
+// На длинной ленте smooth-прокрутка может длиться дольше 800 мс. Ждём результат,
+// затем неподвижность: открытие панели не должно прервать ещё движущуюся страницу.
+async function returnToCurrentDecision(page) {
+  await page.getByRole('button', { name: 'Вернуться к текущему решению' }).tap();
+  await page.waitForFunction(() => {
+    const section = document.querySelector('section[aria-label="Дело на столе"]:not([hidden])');
+    const header = document.querySelector('header');
+    if (!section || !header) return false;
+    const top = section.getBoundingClientRect().top, height = header.getBoundingClientRect().height;
+    return top >= height - 1 && top <= height + 30;
+  }, null, { timeout: 8000 });
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    let last = scrollY, stillSince = performance.now();
+    const started = stillSince;
+    const sample = now => {
+      if (Math.abs(scrollY - last) > 0.5) { last = scrollY; stillSince = now; }
+      if (now - stillSince >= 150) resolve();
+      else if (now - started >= 8000) reject(new Error('Прокрутка к текущему делу не остановилась'));
+      else requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
+}
+
 export async function exerciseMobileControls(page, shot, requireWaiting = false) {
   const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('sovereign.save')).state);
   const before = await saved(), results = [];
@@ -28,8 +52,7 @@ export async function exerciseMobileControls(page, shot, requireWaiting = false)
       document.documentElement.style.setProperty('--tg-viewport-stable-height', '480px');
       document.documentElement.style.setProperty('--tg-safe-area-inset-bottom', '24px');
     });
-    await page.getByRole('button', { name: 'Вернуться к текущему решению' }).tap();
-    await page.waitForTimeout(800);
+    await returnToCurrentDecision(page);
     const header = await page.locator('header').boundingBox();
     assert.ok(header.height <= 112, `шапка ${width}: ${header.height}px`);
     for (const box of await page.locator('header button').evaluateAll(buttons => buttons.map(button => {
@@ -81,8 +104,7 @@ export async function exerciseMobileControls(page, shot, requireWaiting = false)
     await resource.evaluate(element => { element.scrollTop = element.scrollHeight; });
     await resource.locator('.sv-resource-info-heading button').tap();
     await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
-    await page.getByRole('button', { name: 'Вернуться к текущему решению' }).tap();
-    await page.waitForTimeout(800);
+    await returnToCurrentDecision(page);
     const section = await page.locator('section[aria-label="Дело на столе"]:not([hidden])').boundingBox();
     assert.ok(section.y >= header.height - 1 && section.y <= header.height + 30, 'возврат приводит к заголовку дела');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'нет горизонтальной прокрутки');
@@ -100,8 +122,7 @@ export async function exerciseMobileControls(page, shot, requireWaiting = false)
   await page.screenshot({ path: shot('mobile-desktop-control') });
   assert.deepEqual(await saved(), before, 'навигация не подписывает решение и не меняет состояние партии');
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'Вернуться к текущему решению' }).tap();
-  await page.waitForTimeout(800);
+  await returnToCurrentDecision(page);
   if (requireWaiting) assert.equal(waitingChecks, 2, 'список ожидания проверен на обеих ширинах');
   writeFileSync(shot('mobile-controls').replace(/\.png$/, '.json'), JSON.stringify({ results, waitingChecks, problems: [] }, null, 2));
 }
