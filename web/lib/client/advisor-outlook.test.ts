@@ -136,3 +136,19 @@ test('умение скрыто на сложных уровнях обычно�
     assert.equal(knowsAdvisorSkill({ ...state, daily: 'daily', diff }), true);
   }
 });
+
+
+test('должность в докладе учитывает эпоху, не меняя сохранённого советника (#310, E06)', async () => {
+  for (const [seed, diff] of [[1, 'debut'], [7, 'coalition'], [19, 'crisis'], [33, 'ruins']] as const) {
+    const state = await nextCase(await newTerm(startFromSeed(seed, diff)));
+    const person = state.advisors.find(advisor => advisor.id === 'strategist')!;
+    const before = structuredClone(state);
+    assert.equal(person.role, 'Политтехнолог', 'исходная должность в сохранении прежняя');
+    const source = sourceFor(state, person.id);
+    assert.equal(source.role, 'Советник по выборам и прессе');
+    assert.equal(source.name, person.name);
+    assert.equal(source.skill, person.skill);
+    for (const country of LEGACY_COUNTRIES) assert.equal(sourceFor({ ...state, country }, person.id).role, person.role, country);
+    assert.deepEqual(state, before, 'чтение доклада не меняет партию');
+  }
+});

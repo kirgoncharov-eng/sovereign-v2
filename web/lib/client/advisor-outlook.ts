@@ -3,7 +3,7 @@ import { ALTERNATE_COUNTRY } from '../game/alternate-world.ts';
 import { ADVISOR_ROLES, RESOURCE_KEYS } from '../game/data.ts';
 import { authoredDebate, isPresidentialDiscussion } from '../game/presidential-story.ts';
 import { hashSeed, loyaltyOf, saboteurOf, successChance } from '../game/engine.ts';
-import { isDisloyal, loyaltyWord } from '../game/advisors.ts';
+import { advisorRoleText, isDisloyal, loyaltyWord } from '../game/advisors.ts';
 import { executionProfile } from '../game/execution-risk.ts';
 import { RESOURCE_TITLE } from '../content/resource-names.ts';
 import type { AdvisorNews, Choice, GameState, ResourceKey } from '../game/types.ts';
@@ -38,7 +38,7 @@ export function advisorSigningState(state: GameState): GameState {
 }
 export function sourceFor(state: GameState, id: string): OutlookSource {
   const person = state.advisors.find(member => member.id === id);
-  return person ? { id, name: person.name, role: person.role, skill: person.skill, loyalty: loyaltyWord(loyaltyOf(person)) }
+  return person ? { id, name: person.name, role: advisorRoleText(person.role, state.country), skill: person.skill, loyalty: loyaltyWord(loyaltyOf(person)) }
     : { id, name: 'Канцелярия', role: 'советник не назначен', skill: 0, loyalty: '' };
 }
 export function resolutionPeople(state: GameState, choice: Choice) {
