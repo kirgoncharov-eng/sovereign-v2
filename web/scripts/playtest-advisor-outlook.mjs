@@ -22,7 +22,9 @@ const bundle = await build({ stdin: { contents: `import React from 'react'; impo
       c={{...window.fixture.currentEvent.choices[0], advisor: window.fixture.advisors[0]}}/></details>
     <details id="review"><summary>Ведомость после срыва</summary><ForecastReview lines={window.review}/></details></>);`, resolveDir: root, loader: 'jsx' },
   bundle: true, write: false, outfile: 'outlook.js', jsx: 'automatic', format: 'iife',
-  define: { 'process.env.NODE_ENV': '"production"' },
+  // Классический компонент использует те же публичные настройки, что автономное демо.
+  define: { 'process.env.NODE_ENV': '"production"', 'process.env.NEXT_PUBLIC_ANALYTICS': '"off"',
+    'process.env.NEXT_PUBLIC_SHARE_URL': '""', 'process.env.NEXT_PUBLIC_BOT_USERNAME': '""' },
   plugins: [{ name: 'aliases', setup(builder) {
     builder.onResolve({ filter: /^@\// }, args => ({ path: join(root, args.path.slice(2)) }));
   } }],
