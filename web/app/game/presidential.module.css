@@ -556,6 +556,10 @@
 .prologueOverlay {
   position: fixed;
   inset: 0;
+  box-sizing: border-box;
+  max-height: min(100dvh, var(--tg-viewport-stable-height, 100dvh));
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   z-index: 9999;
   background: #0d1210;
   color: #ddcfaf;
@@ -567,8 +571,13 @@
 }
 
 .prologueInner {
+  --prologue-safe-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px), var(--tg-content-safe-area-inset-top, 0px));
+  --prologue-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px));
   max-width: 540px;
   width: 100%;
+  margin-block: auto;
+  /* У оверлея уже есть 24px вертикального отступа. */
+  padding-block: max(0px, calc(var(--prologue-safe-top) - 24px)) max(0px, calc(var(--prologue-safe-bottom) - 24px));
   text-align: center;
 }
 
@@ -598,6 +607,7 @@
 }
 
 .prologueSkip {
+  min-height: 44px;
   font: 13px var(--font-ptmono), monospace;
   letter-spacing: .06em;
   color: #8c8167;
