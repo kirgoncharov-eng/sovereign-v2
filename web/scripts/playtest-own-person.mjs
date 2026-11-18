@@ -1,3 +1,4 @@
+import { openChronicleControls } from './playtest-mobile-controls.mjs';
 // Телефон: реальные кандидаты и обработчики подписи; опоры/нехватка сил заданы явно для пограничного сценария.
 // После npm run build:demo: node scripts/playtest-own-person.mjs
 import { dirname, resolve } from "node:path";
@@ -147,6 +148,7 @@ try {
     candidate,
     resources: hired.resources,
   });
+  await openChronicleControls(page);
   await page.getByRole("button", { name: "Люди", exact: true }).tap();
   const people = page.getByRole("complementary", { name: "Люди" });
   await people

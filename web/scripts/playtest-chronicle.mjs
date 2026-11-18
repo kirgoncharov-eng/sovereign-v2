@@ -1,3 +1,4 @@
+import { openChronicleControls, exerciseMobileControls, checkNavigationTimer, emitMobilePreview } from './playtest-mobile-controls.mjs';
 // Плейтест «Хроники срока» (#302) в браузере на экране телефона: новая партия 1978 года с титула идёт в хронике.
 // Играет демо-сборку (npm run build:demo) или адрес из --url: анкета ЦИК, пролог вступления, дела первыми вариантами,
 // бюджет, пресс-конференции, звонки и разговоры; обращения откладывает. Пишет кадры ходов 1–3 и сводку в --out.
@@ -57,6 +58,7 @@ await page.screenshot({ path: shot("0-form") });
 
 const timeline = [];
 const problems = [];
+let waitingNavigationChecked = false;
 const caseArtChecks = [];
 let prologueAfterElection = false, firstDecisionMs = null, stuck = false, memoir = false, resumeChecked = false;
 const resume = { sameRun: null, foreignSnapshotKept: null, formKeptWithoutSnapshot: null, formKeptWithForeign: null };
@@ -70,6 +72,7 @@ async function checkFormResume() {
   await wait(1200);
   const name = await leader();
   const reopen = async () => {
+    await openChronicleControls(page);
     await page.getByRole("button", { name: "Меню игры" }).tap();
     await page.getByRole("button", { name: /Продолжить сохранённую игру/ }).tap();
     await chronicle.waitFor({ timeout: 10_000 });
@@ -97,6 +100,7 @@ const mainSave = () => page.evaluate(() => {
 async function checkResume() {
   await wait(1200);
   const before = await mainSave();
+  await openChronicleControls(page);
   await page.getByRole("button", { name: "Меню игры" }).tap();
   await page.getByRole("button", { name: /Продолжить сохранённую игру/ }).tap();
   await chronicle.waitFor({ timeout: 10_000 });
@@ -104,6 +108,7 @@ async function checkResume() {
   const after = await mainSave();
   resume.sameRun = !!before?.run && after?.run === before.run && after?.screen === "chronicle" && after.turn === before.turn;
   const own = await page.evaluate(() => localStorage.getItem("sovereign.chronicle.game"));
+  await openChronicleControls(page);
   await page.getByRole("button", { name: "Меню игры" }).tap();
   await page.evaluate(raw => {
     const foreign = JSON.parse(raw);
@@ -157,6 +162,7 @@ async function measure() {
 }
 
 if (opened) {
+  await openChronicleControls(page);
   await page.getByRole("button", { name: "Сразу" }).tap();
   await checkFormResume();
   for (const name of ["Дальше", "Дальше", "Дальше", "Подать документы в ЦИК"]) await page.getByRole("button", { name }).tap();
@@ -197,6 +203,12 @@ if (opened) {
     const text = await desk.innerText();
     const title = (await desk.locator("h2").first().innerText()).slice(0, 50);
     decisions++;
+    if (decisions === 2 && !CABINET && !FORMATION) await exerciseMobileControls(page, shot);
+    if (!CABINET && !FORMATION && !waitingNavigationChecked
+      && await page.locator('header [aria-label^="Ждут ответа:"]').count()) {
+      await exerciseMobileControls(page, name => shot(`waiting-${name}`), true);
+      waitingNavigationChecked = true;
+    }
     if (SHOT_DECISIONS.includes(decisions)) {
       const art = desk.locator('[data-chronicle-case-art] img[data-scene-art]');
       try {
@@ -208,13 +220,20 @@ if (opened) {
         caseArtChecks.push({ decision: decisions, src: await art.getAttribute('data-scene-art') });
       } catch { problems.push(`нет загруженной иллюстрации дела ${decisions}: ${title}`); }
     }
-    if (SHOT_DECISIONS.includes(decisions)) await page.screenshot({ path: shot(`decision-${decisions}`), fullPage: true });
+    if (SHOT_DECISIONS.includes(decisions)) {
+      await page.screenshot({ path: shot(`decision-${decisions}`), fullPage: true });
+      await page.getByRole('button', { name: 'Вернуться к текущему решению' }).tap();
+      await wait(800);
+      await page.screenshot({ path: shot(`decision-${decisions}-viewport`) });
+      if (!CABINET && !FORMATION) await emitMobilePreview(page, `decision-${decisions}`);
+    }
     if (/УТВЕРДИТЬ БЮДЖЕТ/.test(text)) {
       timeline.push(`${decisions} · бюджет · ${title}`);
       await desk.getByRole("button", { name: /УТВЕРДИТЬ БЮДЖЕТ/ }).tap();
     } else if (/ВЫЙТИ К ЖУРНАЛИСТАМ/.test(text)) {
       timeline.push(`${decisions} · пресс-конференция · ${title}`);
       await desk.getByRole("button", { name: /ВЫЙТИ К ЖУРНАЛИСТАМ/ }).tap();
+      await checkNavigationTimer(page);
       for (let q = 0; q < 6; q++) {
         await wait(300);
         const answer = desk.locator(".sv-paper button").filter({ hasText: /«/ });
@@ -248,6 +267,7 @@ if (opened) {
     if (decisions === 1) firstDecisionMs = Date.now() - startedAt;
   }
 }
+if (!CABINET && !FORMATION && DECISIONS >= 6 && !waitingNavigationChecked) problems.push('Не проверена навигация с реальным списком ожидания');
 await wait(1500);
 await page.screenshot({ path: shot("end"), fullPage: true });
 // Финал отдельным кадром экрана (#418): на полном кадре конец длинной ленты выглядит пустым полем и читается как поломка.

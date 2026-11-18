@@ -1,3 +1,4 @@
+import { openChronicleControls } from './playtest-mobile-controls.mjs';
 // Дополнение к настоящему пути playtest-chronicle.mjs: без подмены состояния и изолированного стенда.
 import assert from 'node:assert/strict';
 
@@ -12,7 +13,7 @@ async function reloadChronicle(page) {
   await page.reload({ waitUntil: 'domcontentloaded' });
   // Встроенная игра после reload открывает титул; возвращаемся штатной кнопкой, не подставляем снимок.
   await page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
-  await page.getByRole('button', { name: 'Команда', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Управление хроникой', exact: true }).waitFor();
 }
 
 export async function exerciseCabinet(page, decision, shot) {
@@ -21,6 +22,7 @@ export async function exerciseCabinet(page, decision, shot) {
   if (decision === 1) offeredRoster = before.cabinet.roster;
   if (decision === 2) assert.deepEqual(before.cabinet.roster, offeredRoster, 'новый квартал не переименовал резерв');
   const team = page.getByRole('button', { name: 'Команда', exact: true });
+  await openChronicleControls(page);
   await team.tap();
   const sheet = page.getByRole('complementary', { name: 'Команда', exact: true });
   const panel = sheet.getByRole('region', { name: 'Совет президента' });
@@ -53,6 +55,7 @@ export async function exerciseCabinet(page, decision, shot) {
     const recorded = await notices(page);
     assert.equal(recorded.length, 1, 'указ записан в хронику один раз');
     await reloadChronicle(page);
+    await openChronicleControls(page);
     await team.tap();
     await panel.getByText('Должность вакантна', { exact: true }).waitFor();
     const restored = await saved(page);
@@ -65,6 +68,7 @@ export async function exerciseCabinet(page, decision, shot) {
     await first.waitFor();
     assert.match(await first.locator('[aria-label^="Экономика:"]').getAttribute('aria-label'), /^Экономика: \?/,
       'игрок видит неизвестную оценку при вакансии, а не прежнего советника');
+    await openChronicleControls(page);
     await team.tap();
   } else if (decision === 2) {
     assert.equal(economist(before), undefined, 'прошёл целый квартал с вакансией');
@@ -83,6 +87,7 @@ export async function exerciseCabinet(page, decision, shot) {
     await close();
     await reloadChronicle(page);
     assert.deepEqual((await saved(page)).advisors, hired.advisors, 'reload сохраняет назначение');
+    await openChronicleControls(page);
     await team.tap();
     await panel.getByText(economist(hired).name, { exact: true }).first().waitFor();
   } else {

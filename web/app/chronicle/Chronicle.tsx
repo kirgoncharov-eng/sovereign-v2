@@ -145,6 +145,8 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   const [view, setView] = useState<string | null>(null);
   const [stops, setStops] = useState<StopMemory>(EMPTY_STOPS);
   const [waitingOpen, setWaitingOpen] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(false);
+  const controlsButton = useRef<HTMLButtonElement>(null);
   // Справка из шапки: окно опоры, «Страна» или «Люди». Пока она открыта, лента стоит.
   const [sheet, setSheet] = useState<ResourceKey | "country" | "people" | "cabinet" | null>(null);
   // Пролог игры — утро вступления в должность: после победы на выборах, перед речью. Пока он идёт, лента стоит.
@@ -175,7 +177,19 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     duckForCall(false);
     setAmbientFocus(false);
   }, []);
-  useEffect(() => { setAmbientFocus(!!sheet || waitingOpen); }, [sheet, waitingOpen]);
+  useEffect(() => { setAmbientFocus(!!sheet || waitingOpen || controlsOpen); }, [sheet, waitingOpen, controlsOpen]);
+  useEffect(() => {
+    if (!sheet && !waitingOpen && !controlsOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setSheet(null);
+      setWaitingOpen(false);
+      setControlsOpen(false);
+      controlsButton.current?.focus({ preventScroll: true });
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [sheet, waitingOpen, controlsOpen]);
   // Хроника внутри игры шлёт те же события аналитики, что `/game`; отдельная страница прототипа — нет.
   const embedded = !!entry;
   // Снимок ленты: у хроники внутри игры свой ключ, у страницы-прототипа — свой.
@@ -240,11 +254,11 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   }, [queue]);
 
   useEffect(() => {
-    if (!queue.length || paused || hidden || sheet || inauguration || speed === "all") return;
+    if (!queue.length || paused || hidden || sheet || waitingOpen || controlsOpen || inauguration || speed === "all") return;
     // Первая строка хроники — почти сразу: пустой лист с точками на первом экране не должен ждать паузы на чтение.
     const timer = setTimeout(revealNext, shown.length ? delayFor(queue[0], speed) : 300);
     return () => clearTimeout(timer);
-  }, [queue, paused, hidden, sheet, inauguration, speed, revealNext, shown.length]);
+  }, [queue, paused, hidden, sheet, waitingOpen, controlsOpen, inauguration, speed, revealNext, shown.length]);
 
   const forming = formingCabinet(game);
   const deciding = !queue.length && !busy && !over && !inauguration && !!(step || stop || form || forming);
@@ -262,6 +276,8 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   // Новое дело или обращение всегда открываем с заголовка, даже если прежнее дочитывали вниз;
   // строки хроники — следуя за последней, только если игрок сам не прокрутил ленту назад.
   useEffect(() => {
+    // Подпись могла завершиться, пока игрок открыл справку: новое дело ждёт закрытия панели.
+    if (sheet || waitingOpen || controlsOpen) return;
     if (decision && decision !== shownDecision.current) {
       shownDecision.current = decision;
       if (form) pageFx();
@@ -297,9 +313,9 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     }
     if (!following.current || deciding) return;
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [shown.length, deciding, decision, form, stop, step, game, page, rivals, forming]);
+  }, [shown.length, deciding, decision, form, stop, step, game, page, rivals, forming, sheet, waitingOpen, controlsOpen]);
 
-  // Высота шапки меняется с кнопкой «Ждут ответа» и раскрытым списком: по ней дело встаёт под шапку, а не за неё.
+  // Учитываем настоящую высоту двух рядов и безопасный отступ Telegram при переходе к делу.
   useEffect(() => {
     const element = bar.current;
     if (!element) return;
@@ -315,6 +331,7 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     setSpeed(next);
     speedRef.current = next;
     setPaused(false);
+    setControlsOpen(false);
     if (next === "all" && queue.length) {
       pageFx();
       if (queue.some(line => line.kind === "ledger") && pendingResources.current) setVisibleResources(pendingResources.current);
@@ -463,6 +480,7 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     setStop(item);
     setView(null);
     setWaitingOpen(false);
+    setControlsOpen(false);
     setStops(rememberStop(opened, item, stops));
   };
 
@@ -563,6 +581,26 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
   const current = shown.at(-1)?.date;
   const waiting = game && event && !form && !over ? openStops(game) : [];
   const endingCause = game?.ended ? endCause(game) : null;
+  const closeNavigation = () => {
+    setControlsOpen(false);
+    setWaitingOpen(false);
+    controlsButton.current?.focus({ preventScroll: true });
+  };
+  const openSheet = (next: typeof sheet) => {
+    mapUnfoldFx(sheet !== next);
+    setControlsOpen(false);
+    setWaitingOpen(false);
+    setSheet(open => open === next ? null : next);
+  };
+  const returnToDecision = () => {
+    clickFx();
+    setSheet(null);
+    setControlsOpen(false);
+    setWaitingOpen(false);
+    requestAnimationFrame(() => (form || stop || forming ? caseRef : deskRef).current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start",
+    }));
+  };
 
   useEffect(() => {
     if (!visibleResources) return;
@@ -580,35 +618,61 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
     {inauguration && <PrologueCutscene state={inauguration} onComplete={() => setInauguration(null)} />}
     {/* Таймер ответа на пресс-конференции стоит, пока поверх дела открыта справка, список «Ждут ответа» или пауза:
         игрок не теряет вопрос, пока смотрит страну или людей. */}
-    <main className={`${styles.desk}${sheet || waitingOpen || paused ? ` ${styles.timersPaused}` : ""}`}>
+    <main className={`${styles.desk}${sheet || waitingOpen || controlsOpen || paused ? ` ${styles.timersPaused}` : ""}`}>
       <header ref={bar} className={styles.bar}>
         <div className={styles.barTop}>
           <span className={styles.now}>{current ? `${MONTHS[current.month]} ${current.year}` : "1978"}</span>
-          <div className={styles.speeds} role="group" aria-label="Темп хроники">
-            {SPEEDS.map(s => (
-              <button key={s.id} aria-pressed={speed === s.id && !paused} onClick={() => chooseSpeed(s.id)}>{s.label}</button>
-            ))}
-            <button aria-pressed={paused} aria-label={paused ? "Продолжить" : "Пауза"} onClick={() => { clickFx(); setPaused(p => !p); }}>{paused ? "▶" : "❚❚"}</button>
+          <div className={styles.navigation}>
+            {deciding && <button onClick={returnToDecision} aria-label="Вернуться к текущему решению">
+              {form ? "К анкете" : stop ? "К письму" : forming ? "К команде" : "К делу"}
+            </button>}
+            <button ref={controlsButton} aria-expanded={controlsOpen || waitingOpen} aria-controls="chronicle-navigation"
+              aria-label="Управление хроникой" onClick={() => {
+                clickFx(); setSheet(null); setWaitingOpen(false); setControlsOpen(!(controlsOpen || waitingOpen));
+              }}>
+              {controlsOpen || waitingOpen ? "Закрыть" : "Управление"}
+              {waiting.length > 0 && <span className={styles.badge} aria-label={`Ждут ответа: ${waiting.length}`}>{waiting.length}</span>}
+            </button>
           </div>
         </div>
         {visibleResources && <div className={styles.hud} aria-label="Опоры власти">
           {/* data-res — как у опор в шапке `/game`: окно опоры не закрывается касанием по самой опоре, его закрывает переключатель. */}
           {HUD.map(h => <button key={h.key} data-res={h.key} aria-expanded={sheet === h.key} disabled={!game || !!form || forming}
-            onClick={() => { mapUnfoldFx(sheet !== h.key); setSheet(open => open === h.key ? null : h.key); }}><small>{h.label}</small>
+            onClick={() => openSheet(h.key)}><small>{h.label}</small>
             <span className={styles.pillar}><ResIcon k={h.key} size={13} />{visibleResources[h.key]}</span></button>)}
-        </div>}
-        {game && !form && !forming && <div className={styles.sheets} role="group" aria-label="Справка">
-          <button aria-expanded={sheet === "country"} onClick={() => { mapUnfoldFx(sheet !== "country"); setSheet(open => open === "country" ? null : "country"); }}>Страна</button>
-          <button aria-expanded={sheet === "people"} onClick={() => { mapUnfoldFx(sheet !== "people"); setSheet(open => open === "people" ? null : "people"); }}>Люди</button>
-          {cabinetEnabled(game) && !over && <button disabled={busy} aria-expanded={sheet === "cabinet"}
-            onClick={() => { mapUnfoldFx(sheet !== "cabinet"); setSheet(open => open === "cabinet" ? null : "cabinet"); }}>Команда</button>}
-          {waiting.length > 0 && <button className={styles.waitingButton} aria-expanded={waitingOpen} onClick={() => { clickFx(); setWaitingOpen(open => !open); }}
-            disabled={busy}>Ждут ответа · {waiting.length}</button>}
         </div>}
         {game && sheet && sheet !== "country" && sheet !== "people" && sheet !== "cabinet" && <ResourceInfo key={sheet} gs={game} kind={sheet} canAct={canAct}
           onClose={() => { mapUnfoldFx(false); setSheet(null); }} onInitiative={(id: string) => { stampFx(); commit(signInitiative(game, id)); }}
           onWorldAction={(id: string) => { stampFx(); commit(actOnLetter(game, id)); }} />}
-        {waiting.length > 0 && waitingOpen && <div className={styles.waiting}>
+      </header>
+
+      {(controlsOpen || waitingOpen) && <aside id="chronicle-navigation" className={styles.sheet} aria-label="Управление хроникой">
+        <div className={`sv-paper ${styles.sheetPaper}`}>
+          <div className={styles.sheetHead}>
+            <strong>{waitingOpen ? "Ждут ответа" : "Управление"}</strong>
+            <button onClick={closeNavigation} aria-label="Закрыть управление и вернуться к ленте">×</button>
+          </div>
+          {controlsOpen && <>
+            <div className={styles.speeds} role="group" aria-label="Темп хроники">
+              {SPEEDS.map(s => <button key={s.id} aria-pressed={speed === s.id && !paused} onClick={() => chooseSpeed(s.id)}>{s.label}</button>)}
+              <button aria-pressed={paused} aria-label={paused ? "Продолжить" : "Пауза"}
+                onClick={() => { clickFx(); setPaused(p => !p); closeNavigation(); }}>{paused ? "▶" : "❚❚"}</button>
+            </div>
+            {game && !form && !forming && <div className={styles.sheets} role="group" aria-label="Справка">
+              <button onClick={() => openSheet("country")}>Страна</button>
+              <button onClick={() => openSheet("people")}>Люди</button>
+              {cabinetEnabled(game) && !over && <button disabled={busy} onClick={() => openSheet("cabinet")}>Команда</button>}
+              {waiting.length > 0 && <button className={styles.waitingButton} disabled={busy}
+                onClick={() => { clickFx(); setControlsOpen(false); setWaitingOpen(true); }}>Ждут ответа · {waiting.length}</button>}
+            </div>}
+            <div className={styles.navigationSettings}>
+              <button aria-pressed={soundEnabled} onClick={() => { const next = !soundEnabled; setSound(next); if (next) clickFx(); }}>
+                {soundEnabled ? "Звук: вкл" : "Звук: выкл"}
+              </button>
+              {onMenu && <button onClick={() => { closeNavigation(); clickFx(); onMenu(); }}>Меню игры</button>}
+            </div>
+          </>}
+        {waitingOpen && <div className={styles.waiting}>
           <ul>{waiting.map(item => <li key={item.key}>
             <button onClick={() => openWaiting(item)} aria-current={stop?.key === item.key || undefined}>
               <small>{senderOf(game!, item)}{item.deadline !== undefined ? item.message?.action === 'groups'
@@ -617,7 +681,8 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
             </button>
           </li>)}</ul>
         </div>}
-      </header>
+        </div>
+      </aside>}
 
       {game && (sheet === "country" || sheet === "people" || sheet === "cabinet") && <aside className={styles.sheet}
         aria-label={sheet === "country" ? "Страна" : sheet === "cabinet" ? "Команда" : "Люди"}>
@@ -642,13 +707,6 @@ export default function Chronicle({ entry, onState, onFinish, onMenu, onFallback
         <div className={styles.masthead}>
           <h1>Хроника срока</h1>
           <p>Неманская республика{start && !embedded ? ` · зерно ${start.seed}` : ""}</p>
-          <div className={styles.mastheadActions}>
-            {onMenu && <button className={styles.menu} onClick={e => { e.stopPropagation(); clickFx(); onMenu(); }}>Меню игры</button>}
-            <button className={styles.menu} aria-pressed={soundEnabled}
-              onClick={e => { e.stopPropagation(); const next = !soundEnabled; setSound(next); if (next) clickFx(); }}>
-              {soundEnabled ? "Звук: вкл" : "Звук: выкл"}
-            </button>
-          </div>
           {!storageAvailable && <p>Сохранение недоступно или повреждено: после закрытия страницы срок начнётся заново.</p>}
         </div>
         {shown.map((line, i) => {
