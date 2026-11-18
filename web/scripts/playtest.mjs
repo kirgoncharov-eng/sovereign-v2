@@ -38,6 +38,33 @@ async function openGame(page) {
   return page.goto(withDesk(`file://${file}`), { waitUntil: "domcontentloaded" });
 }
 
+async function checkPrologueInTelegram(page, prologue, problems) {
+  const viewport = page.viewportSize();
+  const stableHeight = 480;
+  const safeBottom = 24;
+  await page.evaluate(({ stableHeight, safeBottom }) => {
+    document.documentElement.style.setProperty("--tg-viewport-stable-height", `${stableHeight}px`);
+    document.documentElement.style.setProperty("--tg-safe-area-inset-bottom", `${safeBottom}px`);
+  }, { stableHeight, safeBottom });
+  await prologue.evaluate(async element => {
+    await Promise.all(element.getAnimations().map(animation => animation.finished));
+  });
+  const skip = prologue.getByRole("button", { name: /пропустить/i });
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 640 });
+    const box = await skip.boundingBox();
+    if (!box || box.y < 0 || box.y + box.height > stableHeight - safeBottom || box.height < 44) {
+      problems.add(`пролог ${width}px: кнопка пропуска вне видимой области или ниже 44px (${JSON.stringify(box)})`);
+    }
+    await page.screenshot({ path: shot(`0-prologue-telegram-${width}`), clip: { x: 0, y: 0, width, height: stableHeight } });
+  }
+  await page.evaluate(() => {
+    document.documentElement.style.removeProperty("--tg-viewport-stable-height");
+    document.documentElement.style.removeProperty("--tg-safe-area-inset-bottom");
+  });
+  await page.setViewportSize(viewport);
+}
+
 // Какое дело на столе: от этого зависит, как его пройти.
 const kindOf = page => page.evaluate(() => {
   const text = document.body.innerText;
@@ -136,6 +163,7 @@ const prologue = page.getByRole("dialog");
 await prologue.waitFor({ timeout: 8000 });
 const prologueDate = await prologue.locator("[data-prologue-date]").innerText();
 await page.screenshot({ path: shot("0-prologue") });
+await checkPrologueInTelegram(page, prologue, layoutProblems);
 await page.keyboard.press("Enter");
 await prologue.waitFor({ state: "hidden", timeout: 3000 });
 await wait(300);
