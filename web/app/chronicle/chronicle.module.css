@@ -1,10 +1,12 @@
 /* «Хроника срока» (#298): тёмный стол, один бумажный лист на весь срок. У каждого вида строки свой голос. */
-.desk { min-height: 100vh; background: var(--bg-deep); color: #2f2a22; padding: 0 0 72px; }
+.desk { --chronicle-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px));
+  min-height: 100vh; background: var(--bg-deep); color: #2f2a22; padding: 0 0 calc(72px + var(--chronicle-safe-bottom)); }
 .desk button { cursor: pointer; font: inherit; color: inherit; }
 .desk button:focus-visible, .desk a:focus-visible { outline: 3px solid #b08a4a; outline-offset: 2px; }
 
 .bar { position: sticky; top: 0; z-index: 5; background: #1c1a17f2; border-bottom: 2px solid #000;
-  color: var(--txt); padding: 8px 16px 6px; backdrop-filter: blur(2px); }
+  color: var(--txt); padding: max(4px, var(--tg-safe-area-inset-top, 0px), var(--tg-content-safe-area-inset-top, 0px)) 12px 4px;
+  backdrop-filter: blur(2px); }
 .barTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; max-width: 680px; margin: 0 auto; }
 .now { font: 18px var(--font-pixel); color: var(--gold); text-transform: lowercase; white-space: nowrap;
   min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -19,7 +21,7 @@
   .speeds button { padding: 4px 6px; font-size: 14px; }
 }
 .speeds button[aria-pressed="true"] { background: var(--gold); color: var(--on-gold); border-color: var(--gold); }
-.hud { display: flex; justify-content: space-between; gap: 6px; max-width: 680px; margin: 6px auto 0;
+.hud { display: flex; justify-content: space-between; gap: 6px; max-width: 680px; margin: 2px auto 0;
   font: 16px var(--font-pixel); color: var(--txt); }
 .hud span { display: flex; flex-direction: column; align-items: center; min-width: 0; }
 /* #425: у числа в шапке тот же значок, что у опоры в вариантах дела — иначе стрелки в деле не с чем сопоставить. */
@@ -155,18 +157,26 @@
 .priceNote { color: var(--tx2); }
 
 /* #302 · 2b: справка из шапки — опоры открывают своё окно, «Страна» и «Люди» — лист поверх ленты. */
-.hud button { display: flex; flex-direction: column; align-items: center; min-width: 0; min-height: 40px; padding: 2px 0;
+.hud button { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 44px; padding: 2px 0;
   background: transparent; border: 1px solid transparent; font: inherit; color: inherit; }
 .hud button[aria-expanded="true"] { border-color: var(--gold); }
 .hud button:disabled { cursor: default; }
+/* ResourceInfo задаёт inline maxHeight по window.innerHeight; в Telegram видимая область может быть меньше.
+   Только в хронике ограничиваем её контрактом WebView, оставляя место также для анимации появления. */
+.bar :global(.sv-resource-info) { box-sizing: border-box; overscroll-behavior: contain;
+  max-height: max(0px, calc(min(100dvh, var(--tg-viewport-stable-height, 100dvh)) - var(--chronicle-bar, 100px) - 24px - var(--chronicle-safe-bottom))) !important; }
 .sheets { display: flex; flex-wrap: wrap; gap: 6px; max-width: 680px; margin: 6px auto 0; }
 .sheets button { flex: 1; min-height: 36px; background: transparent; border: 1px solid var(--bdr2); color: var(--tx2);
   font: 15px var(--font-narrow); letter-spacing: .04em; }
 .sheets button[aria-expanded="true"] { background: var(--gold); color: var(--on-gold); border-color: var(--gold); }
-.sheet { position: fixed; z-index: 6; left: 0; right: 0; top: calc(var(--chronicle-bar, 128px)); bottom: 0; overflow: auto;
-  background: #000a; padding: 8px 16px 24px; }
+.sheet { position: fixed; z-index: 6; left: 0; right: 0; top: var(--chronicle-bar, 100px);
+  height: max(0px, calc(min(100dvh, var(--tg-viewport-stable-height, 100dvh)) - var(--chronicle-bar, 100px)));
+  box-sizing: border-box; overflow: auto; overscroll-behavior: contain;
+  background: #000d; padding: 8px max(8px, var(--tg-safe-area-inset-right, 0px)) calc(24px + var(--chronicle-safe-bottom))
+    max(8px, var(--tg-safe-area-inset-left, 0px)); }
 .sheetPaper { max-width: 680px; margin: 0 auto; padding: 12px 14px 18px; }
-.sheetHead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.sheetHead { position: sticky; top: -8px; z-index: 1; display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px; background: var(--bg2); padding: 4px 0; }
 .sheetHead strong { font: 700 20px var(--font-narrow); letter-spacing: .06em; text-transform: uppercase; }
 .sheetHead button { min-width: 44px; min-height: 44px; font-size: 24px; background: transparent; border: 1px solid var(--bdr2); color: var(--txt); }
 
@@ -182,6 +192,25 @@
 .menu { min-height: 36px; padding: 4px 12px; background: transparent; border: 1px solid #8d8166;
   font: 14px var(--font-narrow); color: #4f483a; letter-spacing: .04em; }
 .menu[aria-pressed="true"] { background: #ded3b3; border-color: #6f6550; color: #2f2a22; }
+.navigation { display: flex; gap: 6px; flex-shrink: 0; }
+.navigation button { display: flex; align-items: center; gap: 5px; min-height: 44px; padding: 6px 8px;
+  border: 1px solid var(--bdr2); background: transparent; color: var(--txt); font: 16px var(--font-narrow); }
+.navigation button[aria-expanded="true"] { border-color: var(--gold); }
+.badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 3px;
+  border-radius: 3px; background: var(--gold); color: var(--on-gold); font: 14px var(--font-narrow); }
+.sheet .speeds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) 44px; gap: 6px; }
+.sheet .speeds button, .sheet .sheets button { min-height: 44px; font-size: 16px; padding: 6px; }
+.sheet .sheets { gap: 8px; margin-top: 16px; }
+.navigationSettings { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.navigationSettings button { min-height: 44px; border: 1px solid var(--bdr2); background: transparent; color: var(--txt);
+  padding: 8px; font: 16px var(--font-narrow); }
+.sheet .waiting { margin-top: 0; }
+.sheet .waiting ul { max-height: none; overflow: visible; }
+@media (max-width: 360px) {
+  .bar { padding-left: 8px; padding-right: 8px; }
+  .navigation { gap: 4px; }
+  .navigation button { padding: 6px; font-size: 14px; }
+}
 .again button { display: block; width: 100%; text-align: center; padding: 13px; border: 2px solid #2f2a22; background: #2f2a22;
   color: #eee5ca; font: 700 18px var(--font-narrow); letter-spacing: .04em; }
 

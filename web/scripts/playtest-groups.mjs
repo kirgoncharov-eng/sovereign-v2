@@ -1,3 +1,4 @@
+import { openChronicleControls } from './playtest-mobile-controls.mjs';
 // Реальная хроника: сохранение у первого предложения → ответ → встречный ход → отгрузка.
 // Исходное сохранение получено через обычные дела; после загрузки — только действия в UI.
 import assert from 'node:assert/strict';
@@ -32,11 +33,13 @@ const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem('sover
 async function resume(page) {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /Продолжить сохранённую игру/ }).tap();
+  await openChronicleControls(page);
   await page.getByRole('button', { name: 'Сразу', exact: true }).tap();
 }
 async function openGroups(page) {
   const panel = page.locator('[data-group-initiative]');
   if (await panel.isVisible()) return panel;
+  await openChronicleControls(page);
   await page.getByRole('button', { name: /Ждут ответа/ }).tap();
   await page.getByRole('button', { name: /Экспортный заказ и местное топливо|Области удерживают топливо|Встречное предложение областей/ }).tap();
   await panel.waitFor();

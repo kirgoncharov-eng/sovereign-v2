@@ -1,3 +1,4 @@
+import { openChronicleControls } from './playtest-mobile-controls.mjs';
 // #339 / P08: реальные доступные/заблокированные подписи в мобильной хронике.
 // npm run build:demo && node scripts/playtest-actionable-stops.mjs
 import assert from 'node:assert/strict';
@@ -60,6 +61,7 @@ async function shot(page, name) {
 }
 async function noEmptyProposal(game, name) {
   const { page, context } = await fixture(game);
+  await openChronicleControls(page);
   const waiting = page.getByRole('button', { name: /Ждут ответа ·/ });
   assert.ok(await waiting.count(), 'обязательные обращения остаются');
   await waiting.tap();
