@@ -32,5 +32,9 @@
 .experts summary { cursor:pointer; color:var(--tx2, #625a48); }
 .experts > div { margin-top:6px; }
 .camps { display:flex; flex-direction:column; gap:3px; }
+.quarterWarning { margin-top:14px; padding:10px 12px; border-left:3px solid var(--red); background:var(--bg2); font-size:15px; overflow-wrap:anywhere; }
+.quarterWarning > strong { color:var(--red); }
+.quarterWarning p > span { display:block; }
+.quarterWarning small { display:block; color:var(--tx2, #625a48); font-size:13px; line-height:1.4; }
 .sign { display:block; width:100%; min-height:44px; margin-top:14px; padding:10px 16px; border:0; background:var(--txt, #28251d); color:var(--paper, #eee5ce); font-family:inherit; font-size:18px; font-weight:700; cursor:pointer; }
 @media (max-width:360px) { .pick { padding:13px 14px; } .detail { padding:0 14px 14px; } .title { font-size:17px; } }
