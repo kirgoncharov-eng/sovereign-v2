@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { advisorProfile, loyaltyWord, newsLine } from "./advisors.ts";
+import { advisorRoleText, advisorProfile, loyaltyWord, newsLine } from "./advisors.ts";
 import { classicApi } from "./classic.ts";
 import { ADVISOR_BIOS } from "../content/advisors.ts";
 import { COUNTRIES, SAVE_VERSION } from "./data.ts";
@@ -177,4 +177,22 @@ test("карточка советника в 1978 году без слов др�
     }
   }
   assert.ok(replaced > 0, "в проверенных именах встретилась заменённая биография");
+});
+
+
+test("сохранённая биография и должность читаются в эпохе партии без изменения сохранения (#310, E06)", async () => {
+  for (const [seed, difficulty] of [[1, 'debut'], [7, 'coalition'], [19, 'crisis'], [33, 'ruins']] as const) {
+    const state = createInitialState("Беларусь · 1978", difficulty, "pragmatist",
+      await classicApi.setup("Беларусь · 1978", difficulty, "pragmatist", seed), seededRandom(seed));
+    const advisor = { ...state.advisors.find(person => person.id === 'strategist')!, role: 'Политтехнолог', bio: ADVISOR_BIOS.strategist[3] };
+    const before = structuredClone(advisor);
+    const profile = advisorProfile(state, advisor);
+    assert.equal(profile.bio, "Социолог по образованию, агитатор по призванию. Опросы читает как чужие письма.");
+    assert.equal(advisorRoleText(advisor.role, state.country), 'Советник по выборам и прессе');
+    assert.deepEqual(advisor, before, 'чтение не переписывает сохранённого человека');
+    for (const country of Object.keys(COUNTRIES).filter(country => country !== state.country)) {
+      assert.equal(advisorProfile({ ...state, country }, advisor).bio, advisor.bio, country);
+      assert.equal(advisorRoleText(advisor.role, country), advisor.role, country);
+    }
+  }
 });

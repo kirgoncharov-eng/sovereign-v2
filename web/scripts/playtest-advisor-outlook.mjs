@@ -12,14 +12,19 @@ const out = resolve(process.argv.find(arg => arg.startsWith('--out='))?.slice(6)
 mkdirSync(out, { recursive: true });
 const bundle = await build({ stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client';
   import ResolutionChoices from './app/game/ResolutionChoices.tsx';
+  import { ChoicePreview } from './app/game/SovereignGame.jsx';
   import { AdvisorCard } from './app/game/AdvisorCard.jsx';
   import ForecastReview from './app/game/ForecastReview.tsx';
   createRoot(document.getElementById('root')).render(<><ResolutionChoices game={window.fixture} busy={false} dialogue={window.dialogue}
     onSign={choice=>{document.body.dataset.signed=choice.id;}}/><details id="dossier"><summary>Досье команды</summary>
     <AdvisorCard gs={window.fixture} advisor={window.fixture.advisors[0]} id="advisor-card"/></details>
+    <details id="classic"><summary>Классическое предложение</summary><ChoicePreview gs={window.fixture}
+      c={{...window.fixture.currentEvent.choices[0], advisor: window.fixture.advisors[0]}}/></details>
     <details id="review"><summary>Ведомость после срыва</summary><ForecastReview lines={window.review}/></details></>);`, resolveDir: root, loader: 'jsx' },
   bundle: true, write: false, outfile: 'outlook.js', jsx: 'automatic', format: 'iife',
-  define: { 'process.env.NODE_ENV': '"production"' },
+  // Классический компонент использует те же публичные настройки, что автономное демо.
+  define: { 'process.env.NODE_ENV': '"production"', 'process.env.NEXT_PUBLIC_ANALYTICS': '"off"',
+    'process.env.NEXT_PUBLIC_SHARE_URL': '""', 'process.env.NEXT_PUBLIC_BOT_USERNAME': '""' },
   plugins: [{ name: 'aliases', setup(builder) {
     builder.onResolve({ filter: /^@\// }, args => ({ path: join(root, args.path.slice(2)) }));
   } }],
@@ -78,12 +83,21 @@ try {
     const risk = advisorOutlook(game, game.currentEvent.choices[0]).risk;
     assert.ok((await details.innerText()).includes(risk.text));
     await details.locator('summary').click();
+    assert.ok((await details.innerText()).includes('Советник по выборам и прессе'));
+    assert.doesNotMatch(await details.innerText(), /политтехнолог/i);
     assert.equal((await details.innerText()).includes('★'), diff === 'debut');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
     await page.screenshot({ path: join(out, `${name}-selected.png`), fullPage: true });
     await page.locator('#dossier > summary').click();
     const dossier = await page.locator('#dossier').innerText();
     assert.equal(dossier.includes('★'), diff === 'debut', 'досье не раскрывает скрытую компетентность');
+    if (width < 400 && diff === 'debut' && skill === 3) {
+      await page.locator('#classic > summary').click();
+      const classic = await page.locator('#classic').innerText();
+      assert.ok(classic.includes('советник по выборам и прессе'));
+      assert.doesNotMatch(classic, /политтехнолог/i);
+      await page.screenshot({ path: join(out, `${name}-classic-role.png`), fullPage: true });
+    }
     await details.getByRole('button', { name: 'Подписать', exact: true }).click();
     assert.equal(await page.locator('body').getAttribute('data-signed'), game.currentEvent.choices[0].id);
     await page.locator('#review > summary').click();

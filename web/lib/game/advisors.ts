@@ -1,5 +1,5 @@
 // Карточка советника: всё, что президент может быстро проверить о человеке из своего окружения.
-import { campaignText } from "./alternate-world.ts";
+import { ALTERNATE_COUNTRY, campaignText } from "./alternate-world.ts";
 import { hashSeed, isDisloyal, loyaltyOf } from "./engine.ts";
 import { ADVISOR_AREA, ADVISOR_BIOS, ADVISOR_BLOC, ADVISOR_CAMP_BY_NAME, LOYALTY_WORDS, MANNER_LABEL, NEWS_REASON, SKILL_WORDS } from "../content/advisors.ts";
 import { MANNERS, type Manner } from "../content/forecasts.ts";
@@ -44,6 +44,10 @@ export interface AdvisorProfile {
   dossier: { fact: string; used: boolean } | null;
 }
 
+// Только подпись на экране: общий справочник и сохранённая должность остаются прежними.
+export const advisorRoleText = (role: string, country: string) => country === ALTERNATE_COUNTRY && role === 'Политтехнолог'
+  ? 'Советник по выборам и прессе' : role;
+
 export const loyaltyWord = (loyalty: number) => LOYALTY_WORDS.find(([from]) => loyalty >= from)![1];
 
 export function advisorProfile(gs: Pick<GameState, "factions"> & Partial<Pick<GameState, "country" | "daily">>, advisor: Advisor): AdvisorProfile {
@@ -51,6 +55,7 @@ export function advisorProfile(gs: Pick<GameState, "factions"> & Partial<Pick<Ga
   const bios = ADVISOR_BIOS[advisor.id];
   const loyalty = loyaltyOf(advisor);
   const record = advisor.record ?? { right: 0, wrong: 0 };
+  const bio = advisor.bio ?? (bios ? bios[hashSeed(advisor.name, advisor.id, "bio") % bios.length] : null);
   return {
     area: ADVISOR_AREA[advisor.id] ?? null,
     skill: SKILL_WORDS[advisor.skill],
@@ -59,7 +64,7 @@ export function advisorProfile(gs: Pick<GameState, "factions"> & Partial<Pick<Ga
     camp: camp ? { name: camp.name, relation: camp.relation } : null,
     record: { right: record.right, total: record.right + record.wrong },
     // Общий набор биографий написан для современных стран: в 1978 году слова эпохи заменяются, выбор строки тот же.
-    bio: advisor.bio ?? (bios ? campaignText(bios[hashSeed(advisor.name, advisor.id, "bio") % bios.length], gs.country ?? "") : null),
+    bio: bio === null ? null : campaignText(bio, gs.country ?? ""),
     manner: MANNER_LABEL[mannerOf(advisor)],
     origin: originOf(advisor),
     disloyal: isDisloyal(advisor, gs),

@@ -26,7 +26,7 @@ import NegotiationCall from "./NegotiationCall.jsx";
 import { effectiveLaw, lawDef } from "@/lib/game/laws.ts";
 import { debate } from "@/lib/game/forecasts.ts";
 import { ORDINAL } from "@/lib/content/forecasts.ts";
-import { advisorProfile, newsLine } from "@/lib/game/advisors.ts";
+import { advisorRoleText, advisorProfile, newsLine } from "@/lib/game/advisors.ts";
 import { countryNotes, governmentNote, inboxRows, sheetAlerts, staffNote } from "@/lib/client/country-people.ts";
 import AdvisorName, { AdvisorCard } from "./AdvisorCard.jsx";
 import StaffPanel, { DossierActions } from "./StaffPanel.jsx";
@@ -381,12 +381,12 @@ function StampHit({ text = "К ИСПОЛНЕНИЮ", sub = "РЕЗОЛЮЦИЯ 
   );
 }
 
-function choiceStampLabel(c) {
+function choiceStampLabel(c, country) {
   if (!c) return { text: "К ИСПОЛНЕНИЮ", sub: "РЕЗОЛЮЦИЯ · 1978" };
   if (c.law) return { text: "УТВЕРЖДЕНО", sub: `ВХ. № ${c.law.id ?? "ЗАКОН"} · 1978`, kind: "green" };
   if (c.tags?.includes("delay") || c.tags?.includes("refuse")) return { text: "ОТКЛОНЕНО", sub: "БЕЗ ДВИЖЕНИЯ", kind: "red" };
   if (c.deal) return { text: "СОГЛАСОВАНО", sub: "ПРОТОКОЛ · 1978", kind: "green" };
-  if (c.advisor) return { text: "ПО СОВЕТУ", sub: `${c.advisor.role.toUpperCase()} · 1978`, kind: "default" };
+  if (c.advisor) return { text: "ПО СОВЕТУ", sub: `${advisorRoleText(c.advisor.role, country).toUpperCase()} · 1978`, kind: "default" };
   return { text: "К ИСПОЛНЕНИЮ", sub: "РЕЗОЛЮЦИЯ · 1978", kind: "default" };
 }
 
@@ -402,7 +402,7 @@ export function ChoicePreview({ gs, c, debated = false }) {
       {c.advisor && (
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
           <Portrait name={c.advisor.name} size={30}/>
-          <span className="sv-hand" style={{ fontSize:18, lineHeight:1.2 }}>предлагает {c.advisor.name}, {c.advisor.role.toLowerCase()} {stars(c.advisor.skill)}</span>
+          <span className="sv-hand" style={{ fontSize:18, lineHeight:1.2 }}>предлагает {c.advisor.name}, {advisorRoleText(c.advisor.role, gs.country).toLowerCase()} {stars(c.advisor.skill)}</span>
         </div>
       )}
       {ownPersonCarries(gs, c) && <p data-own-person-crisis>{OWN_PERSON_TEXT.crisis}</p>}
@@ -1407,7 +1407,7 @@ export function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
       {(choice, index) => <button {...optProps(choice, index)}
         style={{ display:"block", width:"100%", textAlign:"left", padding:16, background:G.bg3, border:`1px solid ${G.bdr2}`, color:G.txt, position:"relative" }}>
         <ChoicePreview gs={gs} c={choice}/>
-        {stamping === choice.id && <StampHit {...choiceStampLabel(choice)} style={{ right: 20 }}/>}
+        {stamping === choice.id && <StampHit {...choiceStampLabel(choice, gs.country)} style={{ right: 20 }}/>}
       </button>}
     </PresidentialCouncil>;
   }
@@ -1447,13 +1447,13 @@ export function CouncilPanel({ gs, onConvened, optProps, stamping, debated }) {
         {(choice, index) => <button {...optProps(choice, index)}
           style={{ display:"block", width:"100%", textAlign:"left", padding:16, background:G.bg3, border:`1px solid ${G.bdr2}`, color:G.txt, position:"relative" }}>
           <ChoicePreview gs={gs} c={choice}/>
-          {stamping === choice.id && <StampHit {...choiceStampLabel(choice)} style={{ right: 20 }}/>}
+          {stamping === choice.id && <StampHit {...choiceStampLabel(choice, gs.country)} style={{ right: 20 }}/>}
         </button>}
       </PresidentialCouncil> : proposals?.length ? proposals.map((c, i) => (
         <button key={c.id} {...optProps(c, i)}
           style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 16px", marginBottom:6, borderRadius:0, background:"transparent", border:`1px dashed ${G.bdr2}`, color:G.txt, position:"relative" }}>
           <ChoicePreview gs={gs} c={c}/>
-          {stamping === c.id && <StampHit {...choiceStampLabel(c)} style={{ right: 20 }}/>}
+          {stamping === c.id && <StampHit {...choiceStampLabel(c, gs.country)} style={{ right: 20 }}/>}
         </button>
       )) : (
         <>
@@ -2893,7 +2893,7 @@ function Intro({ gs, onGo }) {
                   <Portrait name={a.name} size={38}/>
                   <div style={{ minWidth:0 }}>
                     <div style={{ fontFamily:serif, fontSize:16, fontWeight:700 }}>{a.name}</div>
-                    <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{a.role}</div>
+                    <div style={{ fontFamily:narrow, fontSize:15, color:G.tx3 }}>{advisorRoleText(a.role, gs.country)}</div>
                   </div>
                 </div>
                 {knowsAdvisorSkill(gs) && <span style={{ fontFamily:narrow, fontSize:15, color:G.gold }} title={ADVISOR_SKILL[a.skill].label}>{stars(a.skill)}</span>}
@@ -3038,7 +3038,7 @@ export function PeopleSheet({ gs, onDossier, onHire, onInbox, onCabinetAction })
         const profile = advisorProfile(gs, advisor);
         const color = profile.loyalty >= 55 ? G.grn : profile.loyalty >= 35 ? G.amb : G.red;
         return (
-          <PersonRow key={advisor.id} name={advisor.name} line={`${advisor.role} · ${profile.loyaltyWord}`}
+          <PersonRow key={advisor.id} name={advisor.name} line={`${advisorRoleText(advisor.role, gs.country)} · ${profile.loyaltyWord}`}
             value={profile.loyalty} valueColor={color} warn={profile.harmful ? "вредит" : profile.disloyal ? "нелоялен" : null}>
             <AdvisorCard gs={gs} advisor={advisor}>
               <DossierActions gs={gs} advisor={advisor} onDossier={onDossier}/>
@@ -3688,7 +3688,7 @@ function Game({ gs, setGs, onEnd, onMenu, recap, onRecapDone }) {
                     style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 24px 14px 52px", background:"transparent", border:"none", borderTop:`1px solid ${G.bdr}`, color:G.txt, position:"relative" }}>
                     <span style={{ position:"absolute", left:22, top:13, fontFamily:serif, fontWeight:700, fontSize:18, color:G.tx3 }}>{i + 1}.</span>
                     <ChoicePreview gs={gs} c={c} debated={!!takes}/>
-                    {stamping === c.id && <StampHit {...choiceStampLabel(c)}/>}
+                    {stamping === c.id && <StampHit {...choiceStampLabel(c, gs.country)}/>}
                   </button>
                 ))}
                 <div style={{ padding:"0 24px 12px" }}>

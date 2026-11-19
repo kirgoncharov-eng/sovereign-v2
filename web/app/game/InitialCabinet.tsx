@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import CabinetPanel from './CabinetPanel.tsx';
 import { ADVISOR_ROLES, RESOURCE_KEYS } from '@/lib/game/data.ts';
-import { advisorProfile } from '@/lib/game/advisors.ts';
+import { advisorRoleText, advisorProfile } from '@/lib/game/advisors.ts';
 import { cabinetCandidates, type CabinetAction } from '@/lib/game/cabinet.ts';
 import { initialAdvisor, initialCabinetPreview, resetInitialCabinet, selectInitialAdvisor } from '@/lib/game/cabinet-formation.ts';
 import { knowsAdvisorSkill } from '@/lib/client/advisor-outlook.ts';
@@ -39,7 +39,7 @@ export default function InitialCabinet({ game, onChange, onConfirm, busy = false
         const advisor = initialAdvisor(game, role.id)!;
         const profile = advisorProfile(game, advisor);
         return <article className={styles.formationPerson} key={role.id}>
-          <small>{role.role}</small><strong>{advisor.name}</strong>
+          <small>{advisorRoleText(role.role, game.country)}</small><strong>{advisor.name}</strong>
           <p>{knowsAdvisorSkill(game) && <>{'★'.repeat(advisor.skill)}{'☆'.repeat(3 - advisor.skill)} · </>}
             Лояльность: {profile.loyaltyWord}</p>
           {profile.bio && <p>{profile.bio}</p>}
